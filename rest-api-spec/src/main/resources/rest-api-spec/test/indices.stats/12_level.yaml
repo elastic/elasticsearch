@@ -15,10 +15,6 @@ setup:
           id:    1
           body:  { "foo": "baz" }
 
-  - do:
-      cluster.health:
-          wait_for_status: yellow
-
 ---
 "Level - blank":
   - do:

@@ -25,7 +25,7 @@ import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.lucene53.Lucene53Codec;
 import org.apache.lucene.codecs.lucene54.Lucene54Codec;
-import org.apache.lucene.codecs.lucene60.Lucene60Codec;
+import org.apache.lucene.codecs.lucene62.Lucene62Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -36,10 +36,8 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -49,7 +47,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
@@ -58,7 +55,7 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene60Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene62Codec.class));
         assertThat(codecService.codec("Lucene54"), instanceOf(Lucene54Codec.class));
         assertThat(codecService.codec("Lucene53"), instanceOf(Lucene53Codec.class));
         assertThat(codecService.codec("Lucene50"), instanceOf(Lucene50Codec.class));
@@ -92,15 +89,16 @@ public class CodecTests extends ESTestCase {
         dir.close();
     }
 
-    private static CodecService createCodecService() throws IOException {
-        Settings nodeSettings = settingsBuilder()
+    private CodecService createCodecService() throws IOException {
+        Settings nodeSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(settings);
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());
-        MapperService service = new MapperService(settings, analysisService, similarityService, mapperRegistry, () -> null);
+        MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
+                () -> null);
         return new CodecService(service, ESLoggerFactory.getLogger("test"));
     }
 

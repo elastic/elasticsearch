@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
+import org.apache.lucene.analysis.StopwordAnalyzerBase;
 
 public class DummyAnalyzer extends StopwordAnalyzerBase {
 

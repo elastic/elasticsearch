@@ -22,66 +22,26 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
-public class TransportInfo implements Streamable, ToXContent {
+public class TransportInfo implements Writeable, ToXContent {
 
     private BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
-
-    TransportInfo() {
-    }
 
     public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses) {
         this.address = address;
         this.profileAddresses = profileAddresses;
     }
 
-    static final class Fields {
-        static final XContentBuilderString TRANSPORT = new XContentBuilderString("transport");
-        static final XContentBuilderString BOUND_ADDRESS = new XContentBuilderString("bound_address");
-        static final XContentBuilderString PUBLISH_ADDRESS = new XContentBuilderString("publish_address");
-        static final XContentBuilderString PROFILES = new XContentBuilderString("profiles");
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.TRANSPORT);
-        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
-        builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
-        builder.startObject(Fields.PROFILES);
-        if (profileAddresses != null && profileAddresses.size() > 0) {
-            for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
-                builder.startObject(entry.getKey());
-                builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
-                builder.field(Fields.PUBLISH_ADDRESS, entry.getValue().publishAddress().toString());
-                builder.endObject();
-            }
-        }
-        builder.endObject();
-        builder.endObject();
-        return builder;
-    }
-
-    public static TransportInfo readTransportInfo(StreamInput in) throws IOException {
-        TransportInfo info = new TransportInfo();
-        info.readFrom(in);
-        return info;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public TransportInfo(StreamInput in) throws IOException {
         address = BoundTransportAddress.readBoundTransportAddress(in);
         int size = in.readVInt();
         if (size > 0) {
@@ -108,6 +68,32 @@ public class TransportInfo implements Streamable, ToXContent {
                 entry.getValue().writeTo(out);
             }
         }
+    }
+
+    static final class Fields {
+        static final String TRANSPORT = "transport";
+        static final String BOUND_ADDRESS = "bound_address";
+        static final String PUBLISH_ADDRESS = "publish_address";
+        static final String PROFILES = "profiles";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.TRANSPORT);
+        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
+        builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
+        builder.startObject(Fields.PROFILES);
+        if (profileAddresses != null && profileAddresses.size() > 0) {
+            for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
+                builder.field(Fields.PUBLISH_ADDRESS, entry.getValue().publishAddress().toString());
+                builder.endObject();
+            }
+        }
+        builder.endObject();
+        builder.endObject();
+        return builder;
     }
 
     public BoundTransportAddress address() {

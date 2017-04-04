@@ -19,19 +19,24 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
-/**
- *
- */
 public class XContentMapValues {
 
     /**
@@ -40,7 +45,7 @@ public class XContentMapValues {
      */
     public static List<Object> extractRawValues(String path, Map<String, Object> map) {
         List<Object> values = new ArrayList<>();
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return values;
         }
@@ -93,7 +98,7 @@ public class XContentMapValues {
     }
 
     public static Object extractValue(String path, Map<String, Object> map) {
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return null;
         }
@@ -134,115 +139,179 @@ public class XContentMapValues {
         return null;
     }
 
-    public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
-        Map<String, Object> result = new HashMap<>();
-        filter(map, result, includes == null ? Strings.EMPTY_ARRAY : includes, excludes == null ? Strings.EMPTY_ARRAY : excludes, new StringBuilder());
-        return result;
+    /**
+     * Only keep properties in {@code map} that match the {@code includes} but
+     * not the {@code excludes}. An empty list of includes is interpreted as a
+     * wildcard while an empty list of excludes does not match anything.
+     *
+     * If a property matches both an include and an exclude, then the exclude
+     * wins.
+     *
+     * If an object matches, then any of its sub properties are automatically
+     * considered as matching as well, both for includes and excludes.
+     *
+     * Dots in field names are treated as sub objects. So for instance if a
+     * document contains {@code a.b} as a property and {@code a} is an include,
+     * then {@code a.b} will be kept in the filtered map.
+     */
+    public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
+        return filter(includes, excludes).apply(map);
     }
 
-    private static void filter(Map<String, Object> map, Map<String, Object> into, String[] includes, String[] excludes, StringBuilder sb) {
-        if (includes.length == 0 && excludes.length == 0) {
-            into.putAll(map);
-            return;
+    /**
+     * Returns a function that filters a document map based on the given include and exclude rules.
+     * @see #filter(Map, String[], String[]) for details
+     */
+    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
+        CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
+
+        CharacterRunAutomaton include;
+        if (includes == null || includes.length == 0) {
+            include = matchAllAutomaton;
+        } else {
+            Automaton includeA = Regex.simpleMatchToAutomaton(includes);
+            includeA = makeMatchDotsInFieldNames(includeA);
+            include = new CharacterRunAutomaton(includeA);
         }
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
+
+        Automaton excludeA;
+        if (excludes == null || excludes.length == 0) {
+            excludeA = Automata.makeEmpty();
+        } else {
+            excludeA = Regex.simpleMatchToAutomaton(excludes);
+            excludeA = makeMatchDotsInFieldNames(excludeA);
+        }
+        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
+
+        // NOTE: We cannot use Operations.minus because of the special case that
+        // we want all sub properties to match as soon as an object matches
+
+        return (map) -> filter(map,
+            include, 0,
+            exclude, 0,
+            matchAllAutomaton);
+    }
+
+    /** Make matches on objects also match dots in field names.
+     *  For instance, if the original simple regex is `foo`, this will translate
+     *  it into `foo` OR `foo.*`. */
+    private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
+        return Operations.union(
+                automaton,
+                Operations.concatenate(Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString())));
+    }
+
+    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+        for (int i = 0; state != -1 && i < key.length(); ++i) {
+            state = automaton.step(state, key.charAt(i));
+        }
+        return state;
+    }
+
+    private static Map<String, Object> filter(Map<String, ?> map,
+            CharacterRunAutomaton includeAutomaton, int initialIncludeState,
+            CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
+            CharacterRunAutomaton matchAllAutomaton) {
+        Map<String, Object> filtered = new HashMap<>();
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
-            int mark = sb.length();
-            if (sb.length() > 0) {
-                sb.append('.');
-            }
-            sb.append(key);
-            String path = sb.toString();
 
-            if (Regex.simpleMatch(excludes, path)) {
-                sb.setLength(mark);
+            int includeState = step(includeAutomaton, key, initialIncludeState);
+            if (includeState == -1) {
                 continue;
             }
 
-            boolean exactIncludeMatch = false; // true if the current position was specifically mentioned
-            boolean pathIsPrefixOfAnInclude = false; // true if potentially a sub scope can be included
-            if (includes.length == 0) {
-                // implied match anything
-                exactIncludeMatch = true;
+            int excludeState = step(excludeAutomaton, key, initialExcludeState);
+            if (excludeState != -1 && excludeAutomaton.isAccept(excludeState)) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+
+            CharacterRunAutomaton subIncludeAutomaton = includeAutomaton;
+            int subIncludeState = includeState;
+            if (includeAutomaton.isAccept(includeState)) {
+                if (excludeState == -1 || excludeAutomaton.step(excludeState, '.') == -1) {
+                    // the exclude has no chances to match inner properties
+                    filtered.put(key, value);
+                    continue;
+                } else {
+                    // the object matched, so consider that the include matches every inner property
+                    // we only care about excludes now
+                    subIncludeAutomaton = matchAllAutomaton;
+                    subIncludeState = 0;
+                }
+            }
+
+            if (value instanceof Map) {
+
+                subIncludeState = subIncludeAutomaton.step(subIncludeState, '.');
+                if (subIncludeState == -1) {
+                    continue;
+                }
+                if (excludeState != -1) {
+                    excludeState = excludeAutomaton.step(excludeState, '.');
+                }
+
+                Map<String, Object> valueAsMap = (Map<String, Object>) value;
+                Map<String, Object> filteredValue = filter(valueAsMap,
+                        subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
+                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
+                    filtered.put(key, filteredValue);
+                }
+
+            } else if (value instanceof Iterable) {
+
+                List<Object> filteredValue = filter((Iterable<?>) value,
+                        subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.put(key, filteredValue);
+                }
+
             } else {
-                for (String include : includes) {
-                    // check for prefix matches as well to see if we need to zero in, something like: obj1.arr1.* or *.field
-                    // note, this does not work well with middle matches, like obj1.*.obj3
-                    if (include.charAt(0) == '*') {
-                        if (Regex.simpleMatch(include, path)) {
-                            exactIncludeMatch = true;
-                            break;
-                        }
-                        pathIsPrefixOfAnInclude = true;
-                        continue;
-                    }
-                    if (include.startsWith(path)) {
-                        if (include.length() == path.length()) {
-                            exactIncludeMatch = true;
-                            break;
-                        } else if (include.length() > path.length() && include.charAt(path.length()) == '.') {
-                            // include might may match deeper paths. Dive deeper.
-                            pathIsPrefixOfAnInclude = true;
-                            continue;
-                        }
-                    }
-                    if (Regex.simpleMatch(include, path)) {
-                        exactIncludeMatch = true;
-                        break;
-                    }
+
+                // leaf property
+                if (includeAutomaton.isAccept(includeState)
+                        && (excludeState == -1 || excludeAutomaton.isAccept(excludeState) == false)) {
+                    filtered.put(key, value);
                 }
+
             }
 
-            if (!(pathIsPrefixOfAnInclude || exactIncludeMatch)) {
-                // skip subkeys, not interesting.
-                sb.setLength(mark);
-                continue;
-            }
-
-
-            if (entry.getValue() instanceof Map) {
-                Map<String, Object> innerInto = new HashMap<>();
-                // if we had an exact match, we want give deeper excludes their chance
-                filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
-                if (exactIncludeMatch || !innerInto.isEmpty()) {
-                    into.put(entry.getKey(), innerInto);
-                }
-            } else if (entry.getValue() instanceof List) {
-                List<Object> list = (List<Object>) entry.getValue();
-                List<Object> innerInto = new ArrayList<>(list.size());
-                // if we had an exact match, we want give deeper excludes their chance
-                filter(list, innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
-                into.put(entry.getKey(), innerInto);
-            } else if (exactIncludeMatch) {
-                into.put(entry.getKey(), entry.getValue());
-            }
-            sb.setLength(mark);
         }
+        return filtered;
     }
 
-    private static void filter(List<Object> from, List<Object> to, String[] includes, String[] excludes, StringBuilder sb) {
-        if (includes.length == 0 && excludes.length == 0) {
-            to.addAll(from);
-            return;
-        }
-
-        for (Object o : from) {
-            if (o instanceof Map) {
-                Map<String, Object> innerInto = new HashMap<>();
-                filter((Map<String, Object>) o, innerInto, includes, excludes, sb);
-                if (!innerInto.isEmpty()) {
-                    to.add(innerInto);
+    private static List<Object> filter(Iterable<?> iterable,
+            CharacterRunAutomaton includeAutomaton, int initialIncludeState,
+            CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
+            CharacterRunAutomaton matchAllAutomaton) {
+        List<Object> filtered = new ArrayList<>();
+        boolean isInclude = includeAutomaton.isAccept(initialIncludeState);
+        for (Object value : iterable) {
+            if (value instanceof Map) {
+                int includeState = includeAutomaton.step(initialIncludeState, '.');
+                int excludeState = initialExcludeState;
+                if (excludeState != -1) {
+                    excludeState = excludeAutomaton.step(excludeState, '.');
                 }
-            } else if (o instanceof List) {
-                List<Object> innerInto = new ArrayList<>();
-                filter((List<Object>) o, innerInto, includes, excludes, sb);
-                if (!innerInto.isEmpty()) {
-                    to.add(innerInto);
+                Map<String, Object> filteredValue = filter((Map<String, ?>)value,
+                        includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.add(filteredValue);
                 }
-            } else {
-                to.add(o);
+            } else if (value instanceof Iterable) {
+                List<Object> filteredValue = filter((Iterable<?>) value,
+                        includeAutomaton, initialIncludeState, excludeAutomaton, initialExcludeState, matchAllAutomaton);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.add(filteredValue);
+                }
+            } else if (isInclude) {
+                // #22557: only accept this array value if the key we are on is accepted:
+                filtered.add(value);
             }
         }
+        return filtered;
     }
 
     public static boolean isObject(Object node) {
@@ -290,7 +359,7 @@ public class XContentMapValues {
 
     public static int nodeIntegerValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).intValue();
+            return Numbers.toIntExact((Number) node);
         }
         return Integer.parseInt(node.toString());
     }
@@ -299,10 +368,7 @@ public class XContentMapValues {
         if (node == null) {
             return defaultValue;
         }
-        if (node instanceof Number) {
-            return ((Number) node).intValue();
-        }
-        return Integer.parseInt(node.toString());
+        return nodeIntegerValue(node);
     }
 
     public static short nodeShortValue(Object node, short defaultValue) {
@@ -314,7 +380,7 @@ public class XContentMapValues {
 
     public static short nodeShortValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).shortValue();
+            return Numbers.toShortExact((Number) node);
         }
         return Short.parseShort(node.toString());
     }
@@ -328,7 +394,7 @@ public class XContentMapValues {
 
     public static byte nodeByteValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).byteValue();
+            return Numbers.toByteExact((Number) node);
         }
         return Byte.parseByte(node.toString());
     }
@@ -342,44 +408,34 @@ public class XContentMapValues {
 
     public static long nodeLongValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).longValue();
+            return Numbers.toLongExact((Number) node);
         }
         return Long.parseLong(node.toString());
     }
 
-    /**
-     * This method is very lenient, use {@link #nodeBooleanValue} instead.
-     */
-    public static boolean lenientNodeBooleanValue(Object node, boolean defaultValue) {
-        if (node == null) {
-            return defaultValue;
+    public static boolean nodeBooleanValue(Object node, String name, boolean defaultValue) {
+        try {
+            return nodeBooleanValue(node, defaultValue);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean", ex);
         }
-        return lenientNodeBooleanValue(node);
     }
 
-    /**
-     * This method is very lenient, use {@link #nodeBooleanValue} instead.
-     */
-    public static boolean lenientNodeBooleanValue(Object node) {
-        if (node instanceof Boolean) {
-            return (Boolean) node;
+    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
+        String nodeValue = node == null ? null : node.toString();
+        return Booleans.parseBoolean(nodeValue, defaultValue);
+    }
+
+    public static boolean nodeBooleanValue(Object node, String name) {
+        try {
+            return nodeBooleanValue(node);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean", ex);
         }
-        if (node instanceof Number) {
-            return ((Number) node).intValue() != 0;
-        }
-        String value = node.toString();
-        return !(value.equals("false") || value.equals("0") || value.equals("off"));
     }
 
     public static boolean nodeBooleanValue(Object node) {
-        switch (node.toString()) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        default:
-            throw new IllegalArgumentException("Can't parse boolean value [" + node + "], expected [true] or [false]");
-        }
+        return Booleans.parseBoolean(node.toString());
     }
 
     public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {

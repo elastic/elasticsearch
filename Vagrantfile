@@ -30,8 +30,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config
   end
-  config.vm.define "ubuntu-1504" do |config|
-    config.vm.box = "elastic/ubuntu-15.04-x86_64"
+  config.vm.define "ubuntu-1604" do |config|
+    config.vm.box = "elastic/ubuntu-16.04-x86_64"
     ubuntu_common config, extra: <<-SHELL
       # Install Jayatana so we can work around it being present.
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
@@ -42,7 +42,7 @@ Vagrant.configure(2) do |config|
   # debian and it works fine.
   config.vm.define "debian-8" do |config|
     config.vm.box = "elastic/debian-8-x86_64"
-    deb_common config, 'echo deb http://http.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
+    deb_common config
   end
   config.vm.define "centos-6" do |config|
     config.vm.box = "elastic/centos-6-x86_64"
@@ -60,8 +60,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/oraclelinux-7-x86_64"
     rpm_common config
   end
-  config.vm.define "fedora-22" do |config|
-    config.vm.box = "elastic/fedora-22-x86_64"
+  config.vm.define "fedora-24" do |config|
+    config.vm.box = "elastic/fedora-24-x86_64"
     dnf_common config
   end
   config.vm.define "opensuse-13" do |config|
@@ -77,9 +77,12 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
+  # Expose project directory
+  PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
+  config.vm.synced_folder PROJECT_DIR, "/project"
   config.vm.provider "virtualbox" do |v|
-    # Give the boxes 2GB so they can run our tests if they have to.
-    v.memory = 2048
+    # Give the boxes 3GB because Elasticsearch defaults to using 2GB
+    v.memory = 3072
   end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box
@@ -111,10 +114,10 @@ SOURCE_PROMPT
 end
 
 def ubuntu_common(config, extra: '')
-  deb_common config, 'apt-add-repository -y ppa:openjdk-r/ppa > /dev/null 2>&1', 'openjdk-r-*', extra: extra
+  deb_common config, extra: extra
 end
 
-def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
+def deb_common(config, extra: '')
   # http://foo-o-rama.com/vagrant--stdin-is-not-a-tty--fix.html
   config.vm.provision "fix-no-tty", type: "shell" do |s|
       s.privileged = false
@@ -124,24 +127,14 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
     update_command: "apt-get update",
     update_tracking_file: "/var/cache/apt/archives/last_update",
     install_command: "apt-get install -y",
-    java_package: "openjdk-8-jdk",
-    extra: <<-SHELL
-      export DEBIAN_FRONTEND=noninteractive
-      ls /etc/apt/sources.list.d/#{openjdk_list}.list > /dev/null 2>&1 ||
-        (echo "==> Importing java-8 ppa" &&
-          #{add_openjdk_repository_command} &&
-          apt-get update)
-      #{extra}
-SHELL
-  )
+    extra: extra)
 end
 
 def rpm_common(config)
   provision(config,
     update_command: "yum check-update",
     update_tracking_file: "/var/cache/yum/last_update",
-    install_command: "yum install -y",
-    java_package: "java-1.8.0-openjdk-devel")
+    install_command: "yum install -y")
 end
 
 def dnf_common(config)
@@ -149,7 +142,7 @@ def dnf_common(config)
     update_command: "dnf check-update",
     update_tracking_file: "/var/cache/dnf/last_update",
     install_command: "dnf install -y",
-    java_package: "java-1.8.0-openjdk-devel")
+    install_command_retries: 5)
   if Vagrant.has_plugin?("vagrant-cachier")
     # Autodetect doesn't work....
     config.cache.auto_detect = false
@@ -166,17 +159,12 @@ def suse_common(config, extra)
     update_command: "zypper --non-interactive list-updates",
     update_tracking_file: "/var/cache/zypp/packages/last_update",
     install_command: "zypper --non-interactive --quiet install --no-recommends",
-    java_package: "java-1_8_0-openjdk-devel",
     extra: extra)
 end
 
 def sles_common(config)
   extra = <<-SHELL
-    zypper rr systemsmanagement_puppet
-    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD1/ dvd1 || true
-    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD2/ dvd2 || true
-    zypper addrepo http://download.opensuse.org/repositories/Java:Factory/SLE_12/Java:Factory.repo || true
-    zypper --no-gpg-checks --non-interactive refresh
+    zypper rr systemsmanagement_puppet puppetlabs-pc1
     zypper --non-interactive install git-core
 SHELL
   suse_common config, extra
@@ -191,26 +179,50 @@ end
 #   is cached by vagrant-cachier.
 # @param install_command [String] The command used to install a package.
 #   Required. Think `apt-get install #{package}`.
-# @param java_package [String] The name of the java package. Required.
 # @param extra [String] Extra provisioning commands run before anything else.
 #   Optional. Used for things like setting up the ppa for Java 8.
 def provision(config,
     update_command: 'required',
     update_tracking_file: 'required',
     install_command: 'required',
-    java_package: 'required',
+    install_command_retries: 0,
     extra: '')
   # Vagrant run ruby 2.0.0 which doesn't have required named parameters....
   raise ArgumentError.new('update_command is required') if update_command == 'required'
   raise ArgumentError.new('update_tracking_file is required') if update_tracking_file == 'required'
   raise ArgumentError.new('install_command is required') if install_command == 'required'
-  raise ArgumentError.new('java_package is required') if java_package == 'required'
-  config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
+  config.vm.provider "virtualbox" do |v|
+    # Give the box more memory and cpu because our tests are beasts!
+    v.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
+    v.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+  end
+  config.vm.synced_folder "#{Dir.home}/.gradle/caches", "/home/vagrant/.gradle/caches",
+    create: true,
+    owner: "vagrant"
+  config.vm.provision "dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
+
+    # Retry install command up to $2 times, if failed
+    retry_installcommand() {
+      n=0
+      while true; do
+        #{install_command} $1 && break
+        let n=n+1
+        if [ $n -ge $2 ]; then
+          echo "==> Exhausted retries to install $1"
+          return 1
+        fi
+        echo "==> Retrying installing $1, attempt $((n+1))"
+        # Add a small delay to increase chance of metalink providing updated list of mirrors
+        sleep 5
+      done
+    }
+
     installed() {
       command -v $1 2>&1 >/dev/null
     }
+
     install() {
       # Only apt-get update if we haven't in the last day
       if [ ! -f #{update_tracking_file} ] || [ "x$(find #{update_tracking_file} -mtime +0)" == "x#{update_tracking_file}" ]; then
@@ -219,15 +231,24 @@ def provision(config,
         touch #{update_tracking_file}
       fi
       echo "==> Installing $1"
-      #{install_command} $1
+      if [ #{install_command_retries} -eq 0 ]
+      then
+            #{install_command} $1
+      else
+            retry_installcommand $1 #{install_command_retries}
+      fi
     }
+
     ensure() {
       installed $1 || install $1
     }
 
     #{extra}
 
-    installed java || install #{java_package}
+    installed java || {
+      echo "==> Java is not installed on vagrant box ${config.vm.box}"
+      return 1
+    }
     ensure tar
     ensure curl
     ensure unzip
@@ -241,13 +262,39 @@ def provision(config,
       /tmp/bats/install.sh /usr
       rm -rf /tmp/bats
     }
+
+    installed gradle || {
+      echo "==> Installing Gradle"
+      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
+      unzip /tmp/gradle.zip -d /opt
+      rm -rf /tmp/gradle.zip 
+      ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
+      # make nfs mounted gradle home dir writeable
+      chown vagrant:vagrant /home/vagrant/.gradle
+    }
+
+
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
 export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export TESTROOT=/elasticsearch/qa/vagrant/build/testroot
-export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
+export BATS=/project/build/bats
+export BATS_UTILS=/project/build/bats/utils
+export BATS_TESTS=/project/build/bats/tests
+export BATS_ARCHIVES=/project/build/bats/archives
+export GRADLE_HOME=/opt/gradle-3.3
 VARS
+    cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
+Defaults   env_keep += "ZIP"
+Defaults   env_keep += "TAR"
+Defaults   env_keep += "RPM"
+Defaults   env_keep += "DEB"
+Defaults   env_keep += "BATS"
+Defaults   env_keep += "BATS_UTILS"
+Defaults   env_keep += "BATS_TESTS"
+Defaults   env_keep += "BATS_ARCHIVES"
+SUDOERS_VARS
+    chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
 end

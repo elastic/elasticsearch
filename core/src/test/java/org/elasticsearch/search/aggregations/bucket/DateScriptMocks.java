@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -28,7 +29,9 @@ import org.elasticsearch.script.ScriptModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,21 +42,10 @@ public class DateScriptMocks {
     /**
      * Mock plugin for the {@link DateScriptMocks.ExtractFieldScript} and {@link DateScriptMocks.PlusOneMonthScript}
      */
-    public static class DateScriptsMockPlugin extends Plugin {
-
+    public static class DateScriptsMockPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return "DateScriptMocks";
-        }
-
-        @Override
-        public String description() {
-            return "A mock script plugin.";
-        }
-
-        public void onModule(ScriptModule module) {
-            module.registerScript(ExtractFieldScript.NAME, ExtractFieldScriptFactory.class);
-            module.registerScript(PlusOneMonthScript.NAME, PlusOneMonthScriptFactory.class);
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Arrays.asList(new ExtractFieldScriptFactory(), new PlusOneMonthScriptFactory());
         }
     }
 
@@ -65,6 +57,11 @@ public class DateScriptMocks {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return ExtractFieldScript.NAME;
         }
     }
 
@@ -87,12 +84,17 @@ public class DateScriptMocks {
 
         @Override
         public ExecutableScript newScript(Map<String, Object> params) {
-            return new PlusOneMonthScript((String) params.get("fieldname"));
+            return new PlusOneMonthScript();
         }
 
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return PlusOneMonthScript.NAME;
         }
     }
 
@@ -102,13 +104,8 @@ public class DateScriptMocks {
     public static class PlusOneMonthScript extends AbstractSearchScript {
 
         public static final String NAME = "date_plus_1_month";
-        private String fieldname;
 
         private Map<String, Object> vars = new HashMap<>();
-
-        public PlusOneMonthScript(String fieldname) {
-            this.fieldname  = fieldname;
-        }
 
         @Override
         public void setNextVar(String name, Object value) {
@@ -122,7 +119,7 @@ public class DateScriptMocks {
 
         @Override
         public double runAsDouble() {
-            return new DateTime(new Double((double) vars.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis();
+            return new DateTime(Double.valueOf((double) vars.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis();
         }
 
         @Override

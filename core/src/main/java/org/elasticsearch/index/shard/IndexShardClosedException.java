@@ -23,9 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexShardClosedException extends IllegalIndexShardStateException {
     public IndexShardClosedException(ShardId shardId) {
         super(shardId, IndexShardState.CLOSED, "Closed");

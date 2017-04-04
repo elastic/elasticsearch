@@ -8,6 +8,7 @@ parameters that are used by <<mapping-types,field mappings>>:
 The following mapping parameters are common to some or all field datatypes:
 
 * <<analyzer,`analyzer`>>
+* <<normalizer, `normalizer`>>
 * <<mapping-boost,`boost`>>
 * <<coerce,`coerce`>>
 * <<copy-to,`copy_to`>>
@@ -15,15 +16,10 @@ The following mapping parameters are common to some or all field datatypes:
 * <<dynamic,`dynamic`>>
 * <<enabled,`enabled`>>
 * <<fielddata,`fielddata`>>
-* <<geohash,`geohash`>>
-* <<geohash-precision,`geohash_precision`>>
-* <<geohash-prefix,`geohash_prefix`>>
 * <<mapping-date-format,`format`>>
 * <<ignore-above,`ignore_above`>>
 * <<ignore-malformed,`ignore_malformed`>>
-* <<include-in-all,`include_in_all`>>
 * <<index-options,`index_options`>>
-* <<lat-lon,`lat_lon`>>
 * <<mapping-index,`index`>>
 * <<multi-fields,`fields`>>
 * <<norms,`norms`>>
@@ -37,6 +33,8 @@ The following mapping parameters are common to some or all field datatypes:
 
 
 include::params/analyzer.asciidoc[]
+
+include::params/normalizer.asciidoc[]
 
 include::params/boost.asciidoc[]
 
@@ -54,23 +52,13 @@ include::params/fielddata.asciidoc[]
 
 include::params/format.asciidoc[]
 
-include::params/geohash.asciidoc[]
-
-include::params/geohash-precision.asciidoc[]
-
-include::params/geohash-prefix.asciidoc[]
-
 include::params/ignore-above.asciidoc[]
 
 include::params/ignore-malformed.asciidoc[]
 
-include::params/include-in-all.asciidoc[]
-
 include::params/index.asciidoc[]
 
 include::params/index-options.asciidoc[]
-
-include::params/lat-lon.asciidoc[]
 
 include::params/multi-fields.asciidoc[]
 
@@ -79,8 +67,6 @@ include::params/norms.asciidoc[]
 include::params/null-value.asciidoc[]
 
 include::params/position-increment-gap.asciidoc[]
-
-include::params/precision-step.asciidoc[]
 
 include::params/properties.asciidoc[]
 
@@ -91,10 +77,3 @@ include::params/similarity.asciidoc[]
 include::params/store.asciidoc[]
 
 include::params/term-vector.asciidoc[]
-
-
-[source,js]
---------------------------------------------------
---------------------------------------------------
-// AUTOSENSE
-

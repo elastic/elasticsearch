@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,16 +80,15 @@ public class TaskGroup implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         task.toXContent(builder, params);
         if (childTasks.isEmpty() == false) {
             builder.startArray("children");
             for (TaskGroup taskGroup : childTasks) {
-                builder.startObject();
                 taskGroup.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }
-        return builder;
+        return builder.endObject();
     }
 }

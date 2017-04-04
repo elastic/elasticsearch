@@ -21,15 +21,16 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 
@@ -64,18 +65,20 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "filter";
 
+    private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
+    private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
+    private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
     public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.require.", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.include.", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.exclude.", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
-    @Inject
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
@@ -88,6 +91,21 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (shardRouting.unassigned()) {
+            // only for unassigned - we filter allocation right after the index creation ie. for shard shrinking etc. to ensure
+            // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
+            // this is a setting that can only be set within the system!
+            IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
+            DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
+            if (initialRecoveryFilters != null  &&
+                RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) &&
+                initialRecoveryFilters.match(node.node()) == false) {
+                String explanation = (shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) ?
+                    "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index" :
+                    "initial allocation of the index is only allowed on nodes [%s]";
+                return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
+            }
+        }
         return shouldFilter(shardRouting, node, allocation);
     }
 
@@ -105,7 +123,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         Decision decision = shouldClusterFilter(node, allocation);
         if (decision != null) return decision;
 
-        decision = shouldIndexFilter(allocation.routingNodes().metaData().getIndexSafe(shardRouting.index()), node, allocation);
+        decision = shouldIndexFilter(allocation.metaData().getIndexSafe(shardRouting.index()), node, allocation);
         if (decision != null) return decision;
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
@@ -124,17 +142,20 @@ public class FilterAllocationDecider extends AllocationDecider {
     private Decision shouldIndexFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
         if (indexMd.requireFilters() != null) {
             if (!indexMd.requireFilters().match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match index required filters [%s]", indexMd.requireFilters());
+                return allocation.decision(Decision.NO, NAME, "node does not match index setting [%s] filters [%s]",
+                    IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX, indexMd.requireFilters());
             }
         }
         if (indexMd.includeFilters() != null) {
             if (!indexMd.includeFilters().match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match index include filters [%s]", indexMd.includeFilters());
+                return allocation.decision(Decision.NO, NAME, "node does not match index setting [%s] filters [%s]",
+                    IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, indexMd.includeFilters());
             }
         }
         if (indexMd.excludeFilters() != null) {
             if (indexMd.excludeFilters().match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node matches index exclude filters [%s]", indexMd.excludeFilters());
+                return allocation.decision(Decision.NO, NAME, "node matches index setting [%s] filters [%s]",
+                    IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), indexMd.excludeFilters());
             }
         }
         return null;
@@ -143,17 +164,20 @@ public class FilterAllocationDecider extends AllocationDecider {
     private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
         if (clusterRequireFilters != null) {
             if (!clusterRequireFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match global required filters [%s]", clusterRequireFilters);
+                return allocation.decision(Decision.NO, NAME, "node does not match cluster setting [%s] filters [%s]",
+                    CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX, clusterRequireFilters);
             }
         }
         if (clusterIncludeFilters != null) {
             if (!clusterIncludeFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match global include filters [%s]", clusterIncludeFilters);
+                return allocation.decision(Decision.NO, NAME, "node does not cluster setting [%s] filters [%s]",
+                    CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX, clusterIncludeFilters);
             }
         }
         if (clusterExcludeFilters != null) {
             if (clusterExcludeFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node matches global exclude filters [%s]", clusterExcludeFilters);
+                return allocation.decision(Decision.NO, NAME, "node matches cluster setting [%s] filters [%s]",
+                    CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX, clusterExcludeFilters);
             }
         }
         return null;

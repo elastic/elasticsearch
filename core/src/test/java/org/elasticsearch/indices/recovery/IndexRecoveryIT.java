@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -30,57 +31,64 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
-import org.elasticsearch.indices.recovery.RecoveryState.Type;
+import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
 
@@ -96,13 +104,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
+                RecoverySettingsChunkSizePlugin.class);
     }
 
-    private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, Type type,
-                                                 String sourceNode, String targetNode, boolean hasRestoreSource) {
+    private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, RecoverySource recoverySource, boolean primary,
+                                                 String sourceNode, String targetNode) {
         assertThat(state.getShardId().getId(), equalTo(shardId));
-        assertThat(state.getType(), equalTo(type));
+        assertThat(state.getRecoverySource(), equalTo(recoverySource));
+        assertThat(state.getPrimary(), equalTo(primary));
         if (sourceNode == null) {
             assertNull(state.getSourceNode());
         } else {
@@ -115,48 +125,37 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertNotNull(state.getTargetNode());
             assertThat(state.getTargetNode().getName(), equalTo(targetNode));
         }
-        if (hasRestoreSource) {
-            assertNotNull(state.getRestoreSource());
-        } else {
-            assertNull(state.getRestoreSource());
-        }
-
     }
 
-    private void assertRecoveryState(RecoveryState state, int shardId, Type type, Stage stage,
-                                     String sourceNode, String targetNode, boolean hasRestoreSource) {
-        assertRecoveryStateWithoutStage(state, shardId, type, sourceNode, targetNode, hasRestoreSource);
+    private void assertRecoveryState(RecoveryState state, int shardId, RecoverySource type, boolean primary, Stage stage,
+                                     String sourceNode, String targetNode) {
+        assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode);
         assertThat(state.getStage(), equalTo(stage));
     }
 
-    private void assertOnGoingRecoveryState(RecoveryState state, int shardId, Type type,
-                                            String sourceNode, String targetNode, boolean hasRestoreSource) {
-        assertRecoveryStateWithoutStage(state, shardId, type, sourceNode, targetNode, hasRestoreSource);
+    private void assertOnGoingRecoveryState(RecoveryState state, int shardId, RecoverySource type, boolean primary,
+                                            String sourceNode, String targetNode) {
+        assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode);
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
     }
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = Math.max(1, shardSize.bytes() / 10);
-        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
-            setChunkSize(settings, new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES));
-        }
+        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
-                )
-                .get().isAcknowledged());
+                                // small chunks
+                                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
+                ).get().isAcknowledged());
     }
 
     private void restoreRecoverySpeed() {
-        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
-            setChunkSize(settings, RecoverySettings.DEFAULT_CHUNK_SIZE);
-        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
-                )
-                .get().isAcknowledged());
+                                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                ).get().isAcknowledged());
     }
 
     public void testGatewayRecovery() throws Exception {
@@ -179,7 +178,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         RecoveryState recoveryState = recoveryStates.get(0);
 
-        assertRecoveryState(recoveryState, 0, Type.STORE, Stage.DONE, node, node, false);
+        assertRecoveryState(recoveryState, 0, StoreRecoverySource.EXISTING_STORE_INSTANCE, true, Stage.DONE, null, node);
 
         validateIndexRecoveryState(recoveryState.getIndex());
     }
@@ -215,7 +214,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // force a shard recovery from nodeA to nodeB
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(settingsBuilder().put("number_of_replicas", 1)).execute().actionGet();
+                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
 
         logger.info("--> request recoveries");
@@ -232,12 +231,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         // validate node A recovery
         RecoveryState nodeARecoveryState = nodeAResponses.get(0);
-        assertRecoveryState(nodeARecoveryState, 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
+        assertRecoveryState(nodeARecoveryState, 0, StoreRecoverySource.EMPTY_STORE_INSTANCE, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
         // validate node B recovery
         RecoveryState nodeBRecoveryState = nodeBResponses.get(0);
-        assertRecoveryState(nodeBRecoveryState, 0, Type.REPLICA, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(nodeBRecoveryState, 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
@@ -285,10 +284,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
         assertThat(nodeBRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeARecoveryStates.get(0), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, StoreRecoverySource.EMPTY_STORE_INSTANCE, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-        assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, nodeA, nodeB, false);
+        assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         logger.info("--> request node recovery stats");
@@ -297,12 +296,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         long nodeBThrottling = Long.MAX_VALUE;
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
                 assertThat("node A should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
                 nodeAThrottling = recoveryStats.throttleTime().millis();
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
                 assertThat("node B should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
                 nodeBThrottling = recoveryStats.throttleTime().millis();
@@ -316,13 +315,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             @Override
             public void run() {
                 NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-                assertThat(statsResponse.getNodes(), arrayWithSize(2));
+                assertThat(statsResponse.getNodes(), hasSize(2));
                 for (NodeStats nodeStats : statsResponse.getNodes()) {
                     final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-                    if (nodeStats.getNode().name().equals(nodeA)) {
+                    if (nodeStats.getNode().getName().equals(nodeA)) {
                         assertThat("node A throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeAThrottling));
                     }
-                    if (nodeStats.getNode().name().equals(nodeB)) {
+                    if (nodeStats.getNode().getName().equals(nodeB)) {
                         assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeBThrottling));
                     }
                 }
@@ -341,38 +340,38 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
         assertThat(recoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(recoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(recoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        assertThat(statsResponse.getNodes(), hasSize(2));
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
 
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(settingsBuilder().put("number_of_replicas", 1)).execute().actionGet();
+                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        assertThat(statsResponse.getNodes(), hasSize(2));
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
@@ -399,15 +398,37 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
         assertThat(nodeCRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeARecoveryStates.get(0), 0, Type.REPLICA, Stage.DONE, nodeB, nodeA, false);
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeB, nodeA);
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
-        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, nodeB, nodeC, false);
+        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeB, nodeC);
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+
+        if (randomBoolean()) {
+            // shutdown node with relocation source of replica shard and check if recovery continues
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+            ensureStableCluster(2);
+
+            response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+            recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+
+            nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+            assertThat(nodeARecoveryStates.size(), equalTo(0));
+            nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
+            assertThat(nodeBRecoveryStates.size(), equalTo(1));
+            nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+            assertThat(nodeCRecoveryStates.size(), equalTo(1));
+
+            assertRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
+            validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
+
+            assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeB, nodeC);
+            validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+        }
 
         logger.info("--> speeding up recoveries");
         restoreRecoverySpeed();
@@ -423,11 +444,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
         assertThat(nodeCRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
-        assertRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, Stage.DONE, nodeB, nodeC, false);
+        assertRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeB, nodeC);
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
 
@@ -437,7 +458,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("compress", false)
                 ).get());
@@ -476,7 +497,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(recoveryStates.size(), equalTo(totalShards));
 
             for (RecoveryState recoveryState : recoveryStates) {
-                assertRecoveryState(recoveryState, 0, Type.SNAPSHOT, Stage.DONE, null, nodeA, true);
+                SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+                    new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
+                    Version.CURRENT, INDEX_NAME);
+                assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA);
                 validateIndexRecoveryState(recoveryState.getIndex());
             }
         }
@@ -496,7 +520,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             throws ExecutionException, InterruptedException {
 
         logger.info("--> creating test index: {}", name);
-        assertAcked(prepareCreate(name, nodeCount, settingsBuilder().put("number_of_shards", shardCount)
+        assertAcked(prepareCreate(name, nodeCount, Settings.builder().put("number_of_shards", shardCount)
                 .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)));
         ensureGreen();
 
@@ -513,7 +537,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareSearch(name).setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch(name).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
         return client().admin().indices().prepareStats(name).execute().actionGet();
     }
 
@@ -535,10 +559,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // start a master node
         internalCluster().startNode(nodeSettings);
 
-        InternalTestCluster.Async<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
-        InternalTestCluster.Async<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
-        final String blueNodeName = blueFuture.get();
-        final String redNodeName = redFuture.get();
+        final String blueNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
@@ -555,13 +577,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().id();
+        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
@@ -569,13 +591,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, numDocs);
 
         String[] recoveryActions = new String[]{
-                RecoverySource.Actions.START_RECOVERY,
-                RecoveryTargetService.Actions.FILES_INFO,
-                RecoveryTargetService.Actions.FILE_CHUNK,
-                RecoveryTargetService.Actions.CLEAN_FILES,
+                PeerRecoverySourceService.Actions.START_RECOVERY,
+                PeerRecoveryTargetService.Actions.FILES_INFO,
+                PeerRecoveryTargetService.Actions.FILE_CHUNK,
+                PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
-                RecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                RecoveryTargetService.Actions.FINALIZE
+                PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
+                PeerRecoveryTargetService.Actions.FINALIZE
         };
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         final boolean dropRequests = randomBoolean();
@@ -614,7 +636,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         private final String recoveryActionToBlock;
         private final CountDownLatch requestBlocked;
 
-        public RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
+        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
             super(delegate);
             this.dropRequests = dropRequests;
             this.recoveryActionToBlock = recoveryActionToBlock;
@@ -622,20 +644,141 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                   TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);
                 requestBlocked.countDown();
                 if (dropRequests) {
                     return;
                 }
-                throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
             }
-            transport.sendRequest(node, requestId, action, request, options);
+            super.sendRequest(connection, requestId, action, request, options);
         }
     }
 
-    public static void setChunkSize(RecoverySettings recoverySettings, ByteSizeValue chunksSize) {
-        recoverySettings.setChunkSize(chunksSize);
+    /**
+     * Tests scenario where recovery target successfully sends recovery request to source but then the channel gets closed while
+     * the source is working on the recovery process.
+     */
+    @TestLogging("_root:DEBUG,org.elasticsearch.indices.recovery:TRACE")
+    public void testDisconnectsDuringRecovery() throws Exception {
+        boolean primaryRelocation = randomBoolean();
+        final String indexName = "test";
+        final Settings nodeSettings = Settings.builder()
+            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(randomIntBetween(0, 100)))
+            .build();
+        TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
+        // start a master node
+        String masterNodeName = internalCluster().startMasterOnlyNode(nodeSettings);
+
+        final String blueNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+
+        client().admin().indices().prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).get();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNodeName);
+        MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
+        MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
+
+        redMockTransportService.addDelegate(blueMockTransportService, new MockTransportService.DelegateTransport(redMockTransportService.original()) {
+            private final AtomicInteger count = new AtomicInteger();
+
+            @Override
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
+                logger.info("--> sending request {} on {}", action, connection.getNode());
+                if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
+                    // ensures that it's considered as valid recovery attempt by source
+                    try {
+                        awaitBusy(() -> client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
+                            .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    super.sendRequest(connection, requestId, action, request, options);
+                    try {
+                        Thread.sleep(disconnectAfterDelay.millis());
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
+                } else {
+                    super.sendRequest(connection, requestId, action, request, options);
+                }
+            }
+        });
+
+        final AtomicBoolean finalized = new AtomicBoolean();
+        blueMockTransportService.addDelegate(redMockTransportService, new MockTransportService.DelegateTransport(blueMockTransportService.original()) {
+            @Override
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
+                logger.info("--> sending request {} on {}", action, connection.getNode());
+                if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                    finalized.set(true);
+                }
+                super.sendRequest(connection, requestId, action, request, options);
+            }
+        });
+
+        for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
+            mockTransportService.addDelegate(masterTransportService, new MockTransportService.DelegateTransport(mockTransportService.original()) {
+                @Override
+                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                           TransportRequestOptions options) throws IOException {
+                    logger.info("--> sending request {} on {}", action, connection.getNode());
+                    if ((primaryRelocation && finalized.get()) == false) {
+                        assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
+                    }
+                    super.sendRequest(connection, requestId, action, request, options);
+                }
+            });
+        }
+
+        if (primaryRelocation) {
+            logger.info("--> starting primary relocation recovery from blue to red");
+            client().admin().indices().prepareUpdateSettings(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red")
+            ).get();
+
+            ensureGreen(); // also waits for relocation / recovery to complete
+            // if a primary relocation fails after the source shard has been marked as relocated, both source and target are failed. If the
+            // source shard is moved back to started because the target fails first, it's possible that there is a cluster state where the
+            // shard is marked as started again (and ensureGreen returns), but while applying the cluster state the primary is failed and
+            // will be reallocated. The cluster will thus become green, then red, then green again. Triggering a refresh here before
+            // searching helps, as in contrast to search actions, refresh waits for the closed shard to be reallocated.
+            client().admin().indices().prepareRefresh(indexName).get();
+        } else {
+            logger.info("--> starting replica recovery from blue to red");
+            client().admin().indices().prepareUpdateSettings(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            ).get();
+
+            ensureGreen();
+        }
+
+        for (int i = 0; i < 10; i++) {
+            assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        }
     }
 }

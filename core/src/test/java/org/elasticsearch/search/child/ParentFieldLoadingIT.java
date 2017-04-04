@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -38,6 +39,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -49,7 +51,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.merge.enabled
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.merge.enabled
     }
 
     private final Settings indexSettings = Settings.builder()
@@ -68,8 +70,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .addMapping("child", childMapping(false)));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -83,8 +85,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
@@ -100,9 +102,9 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
         // is loaded by the size of the field data cache, because global ordinals on 1 segment shards takes no extra memory.
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
         refresh();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
@@ -116,8 +118,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -152,7 +154,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
         // Need to add a new doc otherwise the refresh doesn't trigger a new searcher
         // Because it ends up in its own segment, but isn't of type parent or child, this doc doesn't contribute to the size of the fielddata cache
-        client().prepareIndex("test", "dummy", "dummy").setSource("{}").get();
+        client().prepareIndex("test", "dummy", "dummy").setSource("{}", XContentType.JSON).get();
         refresh();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));

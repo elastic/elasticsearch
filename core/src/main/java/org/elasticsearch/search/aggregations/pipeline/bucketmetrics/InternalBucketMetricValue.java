@@ -22,53 +22,49 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue {
-
-    public final static Type TYPE = new Type("bucket_metric_value");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalBucketMetricValue readResult(StreamInput in) throws IOException {
-            InternalBucketMetricValue result = new InternalBucketMetricValue();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
+    public static final String NAME = "bucket_metric_value";
 
     private double value;
-
     private String[] keys;
 
-    protected InternalBucketMetricValue() {
-        super();
-    }
-
-    public InternalBucketMetricValue(String name, String[] keys, double value, ValueFormatter formatter,
+    public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.keys = keys;
         this.value = value;
-        this.valueFormatter = formatter;
+        this.format = formatter;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalBucketMetricValue(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        value = in.readDouble();
+        keys = in.readStringArray();
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(value);
+        out.writeStringArray(keys);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
@@ -99,25 +95,11 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     }
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        value = in.readDouble();
-        keys = in.readStringArray();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeDouble(value);
-        out.writeStringArray(keys);
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(value);
-        builder.field(CommonFields.VALUE, hasValue ? value : null);
-        if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
+        if (hasValue && format != DocValueFormat.RAW) {
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
         }
         builder.startArray("keys");
         for (String key : keys) {

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.ValueSource;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class ValueSourceMustacheIT extends AbstractMustacheTestCase {
+public class ValueSourceMustacheIT extends AbstractScriptTestCase {
 
     public void testValueSourceWithTemplates() {
         Map<String, Object> model = new HashMap<>();
@@ -67,7 +64,7 @@ public class ValueSourceMustacheIT extends AbstractMustacheTestCase {
     }
 
     public void testAccessSourceViaTemplate() {
-        IngestDocument ingestDocument = new IngestDocument("marvel", "type", "id", null, null, null, null, new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument("marvel", "type", "id", null, null, new HashMap<>());
         assertThat(ingestDocument.hasField("marvel"), is(false));
         ingestDocument.setFieldValue(templateService.compile("{{_index}}"), ValueSource.wrap("{{_index}}", templateService));
         assertThat(ingestDocument.getFieldValue("marvel", String.class), equalTo("marvel"));

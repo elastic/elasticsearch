@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -36,7 +36,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final double overheadConstant;
     private final AtomicLong used;
     private final AtomicLong trippedCount;
-    private final ESLogger logger;
+    private final Logger logger;
     private final HierarchyCircuitBreakerService parent;
     private final String name;
 
@@ -48,7 +48,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
-    public ChildMemoryCircuitBreaker(BreakerSettings settings, ESLogger logger,
+    public ChildMemoryCircuitBreaker(BreakerSettings settings, Logger logger,
                                      HierarchyCircuitBreakerService parent, String name) {
         this(settings, null, logger, parent, name);
     }
@@ -64,7 +64,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param oldBreaker the previous circuit breaker to inherit the used value from (starting offset)
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ChildMemoryCircuitBreaker oldBreaker,
-                                     ESLogger logger, HierarchyCircuitBreakerService parent, String name) {
+                                     Logger logger, HierarchyCircuitBreakerService parent, String name) {
         this.name = name;
         this.settings = settings;
         this.memoryBytesLimit = settings.getLimit();
@@ -90,12 +90,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
         this.trippedCount.incrementAndGet();
-        final String message = "[" + this.name + "] Data too large, data for [" +
-                fieldName + "] would be larger than limit of [" +
+        final String message = "[" + this.name + "] Data too large, data for [" + fieldName + "]" +
+                " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
+                ", which is larger than the limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
         logger.debug("{}", message);
-        throw new CircuitBreakingException(message,
-                bytesNeeded, this.memoryBytesLimit);
+        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit);
     }
 
     /**

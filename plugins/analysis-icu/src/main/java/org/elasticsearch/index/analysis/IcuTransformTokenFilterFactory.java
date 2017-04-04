@@ -26,10 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-
-/**
- */
-public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
+public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final String id;
     private final int dir;
@@ -46,5 +43,10 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ICUTransformFilter(tokenStream, transliterator);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

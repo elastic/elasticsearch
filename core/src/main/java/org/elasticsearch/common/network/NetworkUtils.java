@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Utilities for network interfaces / addresses binding and publishing.
@@ -39,7 +40,7 @@ import java.util.List;
  */
 public abstract class NetworkUtils {
 
-    /** no instantation */
+    /** no instantiation */
     private NetworkUtils() {}
     
     /**
@@ -227,14 +228,15 @@ public abstract class NetworkUtils {
     
     /** Returns addresses for the given interface (it must be marked up) */
     static InetAddress[] getAddressesForInterface(String name) throws SocketException {
-        NetworkInterface intf = NetworkInterface.getByName(name);
-        if (intf == null) {
+        Optional<NetworkInterface> networkInterface = getInterfaces().stream().filter((netIf) -> name.equals(netIf.getName())).findFirst();
+
+        if (networkInterface.isPresent() == false) {
             throw new IllegalArgumentException("No interface named '" + name + "' found, got " + getInterfaces());
         }
-        if (!intf.isUp()) {
+        if (!networkInterface.get().isUp()) {
             throw new IllegalArgumentException("Interface '" + name + "' is not up and running");
         }
-        List<InetAddress> list = Collections.list(intf.getInetAddresses());
+        List<InetAddress> list = Collections.list(networkInterface.get().getInetAddresses());
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Interface '" + name + "' has no internet addresses");
         }

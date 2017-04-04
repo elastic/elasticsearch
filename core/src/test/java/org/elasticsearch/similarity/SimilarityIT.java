@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,10 +48,11 @@ public class SimilarityIT extends ESIntegTestCase {
                                 .startObject("field2")
                                     .field("similarity", "classic")
                                     .field("type", "text")
+                                .endObject()
                             .endObject()
                         .endObject()
                     .endObject())
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("similarity.custom.type", "BM25")
@@ -60,15 +62,15 @@ public class SimilarityIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
                                                             "field2", "the quick brown fox jumped over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE).execute().actionGet();
 
         SearchResponse bm25SearchResponse = client().prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
-        assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1L));
-        float bm25Score = bm25SearchResponse.getHits().hits()[0].score();
+        assertThat(bm25SearchResponse.getHits().getTotalHits(), equalTo(1L));
+        float bm25Score = bm25SearchResponse.getHits().getHits()[0].getScore();
 
         SearchResponse defaultSearchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
-        assertThat(defaultSearchResponse.getHits().totalHits(), equalTo(1L));
-        float defaultScore = defaultSearchResponse.getHits().hits()[0].score();
+        assertThat(defaultSearchResponse.getHits().getTotalHits(), equalTo(1L));
+        float defaultScore = defaultSearchResponse.getHits().getHits()[0].getScore();
 
         assertThat(bm25Score, not(equalTo(defaultScore)));
     }

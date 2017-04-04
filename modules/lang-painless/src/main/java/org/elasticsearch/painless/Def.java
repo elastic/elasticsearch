@@ -19,1237 +19,885 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Transform;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.RuntimeClass;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
-import java.lang.reflect.Array;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodType;
+import java.util.BitSet;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class Def {
-    public static Object methodCall(final Object owner, final String name, final Definition definition,
-                                    final Object[] arguments, final boolean[] typesafe) {
-        final Method method = getMethod(owner, name, definition);
+/**
+ * Support for dynamic type (def).
+ * <p>
+ * Dynamic types can invoke methods, load/store fields, and be passed as parameters to operators without
+ * compile-time type information.
+ * <p>
+ * Dynamic methods, loads, stores, and array/list/map load/stores involve locating the appropriate field
+ * or method depending on the receiver's class. For these, we emit an {@code invokedynamic} instruction that,
+ * for each new type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate
+ * method. In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because
+ * caching ({@link DefBootstrap}) generally works: usually all objects at any call site will be consistently
+ * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every
+ * single time, but simplicity is still more valuable than performance in this code.
+ */
+public final class Def {
 
-        if (method == null) {
-            throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
-                    "for class [" + owner.getClass().getCanonicalName() + "].");
+    // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
+
+    /** Helper class for isolating MethodHandles and methods to get the length of arrays
+     * (to emulate a "arraystore" bytecode using MethodHandles).
+     * See: https://bugs.openjdk.java.net/browse/JDK-8156915
+     */
+    @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
+    private static final class ArrayLengthHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
+
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static int getArrayLength(final boolean[] array) { return array.length; }
+        static int getArrayLength(final byte[] array)    { return array.length; }
+        static int getArrayLength(final short[] array)   { return array.length; }
+        static int getArrayLength(final int[] array)     { return array.length; }
+        static int getArrayLength(final long[] array)    { return array.length; }
+        static int getArrayLength(final char[] array)    { return array.length; }
+        static int getArrayLength(final float[] array)   { return array.length; }
+        static int getArrayLength(final double[] array)  { return array.length; }
+        static int getArrayLength(final Object[] array)  { return array.length; }
+
+        static MethodHandle arrayLengthGetter(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
-        final MethodHandle handle = method.handle;
-        final List<Type> types = method.arguments;
-        final Object[] parameters = new Object[arguments.length + 1];
+        private ArrayLengthHelper() {}
+    }
 
-        parameters[0] = owner;
+    /** pointer to Map.get(Object) */
+    private static final MethodHandle MAP_GET;
+    /** pointer to Map.put(Object,Object) */
+    private static final MethodHandle MAP_PUT;
+    /** pointer to List.get(int) */
+    private static final MethodHandle LIST_GET;
+    /** pointer to List.set(int,Object) */
+    private static final MethodHandle LIST_SET;
+    /** pointer to Iterable.iterator() */
+    private static final MethodHandle ITERATOR;
+    /** pointer to {@link Def#mapIndexNormalize}. */
+    private static final MethodHandle MAP_INDEX_NORMALIZE;
+    /** pointer to {@link Def#listIndexNormalize}. */
+    private static final MethodHandle LIST_INDEX_NORMALIZE;
+    /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
+    private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
-        if (types.size() != arguments.length) {
-            throw new IllegalArgumentException("When dynamically calling [" + name + "] from class " +
-                    "[" + owner.getClass() + "] expected [" + types.size() + "] arguments," +
-                    " but found [" + arguments.length + "].");
-        }
+    static {
+        final Lookup lookup = MethodHandles.publicLookup();
 
         try {
-            for (int count = 0; count < arguments.length; ++count) {
-                if (typesafe[count]) {
-                    parameters[count + 1] = arguments[count];
-                } else {
-                    final Transform transform = getTransform(arguments[count].getClass(), types.get(count).clazz, definition);
-                    parameters[count + 1] = transform == null ? arguments[count] : transform.method.handle.invoke(arguments[count]);
-                }
-            }
+            MAP_GET  = lookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
+            MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
+            LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
+            LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            MAP_INDEX_NORMALIZE = lookup.findStatic(Def.class, "mapIndexNormalize",
+                    MethodType.methodType(Object.class, Map.class, Object.class));
+            LIST_INDEX_NORMALIZE = lookup.findStatic(Def.class, "listIndexNormalize",
+                    MethodType.methodType(int.class, List.class, int.class));
+        } catch (final ReflectiveOperationException roe) {
+            throw new AssertionError(roe);
+        }
+        
+        // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
+        // https://bugs.openjdk.java.net/browse/JDK-8156915
+        MethodHandle arrayLengthMHFactory;
+        try {
+            arrayLengthMHFactory = lookup.findStatic(MethodHandles.class, "arrayLength",
+                MethodType.methodType(MethodHandle.class, Class.class));
+        } catch (final ReflectiveOperationException roe) {
+            arrayLengthMHFactory = null;
+        }
+        JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
+    }
 
-            return handle.invokeWithArguments(parameters);
-        } catch (Throwable throwable) {
-            throw new IllegalArgumentException("Error invoking method [" + name + "] " +
-                    "with owner class [" + owner.getClass().getCanonicalName() + "].", throwable);
+    /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */
+    @SuppressWarnings("unchecked")
+    static <T extends Throwable> void rethrow(Throwable t) throws T {
+        throw (T) t;
+    }
+    
+    /** Returns an array length getter MethodHandle for the given array type */
+    static MethodHandle arrayLengthGetter(Class<?> arrayType) {
+        if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
+            try {
+                return (MethodHandle) JAVA9_ARRAY_LENGTH_MH_FACTORY.invokeExact(arrayType);
+            } catch (Throwable t) {
+                rethrow(t);
+                throw new AssertionError(t);
+            }
+        } else {
+            return ArrayLengthHelper.arrayLengthGetter(arrayType);
         }
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void fieldStore(final Object owner, Object value, final String name,
-                                  final Definition definition, final boolean typesafe) {
-        final Field field = getField(owner, name, definition);
-        MethodHandle handle = null;
+    /**
+     * Looks up method entry for a dynamic method call.
+     * <p>
+     * A dynamic method call for variable {@code x} of type {@code def} looks like:
+     * {@code x.method(args...)}
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     * Otherwise it returns the matching method.
+     * <p>
+     * @param receiverClass Class of the object to invoke the method on.
+     * @param name Name of the method.
+     * @param arity arity of method
+     * @return matching method to invoke. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     */
+    static Method lookupMethodInternal(Class<?> receiverClass, String name, int arity) {
+        Definition.MethodKey key = new Definition.MethodKey(name, arity);
+        // check whitelist for matching method
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
-        if (field == null) {
-            final String set = "set" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
-            final Method method = getMethod(owner, set, definition);
-
-            if (method != null) {
-                handle = method.handle;
+            if (struct != null) {
+                Method method = struct.methods.get(key);
+                if (method != null) {
+                    return method;
+                }
             }
-        } else {
-            handle = field.setter;
-        }
 
-        if (handle != null) {
-            try {
-                if (!typesafe) {
-                    final Transform transform = getTransform(value.getClass(), handle.type().parameterType(1), definition);
+            for (Class<?> iface : clazz.getInterfaces()) {
+                struct = Definition.getRuntimeClass(iface);
 
-                    if (transform != null) {
-                        value = transform.method.handle.invoke(value);
+                if (struct != null) {
+                    Method method = struct.methods.get(key);
+                    if (method != null) {
+                        return method;
                     }
                 }
-
-                handle.invoke(owner, value);
-            } catch (Throwable throwable) {
-                throw new IllegalArgumentException("Error storing value [" + value + "] " +
-                        "in field [" + name + "] with owner class [" + owner.getClass() + "].", throwable);
             }
-        } else if (owner instanceof Map) {
-            ((Map)owner).put(name, value);
-        } else if (owner instanceof List) {
+        }
+        
+        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
+    }
+
+    /**
+     * Looks up handle for a dynamic method call, with lambda replacement
+     * <p>
+     * A dynamic method call for variable {@code x} of type {@code def} looks like:
+     * {@code x.method(args...)}
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     * Otherwise it returns a handle to the matching method.
+     * <p>
+     * @param lookup caller's lookup
+     * @param callSiteType callsite's type
+     * @param receiverClass Class of the object to invoke the method on.
+     * @param name Name of the method.
+     * @param args bootstrap args passed to callsite
+     * @return pointer to matching method to invoke. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     * @throws Throwable if a method reference cannot be converted to an functional interface
+     */
+     static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType, 
+             Class<?> receiverClass, String name, Object args[]) throws Throwable {
+         String recipeString = (String) args[0];
+         int numArguments = callSiteType.parameterCount();
+         // simple case: no lambdas
+         if (recipeString.isEmpty()) {
+             return lookupMethodInternal(receiverClass, name, numArguments - 1).handle;
+         }
+         
+         // convert recipe string to a bitset for convenience (the code below should be refactored...)
+         BitSet lambdaArgs = new BitSet();
+         for (int i = 0; i < recipeString.length(); i++) {
+             lambdaArgs.set(recipeString.charAt(i));
+         }
+
+         // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
+         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i). 
+         int arity = callSiteType.parameterCount() - 1;
+         int upTo = 1;
+         for (int i = 1; i < numArguments; i++) {
+             if (lambdaArgs.get(i - 1)) {
+                 String signature = (String) args[upTo++];
+                 int numCaptures = Integer.parseInt(signature.substring(signature.indexOf(',')+1));
+                 arity -= numCaptures;
+             }
+         }
+         
+         // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
+         // based on these we can finally link any remaining lambdas that were deferred.
+         Method method = lookupMethodInternal(receiverClass, name, arity);
+         MethodHandle handle = method.handle;
+
+         int replaced = 0;
+         upTo = 1;
+         for (int i = 1; i < numArguments; i++) {
+             // its a functional reference, replace the argument with an impl
+             if (lambdaArgs.get(i - 1)) {
+                 // decode signature of form 'type.call,2' 
+                 String signature = (String) args[upTo++];
+                 int separator = signature.lastIndexOf('.');
+                 int separator2 = signature.indexOf(',');
+                 String type = signature.substring(1, separator);
+                 String call = signature.substring(separator+1, separator2);
+                 int numCaptures = Integer.parseInt(signature.substring(separator2+1));
+                 Class<?> captures[] = new Class<?>[numCaptures];
+                 for (int capture = 0; capture < captures.length; capture++) {
+                     captures[capture] = callSiteType.parameterType(i + 1 + capture);
+                 }
+                 MethodHandle filter;
+                 Definition.Type interfaceType = method.arguments.get(i - 1 - replaced);
+                 if (signature.charAt(0) == 'S') {
+                     // the implementation is strongly typed, now that we know the interface type,
+                     // we have everything.
+                     filter = lookupReferenceInternal(lookup,
+                                                      interfaceType,
+                                                      type,
+                                                      call,
+                                                      captures);
+                 } else if (signature.charAt(0) == 'D') {
+                     // the interface type is now known, but we need to get the implementation.
+                     // this is dynamically based on the receiver type (and cached separately, underneath
+                     // this cache). It won't blow up since we never nest here (just references)
+                     MethodType nestedType = MethodType.methodType(interfaceType.clazz, captures);
+                     CallSite nested = DefBootstrap.bootstrap(lookup, 
+                                                              call,
+                                                              nestedType,
+                                                              0,
+                                                              DefBootstrap.REFERENCE,
+                                                              interfaceType.name);
+                     filter = nested.dynamicInvoker();
+                 } else {
+                     throw new AssertionError();
+                 }
+                 // the filter now ignores the signature (placeholder) on the stack
+                 filter = MethodHandles.dropArguments(filter, 0, String.class);
+                 handle = MethodHandles.collectArguments(handle, i, filter);
+                 i += numCaptures;
+                 replaced += numCaptures;
+             }
+         }
+         
+         return handle;
+     }
+     
+     /**
+      * Returns an implementation of interfaceClass that calls receiverClass.name
+      * <p>
+      * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
+      * so we simply need to lookup the matching implementation method based on receiver type.
+      */
+     static MethodHandle lookupReference(Lookup lookup, String interfaceClass, 
+                                         Class<?> receiverClass, String name) throws Throwable {
+         Definition.Type interfaceType = Definition.getType(interfaceClass);
+         Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
+         if (interfaceMethod == null) {
+             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
+         }
+         int arity = interfaceMethod.arguments.size();
+         Method implMethod = lookupMethodInternal(receiverClass, name, arity);
+         return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass);
+     }
+     
+     /** Returns a method handle to an implementation of clazz, given method reference signature. */
+     private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
+                                                         String call, Class<?>... captures) throws Throwable {
+         final FunctionRef ref;
+         if ("this".equals(type)) {
+             // user written method
+             Method interfaceMethod = clazz.struct.getFunctionalMethod();
+             if (interfaceMethod == null) {
+                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
+                                                    "to [" + clazz.name + "], not a functional interface");
+             }
+             int arity = interfaceMethod.arguments.size() + captures.length;
+             final MethodHandle handle;
+             try {
+                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(), 
+                                                                 getUserFunctionHandleFieldName(call, arity), 
+                                                                 MethodHandle.class);
+                 handle = (MethodHandle) accessor.invokeExact();
+             } catch (NoSuchFieldException | IllegalAccessException e) {
+                 // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
+                 // because the arity does not match the expected interface type.
+                 if (call.contains("$")) {
+                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                                                        "] in [" + clazz.clazz + "]");
+                 }
+                 throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
+             }
+             ref = new FunctionRef(clazz, interfaceMethod, handle, captures.length);
+         } else {
+             // whitelist lookup
+             ref = new FunctionRef(clazz, type, call, captures.length);
+         }
+         final CallSite callSite;
+         if (ref.needsBridges()) {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     ref.invokedType,
+                     ref.samMethodType,
+                     ref.implMethod,
+                     ref.samMethodType,
+                     LambdaMetafactory.FLAG_BRIDGES,
+                     1,
+                     ref.interfaceMethodType);
+         } else {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     ref.invokedType,
+                     ref.samMethodType,
+                     ref.implMethod,
+                     ref.samMethodType,
+                     0);
+         }
+         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
+     }
+     
+     /** gets the field name used to lookup up the MethodHandle for a function. */
+     public static String getUserFunctionHandleFieldName(String name, int arity) {
+         return "handle$" + name + "$" + arity;
+     }
+
+    /**
+     * Looks up handle for a dynamic field getter (field load)
+     * <p>
+     * A dynamic field load for variable {@code x} of type {@code def} looks like:
+     * {@code y = x.field}
+     * <p>
+     * The following field loads are allowed:
+     * <ul>
+     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
+     *   <li>Whitelisted method named {@code getField()} from receiver's class/superclasses/interfaces.
+     *   <li>Whitelisted method named {@code isField()} from receiver's class/superclasses/interfaces.
+     *   <li>The {@code length} field of an array.
+     *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
+     *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
+     * </ul>
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
+     * Otherwise it returns a handle to the matching getter.
+     * <p>
+     * @param receiverClass Class of the object to retrieve the field from.
+     * @param name Name of the field.
+     * @return pointer to matching field. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     */
+    static MethodHandle lookupGetter(Class<?> receiverClass, String name) {
+        // first try whitelist
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
+
+            if (struct != null) {
+                MethodHandle handle = struct.getters.get(name);
+                if (handle != null) {
+                    return handle;
+                }
+            }
+
+            for (final Class<?> iface : clazz.getInterfaces()) {
+                struct = Definition.getRuntimeClass(iface);
+
+                if (struct != null) {
+                    MethodHandle handle = struct.getters.get(name);
+                    if (handle != null) {
+                        return handle;
+                    }
+                }
+            }
+        }
+        // special case: arrays, maps, and lists
+        if (receiverClass.isArray() && "length".equals(name)) {
+            // arrays expose .length as a read-only getter
+            return arrayLengthGetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
+            return MethodHandles.insertArguments(MAP_GET, 1, name);
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
             try {
-                final int index = Integer.parseInt(name);
-                ((List)owner).set(index, value);
+                int index = Integer.parseInt(name);
+                return MethodHandles.insertArguments(LIST_GET, 1, index);
             } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
             }
-        } else {
-            throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                    "for class [" + owner.getClass().getCanonicalName() + "].");
         }
+
+        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
-    @SuppressWarnings("rawtypes")
-    public static Object fieldLoad(final Object owner, final String name, final Definition definition) {
-        if (owner.getClass().isArray() && "length".equals(name)) {
-            return Array.getLength(owner);
-        } else {
-            final Field field = getField(owner, name, definition);
-            MethodHandle handle;
+    /**
+     * Looks up handle for a dynamic field setter (field store)
+     * <p>
+     * A dynamic field store for variable {@code x} of type {@code def} looks like:
+     * {@code x.field = y}
+     * <p>
+     * The following field stores are allowed:
+     * <ul>
+     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
+     *   <li>Whitelisted method named {@code setField()} from receiver's class/superclasses/interfaces.
+     *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
+     *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
+     * </ul>
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
+     * Otherwise it returns a handle to the matching setter.
+     * <p>
+     * @param receiverClass Class of the object to retrieve the field from.
+     * @param name Name of the field.
+     * @return pointer to matching field. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     */
+    static MethodHandle lookupSetter(Class<?> receiverClass, String name) {
+        // first try whitelist
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
-            if (field == null) {
-                final String get = "get" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
-                final Method method = getMethod(owner, get, definition);
+            if (struct != null) {
+                MethodHandle handle = struct.setters.get(name);
+                if (handle != null) {
+                    return handle;
+                }
+            }
 
-                if (method != null) {
-                    handle = method.handle;
-                } else if (owner instanceof Map) {
-                    return ((Map)owner).get(name);
-                } else if (owner instanceof List) {
+            for (final Class<?> iface : clazz.getInterfaces()) {
+                struct = Definition.getRuntimeClass(iface);
+
+                if (struct != null) {
+                    MethodHandle handle = struct.setters.get(name);
+                    if (handle != null) {
+                        return handle;
+                    }
+                }
+            }
+        }
+        // special case: maps, and lists
+        if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
+            return MethodHandles.insertArguments(MAP_PUT, 1, name);
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
+            try {
+                int index = Integer.parseInt(name);
+                return MethodHandles.insertArguments(LIST_SET, 1, index);
+            } catch (final NumberFormatException exception) {
+                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
+            }
+        }
+
+        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
+    }
+
+    /**
+     * Returns a method handle to normalize the index into an array. This is what makes lists and arrays stored in {@code def} support
+     * negative offsets.
+     * @param receiverClass Class of the array to store the value in
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument, and returns the normalized index
+     *   to use with array loads and array stores
+     */
+    static MethodHandle lookupIndexNormalize(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return ArrayIndexNormalizeHelper.arrayIndexNormalizer(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // noop so that mymap[key] doesn't do funny things with negative keys
+            return MAP_INDEX_NORMALIZE;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_INDEX_NORMALIZE;
+        }
+        throw new IllegalArgumentException("Attempting to address a non-array-like type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+
+    /**
+     * Returns a method handle to do an array store.
+     * @param receiverClass Class of the array to store the value in
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument,
+     *   and the value to set as 3rd argument. Return value is undefined and should be ignored.
+     */
+    static MethodHandle lookupArrayStore(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return MethodHandles.arrayElementSetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap[key]
+            return MAP_PUT;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_SET;
+        }
+        throw new IllegalArgumentException("Attempting to address a non-array type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+
+    /**
+     * Returns a method handle to do an array load.
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument.
+     *   It returns the loaded value.
+     */
+    static MethodHandle lookupArrayLoad(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return MethodHandles.arrayElementGetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap[key]
+            return MAP_GET;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_GET;
+        }
+        throw new IllegalArgumentException("Attempting to address a non-array type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+    
+    /** Helper class for isolating MethodHandles and methods to get iterators over arrays
+     * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
+     * as they could be, but works.
+     */
+    @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
+    private static final class ArrayIteratorHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        final int index = Integer.parseInt(name);
-
-                        return ((List)owner).get(index);
-                    } catch (NumberFormatException exception) {
-                        throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
                     }
-                } else {
-                    throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                            "for class [" + owner.getClass().getCanonicalName() + "].");
-                }
-            } else {
-                handle = field.getter;
-            }
+                }))
+        );
 
-            if (handle == null) {
-                throw new IllegalArgumentException(
-                        "Unable to read from field [" + name + "] with owner class [" + owner.getClass() + "].");
-            } else {
-                try {
-                    return handle.invoke(owner);
-                } catch (final Throwable throwable) {
-                    throw new IllegalArgumentException("Error loading value from " +
-                            "field [" + name + "] with owner class [" + owner.getClass() + "].", throwable);
-                }
-            }
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static Iterator<Boolean> iterator(final boolean[] array) {
+            return new Iterator<Boolean>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Boolean next() { return array[index++]; }
+            };
         }
-    }
+        static Iterator<Byte> iterator(final byte[] array) {
+            return new Iterator<Byte>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Byte next() { return array[index++]; }
+            };
+        }
+        static Iterator<Short> iterator(final short[] array) {
+            return new Iterator<Short>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Short next() { return array[index++]; }
+            };
+        }
+        static Iterator<Integer> iterator(final int[] array) {
+            return new Iterator<Integer>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Integer next() { return array[index++]; }
+            };
+        }
+        static Iterator<Long> iterator(final long[] array) {
+            return new Iterator<Long>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Long next() { return array[index++]; }
+            };
+        }
+        static Iterator<Character> iterator(final char[] array) {
+            return new Iterator<Character>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Character next() { return array[index++]; }
+            };
+        }
+        static Iterator<Float> iterator(final float[] array) {
+            return new Iterator<Float>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Float next() { return array[index++]; }
+            };
+        }
+        static Iterator<Double> iterator(final double[] array) {
+            return new Iterator<Double>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Double next() { return array[index++]; }
+            };
+        }
+        static Iterator<Object> iterator(final Object[] array) {
+            return new Iterator<Object>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Object next() { return array[index++]; }
+            };
+        }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void arrayStore(final Object array, Object index, Object value, final Definition definition,
-                                  final boolean indexsafe, final boolean valuesafe) {
-        if (array instanceof Map) {
-            ((Map)array).put(index, value);
+        static MethodHandle newIterator(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+        }
+
+        private ArrayIteratorHelper() {}
+    }
+    /**
+     * Returns a method handle to do iteration (for enhanced for loop)
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, returns iterator
+     */
+    static MethodHandle lookupIterator(Class<?> receiverClass) {
+        if (Iterable.class.isAssignableFrom(receiverClass)) {
+            return ITERATOR;
+        } else if (receiverClass.isArray()) {
+            return ArrayIteratorHelper.newIterator(receiverClass);
         } else {
-            try {
-                if (!indexsafe) {
-                    final Transform transform = getTransform(index.getClass(), Integer.class, definition);
-
-                    if (transform != null) {
-                        index = transform.method.handle.invoke(index);
-                    }
-                }
-            } catch (final Throwable throwable) {
-                throw new IllegalArgumentException(
-                        "Error storing value [" + value + "] in list using index [" + index + "].", throwable);
-            }
-
-            if (array.getClass().isArray()) {
-                try {
-                    if (!valuesafe) {
-                        final Transform transform = getTransform(value.getClass(), array.getClass().getComponentType(), definition);
-
-                        if (transform != null) {
-                            value = transform.method.handle.invoke(value);
-                        }
-                    }
-
-                    Array.set(array, (int)index, value);
-                } catch (final Throwable throwable) {
-                    throw new IllegalArgumentException("Error storing value [" + value + "] " +
-                            "in array class [" + array.getClass().getCanonicalName() + "].", throwable);
-                }
-            } else if (array instanceof List) {
-                ((List)array).set((int)index, value);
-            } else {
-                throw new IllegalArgumentException("Attempting to address a non-array type " +
-                        "[" + array.getClass().getCanonicalName() + "] as an array.");
-            }
+            throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static Object arrayLoad(final Object array, Object index,
-                                   final Definition definition, final boolean indexsafe) {
-        if (array instanceof Map) {
-            return ((Map)array).get(index);
-        } else {
-            try {
-                if (!indexsafe) {
-                    final Transform transform = getTransform(index.getClass(), Integer.class, definition);
 
-                    if (transform != null) {
-                        index = transform.method.handle.invoke(index);
-                    }
-                }
-            } catch (final Throwable throwable) {
-                throw new IllegalArgumentException(
-                        "Error loading value using index [" + index + "].", throwable);
-            }
-
-            if (array.getClass().isArray()) {
-                try {
-                    return Array.get(array, (int)index);
-                } catch (final Throwable throwable) {
-                    throw new IllegalArgumentException("Error loading value from " +
-                            "array class [" + array.getClass().getCanonicalName() + "].", throwable);
-                }
-            } else if (array instanceof List) {
-                return ((List)array).get((int)index);
-            } else {
-                throw new IllegalArgumentException("Attempting to address a non-array type " +
-                        "[" + array.getClass().getCanonicalName() + "] as an array.");
-            }
-        }
-    }
-
-    public static Method getMethod(final Object owner, final String name, final Definition definition) {
-        Struct struct = null;
-        Class<?> clazz = owner.getClass();
-        Method method = null;
-
-        while (clazz != null) {
-            struct = definition.classes.get(clazz);
-
-            if (struct != null) {
-                method = struct.methods.get(name);
-
-                if (method != null) {
-                    break;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.classes.get(iface);
-
-                if (struct != null) {
-                    method = struct.methods.get(name);
-
-                    if (method != null) {
-                        break;
-                    }
-                }
-            }
-
-            if (struct != null) {
-                method = struct.methods.get(name);
-
-                if (method != null) {
-                    break;
-                }
-            }
-
-            clazz = clazz.getSuperclass();
-        }
-
-        if (struct == null) {
-            throw new IllegalArgumentException("Unable to find a dynamic struct for class [" + owner.getClass() + "].");
-        }
-
-        return method;
-    }
-
-    public static Field getField(final Object owner, final String name, final Definition definition) {
-        Struct struct = null;
-        Class<?> clazz = owner.getClass();
-        Field field = null;
-
-        while (clazz != null) {
-            struct = definition.classes.get(clazz);
-
-            if (struct != null) {
-                field = struct.members.get(name);
-
-                if (field != null) {
-                    break;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.classes.get(iface);
-
-                if (struct != null) {
-                    field = struct.members.get(name);
-
-                    if (field != null) {
-                        break;
-                    }
-                }
-            }
-
-            if (struct != null) {
-                field = struct.members.get(name);
-
-                if (field != null) {
-                    break;
-                }
-            }
-
-            clazz = clazz.getSuperclass();
-        }
-
-        if (struct == null) {
-            throw new IllegalArgumentException("Unable to find a dynamic struct for class [" + owner.getClass() + "].");
-        }
-
-        return field;
-    }
-
-    public static Transform getTransform(Class<?> fromClass, Class<?> toClass, final Definition definition) {
-        Struct fromStruct = null;
-        Struct toStruct = null;
-
-        if (fromClass.equals(toClass)) {
-            return null;
-        }
-
-        while (fromClass != null) {
-            fromStruct = definition.classes.get(fromClass);
-
-            if (fromStruct != null) {
-                break;
-            }
-
-            for (final Class<?> iface : fromClass.getInterfaces()) {
-                fromStruct = definition.classes.get(iface);
-
-                if (fromStruct != null) {
-                    break;
-                }
-            }
-
-            if (fromStruct != null) {
-                break;
-            }
-
-            fromClass = fromClass.getSuperclass();
-        }
-
-        if (fromStruct != null) {
-            while (toClass != null) {
-                toStruct = definition.classes.get(toClass);
-
-                if (toStruct != null) {
-                    break;
-                }
-
-                for (final Class<?> iface : toClass.getInterfaces()) {
-                    toStruct = definition.classes.get(iface);
-
-                    if (toStruct != null) {
-                        break;
-                    }
-                }
-
-                if (toStruct != null) {
-                    break;
-                }
-
-                toClass = toClass.getSuperclass();
-            }
-        }
-
-        if (toStruct != null) {
-            final Type fromType = definition.getType(fromStruct.name);
-            final Type toType = definition.getType(toStruct.name);
-            final Cast cast = new Cast(fromType, toType);
-
-            return definition.transforms.get(cast);
-        }
-
-        return null;
-    }
-
-    public static Object not(final Object unary) {
-        if (unary instanceof Double || unary instanceof Float || unary instanceof Long) {
-            return ~((Number)unary).longValue();
-        } else if (unary instanceof Number) {
-            return ~((Number)unary).intValue();
-        } else if (unary instanceof Character) {
-            return ~(int)(char)unary;
-        }
-
-        throw new ClassCastException("Cannot apply [~] operation to type " +
-                "[" + unary.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object neg(final Object unary) {
-        if (unary instanceof Double) {
-            return -(double)unary;
-        } else if (unary instanceof Float) {
-            return -(float)unary;
-        } else if (unary instanceof Long) {
-            return -(long)unary;
-        } else if (unary instanceof Number) {
-            return -((Number)unary).intValue();
-        } else if (unary instanceof Character) {
-            return -(char)unary;
-        }
-
-        throw new ClassCastException("Cannot apply [-] operation to type " +
-                "[" + unary.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object mul(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() * ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() * ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() * ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() * ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() * (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() * (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() * (char)right;
-                } else {
-                    return ((Number)left).intValue() * (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left * ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left * ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left * ((Number)right).longValue();
-                } else {
-                    return (char)left * ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left * (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [*] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object div(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() / ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() / ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() / ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() / ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() / (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() / (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() / (char)right;
-                } else {
-                    return ((Number)left).intValue() / (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left / ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left / ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left / ((Number)right).longValue();
-                } else {
-                    return (char)left / ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left / (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [/] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object rem(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() % ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() % ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() % ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() % ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() % (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() % (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() % (char)right;
-                } else {
-                    return ((Number)left).intValue() % (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left % ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left % ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left % ((Number)right).longValue();
-                } else {
-                    return (char)left % ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left % (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [%] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object add(final Object left, final Object right) {
-        if (left instanceof String || right instanceof String) {
-            return "" + left + right;
-        } else if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() + ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() + ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() + ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() + ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() + (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() + (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() + (char)right;
-                } else {
-                    return ((Number)left).intValue() + (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left + ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left + ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left + ((Number)right).longValue();
-                } else {
-                    return (char)left + ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left + (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [+] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object sub(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() - ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() - ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() - ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() - ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() - (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() - (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() - (char)right;
-                } else {
-                    return ((Number)left).intValue() - (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left - ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left - ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left - ((Number)right).longValue();
-                } else {
-                    return (char)left - ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left - (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [-] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object lsh(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() << ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() << ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() << (char)right;
-                } else {
-                    return ((Number)left).intValue() << (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (long)(char)left << ((Number)right).longValue();
-                } else {
-                    return (char)left << ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left << (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [<<] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object rsh(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() >> ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() >> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() >> (char)right;
-                } else {
-                    return ((Number)left).intValue() >> (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (long)(char)left >> ((Number)right).longValue();
-                } else {
-                    return (char)left >> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left >> (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [>>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object ush(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() >>> ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() >>> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() >>> (char)right;
-                } else {
-                    return ((Number)left).intValue() >>> (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (long)(char)left >>> ((Number)right).longValue();
-                } else {
-                    return (char)left >>> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left >>> (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [>>>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object and(final Object left, final Object right) {
-        if (left instanceof Boolean && right instanceof Boolean) {
-            return (boolean)left && (boolean)right;
-        } else if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() & ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() & ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() & (char)right;
-                } else {
-                    return ((Number)left).intValue() & (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (char)left & ((Number)right).longValue();
-                } else {
-                    return (char)left & ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left & (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [&] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object xor(final Object left, final Object right) {
-        if (left instanceof Boolean && right instanceof Boolean) {
-            return (boolean)left ^ (boolean)right;
-        } else if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() ^ ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() ^ ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() ^ (char)right;
-                } else {
-                    return ((Number)left).intValue() ^ (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (char)left ^ ((Number)right).longValue();
-                } else {
-                    return (char)left ^ ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left ^ (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [^] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static Object or(final Object left, final Object right) {
-        if (left instanceof Boolean && right instanceof Boolean) {
-            return (boolean)left || (boolean)right;
-        } else if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() | ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() | ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() | (char)right;
-                } else {
-                    return ((Number)left).intValue() | (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (char)left | ((Number)right).longValue();
-                } else {
-                    return (char)left | ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left | (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [|] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static boolean eq(final Object left, final Object right) {
-        if (left != null && right != null) {
-            if (left instanceof Double) {
-                if (right instanceof Number) {
-                    return (double)left == ((Number)right).doubleValue();
-                } else if (right instanceof Character) {
-                    return (double)left == (char)right;
-                }
-            } else if (right instanceof Double) {
-                if (left instanceof Number) {
-                    return ((Number)left).doubleValue() == (double)right;
-                } else if (left instanceof Character) {
-                    return (char)left == ((Number)right).doubleValue();
-                }
-            } else if (left instanceof Float) {
-                if (right instanceof Number) {
-                    return (float)left == ((Number)right).floatValue();
-                } else if (right instanceof Character) {
-                    return (float)left == (char)right;
-                }
-            } else if (right instanceof Float) {
-                if (left instanceof Number) {
-                    return ((Number)left).floatValue() == (float)right;
-                } else if (left instanceof Character) {
-                    return (char)left == ((Number)right).floatValue();
-                }
-            } else if (left instanceof Long) {
-                if (right instanceof Number) {
-                    return (long)left == ((Number)right).longValue();
-                } else if (right instanceof Character) {
-                    return (long)left == (char)right;
-                }
-            } else if (right instanceof Long) {
-                if (left instanceof Number) {
-                    return ((Number)left).longValue() == (long)right;
-                } else if (left instanceof Character) {
-                    return (char)left == ((Number)right).longValue();
-                }
-            } else if (left instanceof Number) {
-                if (right instanceof Number) {
-                    return ((Number)left).intValue() == ((Number)right).intValue();
-                } else if (right instanceof Character) {
-                    return ((Number)left).intValue() == (char)right;
-                }
-            } else if (right instanceof Number && left instanceof Character) {
-                return (char)left == ((Number)right).intValue();
-            } else if (left instanceof Character && right instanceof Character) {
-                return (char)left == (char)right;
-            }
-
-            return left.equals(right);
-        }
-
-        return left == null && right == null;
-    }
-
-    public static boolean lt(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() < ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() < ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() < ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() < ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() < (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() < (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() < (char)right;
-                } else {
-                    return ((Number)left).intValue() < (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left < ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left < ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left < ((Number)right).longValue();
-                } else {
-                    return (char)left < ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left < (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [<] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static boolean lte(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() <= ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() <= ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() <= ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() <= ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() <= (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() <= (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() <= (char)right;
-                } else {
-                    return ((Number)left).intValue() <= (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left <= ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left <= ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left <= ((Number)right).longValue();
-                } else {
-                    return (char)left <= ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left <= (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [<=] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static boolean gt(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() > ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() > ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() > ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() > ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() > (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() > (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() > (char)right;
-                } else {
-                    return ((Number)left).intValue() > (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left > ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left > ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left > ((Number)right).longValue();
-                } else {
-                    return (char)left > ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left > (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
-
-    public static boolean gte(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() >= ((Number)right).doubleValue();
-                } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() >= ((Number)right).floatValue();
-                } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() >= ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() >= ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number)left).doubleValue() >= (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() >= (char)right;
-                } else if (left instanceof Long) {
-                    return ((Number)left).longValue() >= (char)right;
-                } else {
-                    return ((Number)left).intValue() >= (char)right;
-                }
-            }
-        } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char)left >= ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left >= ((Number)right).floatValue();
-                } else if (right instanceof Long) {
-                    return (char)left >= ((Number)right).longValue();
-                } else {
-                    return (char)left >= ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left >= (char)right;
-            }
-        }
-
-        throw new ClassCastException("Cannot apply [>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
-    }
+    // Conversion methods for Def to primitive types.
 
     public static boolean DefToboolean(final Object value) {
-        if (value instanceof Boolean) {
-            return (boolean)value;
-        } else if (value instanceof Character) {
-            return ((char)value) != 0;
+        return (boolean)value;
+    }
+
+    public static byte DefTobyteImplicit(final Object value) {
+        return (byte)value;
+    }
+
+    public static short DefToshortImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
         } else {
-            return ((Number)value).intValue() != 0;
+            return (short)value;
         }
     }
 
-    public static byte DefTobyte(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (byte)1 : 0;
+    public static char DefTocharImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (char)(byte)value;
+        } else {
+            return (char)value;
+        }
+    }
+
+    public static int DefTointImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
         } else if (value instanceof Character) {
+            return (char)value;
+        } else {
+            return (int)value;
+        }
+    }
+
+    public static long DefTolongImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else {
+            return (long)value;
+        }
+    }
+
+    public static float DefTofloatImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else {
+            return (float)value;
+        }
+    }
+
+    public static double DefTodoubleImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else if (value instanceof Float) {
+            return (float)value;
+        } else {
+            return (double)value;
+        }
+    }
+
+    public static byte DefTobyteExplicit(final Object value) {
+        if (value instanceof Character) {
             return (byte)(char)value;
         } else {
             return ((Number)value).byteValue();
         }
     }
 
-    public static short DefToshort(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (short)1 : 0;
-        } else if (value instanceof Character) {
+    public static short DefToshortExplicit(final Object value) {
+        if (value instanceof Character) {
             return (short)(char)value;
         } else {
             return ((Number)value).shortValue();
         }
     }
 
-    public static char DefTochar(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (char)1 : 0;
-        } else if (value instanceof Character) {
+    public static char DefTocharExplicit(final Object value) {
+        if (value instanceof Character) {
             return ((Character)value);
         } else {
             return (char)((Number)value).intValue();
         }
     }
 
-    public static int DefToint(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1 : 0;
-        } else if (value instanceof Character) {
+    public static int DefTointExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).intValue();
         }
     }
 
-    public static long DefTolong(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1L : 0;
-        } else if (value instanceof Character) {
+    public static long DefTolongExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).longValue();
         }
     }
 
-    public static float DefTofloat(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (float)1 : 0;
-        } else if (value instanceof Character) {
+    public static float DefTofloatExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).floatValue();
         }
     }
 
-    public static double DefTodouble(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (double)1 : 0;
-        } else if (value instanceof Character) {
+    public static double DefTodoubleExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).doubleValue();
         }
     }
 
-    public static Boolean DefToBoolean(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return (boolean)value;
-        } else if (value instanceof Character) {
-            return ((char)value) != 0;
-        } else {
-            return ((Number)value).intValue() != 0;
-        }
+    /**
+     * "Normalizes" the index into a {@code Map} by making no change to the index.
+     */
+    public static Object mapIndexNormalize(final Map<?, ?> value, Object index) {
+        return index;
     }
 
-    public static Byte DefToByte(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (byte)1 : 0;
-        } else if (value instanceof Character) {
-            return (byte)(char)value;
-        } else {
-            return ((Number)value).byteValue();
-        }
+    /**
+     * "Normalizes" the idnex into a {@code List} by flipping negative indexes around so they are "from the end" of the list.
+     */
+    public static int listIndexNormalize(final List<?> value, int index) {
+        return index >= 0 ? index : value.size() + index;
     }
 
-    public static Short DefToShort(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (short)1 : 0;
-        } else if (value instanceof Character) {
-            return (short)(char)value;
-        } else {
-            return ((Number)value).shortValue();
-        }
-    }
+    /**
+     * Methods to normalize array indices to support negative indices into arrays stored in {@code def}s.
+     */
+    @SuppressWarnings("unused") // normalizeIndex() methods are are actually used, javac just does not know :)
+    private static final class ArrayIndexNormalizeHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
 
-    public static Character DefToCharacter(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (char)1 : 0;
-        } else if (value instanceof Character) {
-            return ((Character)value);
-        } else {
-            return (char)((Number)value).intValue();
-        }
-    }
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "normalizeIndex",
+                                MethodType.methodType(int.class, type, int.class));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
 
-    public static Integer DefToInteger(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1 : 0;
-        } else if (value instanceof Character) {
-            return (int)(char)value;
-        } else {
-            return ((Number)value).intValue();
-        }
-    }
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
 
-    public static Long DefToLong(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1L : 0;
-        } else if (value instanceof Character) {
-            return (long)(char)value;
-        } else {
-            return ((Number)value).longValue();
-        }
-    }
+        static int normalizeIndex(final boolean[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final byte[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final short[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final int[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final long[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final char[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final float[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final double[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final Object[] array, final int index) { return index >= 0 ? index : index + array.length; }
 
-    public static Float DefToFloat(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (float)1 : 0;
-        } else if (value instanceof Character) {
-            return (float)(char)value;
-        } else {
-            return ((Number)value).floatValue();
+        static MethodHandle arrayIndexNormalizer(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
-    }
 
-    public static Double DefToDouble(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (double)1 : 0;
-        } else if (value instanceof Character) {
-            return (double)(char)value;
-        } else {
-            return ((Number)value).doubleValue();
-        }
+        private ArrayIndexNormalizeHelper() {}
     }
 }

@@ -240,12 +240,12 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     private void updateAndCheckSource(long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
         UpdateResponse updateResponse = update(detectNoop, expectedVersion, xContentBuilder);
-        assertEquals(updateResponse.getGetResult().sourceRef().toUtf8(), xContentBuilder.bytes().toUtf8());
+        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), xContentBuilder.bytes().utf8ToString());
     }
 
     private UpdateResponse update(Boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
         UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
-                .setDoc(xContentBuilder.bytes().toUtf8())
+                .setDoc(xContentBuilder)
                 .setDocAsUpsert(true)
                 .setFields("_source");
         if (detectNoop != null) {

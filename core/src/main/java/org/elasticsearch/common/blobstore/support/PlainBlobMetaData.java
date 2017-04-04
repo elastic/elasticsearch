@@ -21,9 +21,6 @@ package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobMetaData;
 
-/**
- *
- */
 public class PlainBlobMetaData implements BlobMetaData {
 
     private final String name;

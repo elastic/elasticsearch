@@ -23,28 +23,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.Map;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
 
-// Code 
-public final class HdfsPlugin extends Plugin {
-  
+public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
+
     // initialize some problematic classes with elevated privileges
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                return evilHadoopInit();
-            }
-        });
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
     }
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")
@@ -85,16 +80,7 @@ public final class HdfsPlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "repository-hdfs";
-    }
-
-    @Override
-    public String description() {
-        return "HDFS Repository Plugin";
-    }
-
-    public void onModule(RepositoriesModule repositoriesModule) {
-        repositoriesModule.registerRepository("hdfs", HdfsRepository.class, BlobStoreIndexShardRepository.class);
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry));
     }
 }

@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-types-exists.html",
     "methods": ["HEAD"],
     "url": {
-      "path": "/{index}/{type}",
-      "paths": ["/{index}/{type}"],
+      "path": "/{index}/_mapping/{type}",
+      "paths": ["/{index}/_mapping/{type}"],
       "parts": {
         "index": {
           "type" : "list",

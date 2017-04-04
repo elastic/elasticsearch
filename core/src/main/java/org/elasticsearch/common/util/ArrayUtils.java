@@ -22,9 +22,6 @@ package org.elasticsearch.common.util;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 
-/**
- *
- */
 public class ArrayUtils {
 
     private ArrayUtils() {}

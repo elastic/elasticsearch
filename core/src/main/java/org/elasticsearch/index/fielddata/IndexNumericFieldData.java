@@ -19,22 +19,22 @@
 
 package org.elasticsearch.index.fielddata;
 
-/**
- */
 public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericFieldData> {
 
-    public static enum NumericType {
+    enum NumericType {
         BOOLEAN(false),
         BYTE(false),
         SHORT(false),
         INT(false),
         LONG(false),
+        DATE(false),
+        HALF_FLOAT(true),
         FLOAT(true),
         DOUBLE(true);
 
         private final boolean floatingPoint;
 
-        private NumericType(boolean floatingPoint) {
+        NumericType(boolean floatingPoint) {
             this.floatingPoint = floatingPoint;
         }
 

@@ -19,9 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -38,11 +37,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,17 +46,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
-    public static class Range implements Writeable<Range>, ToXContent {
-
-        public static final Range PROTOTYPE = new Range(null, null, null, null, null);
+    public static class Range implements Writeable, ToXContent {
         public static final ParseField KEY_FIELD = new ParseField("key");
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField TO_FIELD = new ParseField("to");
@@ -80,6 +70,27 @@ public class RangeAggregator extends BucketsAggregator {
             this(key, null, from, null, to);
         }
 
+        /**
+         * Read from a stream.
+         */
+        public Range(StreamInput in) throws IOException {
+            key = in.readOptionalString();
+            fromAsStr = in.readOptionalString();
+            toAsStr = in.readOptionalString();
+            from = in.readDouble();
+            to = in.readDouble();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(key);
+            out.writeOptionalString(fromAsStr);
+            out.writeOptionalString(toAsStr);
+            out.writeDouble(from);
+            out.writeDouble(to);
+        }
+
+
         protected Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
             this.from = from == null ? Double.NEGATIVE_INFINITY : from;
@@ -97,40 +108,20 @@ public class RangeAggregator extends BucketsAggregator {
             return "[" + from + " to " + to + ")";
         }
 
-        public Range process(ValueParser parser, SearchContext context) {
+        public Range process(DocValueFormat parser, SearchContext context) {
             assert parser != null;
             Double from = this.from;
             Double to = this.to;
             if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, context);
+                from = parser.parseDouble(fromAsStr, false, context.getQueryShardContext()::nowInMillis);
             }
             if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, context);
+                to = parser.parseDouble(toAsStr, false, context.getQueryShardContext()::nowInMillis);
             }
             return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
-        @Override
-        public Range readFrom(StreamInput in) throws IOException {
-            String key = in.readOptionalString();
-            String fromAsStr = in.readOptionalString();
-            String toAsStr = in.readOptionalString();
-            double from = in.readDouble();
-            double to = in.readDouble();
-            return new Range(key, from, fromAsStr, to, toAsStr);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
-            out.writeOptionalString(fromAsStr);
-            out.writeOptionalString(toAsStr);
-            out.writeDouble(from);
-            out.writeDouble(to);
-        }
-
-        public Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-
+        public static Range fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             double from = Double.NEGATIVE_INFINITY;
@@ -142,17 +133,17 @@ public class RangeAggregator extends BucketsAggregator {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         from = parser.doubleValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         to = parser.doubleValue();
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         fromAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         toAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, KEY_FIELD)) {
+                    } else if (KEY_FIELD.match(currentFieldName)) {
                         key = parser.text();
                     }
                 }
@@ -205,30 +196,25 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     final ValuesSource.Numeric valuesSource;
-    final ValueFormatter formatter;
+    final DocValueFormat format;
     final Range[] ranges;
     final boolean keyed;
     final InternalRange.Factory rangeFactory;
 
     final double[] maxTo;
 
-    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormat format,
-            InternalRange.Factory rangeFactory, List<? extends Range> ranges, boolean keyed, AggregationContext aggregationContext,
+    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
+            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
-        this.formatter = format.formatter();
+        this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
 
-        this.ranges = new Range[ranges.size()];
-        ValueParser parser = format != null ? format.parser() : ValueParser.RAW;
-        for (int i = 0; i < this.ranges.length; i++) {
-            this.ranges[i] = ranges.get(i).process(parser, context.searchContext());
-        }
-        sortRanges(this.ranges);
+        this.ranges = ranges;
 
         maxTo = new double[this.ranges.length];
         maxTo[0] = this.ranges[0].to;
@@ -309,7 +295,7 @@ public class RangeAggregator extends BucketsAggregator {
         };
     }
 
-    private final long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
+    private long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
         return owningBucketOrdinal * ranges.length + rangeOrd;
     }
 
@@ -320,11 +306,11 @@ public class RangeAggregator extends BucketsAggregator {
             Range range = ranges[i];
             final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed, formatter);
+                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed, format);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
+        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
     }
 
     @Override
@@ -334,66 +320,41 @@ public class RangeAggregator extends BucketsAggregator {
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter);
+                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
-    }
-
-    private static final void sortRanges(final Range[] ranges) {
-        new InPlaceMergeSorter() {
-
-            @Override
-            protected void swap(int i, int j) {
-                final Range tmp = ranges[i];
-                ranges[i] = ranges[j];
-                ranges[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                int cmp = Double.compare(ranges[i].from, ranges[j].from);
-                if (cmp == 0) {
-                    cmp = Double.compare(ranges[i].to, ranges[j].to);
-                }
-                return cmp;
-            }
-        }.sort(0, ranges.length);
+        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
     }
 
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
 
-        private final List<R> ranges;
+        private final R[] ranges;
         private final boolean keyed;
         private final InternalRange.Factory factory;
-        private final ValueFormatter formatter;
+        private final DocValueFormat format;
 
         @SuppressWarnings("unchecked")
-        public Unmapped(String name, List<R> ranges, boolean keyed, ValueFormat format,
-                AggregationContext context,
+        public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format,
+                SearchContext context,
                 Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 
             super(name, context, parent, pipelineAggregators, metaData);
-            this.ranges = new ArrayList<>();
-            ValueParser parser = format != null ? format.parser() : ValueParser.RAW;
-            for (R range : ranges) {
-                this.ranges.add((R) range.process(parser, context.searchContext()));
-            }
+            this.ranges = ranges;
             this.keyed = keyed;
-            this.formatter = format.formatter();
+            this.format = format;
             this.factory = factory;
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
-            List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.size());
+            List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
             for (RangeAggregator.Range range : ranges) {
-                buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter));
+                buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format));
             }
-            return factory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
+            return factory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
         }
     }
 

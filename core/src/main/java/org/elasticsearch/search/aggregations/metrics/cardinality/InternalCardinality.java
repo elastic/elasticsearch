@@ -23,44 +23,51 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
+    private final HyperLogLogPlusPlus counts;
 
-    public final static Type TYPE = new Type("cardinality");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalCardinality readResult(StreamInput in) throws IOException {
-            InternalCardinality result = new InternalCardinality();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private HyperLogLogPlusPlus counts;
-
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.counts = counts;
-        this.valueFormatter = formatter;
     }
 
-    private InternalCardinality() {
+    /**
+     * Read from a stream.
+     */
+    public InternalCardinality(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        if (in.readBoolean()) {
+            counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+        } else {
+            counts = null;
+        }
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        if (counts != null) {
+            out.writeBoolean(true);
+            counts.writeTo(0, out);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return CardinalityAggregationBuilder.NAME;
     }
 
     @Override
@@ -74,32 +81,6 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        if (in.readBoolean()) {
-            counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
-        } else {
-            counts = null;
-        }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        if (counts != null) {
-            out.writeBoolean(true);
-            counts.writeTo(0, out);
-        } else {
-            out.writeBoolean(false);
-        }
-    }
-
-    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalCardinality reduced = null;
         for (InternalAggregation aggregation : aggregations) {
@@ -107,7 +88,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             if (cardinality.counts != null) {
                 if (reduced == null) {
                     reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                            BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, pipelineAggregators(), getMetaData());
+                            BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetaData());
                 }
                 reduced.merge(cardinality);
             }
@@ -128,11 +109,22 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
-        builder.field(CommonFields.VALUE, cardinality);
-        if (!(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(cardinality));
-        }
+        builder.field(CommonFields.VALUE.getPreferredName(), cardinality);
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return counts.hashCode(0);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalCardinality other = (InternalCardinality) obj;
+        return counts.equals(0, other.counts);
+    }
+
+    HyperLogLogPlusPlus getState() {
+        return counts;
+    }
 }

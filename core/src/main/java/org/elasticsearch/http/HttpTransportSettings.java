@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.PortsRange;
@@ -36,13 +37,13 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_CORS_ENABLED =
         Setting.boolSetting("http.cors.enabled", false, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN =
-        new Setting<String>("http.cors.allow-origin", "", (value) -> value, Property.NodeScope);
+        new Setting<>("http.cors.allow-origin", "", (value) -> value, Property.NodeScope);
     public static final Setting<Integer> SETTING_CORS_MAX_AGE =
         Setting.intSetting("http.cors.max-age", 1728000, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_METHODS =
-        new Setting<String>("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE", (value) -> value, Property.NodeScope);
+        new Setting<>("http.cors.allow-methods", "OPTIONS,HEAD,GET,POST,PUT,DELETE", (value) -> value, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS =
-        new Setting<String>("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length", (value) -> value, Property.NodeScope);
+        new Setting<>("http.cors.allow-headers", "X-Requested-With,Content-Type,Content-Length", (value) -> value, Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
     public static final Setting<Boolean> SETTING_PIPELINING =
@@ -50,9 +51,11 @@ public final class HttpTransportSettings {
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
-        Setting.boolSetting("http.compression", false, Property.NodeScope);
+        Setting.boolSetting("http.compression", true, Property.NodeScope);
+    // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
+    // best compromise between reduction in network traffic and added latency. For more details please check #7309.
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL =
-        Setting.intSetting("http.compression_level", 6, Property.NodeScope);
+        Setting.intSetting("http.compression_level", 3, Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_HOST =
         listSetting("http.host", emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST =
@@ -61,11 +64,20 @@ public final class HttpTransportSettings {
         listSetting("http.bind_host", SETTING_HTTP_HOST, Function.identity(), Property.NodeScope);
 
     public static final Setting<PortsRange> SETTING_HTTP_PORT =
-        new Setting<PortsRange>("http.port", "9200-9300", PortsRange::new, Property.NodeScope);
+        new Setting<>("http.port", "9200-9300", PortsRange::new, Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_PUBLISH_PORT =
         Setting.intSetting("http.publish_port", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED =
         Setting.boolSetting("http.detailed_errors.enabled", true, Property.NodeScope);
+    public static final Setting<Boolean> SETTING_HTTP_CONTENT_TYPE_REQUIRED =
+        new Setting<>("http.content_type.required", (s) -> Boolean.toString(true), (s) -> {
+            final boolean value = Booleans.parseBoolean(s);
+            if (value == false) {
+                throw new IllegalArgumentException("http.content_type.required cannot be set to false. It exists only to make a rolling" +
+                    " upgrade easier");
+            }
+            return true;
+        }, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =
         Setting.byteSizeSetting("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE =

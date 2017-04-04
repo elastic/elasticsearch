@@ -30,20 +30,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +53,6 @@ import java.util.Objects;
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
     static final String SUGGESTION_NAME = "completion";
-    static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
 
     /**
@@ -70,11 +65,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *     "payload" : STRING_ARRAY
      * }
      */
-    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> TLP_PARSER =
-        new ObjectParser<>(SUGGESTION_NAME, null);
+    private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME, null);
     static {
-        TLP_PARSER.declareStringArray(CompletionSuggestionBuilder.InnerBuilder::payload, PAYLOAD_FIELD);
-        TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
+        PARSER.declareField((parser, completionSuggestionContext, context) -> {
                 if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                     if (parser.booleanValue()) {
                         completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
@@ -84,14 +77,14 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                 }
             },
             FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
-        TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
+        PARSER.declareField((parser, completionSuggestionContext, context) ->
             completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
             RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, SuggestUtils.Fields.FIELD);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, SuggestUtils.Fields.ANALYZER);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SuggestUtils.Fields.SIZE);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SuggestUtils.Fields.SHARD_SIZE);
-        TLP_PARSER.declareField((p, v, c) -> {
+        PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
+        PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
+        PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
+        PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
+        PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.copyCurrentStructure(p);
@@ -103,7 +96,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     protected FuzzyOptions fuzzyOptions;
     protected RegexOptions regexOptions;
     protected BytesReference contextBytes = null;
-    protected List<String> payloadFields = Collections.emptyList();
 
     public CompletionSuggestionBuilder(String field) {
         super(field);
@@ -118,7 +110,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         fuzzyOptions = in.fuzzyOptions;
         regexOptions = in.regexOptions;
         contextBytes = in.contextBytes;
-        payloadFields = in.payloadFields;
     }
 
     /**
@@ -126,8 +117,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      */
     public CompletionSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
-        payloadFields = new ArrayList<>();
-        Collections.addAll(payloadFields, in.readStringArray());
         fuzzyOptions = in.readOptionalWriteable(FuzzyOptions::new);
         regexOptions = in.readOptionalWriteable(RegexOptions::new);
         contextBytes = in.readOptionalBytesReference();
@@ -135,7 +124,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeStringArray(payloadFields.toArray(new String[payloadFields.size()]));
         out.writeOptionalWriteable(fuzzyOptions);
         out.writeOptionalWriteable(regexOptions);
         out.writeOptionalBytesReference(contextBytes);
@@ -190,16 +178,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
-     * Sets the fields to be returned as suggestion payload.
-     * Note: Only doc values enabled fields are supported
-     */
-    public CompletionSuggestionBuilder payload(List<String> fields) {
-        Objects.requireNonNull(fields, "payload must not be null");
-        this.payloadFields = fields;
-        return this;
-    }
-
-    /**
      * Sets query contexts for completion
      * @param queryContexts named query contexts
      *                      see {@link org.elasticsearch.search.suggest.completion.context.CategoryQueryContext}
@@ -218,17 +196,21 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                 contentBuilder.endArray();
             }
             contentBuilder.endObject();
-            contextBytes = contentBuilder.bytes();
-            return this;
+            return contexts(contentBuilder);
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
     }
 
+    private CompletionSuggestionBuilder contexts(XContentBuilder contextBuilder) {
+        contextBytes = contextBuilder.bytes();
+        return this;
+    }
+
     private static class InnerBuilder extends CompletionSuggestionBuilder {
         private String field;
 
-        public InnerBuilder() {
+        InnerBuilder() {
             super("_na_");
         }
 
@@ -240,13 +222,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (payloadFields.isEmpty() == false) {
-            builder.startArray(PAYLOAD_FIELD.getPreferredName());
-            for (String field : payloadFields) {
-                builder.value(field);
-            }
-            builder.endArray();
-        }
         if (fuzzyOptions != null) {
             fuzzyOptions.toXContent(builder, params);
         }
@@ -254,21 +229,19 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes);
-            builder.field(CONTEXTS_FIELD.getPreferredName());
-            builder.copyCurrentStructure(contextParser);
+            builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
         }
         return builder;
     }
 
-    static CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+    public static CompletionSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
-        TLP_PARSER.parse(parseContext.parser(), builder);
+        PARSER.parse(parser, builder, null);
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
             throw new ElasticsearchParseException(
-                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new CompletionSuggestionBuilder(field, builder);
     }
@@ -279,15 +252,19 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         // copy over common settings to each suggestion builder
         final MapperService mapperService = context.getMapperService();
         populateCommonFields(mapperService, suggestionContext);
-        suggestionContext.setPayloadFields(payloadFields);
         suggestionContext.setFuzzyOptions(fuzzyOptions);
         suggestionContext.setRegexOptions(regexOptions);
         MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
-        if (mappedFieldType != null && mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
+        if (mappedFieldType == null ||
+            mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
+            throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
+        }
+        if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(context.getXContentRegistry(),
+                        contextBytes)) {
                     if (type.hasContextMappings() && contextParser != null) {
                         ContextMappings contextMappings = type.getContextMappings();
                         contextParser.nextToken();
@@ -299,7 +276,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                             if (currentToken == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = contextParser.currentName();
                                 final ContextMapping mapping = contextMappings.get(currentFieldName);
-                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                                queryContexts.put(currentFieldName, mapping.parseQueryContext(context.newParseContext(contextParser)));
                             }
                         }
                         suggestionContext.setQueryContexts(queryContexts);
@@ -308,9 +285,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             } else if (contextBytes != null) {
                 throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
-        } else {
-            throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
+        assert suggestionContext.getFieldType() != null : "no completion field type set";
         return suggestionContext;
     }
 
@@ -321,14 +297,13 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected boolean doEquals(CompletionSuggestionBuilder other) {
-        return Objects.equals(payloadFields, other.payloadFields) &&
-            Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
+        return Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
             Objects.equals(regexOptions, other.regexOptions) &&
             Objects.equals(contextBytes, other.contextBytes);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(payloadFields, fuzzyOptions, regexOptions, contextBytes);
+        return Objects.hash(fuzzyOptions, regexOptions, contextBytes);
     }
 }

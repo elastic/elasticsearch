@@ -1,10 +1,13 @@
 = Community Contributed Clients
 
+[preface]
+== Preface
 :client: https://www.elastic.co/guide/en/elasticsearch/client
 
 Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
+* <<b4j>>
 * <<clojure>>
 * <<cold-fusion>>
 * <<erlang>>
@@ -13,6 +16,8 @@ a number of clients that have been contributed by the community for various lang
 * <<haskell>>
 * <<java>>
 * <<javascript>>
+* <<kotlin>>
+* <<lua>>
 * <<dotnet>>
 * <<ocaml>>
 * <<perl>>
@@ -24,6 +29,10 @@ a number of clients that have been contributed by the community for various lang
 * <<smalltalk>>
 * <<vertx>>
 
+[[b4j]]
+== B4J
+* https://www.b4x.com/android/forum/threads/server-jelasticsearch-search-and-text-analytics.73335/
+  B4J client based on the official Java REST client.
 
 [[clojure]]
 == Clojure
@@ -83,6 +92,8 @@ See the {client}/groovy-api/current/index.html[official Elasticsearch Groovy cli
 
 Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
 
+* [Flummi](https://github.com/otto-de/flummi):
+  Java Rest client with comprehensive query DSL API
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
 
@@ -104,6 +115,17 @@ The following project appears to be abandoned:
 * https://github.com/ramv/node-elastical[node-elastical]:
   Node.js client for the Elasticsearch REST API
 
+[[kotlin]]
+== kotlin
+
+* https://github.com/mbuhot/eskotlin[ES Kotlin]:
+  Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
+
+[[lua]]
+== Lua
+
+* https://github.com/DhavalKapil/elasticsearch-lua[elasticsearch-lua]:
+  Lua client for elasticsearch
 
 [[dotnet]]
 == .NET
@@ -139,6 +161,8 @@ Also see the {client}/php-api/current/index.html[official Elasticsearch PHP clie
 
 * http://github.com/nervetattoo/elasticsearch[elasticsearch] PHP client.
 
+* https://github.com/madewithlove/elasticsearcher[elasticsearcher] Agnostic lightweight package on top of the Elasticsearch PHP client. Its main goal is to allow for easier structuring of queries and indices in your application.  It does not want to hide or replace functionality of the Elasticsearch PHP client.
+
 [[python]]
 == Python
 
@@ -166,14 +190,17 @@ The following projects appear to be abandoned:
 
 [[r]]
 == R
-* https://github.com/Tomesch/elasticsearch[elasticsearch]
-  R client for Elasticsearch
 
 * https://github.com/ropensci/elastic[elastic]:
   A low-level R client for Elasticsearch.
 
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
+
+The following projects appear to be abandoned:
+
+* https://github.com/Tomesch/elasticsearch[elasticsearch]
+  R client for Elasticsearch
 
 [[ruby]]
 == Ruby
@@ -191,6 +218,9 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
 
 * https://github.com/ankane/searchkick[Searchkick]:
   Intelligent search made easy
+
+* https://github.com/artsy/estella[Estella]:
+  Make your Ruby models searchable
 
 The following projects appear to be abandoned:
 
@@ -225,6 +255,9 @@ The following project appears to be abandoned:
 
 [[smalltalk]]
 == Smalltalk
+
+* https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk] -
+  Pharo Smalltalk client for Elasticsearch
 
 * http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -
   Smalltalk client for Elasticsearch

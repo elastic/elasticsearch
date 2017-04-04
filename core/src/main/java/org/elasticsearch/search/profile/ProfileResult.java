@@ -23,16 +23,21 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * This class is the internal representation of a profiled Query, corresponding
@@ -43,31 +48,35 @@ import java.util.Map;
  * Each InternalProfileResult has a List of InternalProfileResults, which will contain
  * "children" queries if applicable
  */
-final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
+public final class ProfileResult implements Writeable, ToXContentObject {
 
-    private static final ParseField QUERY_TYPE = new ParseField("query_type");
-    private static final ParseField LUCENE_DESCRIPTION = new ParseField("lucene");
+    private static final ParseField TYPE = new ParseField("type");
+    private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField NODE_TIME = new ParseField("time");
+    private static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
     private static final ParseField CHILDREN = new ParseField("children");
     private static final ParseField BREAKDOWN = new ParseField("breakdown");
 
-    private final String queryType;
-    private final String luceneDescription;
+    private final String type;
+    private final String description;
     private final Map<String, Long> timings;
     private final long nodeTime;
     private final List<ProfileResult> children;
 
-    public ProfileResult(String queryType, String luceneDescription, Map<String, Long> timings, List<ProfileResult> children, long nodeTime) {
-        this.queryType = queryType;
-        this.luceneDescription = luceneDescription;
-        this.timings = timings;
+    public ProfileResult(String type, String description, Map<String, Long> timings, List<ProfileResult> children) {
+        this.type = type;
+        this.description = description;
+        this.timings = Objects.requireNonNull(timings, "required timings argument missing");
         this.children = children;
-        this.nodeTime = nodeTime;
+        this.nodeTime = getTotalTime(timings);
     }
 
+    /**
+     * Read from a stream.
+     */
     public ProfileResult(StreamInput in) throws IOException{
-        this.queryType = in.readString();
-        this.luceneDescription = in.readString();
+        this.type = in.readString();
+        this.description = in.readString();
         this.nodeTime = in.readLong();
 
         int timingsSize = in.readVInt();
@@ -84,18 +93,34 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
         }
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeString(description);
+        out.writeLong(nodeTime);            // not Vlong because can be negative
+        out.writeVInt(timings.size());
+        for (Map.Entry<String, Long> entry : timings.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeLong(entry.getValue());
+        }
+        out.writeVInt(children.size());
+        for (ProfileResult child : children) {
+            child.writeTo(out);
+        }
+    }
+
     /**
      * Retrieve the lucene description of this query (e.g. the "explain" text)
      */
     public String getLuceneDescription() {
-        return luceneDescription;
+        return description;
     }
 
     /**
      * Retrieve the name of the query (e.g. "TermQuery")
      */
     public String getQueryName() {
-        return queryType;
+        return type;
     }
 
     /**
@@ -122,32 +147,11 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
     }
 
     @Override
-    public ProfileResult readFrom(StreamInput in) throws IOException {
-        return new ProfileResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(queryType);
-        out.writeString(luceneDescription);
-        out.writeLong(nodeTime);            // not Vlong because can be negative
-        out.writeVInt(timings.size());
-        for (Map.Entry<String, Long> entry : timings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeLong(entry.getValue());
-        }
-        out.writeVInt(children.size());
-        for (ProfileResult child : children) {
-            child.writeTo(out);
-        }
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder = builder.startObject()
-                .field(QUERY_TYPE.getPreferredName(), queryType)
-                .field(LUCENE_DESCRIPTION.getPreferredName(), luceneDescription)
-                .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(getTime() / 1000000.0)))
+                .field(TYPE.getPreferredName(), type)
+                .field(DESCRIPTION.getPreferredName(), description)
+                .timeValueField(NODE_TIME_RAW.getPreferredName(), NODE_TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS)
                 .field(BREAKDOWN.getPreferredName(), timings);
 
         if (!children.isEmpty()) {
@@ -160,6 +164,67 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
 
         builder = builder.endObject();
         return builder;
+    }
+
+    public static ProfileResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        String currentFieldName = null;
+        String type = null, description = null;
+        Map<String, Long> timings =  new HashMap<>();
+        List<ProfileResult> children = new ArrayList<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (TYPE.match(currentFieldName)) {
+                    type = parser.text();
+                } else if (DESCRIPTION.match(currentFieldName)) {
+                    description = parser.text();
+                } else if (NODE_TIME.match(currentFieldName)) {
+                    // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
+                    parser.text();
+                } else if (NODE_TIME_RAW.match(currentFieldName)) {
+                    // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
+                    parser.longValue();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (BREAKDOWN.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        ensureExpectedToken(parser.currentToken(), XContentParser.Token.FIELD_NAME, parser::getTokenLocation);
+                        String name = parser.currentName();
+                        ensureExpectedToken(parser.nextToken(), XContentParser.Token.VALUE_NUMBER, parser::getTokenLocation);
+                        long value = parser.longValue();
+                        timings.put(name, value);
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (CHILDREN.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        children.add(ProfileResult.fromXContent(parser));
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            }
+        }
+        return new ProfileResult(type, description, timings, children);
+    }
+
+    /**
+     * @param timings a map of breakdown timing for the node
+     * @return The total time at this node
+     */
+    private static long getTotalTime(Map<String, Long> timings) {
+        long nodeTime = 0;
+        for (long time : timings.values()) {
+            nodeTime += time;
+        }
+        return nodeTime;
     }
 
 }

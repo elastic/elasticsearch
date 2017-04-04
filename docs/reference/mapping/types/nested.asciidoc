@@ -29,7 +29,7 @@ PUT my_index/my_type/1
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `user` field is dynamically added as a field of type `object`.
 
 would be transformed internally into a document that looks more like this:
@@ -61,7 +61,8 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 ==== Using `nested` fields for arrays of objects
 
@@ -137,12 +138,12 @@ GET my_index/_search
             "user.first": {}
           }
         }
-
+      }
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `user` field is mapped as type `nested` instead of type `object`.
 <2> This query doesn't match because `Alice` and `Smith` are not in the same nested object.
 <3> This query matches because `Alice` and `White` are in the same nested object.
@@ -169,13 +170,6 @@ The following parameters are accepted by `nested` fields:
 
     Whether or not new `properties` should be added dynamically to an existing
     nested object.  Accepts `true` (default), `false` and `strict`.
-
-<<include-in-all,`include_in_all`>>::
-
-    Sets the default `include_in_all` value for all the `properties` within
-    the nested object. Nested documents do not have their own `_all` field.
-    Instead, values are added to the `_all` field of the main ``root''
-    document.
 
 <<properties,`properties`>>::
 
@@ -204,5 +198,5 @@ phase.  Instead, highlighting needs to be performed via
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested
 document is indexed as a separate document. To safeguard against ill-defined mappings
-the number of nested fields that can be defined per index has been limited to 50. This
-default limit can be changed with the index setting `index.mapping.nested_fields.limit`.
+the number of nested fields that can be defined per index has been limited to 50. See
+<<mapping-limit-settings>>.

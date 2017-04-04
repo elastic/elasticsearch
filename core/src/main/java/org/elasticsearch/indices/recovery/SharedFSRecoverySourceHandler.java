@@ -19,24 +19,27 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * A recovery handler that skips phase 1 as well as sending the snapshot. During phase 3 the shard is marked
- * as relocated an closed to ensure that the engine is closed and the target can acquire the IW write lock.
+ * A recovery handler that skips phase one as well as sending the translog snapshot.
  */
 public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     private final IndexShard shard;
     private final StartRecoveryRequest request;
 
-    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request, ESLogger
-            logger) {
-        super(shard, recoveryTarget, request, -1, logger);
+    SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
+                                  Supplier<Long> currentClusterStateVersionSupplier,
+                                  Function<String, Releasable> delayNewRecoveries, Settings nodeSettings) {
+        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, nodeSettings);
         this.shard = shard;
         this.request = request;
     }
@@ -45,8 +48,9 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     public RecoveryResponse recoverToTarget() throws IOException {
         boolean engineClosed = false;
         try {
-            logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
-            if (isPrimaryRelocation()) {
+            logger.trace("recovery [phase1]: skipping phase1 for shared filesystem");
+            final long maxUnsafeAutoIdTimestamp = shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
+            if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
                     // if we relocate we need to close the engine in order to open a new
@@ -58,10 +62,10 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(0);
+            prepareTargetForTranslog(0, maxUnsafeAutoIdTimestamp);
             finalizeRecovery();
             return response;
-        } catch (Throwable t) {
+        } catch (Exception e) {
             if (engineClosed) {
                 // If the relocation fails then the primary is closed and can't be
                 // used anymore... (because it's closed) that's a problem, so in
@@ -69,18 +73,18 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                 // create a new IndexWriter
                 logger.info("recovery failed for primary shadow shard, failing shard");
                 // pass the failure as null, as we want to ensure the store is not marked as corrupted
-                shard.failShard("primary relocation failed on shared filesystem", t);
+                shard.failShard("primary relocation failed on shared filesystem", e);
             } else {
-                logger.info("recovery failed on shared filesystem", t);
+                logger.info("recovery failed on shared filesystem", e);
             }
-            throw t;
+            throw e;
         }
     }
 
     @Override
-    protected int sendSnapshot(Translog.Snapshot snapshot) {
-        logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}",
-                shard.shardId(), request.targetNode());
+    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) {
+        logger.trace("skipping recovery of translog snapshot on shared filesystem");
         return 0;
     }
+
 }

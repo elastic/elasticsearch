@@ -17,7 +17,42 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.test-with-dependencies'
+
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
+  hasClientJar = true
 }
+
+integTestCluster {
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+run {
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+dependencies {
+  compile "org.elasticsearch.client:rest:${version}"
+  // for http - testing reindex from remote
+  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
+}
+
+dependencyLicenses {
+  // Don't check the client's license. We know it.
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  } - project.configurations.provided
+}
+
+thirdPartyAudit.excludes = [
+  // Commons logging
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+]

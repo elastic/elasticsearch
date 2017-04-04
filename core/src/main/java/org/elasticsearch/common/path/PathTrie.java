@@ -19,17 +19,12 @@
 
 package org.elasticsearch.common.path;
 
-import org.elasticsearch.common.Strings;
-
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class PathTrie<T> {
 
     public interface Decoder {
@@ -38,17 +33,14 @@ public class PathTrie<T> {
 
     private final Decoder decoder;
     private final TrieNode root;
-    private final char separator;
     private T rootValue;
 
-    public PathTrie(Decoder decoder) {
-        this('/', "*", decoder);
-    }
+    private static final String SEPARATOR = "/";
+    private static final String WILDCARD = "*";
 
-    public PathTrie(char separator, String wildcard, Decoder decoder) {
+    public PathTrie(Decoder decoder) {
         this.decoder = decoder;
-        this.separator = separator;
-        root = new TrieNode(new String(new char[]{separator}), null, wildcard);
+        root = new TrieNode(SEPARATOR, null, WILDCARD);
     }
 
     public class TrieNode {
@@ -119,7 +111,10 @@ public class PathTrie<T> {
                 // in case the target(last) node already exist but without a value
                 // than the value should be updated.
                 if (index == (path.length - 1)) {
-                    assert (node.value == null || node.value == value);
+                    if (node.value != null) {
+                        throw new IllegalArgumentException("Path [" + String.join("/", path)+ "] already has a value ["
+                                + node.value + "]");
+                    }
                     if (node.value == null) {
                         node.value = value;
                     }
@@ -196,8 +191,11 @@ public class PathTrie<T> {
     }
 
     public void insert(String path, T value) {
-        String[] strings = Strings.splitStringToArray(path, separator);
+        String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
+            if (rootValue != null) {
+                throw new IllegalArgumentException("Path [/] already has a value [" + rootValue + "]");
+            }
             rootValue = value;
             return;
         }
@@ -217,7 +215,7 @@ public class PathTrie<T> {
         if (path.length() == 0) {
             return rootValue;
         }
-        String[] strings = Strings.splitStringToArray(path, separator);
+        String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
             return rootValue;
         }

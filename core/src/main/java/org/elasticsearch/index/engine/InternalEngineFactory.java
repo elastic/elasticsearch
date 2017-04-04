@@ -21,8 +21,8 @@ package org.elasticsearch.index.engine;
 
 public class InternalEngineFactory implements EngineFactory {
     @Override
-    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new InternalEngine(config, skipTranslogRecovery);
+    public Engine newReadWriteEngine(EngineConfig config) {
+        return new InternalEngine(config);
     }
 
     @Override

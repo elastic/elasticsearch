@@ -19,12 +19,20 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-public class FuzzyOptionsTests extends WritableTestCase<FuzzyOptions> {
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+
+public class FuzzyOptionsTests extends ESTestCase {
+
+    private static final int NUMBER_OF_RUNS = 20;
 
     public static FuzzyOptions randomFuzzyOptions() {
         final FuzzyOptions.Builder builder = FuzzyOptions.builder();
@@ -41,49 +49,45 @@ public class FuzzyOptionsTests extends WritableTestCase<FuzzyOptions> {
         return builder.build();
     }
 
-    @Override
-    protected FuzzyOptions createTestModel() {
-        return randomFuzzyOptions();
-    }
-
-    @Override
     protected FuzzyOptions createMutation(FuzzyOptions original) throws IOException {
         final FuzzyOptions.Builder builder = FuzzyOptions.builder();
-        builder.setFuzziness(original.getEditDistance())
-            .setFuzzyPrefixLength(original.getFuzzyPrefixLength())
-            .setFuzzyMinLength(original.getFuzzyMinLength())
-            .setMaxDeterminizedStates(original.getMaxDeterminizedStates())
-            .setTranspositions(original.isTranspositions())
-            .setUnicodeAware(original.isUnicodeAware());
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                builder.setFuzziness(randomValueOtherThan(original.getEditDistance(), () -> randomFrom(0, 1, 2)));
-                break;
-            case 1:
-                builder.setFuzzyPrefixLength(randomValueOtherThan(original.getFuzzyPrefixLength(), () ->
-                    randomIntBetween(1, 3)));
-                break;
-            case 2:
-                builder.setFuzzyMinLength(randomValueOtherThan(original.getFuzzyMinLength(), () ->
-                    randomIntBetween(1, 3)));
-                break;
-            case 3:
-                builder.setMaxDeterminizedStates(randomValueOtherThan(original.getMaxDeterminizedStates(), () ->
-                    randomIntBetween(1, 10)));
-                break;
-            case 4:
-                builder.setTranspositions(!original.isTranspositions());
-                break;
-            case 5:
-                builder.setUnicodeAware(!original.isUnicodeAware());
-                break;
-        }
+        builder.setFuzziness(original.getEditDistance()).setFuzzyPrefixLength(original.getFuzzyPrefixLength())
+                .setFuzzyMinLength(original.getFuzzyMinLength()).setMaxDeterminizedStates(original.getMaxDeterminizedStates())
+                .setTranspositions(original.isTranspositions()).setUnicodeAware(original.isUnicodeAware());
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> builder.setFuzziness(randomValueOtherThan(original.getEditDistance(), () -> randomFrom(0, 1, 2))));
+
+        mutators.add(
+                () -> builder.setFuzzyPrefixLength(randomValueOtherThan(original.getFuzzyPrefixLength(), () -> randomIntBetween(1, 3))));
+        mutators.add(() -> builder.setFuzzyMinLength(randomValueOtherThan(original.getFuzzyMinLength(), () -> randomIntBetween(1, 3))));
+        mutators.add(() -> builder
+                .setMaxDeterminizedStates(randomValueOtherThan(original.getMaxDeterminizedStates(), () -> randomIntBetween(1, 10))));
+        mutators.add(() -> builder.setTranspositions(!original.isTranspositions()));
+        mutators.add(() -> builder.setUnicodeAware(!original.isUnicodeAware()));
+        randomFrom(mutators).run();
         return builder.build();
     }
 
-    @Override
-    protected FuzzyOptions readFrom(StreamInput in) throws IOException {
-        return new FuzzyOptions(in);
+    /**
+     * Test serialization and deserialization
+     */
+    public void testSerialization() throws IOException {
+        for (int i = 0; i < NUMBER_OF_RUNS; i++) {
+            FuzzyOptions testModel = randomFuzzyOptions();
+            FuzzyOptions deserializedModel = copyWriteable(testModel, new NamedWriteableRegistry(Collections.emptyList()),
+                    FuzzyOptions::new);
+            assertEquals(testModel, deserializedModel);
+            assertEquals(testModel.hashCode(), deserializedModel.hashCode());
+            assertNotSame(testModel, deserializedModel);
+        }
+    }
+
+    public void testEqualsAndHashCode() throws IOException {
+        for (int i = 0; i < NUMBER_OF_RUNS; i++) {
+            checkEqualsAndHashCode(randomFuzzyOptions(),
+                    original -> copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), FuzzyOptions::new),
+                    this::createMutation);
+        }
     }
 
     public void testIllegalArguments() {

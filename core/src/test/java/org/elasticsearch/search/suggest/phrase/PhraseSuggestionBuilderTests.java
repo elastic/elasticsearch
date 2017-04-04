@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.script.Template;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 
 import java.io.IOException;
@@ -109,9 +109,9 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             builder.separator(randomValueOtherThan(builder.separator(), () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 6:
-            Template collateQuery = builder.collateQuery();
+            Script collateQuery = builder.collateQuery();
             if (collateQuery != null) {
-                builder.collateQuery(randomValueOtherThan(collateQuery.getScript(), () -> randomAsciiOfLengthBetween(3, 20)));
+                builder.collateQuery(randomValueOtherThan(collateQuery.getIdOrCode(), () -> randomAsciiOfLengthBetween(3, 20)));
             } else {
                 builder.collateQuery(randomAsciiOfLengthBetween(3, 20));
             }
@@ -156,7 +156,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertEquals("suggestion field name is empty", e.getMessage());
 
         PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
- 
+
         e = expectThrows(IllegalArgumentException.class, () -> builder.gramSize(0));
         assertEquals("gramSize must be >= 1", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> builder.gramSize(-1));

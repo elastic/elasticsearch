@@ -21,6 +21,8 @@ package org.elasticsearch.cloud.aws.network;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +60,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
      *
      * @author Paul_Loy
      */
-    private static enum Ec2HostnameType {
+    private enum Ec2HostnameType {
 
         PRIVATE_IPv4("ec2:privateIpv4", "local-ipv4"),
         PRIVATE_DNS("ec2:privateDns", "local-hostname"),
@@ -73,7 +75,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
         final String configName;
         final String ec2Name;
 
-        private Ec2HostnameType(String configName, String ec2Name) {
+        Ec2HostnameType(String configName, String ec2Name) {
             this.configName = configName;
             this.ec2Name = ec2Name;
         }
@@ -91,15 +93,16 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
      * @return the appropriate host resolved from ec2 meta-data, or null if it cannot be obtained.
      * @see CustomNameResolver#resolveIfPossible(String)
      */
+    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
         String metadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + type.ec2Name;
         try {
             URL url = new URL(metadataUrl);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-            URLConnection urlConnection = url.openConnection();
+            URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
-            in = urlConnection.getInputStream();
+            in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
             String metadataResult = urlReader.readLine();

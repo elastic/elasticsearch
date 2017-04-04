@@ -1,13 +1,13 @@
 [[text]]
 === Text datatype
 
-A field to index full-text values, such as the body of on email or the
+A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
 <<analysis,analyzer>> to convert the string into a list of individual terms
 before being indexed. The analysis process allows Elasticsearch to search for
 individual words _within_  each full text field.  Text fields are not
 used for sorting and seldom used for aggregations (although the
-<<search-aggregations-bucket-significantterms-aggregation,significant terms aggregation>> 
+<<search-aggregations-bucket-significantterms-aggregation,significant terms aggregation>>
 is a notable exception).
 
 If you need to index structured content such as email addresses, hostnames, status
@@ -30,7 +30,7 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Sometimes it is useful to have both a full text (`text`) and a keyword
 (`keyword`) version of the same field: one for full text search and the
@@ -80,14 +80,6 @@ The following parameters are accepted by `text` fields:
     sorting and aggregations, or the same string value analyzed by different
     analyzers.
 
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
-
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) or `false`.
@@ -104,11 +96,9 @@ The following parameters are accepted by `text` fields:
 
 <<position-increment-gap,`position_increment_gap`>>::
 
-    The number of fake term positions which should be inserted between
-    each element of an array of strings. Defaults to 0.
     The number of fake term position which should be inserted between each
-    element of an array of strings. Defaults to the position_increment_gap
-    configured on the analyzer which defaults to 100. 100 was chosen because it
+    element of an array of strings. Defaults to the `position_increment_gap`
+    configured on the analyzer which defaults to `100`. `100` was chosen because it
     prevents phrase queries with reasonably large slops (less than 100) from
     matching terms across field values.
 
@@ -137,3 +127,9 @@ The following parameters are accepted by `text` fields:
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
+
+NOTE: Indexes imported from 2.x do not support `text`. Instead they will
+attempt to downgrade `text` into `string`. This allows you to merge modern
+mappings with legacy mappings. Long lived indexes will have to be recreated
+before upgrading to 6.x but mapping downgrade gives you the opportunity to do
+the recreation on your own schedule.

@@ -47,7 +47,7 @@ conditions are met:
 
 [source,js]
 ------------------------------------
-GET _search
+GET /_search
 {
   "query": { <1>
     "bool": { <2>
@@ -63,6 +63,7 @@ GET _search
   }
 }
 ------------------------------------
+// CONSOLE
 <1> The `query` parameter indicates query context.
 <2> The `bool` and two `match` clauses are used in query context,
     which means that they are used to score how well each document

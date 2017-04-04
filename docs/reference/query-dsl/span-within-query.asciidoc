@@ -6,24 +6,28 @@ query maps to Lucene `SpanWithinQuery`. Here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_within" : {
-        "little" : {
-            "span_term" : { "field1" : "foo" }
-        },
-        "big" : {
-            "span_near" : { 
-                "clauses" : [
-                    { "span_term" : { "field1" : "bar" } },
-                    { "span_term" : { "field1" : "baz" } }
-                ],
-                "slop" : 5,
-                "in_order" : true
+    "query": {
+        "span_within" : {
+            "little" : {
+                "span_term" : { "field1" : "foo" }
+            },
+            "big" : {
+                "span_near" : { 
+                    "clauses" : [
+                        { "span_term" : { "field1" : "bar" } },
+                        { "span_term" : { "field1" : "baz" } }
+                    ],
+                    "slop" : 5,
+                    "in_order" : true
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `big` and `little` clauses can be any span type query. Matching
 spans from `little` that are enclosed within `big` are returned.

@@ -23,19 +23,19 @@ esplugin {
 }
 
 dependencies {
-  compile ('com.maxmind.geoip2:geoip2:2.6.0')
+  compile ('com.maxmind.geoip2:geoip2:2.8.0')
   // geoip2 dependencies:
-  compile('com.fasterxml.jackson.core:jackson-annotations:2.7.1')
-  compile('com.fasterxml.jackson.core:jackson-databind:2.7.1')
-  compile('com.maxmind.db:maxmind-db:1.2.0')
+  compile('com.fasterxml.jackson.core:jackson-annotations:2.8.2')
+  compile('com.fasterxml.jackson.core:jackson-databind:2.8.2')
+  compile('com.maxmind.db:maxmind-db:1.2.1')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20151029'
+  testCompile 'org.elasticsearch:geolite2-databases:20160608'
 }
 
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
   from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')}) }
   into "${project.buildDir}/ingest-geoip"
-  include "*.mmdb"
+  include "*.mmdb.gz"
 }
 
 project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
@@ -50,14 +50,19 @@ bundlePlugin {
 }
 
 thirdPartyAudit.excludes = [
-  // geoip WebServiceClient needs Google http client, but we're not using WebServiceClient:
-  'com.google.api.client.http.HttpTransport',
-  'com.google.api.client.http.GenericUrl',
-  'com.google.api.client.http.HttpResponse',
-  'com.google.api.client.http.HttpRequestFactory',
-  'com.google.api.client.http.HttpRequest',
-  'com.google.api.client.http.HttpHeaders',
-  'com.google.api.client.http.HttpResponseException',
-  'com.google.api.client.http.javanet.NetHttpTransport',
-  'com.google.api.client.http.javanet.NetHttpTransport',
+  // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
+  'org.apache.http.HttpEntity',
+  'org.apache.http.HttpHost',
+  'org.apache.http.HttpResponse',
+  'org.apache.http.StatusLine',
+  'org.apache.http.auth.UsernamePasswordCredentials',
+  'org.apache.http.client.config.RequestConfig$Builder',
+  'org.apache.http.client.config.RequestConfig',
+  'org.apache.http.client.methods.CloseableHttpResponse',
+  'org.apache.http.client.methods.HttpGet',
+  'org.apache.http.client.utils.URIBuilder',
+  'org.apache.http.impl.auth.BasicScheme',
+  'org.apache.http.impl.client.CloseableHttpClient',
+  'org.apache.http.impl.client.HttpClientBuilder',
+  'org.apache.http.util.EntityUtils'
 ]

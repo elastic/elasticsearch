@@ -19,18 +19,19 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ import java.io.IOException;
  */
 public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_stale_primary";
+    public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
     private static final ObjectParser<Builder, Void> STALE_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
 
@@ -56,30 +58,33 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         super(index, shardId, node, acceptDataLoss);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public AllocateStalePrimaryAllocationCommand(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public String name() {
         return NAME;
+    }
+
+    public static AllocateStalePrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
+        return new Builder().parse(parser).build();
     }
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateStalePrimaryAllocationCommand> {
 
         @Override
         public Builder parse(XContentParser parser) throws IOException {
-            return STALE_PRIMARY_PARSER.parse(parser, this);
+            return STALE_PRIMARY_PARSER.parse(parser, this, null);
         }
 
         @Override
         public AllocateStalePrimaryAllocationCommand build() {
             validate();
             return new AllocateStalePrimaryAllocationCommand(index, shard, node, acceptDataLoss);
-        }
-    }
-
-    public static class Factory extends AbstractAllocateAllocationCommand.Factory<AllocateStalePrimaryAllocationCommand> {
-
-        @Override
-        protected Builder newBuilder() {
-            return new Builder();
         }
     }
 
@@ -92,7 +97,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
         final RoutingNodes routingNodes = allocation.routingNodes();
-        RoutingNode routingNode = routingNodes.node(discoNode.id());
+        RoutingNode routingNode = routingNodes.node(discoNode.getId());
         if (routingNode == null) {
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
@@ -112,8 +117,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
                 "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-        if (shardRouting.allocatedPostIndexCreate(indexMetaData) == false) {
+        if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
             return explainOrThrowRejectedCommand(explain, allocation,
                 "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");
         }

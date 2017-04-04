@@ -19,110 +19,53 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Base64;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.RAMOutputStream;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Base64;
 
-import static java.util.Collections.emptyMap;
-
-/**
- *
- */
 final class TransportSearchHelper {
-
-    static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request,
-                                                             String[] filteringAliases, long nowInMillis) {
-        return new ShardSearchTransportRequest(request, shardRouting, numberOfShards, filteringAliases, nowInMillis);
-    }
 
     static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(SearchType searchType, AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
-                                @Nullable Map<String, String> attributes) throws IOException {
-        if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults, attributes);
-        } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults, attributes);
-        } else {
-            throw new IllegalStateException("search_type [" + searchType + "] not supported");
-        }
-    }
-
-    static String buildScrollId(String type, AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
-                                @Nullable Map<String, String> attributes) throws IOException {
-        StringBuilder sb = new StringBuilder().append(type).append(';');
-        sb.append(searchPhaseResults.asList().size()).append(';');
-        for (AtomicArray.Entry<? extends SearchPhaseResult> entry : searchPhaseResults.asList()) {
-            SearchPhaseResult searchPhaseResult = entry.value;
-            sb.append(searchPhaseResult.id()).append(':').append(searchPhaseResult.shardTarget().nodeId()).append(';');
-        }
-        if (attributes == null) {
-            sb.append("0;");
-        } else {
-            sb.append(attributes.size()).append(";");
-            for (Map.Entry<String, String> entry : attributes.entrySet()) {
-                sb.append(entry.getKey()).append(':').append(entry.getValue()).append(';');
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
+        try (RAMOutputStream out = new RAMOutputStream()) {
+            out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
+            out.writeVInt(searchPhaseResults.asList().size());
+            for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
+                out.writeLong(searchPhaseResult.getRequestId());
+                out.writeString(searchPhaseResult.getSearchShardTarget().getNodeId());
             }
+            byte[] bytes = new byte[(int) out.getFilePointer()];
+            out.writeTo(bytes, 0);
+            return Base64.getUrlEncoder().encodeToString(bytes);
         }
-        BytesRef bytesRef = new BytesRef(sb);
-        return Base64.encodeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length, Base64.URL_SAFE);
     }
 
     static ParsedScrollId parseScrollId(String scrollId) {
-        CharsRefBuilder spare = new CharsRefBuilder();
         try {
-            byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
-            spare.copyUTF8Bytes(decode, 0, decode.length);
+            byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
+            ByteArrayDataInput in = new ByteArrayDataInput(bytes);
+            String type = in.readString();
+            ScrollIdForNode[] context = new ScrollIdForNode[in.readVInt()];
+            for (int i = 0; i < context.length; ++i) {
+                long id = in.readLong();
+                String target = in.readString();
+                context[i] = new ScrollIdForNode(target, id);
+            }
+            if (in.getPosition() != bytes.length) {
+                throw new IllegalArgumentException("Not all bytes were read");
+            }
+            return new ParsedScrollId(scrollId, type, context);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to decode scrollId", e);
+            throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
-        String[] elements = Strings.splitStringToArray(spare.get(), ';');
-        if (elements.length < 2) {
-            throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
-        }
-
-        int index = 0;
-        String type = elements[index++];
-        int contextSize = Integer.parseInt(elements[index++]);
-        if (elements.length < contextSize + 2) {
-            throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
-        }
-
-        ScrollIdForNode[] context = new ScrollIdForNode[contextSize];
-        for (int i = 0; i < contextSize; i++) {
-            String element = elements[index++];
-            int sep = element.indexOf(':');
-            if (sep == -1) {
-                throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
-            }
-            context[i] = new ScrollIdForNode(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
-        }
-        Map<String, String> attributes;
-        int attributesSize = Integer.parseInt(elements[index++]);
-        if (attributesSize == 0) {
-            attributes = emptyMap();
-        } else {
-            attributes = new HashMap<>(attributesSize);
-            for (int i = 0; i < attributesSize; i++) {
-                String element = elements[index++];
-                int sep = element.indexOf(':');
-                attributes.put(element.substring(0, sep), element.substring(sep + 1));
-            }
-        }
-        return new ParsedScrollId(scrollId, type, context, attributes);
     }
 
     private TransportSearchHelper() {

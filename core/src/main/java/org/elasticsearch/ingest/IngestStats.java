@@ -30,10 +30,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class IngestStats implements Writeable<IngestStats>, ToXContent {
+public class IngestStats implements Writeable, ToXContent {
     private final Stats totalStats;
     private final Map<String, Stats> statsPerPipeline;
 
+    public IngestStats(Stats totalStats, Map<String, Stats> statsPerPipeline) {
+        this.totalStats = totalStats;
+        this.statsPerPipeline = statsPerPipeline;
+    }
+
+    /**
+     * Read from a stream.
+     */
     public IngestStats(StreamInput in) throws IOException {
         this.totalStats = new Stats(in);
         int size = in.readVInt();
@@ -43,10 +51,16 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
         }
     }
 
-    public IngestStats(Stats totalStats, Map<String, Stats> statsPerPipeline) {
-        this.totalStats = totalStats;
-        this.statsPerPipeline = statsPerPipeline;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        totalStats.writeTo(out);
+        out.writeVInt(statsPerPipeline.size());
+        for (Map.Entry<String, Stats> entry : statsPerPipeline.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
+        }
     }
+
 
     /**
      * @return The accumulated stats for all pipelines
@@ -60,21 +74,6 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
      */
     public Map<String, Stats> getStatsPerPipeline() {
         return statsPerPipeline;
-    }
-
-    @Override
-    public IngestStats readFrom(StreamInput in) throws IOException {
-        return new IngestStats(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        totalStats.writeTo(out);
-        out.writeVLong(statsPerPipeline.size());
-        for (Map.Entry<String, Stats> entry : statsPerPipeline.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
     }
 
     @Override
@@ -94,13 +93,23 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
         return builder;
     }
 
-    public static class Stats implements Writeable<Stats>, ToXContent {
+    public static class Stats implements Writeable, ToXContent {
 
         private final long ingestCount;
         private final long ingestTimeInMillis;
         private final long ingestCurrent;
         private final long ingestFailedCount;
 
+        public Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
+            this.ingestCount = ingestCount;
+            this.ingestTimeInMillis = ingestTimeInMillis;
+            this.ingestCurrent = ingestCurrent;
+            this.ingestFailedCount = ingestFailedCount;
+        }
+
+        /**
+         * Read from a stream.
+         */
         public Stats(StreamInput in) throws IOException {
             ingestCount = in.readVLong();
             ingestTimeInMillis = in.readVLong();
@@ -108,11 +117,12 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
             ingestFailedCount = in.readVLong();
         }
 
-        public Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
-            this.ingestCount = ingestCount;
-            this.ingestTimeInMillis = ingestTimeInMillis;
-            this.ingestCurrent = ingestCurrent;
-            this.ingestFailedCount = ingestFailedCount;
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(ingestCount);
+            out.writeVLong(ingestTimeInMillis);
+            out.writeVLong(ingestCurrent);
+            out.writeVLong(ingestFailedCount);
         }
 
         /**
@@ -142,19 +152,6 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
          */
         public long getIngestFailedCount() {
             return ingestFailedCount;
-        }
-
-        @Override
-        public Stats readFrom(StreamInput in) throws IOException {
-            return new Stats(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(ingestCount);
-            out.writeVLong(ingestTimeInMillis);
-            out.writeVLong(ingestCurrent);
-            out.writeVLong(ingestFailedCount);
         }
 
         @Override

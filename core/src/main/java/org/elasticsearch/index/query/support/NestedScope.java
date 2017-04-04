@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.Deque;
 import java.util.LinkedList;

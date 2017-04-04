@@ -23,9 +23,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuild
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
-/**
- *
- */
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
     public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {
@@ -65,6 +62,14 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      */
     public ValidateQueryRequestBuilder setRewrite(boolean rewrite) {
         request.rewrite(rewrite);
+        return this;
+    }
+
+    /**
+     * Indicates whether the query should be validated on all shards
+     */
+    public ValidateQueryRequestBuilder setAllShards(boolean rewrite) {
+        request.allShards(rewrite);
         return this;
     }
 }

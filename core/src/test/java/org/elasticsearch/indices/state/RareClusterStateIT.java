@@ -37,14 +37,11 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
@@ -53,11 +50,13 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,12 +72,16 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
-@ESIntegTestCase.SuppressLocalMode
 @TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    }
+
     @Override
     protected int numberOfShards() {
         return 1;
@@ -96,14 +99,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ClusterState current = clusterService().state();
         GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
 
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[0]);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
         RoutingNodes routingNodes = new RoutingNodes(
                 ClusterState.builder(current)
                         .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build(), false
         );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY, System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime(), false);
         allocator.allocateUnassigned(routingAllocation);
     }
 
@@ -125,8 +128,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
-                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent",
-                        DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT)));
+                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).add(new DiscoveryNode("_non_existent",
+                        buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
                 final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
@@ -139,13 +142,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metaData().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                RoutingAllocation.Result result = allocationService.reroute(updatedState, "reroute");
-                return ClusterState.builder(updatedState).routingResult(result).build();
+                return allocationService.reroute(updatedState, "reroute");
 
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -154,18 +156,16 @@ public class RareClusterStateIT extends ESIntegTestCase {
         clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.reroute(currentState, "reroute");
-                return ClusterState.builder(currentState).routingResult(result).build();
+                return allocationService.deassociateDeadNodes(currentState, true, "reroute");
 
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -173,9 +173,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startNodesAsync(2, Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
-                .build()).get();
+        internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();
         ensureGreen("test");
@@ -210,8 +208,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // but the change might not be on the node that performed the indexing
         // operation yet
 
-        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0ms").build();
-        final List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
+        Settings settings = Settings.builder()
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+            .build();
+        final List<String> nodeNames = internalCluster().startNodes(2, settings);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
@@ -234,13 +235,13 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(master, state.nodes().masterNode().name());
+        assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must not be on the master node
-                assertFalse(state.nodes().masterNodeId().equals(shard.currentNodeId()));
+                assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
             } else {
                 fail(); // only primaries
             }
@@ -260,7 +261,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -292,7 +293,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });
@@ -326,7 +327,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Here we want to test that everything goes well if the mappings that
         // are needed for a document are not available on the replica at the
         // time of indexing it
-        final List<String> nodeNames = internalCluster().startNodesAsync(2).get();
+        final List<String> nodeNames = internalCluster().startNodes(2,
+            Settings.builder()
+                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+                .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
@@ -352,13 +357,13 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(master, state.nodes().masterNode().name());
+        assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must be on the master
-                assertEquals(state.nodes().masterNodeId(), shard.currentNodeId());
+                assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
             } else {
                 assertTrue(shard.active());
             }
@@ -376,7 +381,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -403,7 +408,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });

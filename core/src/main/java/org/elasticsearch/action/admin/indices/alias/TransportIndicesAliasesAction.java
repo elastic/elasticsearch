@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,6 +42,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Add/remove aliases action
@@ -86,31 +88,38 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();
         List<AliasAction> finalActions = new ArrayList<>();
-        boolean hasOnlyDeletesButNoneCanBeDone = true;
+
+        // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
-            //expand indices
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
-            //collect the aliases
             Collections.addAll(aliases, action.aliases());
             for (String index : concreteIndices) {
-                for (String alias : action.concreteAliases(state.metaData(), index)) {
-                    AliasAction finalAction = new AliasAction(action.aliasAction());
-                    finalAction.index(index);
-                    finalAction.alias(alias);
-                    finalActions.add(finalAction);
-                    //if there is only delete requests, none will be added if the types do not map to any existing type
-                    hasOnlyDeletesButNoneCanBeDone = false;
+                switch (action.actionType()) {
+                case ADD:
+                    for (String alias : action.concreteAliases(state.metaData(), index)) {
+                        finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(), action.searchRouting()));
+                    }
+                    break;
+                case REMOVE:
+                    for (String alias : action.concreteAliases(state.metaData(), index)) {
+                        finalActions.add(new AliasAction.Remove(index, alias));
+                    }
+                    break;
+                case REMOVE_INDEX:
+                    finalActions.add(new AliasAction.RemoveIndex(index));
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             }
         }
-        if (hasOnlyDeletesButNoneCanBeDone && actions.size() != 0) {
+        if (finalActions.isEmpty() && false == actions.isEmpty()) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();
-        IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .actions(finalActions.toArray(new AliasAction[finalActions.size()]));
+        IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
         indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
@@ -119,7 +128,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to perform aliases", t);
                 listener.onFailure(t);
             }

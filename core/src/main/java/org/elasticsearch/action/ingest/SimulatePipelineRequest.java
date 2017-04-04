@@ -19,14 +19,17 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineStore;
 
 import java.io.IOException;
@@ -34,20 +37,32 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.ingest.core.IngestDocument.MetaData;
+import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
-public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineRequest> {
+public class SimulatePipelineRequest extends ActionRequest {
 
     private String id;
     private boolean verbose;
     private BytesReference source;
+    private XContentType xContentType;
 
+    /**
+     * Create a new request
+     * @deprecated use {@link #SimulatePipelineRequest(BytesReference, XContentType)} that does not attempt content autodetection
+     */
+    @Deprecated
     public SimulatePipelineRequest(BytesReference source) {
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
-        this.source = source;
+        this(source, XContentFactory.xContentType(source));
+    }
+
+    /**
+     * Creates a new request with the given source and its content type
+     */
+    public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+        this.source = Objects.requireNonNull(source);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     SimulatePipelineRequest() {
@@ -78,20 +93,32 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
         return source;
     }
 
+    public XContentType getXContentType() {
+        return xContentType;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readString();
+        id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(source);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(id);
+        out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType.writeTo(out);
+        }
     }
 
     public static final class Fields {
@@ -132,13 +159,16 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
             throw new IllegalArgumentException("param [pipeline] is null");
         }
         Pipeline pipeline = pipelineStore.get(pipelineId);
+        if (pipeline == null) {
+            throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
+        }
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
     static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
-        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorRegistry());
+        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactories());
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
@@ -153,8 +183,6 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
                     ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.ID.getFieldName(), "_id"),
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.ROUTING.getFieldName()),
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.PARENT.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TIMESTAMP.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TTL.getFieldName()),
                     document);
             ingestDocumentList.add(ingestDocument);
         }

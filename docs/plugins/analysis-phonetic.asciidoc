@@ -19,6 +19,9 @@ sudo bin/elasticsearch-plugin install analysis-phonetic
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-phonetic/analysis-phonetic-{version}.zip.
+
 [[analysis-phonetic-remove]]
 [float]
 ==== Removal
@@ -50,7 +53,7 @@ The `phonetic` token filter takes the following settings:
     token. Accepts `true` (default) and `false`.  Not supported by
     `beidermorse` encoding.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT phonetic_sample
 {
@@ -79,9 +82,13 @@ PUT phonetic_sample
   }
 }
 
-POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
+GET phonetic_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Joe Bloggs" <1>
+}
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 
@@ -116,5 +123,3 @@ supported:
     be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.
-
-

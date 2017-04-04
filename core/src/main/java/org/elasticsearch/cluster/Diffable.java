@@ -27,16 +27,11 @@ import java.io.IOException;
 /**
  * Cluster state part, changes in which can be serialized
  */
-public interface Diffable<T> extends Writeable<T> {
+public interface Diffable<T> extends Writeable {
 
     /**
      * Returns serializable object representing differences between this and previousState
      */
     Diff<T> diff(T previousState);
-
-    /**
-     * Reads the {@link org.elasticsearch.cluster.Diff} from StreamInput
-     */
-    Diff<T> readDiffFrom(StreamInput in) throws IOException;
 
 }

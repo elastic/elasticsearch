@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -29,36 +28,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * Result of the {@link NestedAggregator}.
  */
 public class InternalNested extends InternalSingleBucketAggregation implements Nested {
-
-    public static final Type TYPE = new Type("nested");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalNested readResult(StreamInput in) throws IOException {
-            InternalNested result = new InternalNested();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    public InternalNested() {
-    }
-
     public InternalNested(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalNested(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return NestedAggregationBuilder.NAME;
     }
 
     @Override

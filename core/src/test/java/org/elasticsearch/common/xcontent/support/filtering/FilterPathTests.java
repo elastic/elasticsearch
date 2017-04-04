@@ -19,8 +19,12 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
+
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -33,7 +37,7 @@ public class FilterPathTests extends ESTestCase {
     public void testSimpleFilterPath() {
         final String input = "test";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -52,7 +56,7 @@ public class FilterPathTests extends ESTestCase {
     public void testFilterPathWithSubField() {
         final String input = "foo.bar";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -76,7 +80,7 @@ public class FilterPathTests extends ESTestCase {
     public void testFilterPathWithSubFields() {
         final String input = "foo.bar.quz";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -103,13 +107,13 @@ public class FilterPathTests extends ESTestCase {
     }
 
     public void testEmptyFilterPath() {
-        FilterPath[] filterPaths = FilterPath.compile("");
+        FilterPath[] filterPaths = FilterPath.compile(singleton(""));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(0));
     }
 
     public void testNullFilterPath() {
-        FilterPath[] filterPaths = FilterPath.compile((String) null);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(null));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(0));
     }
@@ -117,7 +121,7 @@ public class FilterPathTests extends ESTestCase {
     public void testFilterPathWithEscapedDots() {
         String input = "w.0.0.t";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -149,7 +153,7 @@ public class FilterPathTests extends ESTestCase {
 
         input = "w\\.0\\.0\\.t";
 
-        filterPaths = FilterPath.compile(input);
+        filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -167,7 +171,7 @@ public class FilterPathTests extends ESTestCase {
 
         input = "w\\.0.0\\.t";
 
-        filterPaths = FilterPath.compile(input);
+        filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -188,7 +192,7 @@ public class FilterPathTests extends ESTestCase {
     }
 
     public void testSimpleWildcardFilterPath() {
-        FilterPath[] filterPaths = FilterPath.compile("*");
+        FilterPath[] filterPaths = FilterPath.compile(singleton("*"));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -206,7 +210,7 @@ public class FilterPathTests extends ESTestCase {
     public void testWildcardInNameFilterPath() {
         String input = "f*o.bar";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -232,7 +236,7 @@ public class FilterPathTests extends ESTestCase {
     }
 
     public void testDoubleWildcardFilterPath() {
-        FilterPath[] filterPaths = FilterPath.compile("**");
+        FilterPath[] filterPaths = FilterPath.compile(singleton("**"));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -250,7 +254,7 @@ public class FilterPathTests extends ESTestCase {
     public void testStartsWithDoubleWildcardFilterPath() {
         String input = "**.bar";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -274,7 +278,7 @@ public class FilterPathTests extends ESTestCase {
     public void testContainsDoubleWildcardFilterPath() {
         String input = "foo.**.bar";
 
-        FilterPath[] filterPaths = FilterPath.compile(input);
+        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
@@ -302,7 +306,7 @@ public class FilterPathTests extends ESTestCase {
     }
 
     public void testMultipleFilterPaths() {
-        String[] inputs = {"foo.**.bar.*", "test.dot\\.ted"};
+        Set<String> inputs = Sets.newHashSet("foo.**.bar.*", "test.dot\\.ted");
 
         FilterPath[] filterPaths = FilterPath.compile(inputs);
         assertNotNull(filterPaths);

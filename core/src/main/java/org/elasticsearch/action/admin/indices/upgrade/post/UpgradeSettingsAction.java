@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.upgrade.post;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class UpgradeSettingsAction extends Action<UpgradeSettingsRequest, UpgradeSettingsResponse, UpgradeSettingsRequestBuilder> {
 
     public static final UpgradeSettingsAction INSTANCE = new UpgradeSettingsAction();

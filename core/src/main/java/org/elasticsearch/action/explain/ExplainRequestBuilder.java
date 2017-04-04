@@ -24,7 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.
@@ -88,10 +88,10 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     }
 
     /**
-     * Explicitly specify the fields that will be returned for the explained document. By default, nothing is returned.
+     * Explicitly specify the stored fields that will be returned for the explained document. By default, nothing is returned.
      */
-    public ExplainRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+    public ExplainRequestBuilder setStoredFields(String... fields) {
+        request.storedFields(fields);
         return this;
     }
 
@@ -99,12 +99,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Indicates whether the response should contain the stored _source
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            request.fetchSourceContext(new FetchSourceContext(fetch));
-        } else {
-            context.fetchSource(fetch);
-        }
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+            : FetchSourceContext.FETCH_SOURCE;
+        request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
     }
 
@@ -129,14 +126,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            request.fetchSourceContext(new FetchSourceContext(includes, excludes));
-        } else {
-            context.fetchSource(true);
-            context.includes(includes);
-            context.excludes(excludes);
-        }
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+            : FetchSourceContext.FETCH_SOURCE;
+        request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
         return this;
     }
 }

@@ -19,31 +19,33 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 
-class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
+final class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final SearchPhaseController searchPhaseController;
     private final SearchTransportService searchTransportService;
     private final SearchScrollRequest request;
+    private final SearchTask task;
     private final ActionListener<SearchResponse> listener;
     private final ParsedScrollId scrollId;
     private final DiscoveryNodes nodes;
@@ -52,13 +54,14 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private final AtomicInteger successfulOps;
     private final AtomicInteger counter;
 
-    SearchScrollQueryAndFetchAsyncAction(ESLogger logger, ClusterService clusterService,
-                                         SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
-                                         SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
+    SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
+                                         SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
+                                         ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
         this.logger = logger;
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.request = request;
+        this.task = task;
         this.listener = listener;
         this.scrollId = scrollId;
         this.nodes = clusterService.state().nodes();
@@ -68,21 +71,17 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
         this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
     }
 
-    protected final ShardSearchFailure[] buildShardFailures() {
+    private ShardSearchFailure[] buildShardFailures() {
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        List<AtomicArray.Entry<ShardSearchFailure>> entries = shardFailures.asList();
-        ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
-        for (int i = 0; i < failures.length; i++) {
-            failures[i] = entries.get(i).value;
-        }
-        return failures;
+        List<ShardSearchFailure> failures = shardFailures.asList();
+        return failures.toArray(new ShardSearchFailure[failures.size()]);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
     // we simply try and return as much as possible
-    protected final void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
+    private void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
         if (shardFailures == null) {
             shardFailures = new AtomicArray<>(scrollId.getContext().length);
         }
@@ -103,7 +102,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
                 executePhase(i, node, target.getScrollId());
             } else {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                    logger.debug("Node [{}] not available for scroll request [{}]", target.getNode(), scrollId.getSource());
                 }
                 successfulOps.decrementAndGet();
                 if (counter.decrementAndGet() == 0) {
@@ -116,7 +115,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
             DiscoveryNode node = nodes.get(target.getNode());
             if (node == null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                    logger.debug("Node [{}] not available for scroll request [{}]", target.getNode(), scrollId.getSource());
                 }
                 successfulOps.decrementAndGet();
                 if (counter.decrementAndGet() == 0) {
@@ -128,31 +127,36 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
 
     void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
         InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-        searchTransportService.sendExecuteFetch(node, internalRequest, new ActionListener<ScrollQueryFetchSearchResult>() {
+        searchTransportService.sendExecuteScrollFetch(node, internalRequest, task,
+            new SearchActionListener<ScrollQueryFetchSearchResult>(null, shardIndex) {
             @Override
-            public void onResponse(ScrollQueryFetchSearchResult result) {
-                queryFetchResults.set(shardIndex, result.result());
+            protected void setSearchShardTarget(ScrollQueryFetchSearchResult response) {
+                // don't do this - it's part of the response...
+                assert response.getSearchShardTarget() != null : "search shard target must not be null";
+            }
+            @Override
+            protected void innerOnResponse(ScrollQueryFetchSearchResult response) {
+                queryFetchResults.set(response.getShardIndex(), response.result());
                 if (counter.decrementAndGet() == 0) {
                     finishHim();
                 }
             }
-
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 onPhaseFailure(t, searchId, shardIndex);
             }
         });
     }
 
-    private void onPhaseFailure(Throwable t, long searchId, int shardIndex) {
+    private void onPhaseFailure(Exception e, long searchId, int shardIndex) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", t, searchId);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase", searchId), e);
         }
-        addShardFailure(shardIndex, new ShardSearchFailure(t));
+        addShardFailure(shardIndex, new ShardSearchFailure(e));
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             if (successfulOps.get() == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", t, buildShardFailures()));
+                listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", e, buildShardFailures()));
             } else {
                 finishHim();
             }
@@ -162,15 +166,16 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private void finishHim() {
         try {
             innerFinishHim();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
         }
     }
 
     private void innerFinishHim() throws Exception {
-        ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
-        final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults,
-            queryFetchResults);
+        List<QueryFetchSearchResult> queryFetchSearchResults = queryFetchResults.asList();
+        ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(true, queryFetchResults.asList(), queryFetchResults.length());
+        final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs,
+            searchPhaseController.reducedQueryPhase(queryFetchSearchResults), queryFetchSearchResults, queryFetchResults::get);
         String scrollId = null;
         if (request.scroll() != null) {
             scrollId = request.scrollId();

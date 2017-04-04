@@ -20,7 +20,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.discovery.Discovery;
@@ -41,7 +41,7 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public void setRoutingService(RoutingService routingService) {
+    public void setAllocationService(AllocationService allocationService) {
 
     }
 
@@ -86,17 +86,11 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public Discovery start() {
-        return null;
-    }
+    public void start() {}
 
     @Override
-    public Discovery stop() {
-        return null;
-    }
+    public void stop() {}
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 }

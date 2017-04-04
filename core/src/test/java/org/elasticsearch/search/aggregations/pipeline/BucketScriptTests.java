@@ -20,18 +20,18 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScriptPipelineAggregatorBuilder> {
+public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScriptPipelineAggregationBuilder> {
 
     @Override
-    protected BucketScriptPipelineAggregatorBuilder createTestAggregatorFactory() {
+    protected BucketScriptPipelineAggregationBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         Map<String, String> bucketsPaths = new HashMap<>();
         int numBucketPaths = randomIntBetween(1, 10);
@@ -42,14 +42,15 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
         if (randomBoolean()) {
             script = new Script("script");
         } else {
-            Map<String, Object> params = null;
+            Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
-                params = new HashMap<String, Object>();
                 params.put("foo", "bar");
             }
-            script = new Script("script", randomFrom(ScriptType.values()), randomFrom("my_lang", null), params);
+            ScriptType type = randomFrom(ScriptType.values());
+            script = new Script(type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG),
+                "script", params);
         }
-        BucketScriptPipelineAggregatorBuilder factory = new BucketScriptPipelineAggregatorBuilder(name, bucketsPaths, script);
+        BucketScriptPipelineAggregationBuilder factory = new BucketScriptPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }

@@ -18,16 +18,20 @@
  */
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.MustacheFactory;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,12 +43,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MustacheScriptEngineTests extends ESTestCase {
     private MustacheScriptEngineService qe;
-    private JsonEscapingMustacheFactory escaper;
+    private MustacheFactory factory;
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        escaper = new JsonEscapingMustacheFactory();
+        qe = new MustacheScriptEngineService();
+        factory = new CustomMustacheFactory();
     }
 
     public void testSimpleParameterReplace() {
@@ -54,10 +58,11 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template, compileParams)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
+                    qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
-                    new String(o.toBytes(), Charset.forName("UTF-8")));
+                    o.utf8ToString());
         }
         {
             String template = "GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -65,22 +70,53 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template, compileParams)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
+                    qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
-                    new String(o.toBytes(), Charset.forName("UTF-8")));
+                    o.utf8ToString());
         }
+    }
+
+    public void testSimple() throws IOException {
+        String templateString =
+                  "{" 
+                + "\"inline\":{\"match_{{template}}\": {}},"
+                + "\"params\":{\"template\":\"all\"}"
+                + "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
+        Script script = Script.parse(parser);
+        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
+                qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
+        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{\"match_all\":{}}"));
+    }
+
+    public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
+        String templateString =
+                  "{"
+                + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
+                + "    \"template\":\"all\","
+                + "    \"use_it\": true"
+                + "  }"
+                + "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
+        Script script = Script.parse(parser);
+        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
+                qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
+        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{ \"match_all\":{} }"));
     }
 
     public void testEscapeJson() throws IOException {
         {
             StringWriter writer = new StringWriter();
-            escaper.encode("hello \n world", writer);
+            factory.encode("hello \n world", writer);
             assertThat(writer.toString(), equalTo("hello \\n world"));
         }
         {
             StringWriter writer = new StringWriter();
-            escaper.encode("\n", writer);
+            factory.encode("\n", writer);
             assertThat(writer.toString(), equalTo("\\n"));
         }
 
@@ -135,7 +171,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 expect.append(escapedChars[charIndex]);
             }
             StringWriter target = new StringWriter();
-            escaper.encode(writer.toString(), target);
+            factory.encode(writer.toString(), target);
             assertThat(expect.toString(), equalTo(target.toString()));
         }
     }

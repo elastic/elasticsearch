@@ -26,8 +26,8 @@ public class BootstrapSettingsTests extends ESTestCase {
 
     public void testDefaultSettings() {
         assertTrue(BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(Settings.EMPTY));
-        assertFalse(BootstrapSettings.MLOCKALL_SETTING.get(Settings.EMPTY));
-        assertTrue(BootstrapSettings.SECCOMP_SETTING.get(Settings.EMPTY));
+        assertFalse(BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.CTRLHANDLER_SETTING.get(Settings.EMPTY));
     }
 

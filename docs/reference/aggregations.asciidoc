@@ -23,6 +23,11 @@ it is often easier to break them into three main families:
 <<search-aggregations-metrics, _Metric_>>::
 				Aggregations that keep track and compute metrics over a set of documents.
 
+<<search-aggregations-matrix, _Matrix_>>::
+                A family of aggregations that operate on multiple fields and produce a matrix result based on the
+                values extracted from the requested document fields. Unlike metric and bucket aggregations, this
+                aggregation family does not yet support scripting.
+
 <<search-aggregations-pipeline, _Pipeline_>>::
 				Aggregations that aggregate the output of other aggregations and their associated metrics
 
@@ -53,6 +58,7 @@ The following snippet captures the basic structure of aggregations:
     [,"<aggregation_name_2>" : { ... } ]*
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The `aggregations` object (the key `aggs` can also be used) in the JSON holds the aggregations to be computed. Each aggregation
 is associated with a logical name that the user defines (e.g. if the aggregation computes the average price, then it would
@@ -86,11 +92,15 @@ enables defining all the "dynamic" expressions in the script as parameters, whic
 between calls (this will ensure the use of the cached compiled scripts in Elasticsearch).
 ===============================
 
-Scripts can generate a single value or multiple values per document. When generating multiple values, one can use the
-`script_values_sorted` settings to indicate whether these values are sorted or not. Internally, Elasticsearch can
-perform optimizations when dealing with sorted values (for example, with the `min` aggregations, knowing the values are
-sorted, Elasticsearch will skip the iterations over all the values and rely on the first value in the list to be the
-minimum value among all other values associated with the same document).
+Elasticsearch uses the type of the field in the mapping in order to figure out
+how to run the aggregation and format the response. However there are two cases
+in which Elasticsearch cannot figure out this information: unmapped fields (for
+instance in the case of a search request across multiple indices, and only some
+of them have a mapping for the field) and pure scripts. For those cases, it is
+possible to give Elasticsearch a hint using the `value_type` option, which
+accepts the following values: `string`, `long` (works for all integer types),
+`double` (works for all decimal types like `float` or `scaled_float`), `date`,
+`ip` and `boolean`.
 
 --
 
@@ -99,5 +109,7 @@ include::aggregations/metrics.asciidoc[]
 include::aggregations/bucket.asciidoc[]
 
 include::aggregations/pipeline.asciidoc[]
+
+include::aggregations/matrix.asciidoc[]
 
 include::aggregations/misc.asciidoc[]

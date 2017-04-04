@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.gradle
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -32,7 +35,10 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.maven.MavenPom
+import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
+import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.internal.jvm.Jvm
@@ -51,16 +57,20 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
+              throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'are mutually exclusive')
+        }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
-        configureJarManifest(project) // jar config must be added before info broker
+        configureJars(project) // jar config must be added before info broker
         project.pluginManager.apply('nebula.info-broker')
         project.pluginManager.apply('nebula.info-basic')
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply('com.bmuschko.nexus')
         project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
@@ -68,6 +78,9 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
+        configureJavadocJar(project)
+        configureSourcesJar(project)
+        configurePomGeneration(project)
 
         configureTest(project)
         configurePrecommit(project)
@@ -100,13 +113,16 @@ class BuildPlugin implements Plugin<Project> {
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != javaVersionDetails) {
                 println "  JDK Version (gradle)  : ${gradleJavaVersionDetails}"
+                println "  JAVA_HOME (gradle)    : ${gradleJavaHome}"
                 println "  JDK Version (compile) : ${javaVersionDetails}"
+                println "  JAVA_HOME (compile)   : ${javaHome}"
             } else {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
+                println "  JAVA_HOME             : ${gradleJavaHome}"
             }
 
             // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('2.8')
+            GradleVersion minGradle = GradleVersion.version('3.3')
             if (GradleVersion.current() < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -136,7 +152,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.rootProject.ext.javaHome = javaHome
-            project.rootProject.ext.javaVersion = javaVersion
+            project.rootProject.ext.javaVersion = javaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
         project.targetCompatibility = minimumJava
@@ -150,7 +166,7 @@ class BuildPlugin implements Plugin<Project> {
     private static String findJavaHome() {
         String javaHome = System.getenv('JAVA_HOME')
         if (javaHome == null) {
-            if (System.getProperty("idea.active") != null) {
+            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
                 // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
                 javaHome = Jvm.current().javaHome
             } else {
@@ -187,19 +203,28 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
-        File tmpScript = File.createTempFile('es-gradle-tmp', '.js')
-        tmpScript.setText(script, 'UTF-8')
-        ByteArrayOutputStream output = new ByteArrayOutputStream()
-        ExecResult result = project.exec {
-            executable = new File(javaHome, 'bin/jjs')
-            args tmpScript.toString()
-            standardOutput = output
-            errorOutput = new ByteArrayOutputStream()
-            ignoreExitValue = true // we do not fail so we can first cleanup the tmp file
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream()
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            // gradle/groovy does not properly escape the double quote for windows
+            script = script.replace('"', '\\"')
         }
-        java.nio.file.Files.delete(tmpScript.toPath())
-        result.assertNormalExitValue()
-        return output.toString('UTF-8').trim()
+        File jrunscriptPath = new File(javaHome, 'bin/jrunscript')
+        ExecResult result = project.exec {
+            executable = jrunscriptPath
+            args '-e', script
+            standardOutput = stdout
+            errorOutput = stderr
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            project.logger.error("STDOUT:")
+            stdout.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            project.logger.error("STDERR:")
+            stderr.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            result.rethrowFailure()
+        }
+        return stdout.toString('UTF-8').trim()
     }
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
@@ -225,7 +250,7 @@ class BuildPlugin implements Plugin<Project> {
      */
     static void configureConfigurations(Project project) {
         // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.path.startsWith(':test:fixtures')) {
+        if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return
         }
         // fail on any conflicting dependency versions
@@ -260,48 +285,6 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
-
-        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-        project.modifyPom { MavenPom pom ->
-            pom.withXml { XmlProvider xml ->
-                // first find if we have dependencies at all, and grab the node
-                NodeList depsNodes = xml.asNode().get('dependencies')
-                if (depsNodes.isEmpty()) {
-                    return
-                }
-
-                // check each dependency for any transitive deps
-                for (Node depNode : depsNodes.get(0).children()) {
-                    String groupId = depNode.get('groupId').get(0).text()
-                    String artifactId = depNode.get('artifactId').get(0).text()
-                    String version = depNode.get('version').get(0).text()
-
-                    // collect the transitive deps now that we know what this dependency is
-                    String depConfig = transitiveDepConfigName(groupId, artifactId, version)
-                    Configuration configuration = project.configurations.findByName(depConfig)
-                    if (configuration == null) {
-                        continue // we did not make this dep non-transitive
-                    }
-                    Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
-                    if (artifacts.size() <= 1) {
-                        // this dep has no transitive deps (or the only artifact is itself)
-                        continue
-                    }
-
-                    // we now know we have something to exclude, so add the exclusion elements
-                    Node exclusions = depNode.appendNode('exclusions')
-                    for (ResolvedArtifact transitiveArtifact : artifacts) {
-                        ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
-                        if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
-                            continue; // don't exclude the dependency itself!
-                        }
-                        Node exclusion = exclusions.appendNode('exclusion')
-                        exclusion.appendNode('groupId', transitiveDep.group)
-                        exclusion.appendNode('artifactId', transitiveDep.name)
-                    }
-                }
-            }
-        }
     }
 
     /** Adds repositores used by ES dependencies */
@@ -314,10 +297,6 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
-        repos.maven {
-            name 'sonatype-snapshots'
-            url 'http://oss.sonatype.org/content/repositories/snapshots/'
-        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
@@ -325,6 +304,60 @@ class BuildPlugin implements Plugin<Project> {
             repos.maven {
                 name 'lucene-snapshots'
                 url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+        }
+    }
+
+    /**
+     * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
+     *
+     * <ul>
+     *     <li>Remove transitive dependencies. We currently exclude all artifacts explicitly instead of using wildcards
+     *         as Ivy incorrectly translates POMs with * excludes to Ivy XML with * excludes which results in the main artifact
+     *         being excluded as well (see https://issues.apache.org/jira/browse/IVY-1531). Note that Gradle 2.14+ automatically
+     *         translates non-transitive dependencies to * excludes. We should revisit this when upgrading Gradle.</li>
+     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)</li>
+     * </ul>
+     */
+    private static Closure fixupDependencies(Project project) {
+        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
+        return { XmlProvider xml ->
+            // first find if we have dependencies at all, and grab the node
+            NodeList depsNodes = xml.asNode().get('dependencies')
+            if (depsNodes.isEmpty()) {
+                return
+            }
+
+            // fix deps incorrectly marked as runtime back to compile time deps
+            // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
+            for (Node depNode : depsNodes.get(0).children()) {
+                boolean isCompileDep = project.configurations.compile.allDependencies.find { dep ->
+                    dep.name == depNode.artifactId.text()
+                }
+                if (depNode.scope.text() == 'runtime' && isCompileDep) {
+                    depNode.scope*.value = 'compile'
+                }
+            }
+        }
+    }
+
+    /**Configuration generation of maven poms. */
+    public static void configurePomGeneration(Project project) {
+        project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
+            project.publishing {
+                publications {
+                    all { MavenPublication publication -> // we only deal with maven
+                        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
+                        publication.pom.withXml(fixupDependencies(project))
+                    }
+                }
+            }
+
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
+                // place the pom next to the jar it is for
+                t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
+                // build poms with assemble
+                project.assemble.dependsOn(t)
             }
         }
     }
@@ -338,27 +371,67 @@ class BuildPlugin implements Plugin<Project> {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
+                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                    // compile with compact 3 profile by default
+                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                    if (project.compactProfile != 'full') {
+                        options.compilerArgs << '-profile' << project.compactProfile
+                    }
+                }
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial' << '-Xdoclint:all' << '-Xdoclint:-missing'
-                // compile with compact 3 profile by default
-                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                if (project.compactProfile != 'full') {
-                    options.compilerArgs << '-profile' << project.compactProfile
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+
+                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
+                if (options.compilerArgs.contains("-processor") == false) {
+                    options.compilerArgs << '-proc:none'
                 }
+
                 options.encoding = 'UTF-8'
-                //options.incremental = true
+                options.incremental = true
+
+                if (project.javaVersion == JavaVersion.VERSION_1_9) {
+                    // hack until gradle supports java 9's new "--release" arg
+                    assert minimumJava == JavaVersion.VERSION_1_8
+                    options.compilerArgs << '--release' << '8'
+                    doFirst{
+                        sourceCompatibility = null
+                        targetCompatibility = null
+                    }
+                }
             }
         }
     }
 
-    /** Adds additional manifest info to jars */
-    static void configureJarManifest(Project project) {
+    /** Adds a javadocJar task to generate a jar containing javadocs. */
+    static void configureJavadocJar(Project project) {
+        Jar javadocJarTask = project.task('javadocJar', type: Jar)
+        javadocJarTask.classifier = 'javadoc'
+        javadocJarTask.group = 'build'
+        javadocJarTask.description = 'Assembles a jar containing javadocs.'
+        javadocJarTask.from(project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME))
+        project.assemble.dependsOn(javadocJarTask)
+    }
+
+    static void configureSourcesJar(Project project) {
+        Jar sourcesJarTask = project.task('sourcesJar', type: Jar)
+        sourcesJarTask.classifier = 'sources'
+        sourcesJarTask.group = 'build'
+        sourcesJarTask.description = 'Assembles a jar containing source files.'
+        sourcesJarTask.from(project.sourceSets.main.allSource)
+        project.assemble.dependsOn(sourcesJarTask)
+    }
+
+    /** Adds additional manifest info to jars, and adds source and javadoc jars */
+    static void configureJars(Project project) {
         project.tasks.withType(Jar) { Jar jarTask ->
+            // we put all our distributable files under distributions
+            jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            // fixup the jar manifest
             jarTask.doFirst {
                 boolean isSnapshot = VersionProperties.elasticsearch.endsWith("-SNAPSHOT");
                 String version = VersionProperties.elasticsearch;
@@ -375,7 +448,7 @@ class BuildPlugin implements Plugin<Project> {
                         'Build-Java-Version': project.javaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'N/A')
+                    jarTask.manifest.attributes('Change': 'Unknown')
                 }
             }
         }
@@ -387,6 +460,7 @@ class BuildPlugin implements Plugin<Project> {
             jvm "${project.javaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
             ifNoTests 'fail'
+            onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
             // TODO: why are we not passing maxmemory to junit4?
@@ -410,11 +484,13 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
+            // Breaking change in JDK-9, revert to JDK-8 behavior for now, see https://github.com/elastic/elasticsearch/issues/21534
+            systemProperty 'jdk.io.permissionsUseCanonicalPath', 'true'
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
-            systemProperty 'es.logger.level', 'WARN'
+            systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
                     property.getKey().startsWith('es.')) {
@@ -422,11 +498,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            // System assertions (-esa) are disabled for now because of what looks like a
-            // JDK bug triggered by Groovy on JDK7. We should look at re-enabling system
-            // assertions when we upgrade to a new version of Groovy (currently 2.4.4) or
-            // require JDK8. See https://issues.apache.org/jira/browse/GROOVY-7528.
-            enableSystemAssertions false
+            boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
+            enableSystemAssertions assertionsEnabled
+            enableAssertions assertionsEnabled
 
             testLogging {
                 showNumFailuresAtEnd 25
@@ -467,11 +541,22 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Configures the test task */
     static Task configureTest(Project project) {
-        Task test = project.tasks.getByName('test')
+        RandomizedTestingTask test = project.tasks.getByName('test')
         test.configure(commonTestConfig(project))
         test.configure {
             include '**/*Tests.class'
         }
+
+        // Add a method to create additional unit tests for a project, which will share the same
+        // randomized testing setup, but by default run no tests.
+        project.extensions.add('additionalTest', { String name, Closure config ->
+            RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
+            additionalTest.classpath = test.classpath
+            additionalTest.testClassesDir = test.testClassesDir
+            additionalTest.configure(commonTestConfig(project))
+            additionalTest.configure(config)
+            test.dependsOn(additionalTest)
+        });
         return test
     }
 

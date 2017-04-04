@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.hamcrest.Matchers;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +54,6 @@ import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
 import static org.elasticsearch.index.shard.IndexShardState.CREATED;
 import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
@@ -70,7 +70,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockIndexEventListener.TestPlugin.class);
+        return Arrays.asList(MockIndexEventListener.TestPlugin.class);
     }
 
     public void testBeforeIndexAddedToCluster() throws Exception {
@@ -171,14 +171,14 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         //add a node: 3 out of the 6 shards will be relocated to it
         //disable allocation before starting a new node, as we need to register the listener first
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
+                .setPersistentSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
         String node2 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode2 = new IndexShardStateChangeListener();
         //add a listener that keeps track of the shard state changes
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(stateChangeListenerNode2);
         //re-enable allocation
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
+                .setPersistentSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
         ensureGreen();
 
         //the 3 relocated shards get closed on the first node
@@ -188,7 +188,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
 
         //increase replicas from 0 to 1
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
         ensureGreen();
 
         //3 replicas are allocated to the first node

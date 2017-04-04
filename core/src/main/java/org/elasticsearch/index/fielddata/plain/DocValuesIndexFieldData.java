@@ -19,23 +19,24 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -45,7 +46,7 @@ public abstract class DocValuesIndexFieldData {
 
     protected final Index index;
     protected final String fieldName;
-    protected final ESLogger logger;
+    protected final Logger logger;
 
     public DocValuesIndexFieldData(Index index, String fieldName) {
         super();
@@ -74,9 +75,15 @@ public abstract class DocValuesIndexFieldData {
         private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(UidFieldMapper.NAME, IdFieldMapper.NAME));
 
         private NumericType numericType;
+        private Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction = AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
 
         public Builder numericType(NumericType type) {
             this.numericType = type;
+            return this;
+        }
+
+        public Builder scriptFunction(Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
+            this.scriptFunction = scriptFunction;
             return this;
         }
 
@@ -91,7 +98,7 @@ public abstract class DocValuesIndexFieldData {
             } else if (numericType != null) {
                 return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
             } else {
-                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService);
+                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
             }
         }
 

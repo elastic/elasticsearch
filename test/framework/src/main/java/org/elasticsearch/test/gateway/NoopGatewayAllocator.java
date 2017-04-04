@@ -19,11 +19,13 @@
 
 package org.elasticsearch.test.gateway;
 
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+
+import java.util.List;
 
 /**
  * An allocator used for tests that doesn't do anything
@@ -37,17 +39,17 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void applyStartedShards(StartedRerouteAllocation allocation) {
+    public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
         // noop
     }
 
     @Override
-    public void applyFailedShards(FailedRerouteAllocation allocation) {
+    public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
         // noop
     }
 
     @Override
-    public boolean allocateUnassigned(RoutingAllocation allocation) {
-        return false;
+    public void allocateUnassigned(RoutingAllocation allocation) {
+        // noop
     }
 }

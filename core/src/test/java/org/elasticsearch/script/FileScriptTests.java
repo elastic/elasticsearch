@@ -20,13 +20,12 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 // TODO: these really should just be part of ScriptService tests, there is nothing special about them
 public class FileScriptTests extends ESTestCase {
@@ -36,26 +35,30 @@ public class FileScriptTests extends ESTestCase {
         Path scriptsDir = homeDir.resolve("config").resolve("scripts");
         Files.createDirectories(scriptsDir);
         Path mockscript = scriptsDir.resolve("script1.mockscript");
-        Files.write(mockscript, "1".getBytes("UTF-8"));
+        String scriptSource = "1";
+        Files.write(mockscript, scriptSource.getBytes("UTF-8"));
         settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .put(settings)
             .build();
-        Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap(scriptSource, script -> "1"));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public void testFileScriptFound() throws Exception {
         Settings settings = Settings.builder()
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
-        Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
+        Script script = new Script(ScriptType.FILE, MockScriptEngine.NAME, "script1", Collections.emptyMap());
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH);
+        assertNotNull(compiledScript);
+        MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
+        assertEquals("script1.mockscript", executable.getName());
     }
 
     public void testAllOpsDisabled() throws Exception {
@@ -66,10 +69,10 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.update", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", "false").build();
         ScriptService scriptService = makeScriptService(settings);
-        Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
+        Script script = new Script(ScriptType.FILE, MockScriptEngine.NAME, "script1", Collections.emptyMap());
         for (ScriptContext context : ScriptContext.Standard.values()) {
             try {
-                scriptService.compile(script, context, Collections.emptyMap());
+                scriptService.compile(script, context);
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));

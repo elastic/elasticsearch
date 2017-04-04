@@ -13,7 +13,7 @@
       },
       "params": {
         "scroll": {
-          "type" : "duration",
+          "type" : "time",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
         },
         "scroll_id": {

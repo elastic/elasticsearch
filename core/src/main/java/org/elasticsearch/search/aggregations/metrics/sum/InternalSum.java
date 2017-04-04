@@ -21,46 +21,44 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-/**
-*
-*/
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
+    private final double sum;
 
-    public final static Type TYPE = new Type("sum");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalSum readResult(StreamInput in) throws IOException {
-            InternalSum result = new InternalSum();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private double sum;
-
-    InternalSum() {} // for serialization
-
-    InternalSum(String name, double sum, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
-        this.valueFormatter = formatter;
+        this.format = formatter;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalSum(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        sum = in.readDouble();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(sum);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SumAggregationBuilder.NAME;
     }
 
     @Override
@@ -74,38 +72,31 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
     public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sum = 0;
         for (InternalAggregation aggregation : aggregations) {
             sum += ((InternalSum) aggregation).sum;
         }
-        return new InternalSum(name, sum, valueFormatter, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        sum = in.readDouble();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeDouble(sum);
+        return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE, sum);
-        if (!(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(sum));
+        builder.field(CommonFields.VALUE.getPreferredName(), sum);
+        if (format != DocValueFormat.RAW) {
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum));
         }
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hashCode(sum);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSum that = (InternalSum) obj;
+        return Objects.equals(sum, that.sum);
+    }
 }

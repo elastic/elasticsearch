@@ -10,6 +10,10 @@
         "include_yes_decisions": {
           "type": "boolean",
           "description": "Return 'YES' decisions in explanation (default: false)"
+        },
+        "include_disk_info": {
+          "type": "boolean",
+          "description": "Return information about disk usage and shard sizes (default: false)"
         }
       }
     },

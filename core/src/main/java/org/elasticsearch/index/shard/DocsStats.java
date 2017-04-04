@@ -24,12 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- */
 public class DocsStats implements Streamable, ToXContent {
 
     long count = 0;
@@ -60,12 +57,6 @@ public class DocsStats implements Streamable, ToXContent {
         return this.deleted;
     }
 
-    public static DocsStats readDocStats(StreamInput in) throws IOException {
-        DocsStats docsStats = new DocsStats();
-        docsStats.readFrom(in);
-        return docsStats;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
@@ -88,8 +79,8 @@ public class DocsStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
-        static final XContentBuilderString COUNT = new XContentBuilderString("count");
-        static final XContentBuilderString DELETED = new XContentBuilderString("deleted");
+        static final String DOCS = "docs";
+        static final String COUNT = "count";
+        static final String DELETED = "deleted";
     }
 }

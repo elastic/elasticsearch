@@ -25,16 +25,17 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,13 +47,14 @@ import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
-public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentToBytes implements NamedWriteable<T> {
+public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
 
     protected SortOrder order = SortOrder.ASC;
+
+    // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
+    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
+    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
 
     private static final Map<String, Parser<?>> PARSERS;
     static {
@@ -66,9 +68,9 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
     }
 
     /**
-     * Create a @link {@link SortField} from this builder.
+     * Create a @link {@link SortFieldAndFormat} from this builder.
      */
-    protected abstract SortField build(QueryShardContext context) throws IOException;
+    protected abstract SortFieldAndFormat build(QueryShardContext context) throws IOException;
 
     /**
      * Set the order of sorting.
@@ -94,7 +96,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    parseCompoundSortField(parser, context, sortFields);
+                    parseCompoundSortField(context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
@@ -107,7 +109,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
             String fieldName = parser.text();
             sortFields.add(fieldOrScoreSort(fieldName));
         } else if (token == XContentParser.Token.START_OBJECT) {
-            parseCompoundSortField(parser, context, sortFields);
+            parseCompoundSortField(context, sortFields);
         } else {
             throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
@@ -122,9 +124,10 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         }
     }
 
-    private static void parseCompoundSortField(XContentParser parser, QueryParseContext context, List<SortBuilder<?>> sortFields)
+    private static void parseCompoundSortField(QueryParseContext context, List<SortBuilder<?>> sortFields)
             throws IOException {
         XContentParser.Token token;
+        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
@@ -143,19 +146,13 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         }
     }
 
-    public static void parseSort(XContentParser parser, SearchContext context) throws IOException {
-        QueryParseContext parseContext = context.getQueryShardContext().parseContext();
-        parseContext.reset(parser);
-        Optional<Sort> sortOptional = buildSort(SortBuilder.fromXContent(parseContext), context.getQueryShardContext());
-        if (sortOptional.isPresent()) {
-            context.sort(sortOptional.get());
-        }
-    }
-
-    public static Optional<Sort> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
+        List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
-            sortFields.add(builder.build(context));
+            SortFieldAndFormat sf = builder.build(context);
+            sortFields.add(sf.field);
+            sortFormats.add(sf.format);
         }
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really
@@ -172,13 +169,15 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
                 }
             }
             if (sort) {
-                return Optional.of(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+                return Optional.of(new SortAndFormats(
+                        new Sort(sortFields.toArray(new SortField[sortFields.size()])),
+                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])));
             }
         }
         return Optional.empty();
     }
 
-    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder<?> nestedFilter) throws IOException {
+    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
         Nested nested = null;
         if (nestedPath != null) {
             BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
@@ -200,6 +199,14 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
             nested = new Nested(rootDocumentsFilter,  innerDocumentsQuery);
         }
         return nested;
+    }
+
+    protected static QueryBuilder parseNestedFilter(XContentParser parser, QueryParseContext context) {
+        try {
+            return context.parseInnerQueryBuilder();
+        } catch (Exception e) {
+            throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
+        }
     }
 
     @FunctionalInterface

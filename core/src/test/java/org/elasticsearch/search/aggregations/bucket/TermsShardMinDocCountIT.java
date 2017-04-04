@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
@@ -39,9 +40,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private static final String index = "someindex";
     private static final String type = "testtype";
@@ -59,7 +57,6 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
                 .addMapping(type, "text", textMappings));
-        ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, 0, indexBuilders);//high score but low doc freq
@@ -103,10 +100,10 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         String sourceClass = "{\"text\": \"" + term + "\", \"class\":" + "true" + "}";
         String sourceNotClass = "{\"text\": \"" + term + "\", \"class\":" + "false" + "}";
         for (int i = 0; i < numInClass; i++) {
-            builders.add(client().prepareIndex(index, type).setSource(sourceClass));
+            builders.add(client().prepareIndex(index, type).setSource(sourceClass, XContentType.JSON));
         }
         for (int i = 0; i < numNotInClass; i++) {
-            builders.add(client().prepareIndex(index, type).setSource(sourceNotClass));
+            builders.add(client().prepareIndex(index, type).setSource(sourceNotClass, XContentType.JSON));
         }
     }
 
@@ -119,7 +116,6 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
             termMappings += ",fielddata=true";
         }
         assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "text", termMappings));
-        ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, indexBuilders);//low doc freq but high score
@@ -157,7 +153,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\"}";
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex(index, type).setSource(sourceClass));
+            builders.add(client().prepareIndex(index, type).setSource(sourceClass, XContentType.JSON));
         }
 
     }

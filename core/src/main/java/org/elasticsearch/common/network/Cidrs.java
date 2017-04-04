@@ -52,9 +52,9 @@ public final class Cidrs {
         byte[] addressBytes;
         try {
             addressBytes = InetAddresses.forString(fields[0]).getAddress();
-        } catch (Throwable t) {
+        } catch (Exception e) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; unable to parse [%s] as an IP address literal", fields[0]), t
+                    String.format(Locale.ROOT, "invalid IPv4/CIDR; unable to parse [%s] as an IP address literal", fields[0]), e
             );
         }
         long accumulator =

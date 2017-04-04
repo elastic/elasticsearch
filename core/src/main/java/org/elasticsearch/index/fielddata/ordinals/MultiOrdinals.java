@@ -41,7 +41,6 @@ import java.util.List;
 public class MultiOrdinals extends Ordinals {
 
     private static final int OFFSETS_PAGE_SIZE = 1024;
-    private static final int OFFSET_INIT_PAGE_COUNT = 16;
 
     /**
      * Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%.

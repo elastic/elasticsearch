@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -28,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -37,8 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- */
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
     private final AllocationService allocationService;
@@ -68,38 +68,54 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", new AckedClusterStateUpdateTask<ClusterRerouteResponse>(Priority.IMMEDIATE, request, listener) {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", new ClusterRerouteResponseAckedClusterStateUpdateTask(logger,
+            allocationService, request, listener));
+    }
 
-            private volatile ClusterState clusterStateToSend;
-            private volatile RoutingExplanations explanations;
+    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {
 
-            @Override
-            protected ClusterRerouteResponse newResponse(boolean acknowledged) {
-                return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
+        private final ClusterRerouteRequest request;
+        private final ActionListener<ClusterRerouteResponse> listener;
+        private final Logger logger;
+        private final AllocationService allocationService;
+        private volatile ClusterState clusterStateToSend;
+        private volatile RoutingExplanations explanations;
+
+        ClusterRerouteResponseAckedClusterStateUpdateTask(Logger logger, AllocationService allocationService, ClusterRerouteRequest request,
+                                                          ActionListener<ClusterRerouteResponse> listener) {
+            super(Priority.IMMEDIATE, request, listener);
+            this.request = request;
+            this.listener = listener;
+            this.logger = logger;
+            this.allocationService = allocationService;
+        }
+
+        @Override
+        protected ClusterRerouteResponse newResponse(boolean acknowledged) {
+            return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+            super.onFailure(source, e);
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) {
+            AllocationService.CommandsResult commandsResult =
+                allocationService.reroute(currentState, request.getCommands(), request.explain(), request.isRetryFailed());
+            clusterStateToSend = commandsResult.getClusterState();
+            explanations = commandsResult.explanations();
+            if (request.dryRun()) {
+                return currentState;
             }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
-                super.onFailure(source, t);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands, request.explain());
-                ClusterState newState = ClusterState.builder(currentState).routingResult(routingResult).build();
-                clusterStateToSend = newState;
-                explanations = routingResult.explanations();
-                if (request.dryRun) {
-                    return currentState;
-                }
-                return newState;
-            }
-        });
+            return commandsResult.getClusterState();
+        }
     }
 }

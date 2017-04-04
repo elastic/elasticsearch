@@ -26,18 +26,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -46,25 +46,31 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-import static java.util.Collections.singletonMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-/**
- *
- */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(FetchTermVectorsPlugin.class);
+        return Collections.singletonList(FetchTermVectorsPlugin.class);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
+
+    @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()
@@ -79,7 +85,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                                 .endObject()
                                 .endObject()
                                 .endObject().endObject()).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client().index(
                 indexRequest("test").type("type1").id("1")
@@ -87,84 +92,51 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        XContentBuilder extSource = jsonBuilder().startObject()
-                .field("term_vectors_fetch", "test")
-                .endObject();
-         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder().ext(extSource)).get();
+         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
+                 .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();
         assertSearchResponse(response);
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"), equalTo(2));
+        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+                equalTo(2));
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
                 equalTo(2));
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
                 equalTo(1));
     }
 
-    public static class FetchTermVectorsPlugin extends Plugin {
-
+    public static class FetchTermVectorsPlugin extends Plugin implements SearchPlugin {
         @Override
-        public String name() {
-            return "fetch-term-vectors";
+        public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+            return singletonList(new TermVectorsFetchSubPhase());
         }
 
         @Override
-        public String description() {
-            return "fetch plugin to test if the plugin mechanism works";
-        }
-
-        public void onModule(SearchModule searchModule) {
-            searchModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
+        public List<SearchExtSpec<?>> getSearchExts() {
+            return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
+                    TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent));
         }
     }
 
-    public static class TermVectorsFetchSubPhase implements FetchSubPhase {
-
-        public static final ContextFactory<TermVectorsFetchContext> CONTEXT_FACTORY = new ContextFactory<TermVectorsFetchContext>() {
-
-            @Override
-            public String getName() {
-                return NAMES[0];
-            }
-
-            @Override
-            public TermVectorsFetchContext newContextInstance() {
-                return new TermVectorsFetchContext();
-            }
-        };
-
-        public static final String[] NAMES = {"term_vectors_fetch"};
-
-        @Override
-        public Map<String, ? extends SearchParseElement> parseElements() {
-            return singletonMap("term_vectors_fetch", new TermVectorsFetchParseElement());
-        }
-
-        @Override
-        public boolean hitsExecutionNeeded(SearchContext context) {
-            return false;
-        }
-
-        @Override
-        public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-        }
-
-        @Override
-        public boolean hitExecutionNeeded(SearchContext context) {
-            return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
-        }
+    private static final class TermVectorsFetchSubPhase implements FetchSubPhase {
+        private static final String NAME = "term_vectors_fetch";
 
         @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
-            String field = context.getFetchSubPhaseContext(CONTEXT_FACTORY).getField();
-
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
+            if (fetchSubPhaseBuilder == null) {
+                return;
+            }
+            String field = fetchSubPhaseBuilder.getField();
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>());
             }
-            SearchHitField hitField = hitContext.hit().fields().get(NAMES[0]);
+            SearchHitField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
-                hitContext.hit().fields().put(NAMES[0], hitField);
+                hitField = new SearchHitField(NAME, new ArrayList<>(1));
+                hitContext.hit().getFields().put(NAME, hitField);
             }
-            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
+            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
+                    hitContext.hit().getType(), hitContext.hit().getId());
+            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();
@@ -172,45 +144,72 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 while ((term = terms.next()) != null) {
                     tv.put(term.utf8ToString(), terms.postings(null, PostingsEnum.ALL).freq());
                 }
-                hitField.values().add(tv);
+                hitField.getValues().add(tv);
             } catch (IOException e) {
                 ESLoggerFactory.getLogger(FetchSubPhasePluginIT.class.getName()).info("Swallowed exception", e);
             }
         }
     }
 
-    public static class TermVectorsFetchParseElement extends FetchSubPhaseParseElement<TermVectorsFetchContext> {
-
-        @Override
-        protected void innerParse(XContentParser parser, TermVectorsFetchContext termVectorsFetchContext, SearchContext searchContext) throws Exception {
+    private static final class TermVectorsFetchBuilder extends SearchExtBuilder {
+        public static TermVectorsFetchBuilder fromXContent(XContentParser parser) throws IOException {
+            String field;
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
-                String fieldName = parser.text();
-                termVectorsFetchContext.setField(fieldName);
+                field = parser.text();
             } else {
-                throw new IllegalStateException("Expected a VALUE_STRING but got " + token);
+                throw new ParsingException(parser.getTokenLocation(), "Expected a VALUE_STRING but got " + token);
             }
+            if (field == null) {
+                throw new ParsingException(parser.getTokenLocation(), "no fields specified for " + TermVectorsFetchSubPhase.NAME);
+            }
+            return new TermVectorsFetchBuilder(field);
         }
 
-        @Override
-        protected FetchSubPhase.ContextFactory getContextFactory() {
-            return TermVectorsFetchSubPhase.CONTEXT_FACTORY;
-        }
-    }
+        private final String field;
 
-    public static class TermVectorsFetchContext extends FetchSubPhaseContext {
-
-        private String field = null;
-
-        public TermVectorsFetchContext() {
-        }
-
-        public void setField(String field) {
+        private TermVectorsFetchBuilder(String field) {
             this.field = field;
         }
 
-        public String getField() {
+        private TermVectorsFetchBuilder(StreamInput in) throws IOException {
+            this.field = in.readString();
+        }
+
+        private String getField() {
             return field;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            TermVectorsFetchBuilder that = (TermVectorsFetchBuilder) o;
+            return Objects.equals(field, that.field);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TermVectorsFetchSubPhase.NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(field);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(TermVectorsFetchSubPhase.NAME, field);
         }
     }
 }

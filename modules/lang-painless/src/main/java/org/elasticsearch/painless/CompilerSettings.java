@@ -19,14 +19,18 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+
 /**
  * Settings to use when compiling a script.
  */
-final class CompilerSettings {
+public final class CompilerSettings {
     /**
-     * Constant to be used when specifying numeric overflow when compiling a script.
+     * Are regexes enabled? This is a node level setting because regexes break out of painless's lovely sandbox and can cause stack
+     * overflows and we can't analyze the regex to be sure it won't.
      */
-    public static final String NUMERIC_OVERFLOW = "numeric_overflow";
+    public static final Setting<Boolean> REGEX_ENABLED = Setting.boolSetting("script.painless.regex.enabled", false, Property.NodeScope);
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -34,39 +38,43 @@ final class CompilerSettings {
     public static final String MAX_LOOP_COUNTER = "max_loop_counter";
 
     /**
-     * Whether or not to allow numeric values to overflow without exception.
+     * Constant to be used for enabling additional internal compilation checks (slower).
      */
-    private boolean numericOverflow = true;
+    public static final String PICKY = "picky";
+
+    /**
+     * For testing: do not use.
+     */
+    public static final String INITIAL_CALL_SITE_DEPTH = "initialCallSiteDepth";
 
     /**
      * The maximum number of statements allowed to be run in a loop.
+     * For now the number is set fairly high to accommodate users
+     * doing large update queries.
      */
-    private int maxLoopCounter = 10000;
+    private int maxLoopCounter = 1000000;
 
     /**
-     * Returns {@code true} if numeric operations should overflow, {@code false}
-     * if they should signal an exception.
-     * <p>
-     * If this value is {@code true} (default), then things behave like java:
-     * overflow for integer types can result in unexpected values / unexpected
-     * signs, and overflow for floating point types can result in infinite or
-     * {@code NaN} values.
+     * Whether to throw exception on ambiguity or other internal parsing issues. This option
+     * makes things slower too, it is only for debugging.
      */
-    public boolean getNumericOverflow() {
-        return numericOverflow;
-    }
+    private boolean picky = false;
 
     /**
-     * Set {@code true} for numerics to overflow, false to deliver exceptions.
-     * @see #getNumericOverflow
+     * For testing. Do not use.
      */
-    public void setNumericOverflow(boolean allow) {
-        this.numericOverflow = allow;
-    }
+    private int initialCallSiteDepth = 0;
+
+    /**
+     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
+     * <strong>looking</strong> regexes can cause stack overflows.
+     */
+    private boolean regexesEnabled = false;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
-     * in a script before an exception is thrown.  This attempts to prevent infinite loops.
+     * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
+     * the counter is set to 0, no loop counter will be written.
      */
     public int getMaxLoopCounter() {
         return maxLoopCounter;
@@ -78,5 +86,54 @@ final class CompilerSettings {
      */
     public void setMaxLoopCounter(int max) {
         this.maxLoopCounter = max;
+    }
+
+    /**
+     * Returns true if the compiler should be picky. This means it runs slower and enables additional
+     * runtime checks, throwing an exception if there are ambiguities in the grammar or other low level
+     * parsing problems.
+     */
+    public boolean isPicky() {
+      return picky;
+    }
+
+    /**
+     * Set to true if compilation should be picky.
+     * @see #isPicky
+     */
+    public void setPicky(boolean picky) {
+      this.picky = picky;
+    }
+
+    /**
+     * Returns initial call site depth. This means we pretend we've already seen N different types,
+     * to better exercise fallback code in tests.
+     */
+    public int getInitialCallSiteDepth() {
+        return initialCallSiteDepth;
+    }
+
+    /**
+     * For testing megamorphic fallbacks. Do not use.
+     * @see #getInitialCallSiteDepth()
+     */
+    public void setInitialCallSiteDepth(int depth) {
+        this.initialCallSiteDepth = depth;
+    }
+
+    /**
+     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
+     * <strong>looking</strong> regexes can cause stack overflows.
+     */
+    public boolean areRegexesEnabled() {
+        return regexesEnabled;
+    }
+
+    /**
+     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
+     * <strong>looking</strong> regexes can cause stack overflows.
+     */
+    public void setRegexesEnabled(boolean regexesEnabled) {
+        this.regexesEnabled = regexesEnabled;
     }
 }

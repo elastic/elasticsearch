@@ -25,10 +25,11 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -38,13 +39,21 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
-/**
- */
-public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
+public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
+
+    private static final String _INDEX = "_index";
+    private static final String _TYPE = "_type";
+    private static final String _ID = "_id";
+    private static final String _VERSION = "_version";
+    private static final String FOUND = "found";
+    private static final String FIELDS = "fields";
 
     private String index;
     private String type;
@@ -59,7 +68,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     GetResult() {
     }
 
-    public GetResult(String index, String type, String id, long version, boolean exists, BytesReference source, Map<String, GetField> fields) {
+    public GetResult(String index, String type, String id, long version, boolean exists, BytesReference source,
+                     Map<String, GetField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -117,7 +127,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         if (sourceAsBytes != null) {
             return sourceAsBytes;
         }
-        this.sourceAsBytes = sourceRef().toBytes();
+        this.sourceAsBytes = BytesReference.toBytes(sourceRef());
         return this.sourceAsBytes;
     }
 
@@ -125,6 +135,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference sourceRef() {
+        if (source == null) {
+            return null;
+        }
+
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
@@ -198,15 +212,6 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         return fields.values().iterator();
     }
 
-    static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
-    }
-
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
         List<GetField> metaFields = new ArrayList<>();
         List<GetField> otherFields = new ArrayList<>();
@@ -227,20 +232,16 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             builder.field(field.getName(), field.getValue());
         }
 
-        builder.field(Fields.FOUND, exists);
+        builder.field(FOUND, exists);
 
         if (source != null) {
-            XContentHelper.writeRawField("_source", source, builder, params);
+            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
         if (!otherFields.isEmpty()) {
-            builder.startObject(Fields.FIELDS);
+            builder.startObject(FIELDS);
             for (GetField field : otherFields) {
-                builder.startArray(field.getName());
-                for (Object value : field.getValues()) {
-                    builder.value(value);
-                }
-                builder.endArray();
+                field.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -249,21 +250,75 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!isExists()) {
-            builder.field(Fields._INDEX, index);
-            builder.field(Fields._TYPE, type);
-            builder.field(Fields._ID, id);
-            builder.field(Fields.FOUND, false);
-        } else {
-            builder.field(Fields._INDEX, index);
-            builder.field(Fields._TYPE, type);
-            builder.field(Fields._ID, id);
+        builder.startObject();
+        builder.field(_INDEX, index);
+        builder.field(_TYPE, type);
+        builder.field(_ID, id);
+        if (isExists()) {
             if (version != -1) {
-                builder.field(Fields._VERSION, version);
+                builder.field(_VERSION, version);
             }
             toXContentEmbedded(builder, params);
+        } else {
+            builder.field(FOUND, false);
         }
+        builder.endObject();
         return builder;
+    }
+
+    public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        String index = null, type = null, id = null;
+        long version = -1;
+        boolean found = false;
+        BytesReference source = null;
+        Map<String, GetField> fields = new HashMap<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (_INDEX.equals(currentFieldName)) {
+                    index = parser.text();
+                } else if (_TYPE.equals(currentFieldName)) {
+                    type = parser.text();
+                } else if (_ID.equals(currentFieldName)) {
+                    id = parser.text();
+                }  else if (_VERSION.equals(currentFieldName)) {
+                    version = parser.longValue();
+                } else if (FOUND.equals(currentFieldName)) {
+                    found = parser.booleanValue();
+                } else {
+                    fields.put(currentFieldName, new GetField(currentFieldName, Collections.singletonList(parser.objectText())));
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (SourceFieldMapper.NAME.equals(currentFieldName)) {
+                    try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+                        //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
+                        //it all depends on the current builder settings
+                        builder.copyCurrentStructure(parser);
+                        source = builder.bytes();
+                    }
+                } else if (FIELDS.equals(currentFieldName)) {
+                    while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        GetField getField = GetField.fromXContent(parser);
+                        fields.put(getField.getName(), getField);
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            }
+        }
+        return new GetResult(index, type, id, version, found, source, fields);
+    }
+
+    public static GetResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        return fromXContentEmbedded(parser);
     }
 
     public static GetResult readGetResult(StreamInput in) throws IOException {
@@ -315,6 +370,29 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                 }
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        GetResult getResult = (GetResult) o;
+        return version == getResult.version &&
+                exists == getResult.exists &&
+                Objects.equals(index, getResult.index) &&
+                Objects.equals(type, getResult.type) &&
+                Objects.equals(id, getResult.id) &&
+                Objects.equals(fields, getResult.fields) &&
+                Objects.equals(sourceAsMap(), getResult.sourceAsMap());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, type, id, version, exists, fields, sourceAsMap());
     }
 }
 

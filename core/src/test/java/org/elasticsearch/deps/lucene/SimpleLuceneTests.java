@@ -60,9 +60,6 @@ import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class SimpleLuceneTests extends ESTestCase {
     public void testSortValues() throws Exception {
         Directory dir = new RAMDirectory();

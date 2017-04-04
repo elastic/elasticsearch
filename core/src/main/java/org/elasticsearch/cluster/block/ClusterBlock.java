@@ -31,9 +31,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Locale;
 
-/**
- *
- */
 public class ClusterBlock implements Streamable, ToXContent {
 
     private int id;

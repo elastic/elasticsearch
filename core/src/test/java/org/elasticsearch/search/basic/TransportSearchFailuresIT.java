@@ -20,7 +20,6 @@
 package org.elasticsearch.search.basic;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -30,7 +29,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -53,8 +52,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1));
-        ensureYellow();
+        assertAcked(prepareCreate("test", 1).addMapping("type", "foo", "type=geo_point"));
 
         NumShards test = getNumShards("test");
 
@@ -68,7 +66,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client().search(
-                        searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz"))))
+                        searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz"))))
                         .actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
@@ -88,7 +86,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = client()
                 .admin()
                 .cluster()
-                .health(clusterHealthRequest("test").waitForYellowStatus().waitForRelocatingShards(0)
+                .health(clusterHealthRequest("test").waitForYellowStatus().waitForNoRelocatingShards(true)
                         .waitForActiveShards(test.totalNumShards)).actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -103,7 +101,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client().search(
-                        searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz"))))
+                        searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz"))))
                         .actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
@@ -119,7 +117,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
     }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
-        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age)).consistencyLevel(WriteConsistencyLevel.ONE)).actionGet();
+        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

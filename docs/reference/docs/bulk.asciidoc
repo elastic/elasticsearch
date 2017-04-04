@@ -21,8 +21,8 @@ Python::
 
 *********************************************
 
-The REST API endpoint is `/_bulk`, and it expects the following JSON
-structure:
+The REST API endpoint is `/_bulk`, and it expects the following newline delimited JSON
+(NDJSON) structure:
 
 [source,js]
 --------------------------------------------------
@@ -34,8 +34,11 @@ optional_source\n
 action_and_meta_data\n
 optional_source\n
 --------------------------------------------------
+// NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`.
+*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
+may be preceded by a carriage return `\r`. When sending requests to this endpoint the
+`Content-Type` header should be set to `application/x-ndjson`.
 
 The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next
@@ -56,9 +59,11 @@ newlines. Example:
 $ cat requests
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
-$ curl -s -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
-{"took":7,"items":[{"create":{"_index":"test","_type":"type1","_id":"1","_version":1}}]}
+$ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
+{"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"type1","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
+// NOTCONSOLE
+// Not converting to console because this shows how curl works
 
 Because this format uses literal `\n`'s as delimiters, please be sure
 that the JSON actions and sources are not pretty printed. Here is an
@@ -66,17 +71,96 @@ example of a correct sequence of bulk commands:
 
 [source,js]
 --------------------------------------------------
+POST _bulk
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
 { "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
 { "create" : { "_index" : "test", "_type" : "type1", "_id" : "3" } }
 { "field1" : "value3" }
-{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1"} }
+{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "test"} }
 { "doc" : {"field2" : "value2"} }
 --------------------------------------------------
+// CONSOLE
 
-In the above example `doc` for the `update` action is a partial
-document, that will be merged with the already stored document.
+The result of this bulk operation is:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 30,
+   "errors": false,
+   "items": [
+      {
+         "index": {
+            "_index": "test",
+            "_type": "type1",
+            "_id": "1",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "created": true,
+            "status": 201,
+            "_seq_no" : 0
+         }
+      },
+      {
+         "delete": {
+            "found": false,
+            "_index": "test",
+            "_type": "type1",
+            "_id": "2",
+            "_version": 1,
+            "result": "not_found",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 404,
+            "_seq_no" : 1
+         }
+      },
+      {
+         "create": {
+            "_index": "test",
+            "_type": "type1",
+            "_id": "3",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "created": true,
+            "status": 201,
+            "_seq_no" : 2
+         }
+      },
+      {
+         "update": {
+            "_index": "test",
+            "_type": "type1",
+            "_id": "1",
+            "_version": 2,
+            "result": "updated",
+            "_shards": {
+                "total": 2,
+                "successful": 1,
+                "failed": 0
+            },
+            "status": 200,
+            "_seq_no" : 3
+         }
+      }
+   ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 30/"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/ s/"_seq_no" : 0/"_seq_no" : $body.items.0.index._seq_no/ s/"_seq_no" : 1/"_seq_no" : $body.items.1.delete._seq_no/ s/"_seq_no" : 2/"_seq_no" : $body.items.2.create._seq_no/ s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
 
 The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
 When the index or the index/type are provided, they will be used by
@@ -128,51 +212,21 @@ field. It automatically follows the behavior of the index / delete
 operation based on the `_parent` / `_routing` mapping.
 
 [float]
-[[bulk-timestamp]]
-=== Timestamp
+[[bulk-wait-for-active-shards]]
+=== Wait For Active Shards
 
-deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
-
-Each bulk item can include the timestamp value using the
-`_timestamp`/`timestamp` field. It automatically follows the behavior of
-the index operation based on the `_timestamp` mapping.
-
-[float]
-[[bulk-ttl]]
-=== TTL
-
-deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
-
-Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
-It automatically follows the behavior of the index operation based on
-the `_ttl` mapping.
-
-[float]
-[[bulk-consistency]]
-=== Write Consistency
-
-When making bulk calls, you can require a minimum number of active
-shards in the partition through the `consistency` parameter. The values
-allowed are `one`, `quorum`, and `all`. It defaults to the node level
-setting of `action.write_consistency`, which in turn defaults to
-`quorum`.
-
-For example, in a N shards with 2 replicas index, there will have to be
-at least 2 active shards within the relevant partition (`quorum`) for
-the operation to succeed. In a N shards with 1 replica scenario, there
-will need to be a single shard active (in this case, `one` and `quorum`
-is the same).
+When making bulk calls, you can set the `wait_for_active_shards`
+parameter to require a minimum number of shard copies to be active
+before starting to process the bulk request. See
+<<index-wait-for-active-shards,here>> for further details and a usage
+example.
 
 [float]
 [[bulk-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the relevant
-primary and replica shards immediately after the bulk operation has occurred
-and make it searchable, instead of waiting for the normal refresh interval to
-expire. Setting it to `true` can trigger additional load, and may slow down
-indexing. Due to its costly nature, the `refresh` parameter is set on the bulk request level
-and is not supported on each individual bulk item.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh,refresh>>.
 
 [float]
 [[bulk-update]]
@@ -184,22 +238,25 @@ times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script) and `fields`. See update documentation for details on
-the options. Curl example with update actions:
+script), `lang` (for script) and `_source`. See update documentation for details on
+the options. Example with update actions:
 
 [source,js]
 --------------------------------------------------
+POST _bulk
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : { "inline": "ctx._source.counter += param1", "lang" : "js", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "script" : { "inline": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
-{ "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "fields" : ["_source"]} }
+{ "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "_source" : true} }
 { "doc" : {"field" : "value"} }
 { "update" : {"_id" : "4", "_type" : "type1", "_index" : "index1"} }
-{ "doc" : {"field" : "value"}, "fields": ["_source"]}
+{ "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[bulk-security]]

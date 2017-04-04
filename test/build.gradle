@@ -20,13 +20,15 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 subprojects {
-  // fixtures is just an intermediate parent project
+  // fixtures is just intermediate parent project
   if (name == 'fixtures') return
 
   group = 'org.elasticsearch.test'
   apply plugin: 'elasticsearch.build'
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
 
-  
+
   // the main files are actually test files, so use the appropriate forbidden api sigs
   forbiddenApisMain {
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),

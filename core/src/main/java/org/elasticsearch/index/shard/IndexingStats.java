@@ -27,14 +27,11 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
 public class IndexingStats implements Streamable, ToXContent {
 
     public static class Stats implements Streamable, ToXContent {
@@ -146,11 +143,7 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
-
-            if(in.getVersion().onOrAfter(Version.V_2_1_0)){
-                indexFailedCount = in.readVLong();
-            }
-
+            indexFailedCount = in.readVLong();
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
@@ -164,11 +157,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
-
-            if(out.getVersion().onOrAfter(Version.V_2_1_0)) {
-                out.writeVLong(indexFailedCount);
-            }
-
+            out.writeVLong(indexFailedCount);
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
@@ -258,7 +247,7 @@ public class IndexingStats implements Streamable, ToXContent {
         if (typeStats != null && !typeStats.isEmpty()) {
             builder.startObject(Fields.TYPES);
             for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
@@ -269,38 +258,28 @@ public class IndexingStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString INDEXING = new XContentBuilderString("indexing");
-        static final XContentBuilderString TYPES = new XContentBuilderString("types");
-        static final XContentBuilderString INDEX_TOTAL = new XContentBuilderString("index_total");
-        static final XContentBuilderString INDEX_TIME = new XContentBuilderString("index_time");
-        static final XContentBuilderString INDEX_TIME_IN_MILLIS = new XContentBuilderString("index_time_in_millis");
-        static final XContentBuilderString INDEX_CURRENT = new XContentBuilderString("index_current");
-        static final XContentBuilderString INDEX_FAILED = new XContentBuilderString("index_failed");
-        static final XContentBuilderString DELETE_TOTAL = new XContentBuilderString("delete_total");
-        static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
-        static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");
-        static final XContentBuilderString DELETE_CURRENT = new XContentBuilderString("delete_current");
-        static final XContentBuilderString NOOP_UPDATE_TOTAL = new XContentBuilderString("noop_update_total");
-        static final XContentBuilderString IS_THROTTLED = new XContentBuilderString("is_throttled");
-        static final XContentBuilderString THROTTLED_TIME_IN_MILLIS = new XContentBuilderString("throttle_time_in_millis");
-        static final XContentBuilderString THROTTLED_TIME = new XContentBuilderString("throttle_time");
-    }
-
-    public static IndexingStats readIndexingStats(StreamInput in) throws IOException {
-        IndexingStats indexingStats = new IndexingStats();
-        indexingStats.readFrom(in);
-        return indexingStats;
+        static final String INDEXING = "indexing";
+        static final String TYPES = "types";
+        static final String INDEX_TOTAL = "index_total";
+        static final String INDEX_TIME = "index_time";
+        static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";
+        static final String INDEX_CURRENT = "index_current";
+        static final String INDEX_FAILED = "index_failed";
+        static final String DELETE_TOTAL = "delete_total";
+        static final String DELETE_TIME = "delete_time";
+        static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";
+        static final String DELETE_CURRENT = "delete_current";
+        static final String NOOP_UPDATE_TOTAL = "noop_update_total";
+        static final String IS_THROTTLED = "is_throttled";
+        static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
+        static final String THROTTLED_TIME = "throttle_time";
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         if (in.readBoolean()) {
-            int size = in.readVInt();
-            typeStats = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                typeStats.put(in.readString(), Stats.readStats(in));
-            }
+            typeStats = in.readMap(StreamInput::readString, Stats::readStats);
         }
     }
 
@@ -311,11 +290,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(typeStats.size());
-            for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+            out.writeMap(typeStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }

@@ -48,6 +48,31 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
+[[bm25]]
+==== BM25 similarity (*default*)
+
+TF/IDF based similarity that has built-in tf normalization and
+is supposed to work better for short fields (like names). See
+http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
+This similarity has the following options:
+
+[horizontal]
+`k1`::
+    Controls non-linear term frequency normalization
+    (saturation). The default value is `1.2`.
+
+`b`::
+    Controls to what degree document length normalizes tf values.
+    The default value is `0.75`.
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
+
+Type name: `BM25`
+
+[float]
 [[classic-similarity]]
 ==== Classic similarity
 
@@ -60,30 +85,6 @@ similarity has the following option:
     is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `classic`
-
-[float]
-[[bm25]]
-==== BM25 similarity
-
-Another TF/IDF based similarity that has built-in tf normalization and
-is supposed to work better for short fields (like names). See
-http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
-This similarity has the following options:
-
-[horizontal]
-`k1`::
-    Controls non-linear term frequency normalization
-    (saturation).
-
-`b`::
-    Controls to what degree document length normalizes tf values.
-
-`discount_overlaps`::
-    Determines whether overlap tokens (Tokens with
-    0 position increment) are ignored when computing norm. By default this
-    is true, meaning overlap tokens do not count when computing norms.
-
-Type name: `BM25`
 
 [float]
 [[drf]]
@@ -117,6 +118,8 @@ This similarity has the following options:
 
 [horizontal]
 `independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+
+Type name: `DFI`
 
 [float]
 [[ib]]
@@ -171,9 +174,41 @@ implementation used for these two methods, while not changing the
 `default`, it is possible to configure a similarity with the name
 `base`. This similarity will then be used for the two methods.
 
-You can change the default similarity for all fields by putting the following setting into `elasticsearch.yml`:
+You can change the default similarity for all fields in an index when
+it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-index.similarity.default.type: BM25
+PUT /my_index
+{
+  "settings": {
+    "index": {
+      "similarity": {
+        "default": {
+          "type": "classic"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+If you want to change the default similarity after creating the index
+you must <<indices-open-close,close>> your index, send the follwing
+request and <<indices-open-close,open>> it again afterwards:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index/_settings
+{
+  "settings": {
+    "index": {
+      "similarity": {
+        "default": {
+          "type": "classic"
+        }
+      }
+    }
+  }
+}
 --------------------------------------------------

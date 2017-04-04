@@ -228,7 +228,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfterAccess(1);
+        cache.setExpireAfterAccessNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
             assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
@@ -265,7 +265,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfterWrite(1);
+        cache.setExpireAfterWriteNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
             assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
@@ -307,7 +307,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfterAccess(1);
+        cache.setExpireAfterAccessNanos(1);
         now.set(0);
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
@@ -416,7 +416,7 @@ public class CacheTests extends ESTestCase {
             private String value;
             private long weight;
 
-            public Value(String value, long weight) {
+            Value(String value, long weight) {
                 this.value = value;
                 this.weight = weight;
             }
@@ -552,7 +552,7 @@ public class CacheTests extends ESTestCase {
         class Key {
             private final int key;
 
-            public Key(int key) {
+            Key(int key) {
                 this.key = key;
             }
 
@@ -690,6 +690,43 @@ public class CacheTests extends ESTestCase {
                             cache.invalidate(key);
                         } else {
                             cache.get(key);
+                        }
+                    }
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+    }
+
+    public void testExceptionThrownDuringConcurrentComputeIfAbsent() throws BrokenBarrierException, InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 32);
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
+
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+
+        final String key = randomAsciiOfLengthBetween(2, 32);
+        for (int i = 0; i < numberOfThreads; i++) {
+            Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        try {
+                            String value = cache.computeIfAbsent(key, k -> {
+                                throw new RuntimeException("failed to load");
+                            });
+                            fail("expected exception but got: " + value);
+                        } catch (ExecutionException e) {
+                            assertNotNull(e.getCause());
+                            assertThat(e.getCause(), instanceOf(RuntimeException.class));
+                            assertEquals(e.getCause().getMessage(), "failed to load");
                         }
                     }
                     barrier.await();

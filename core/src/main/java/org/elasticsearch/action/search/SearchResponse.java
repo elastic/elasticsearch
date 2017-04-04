@@ -21,15 +21,14 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
@@ -46,7 +44,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements StatusToXContent {
+public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
     private InternalSearchResponse internalResponse;
 
@@ -63,7 +61,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
+    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards,
+                          long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
@@ -106,6 +105,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      */
     public Boolean isTerminatedEarly() {
         return internalResponse.terminatedEarly();
+    }
+
+    /**
+     * Returns the number of reduce phases applied to obtain this search response
+     */
+    public int getNumReducePhases() {
+        return internalResponse.getNumReducePhases();
     }
 
     /**
@@ -168,30 +174,34 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      * If profiling was enabled, this returns an object containing the profile results from
      * each shard.  If profiling was not enabled, this will return null
      *
-     * @return The profile results or null
+     * @return The profile results or an empty map
      */
-    public @Nullable Map<String, List<ProfileShardResult>> getProfileResults() {
+    @Nullable public Map<String, ProfileShardResult> getProfileResults() {
         return internalResponse.profile();
-    }
-
-    static final class Fields {
-        static final XContentBuilderString _SCROLL_ID = new XContentBuilderString("_scroll_id");
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
-        static final XContentBuilderString TERMINATED_EARLY = new XContentBuilderString("terminated_early");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
-            builder.field(Fields._SCROLL_ID, scrollId);
+            builder.field("_scroll_id", scrollId);
         }
-        builder.field(Fields.TOOK, tookInMillis);
-        builder.field(Fields.TIMED_OUT, isTimedOut());
+        builder.field("took", tookInMillis);
+        builder.field("timed_out", isTimedOut());
         if (isTerminatedEarly() != null) {
-            builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+            builder.field("terminated_early", isTerminatedEarly());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
+        if (getNumReducePhases() != 1) {
+            builder.field("num_reduce_phases", getNumReducePhases());
+        }
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(),
+            getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
     }
@@ -233,14 +243,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

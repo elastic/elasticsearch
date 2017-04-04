@@ -36,8 +36,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class MultiOrdinalsTests extends ESTestCase {
 
     protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {

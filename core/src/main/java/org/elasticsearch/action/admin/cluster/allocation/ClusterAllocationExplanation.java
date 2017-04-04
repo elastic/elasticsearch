@@ -19,9 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,168 +35,170 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Locale;
+
+import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
 /**
- * A {@code ClusterAllocationExplanation} is an explanation of why a shard may or may not be allocated to nodes. It also includes weights
- * for where the shard is likely to be assigned. It is an immutable class
+ * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
+ * or if it is not unassigned, then which nodes it could possibly be relocated to.
+ * It is an immutable class.
  */
-public final class ClusterAllocationExplanation implements ToXContent, Writeable<ClusterAllocationExplanation> {
+public final class ClusterAllocationExplanation implements ToXContent, Writeable {
 
-    private final ShardId shard;
-    private final boolean primary;
-    private final String assignedNodeId;
-    private final Map<DiscoveryNode, Decision> nodeToDecision;
-    private final Map<DiscoveryNode, Float> nodeWeights;
-    private final UnassignedInfo unassignedInfo;
+    private final ShardRouting shardRouting;
+    private final DiscoveryNode currentNode;
+    private final DiscoveryNode relocationTargetNode;
+    private final ClusterInfo clusterInfo;
+    private final ShardAllocationDecision shardAllocationDecision;
+
+    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode,
+                                        @Nullable DiscoveryNode relocationTargetNode, @Nullable ClusterInfo clusterInfo,
+                                        ShardAllocationDecision shardAllocationDecision) {
+        this.shardRouting = shardRouting;
+        this.currentNode = currentNode;
+        this.relocationTargetNode = relocationTargetNode;
+        this.clusterInfo = clusterInfo;
+        this.shardAllocationDecision = shardAllocationDecision;
+    }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
-        this.shard = ShardId.readShardId(in);
-        this.primary = in.readBoolean();
-        this.assignedNodeId = in.readOptionalString();
-        this.unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
-
-        Map<DiscoveryNode, Decision> ntd = null;
-        int size = in.readVInt();
-        ntd = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            DiscoveryNode dn = new DiscoveryNode(in);
-            Decision decision = Decision.readFrom(in);
-            ntd.put(dn, decision);
-        }
-        this.nodeToDecision = ntd;
-
-        Map<DiscoveryNode, Float> ntw = null;
-        size = in.readVInt();
-        ntw = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            DiscoveryNode dn = new DiscoveryNode(in);
-            float weight = in.readFloat();
-            ntw.put(dn, weight);
-        }
-        this.nodeWeights = ntw;
+        this.shardRouting = new ShardRouting(in);
+        this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
+        this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
+        this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
+        this.shardAllocationDecision = new ShardAllocationDecision(in);
     }
 
-    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId,
-                                        UnassignedInfo unassignedInfo, Map<DiscoveryNode, Decision> nodeToDecision,
-                                        Map<DiscoveryNode, Float> nodeWeights) {
-        this.shard = shard;
-        this.primary = primary;
-        this.assignedNodeId = assignedNodeId;
-        this.unassignedInfo = unassignedInfo;
-        this.nodeToDecision = nodeToDecision == null ? Collections.emptyMap() : nodeToDecision;
-        this.nodeWeights = nodeWeights == null ? Collections.emptyMap() : nodeWeights;
-    }
-
-    public ShardId getShard() {
-        return this.shard;
-    }
-
-    public boolean isPrimary() {
-        return this.primary;
-    }
-
-    /** Return turn if the shard is assigned to a node */
-    public boolean isAssigned() {
-        return this.assignedNodeId != null;
-    }
-
-    /** Return the assigned node id or null if not assigned */
-    @Nullable
-    public String getAssignedNodeId() {
-        return this.assignedNodeId;
-    }
-
-    /** Return the unassigned info for the shard or null if the shard is assigned */
-    @Nullable
-    public UnassignedInfo getUnassignedInfo() {
-        return this.unassignedInfo;
-    }
-
-    /** Return a map of node to decision for shard allocation */
-    public Map<DiscoveryNode, Decision> getNodeDecisions() {
-        return this.nodeToDecision;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        shardRouting.writeTo(out);
+        out.writeOptionalWriteable(currentNode);
+        out.writeOptionalWriteable(relocationTargetNode);
+        out.writeOptionalWriteable(clusterInfo);
+        shardAllocationDecision.writeTo(out);
     }
 
     /**
-     * Return a map of node to balancer "weight" for allocation. Higher weights mean the balancer wants to allocated the shard to that node
-     * more
+     * Returns the shard that the explanation is about.
      */
-    public Map<DiscoveryNode, Float> getNodeWeights() {
-        return this.nodeWeights;
+    public ShardId getShard() {
+        return shardRouting.shardId();
+    }
+
+    /**
+     * Returns {@code true} if the explained shard is primary, {@code false} otherwise.
+     */
+    public boolean isPrimary() {
+        return shardRouting.primary();
+    }
+
+    /**
+     * Returns the current {@link ShardRoutingState} of the shard.
+     */
+    public ShardRoutingState getShardState() {
+        return shardRouting.state();
+    }
+
+    /**
+     * Returns the currently assigned node, or {@code null} if the shard is unassigned.
+     */
+    @Nullable
+    public DiscoveryNode getCurrentNode() {
+        return currentNode;
+    }
+
+    /**
+     * Returns the relocating target node, or {@code null} if the shard is not in the {@link ShardRoutingState#RELOCATING} state.
+     */
+    @Nullable
+    public DiscoveryNode getRelocationTargetNode() {
+        return relocationTargetNode;
+    }
+
+    /**
+     * Returns the unassigned info for the shard, or {@code null} if the shard is active.
+     */
+    @Nullable
+    public UnassignedInfo getUnassignedInfo() {
+        return shardRouting.unassignedInfo();
+    }
+
+    /**
+     * Returns the cluster disk info for the cluster, or {@code null} if none available.
+     */
+    @Nullable
+    public ClusterInfo getClusterInfo() {
+        return this.clusterInfo;
+    }
+
+    /** \
+     * Returns the shard allocation decision for attempting to assign or move the shard.
+     */
+    public ShardAllocationDecision getShardAllocationDecision() {
+        return shardAllocationDecision;
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
-            builder.startObject("shard"); {
-                builder.field("index", shard.getIndexName());
-                builder.field("index_uuid", shard.getIndex().getUUID());
-                builder.field("id", shard.getId());
-                builder.field("primary", primary);
+            builder.field("index", shardRouting.getIndexName());
+            builder.field("shard", shardRouting.getId());
+            builder.field("primary", shardRouting.primary());
+            builder.field("current_state", shardRouting.state().toString().toLowerCase(Locale.ROOT));
+            if (shardRouting.unassignedInfo() != null) {
+                unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }
-            builder.endObject(); // end shard
-            builder.field("assigned", this.assignedNodeId != null);
-            // If assigned, show the node id of the node it's assigned to
-            if (assignedNodeId != null) {
-                builder.field("assigned_node_id", this.assignedNodeId);
-            }
-            // If we have unassigned info, show that
-            if (unassignedInfo != null) {
-                unassignedInfo.toXContent(builder, params);
-            }
-            builder.startObject("nodes");
-            for (Map.Entry<DiscoveryNode, Float> entry : nodeWeights.entrySet()) {
-                DiscoveryNode node = entry.getKey();
-                builder.startObject(node.getId()); {
-                    builder.field("node_name", node.getName());
-                    builder.startObject("node_attributes"); {
-                        for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
-                            builder.field(attrEntry.getKey(), attrEntry.getValue());
-                        }
+            if (currentNode != null) {
+                builder.startObject("current_node");
+                {
+                    discoveryNodeToXContent(currentNode, true, builder);
+                    if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
+                            && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
+                        builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());
                     }
-                    builder.endObject(); // end attributes
-                    Decision d = nodeToDecision.get(node);
-                    if (node.getId().equals(assignedNodeId)) {
-                        builder.field("final_decision", "CURRENTLY_ASSIGNED");
-                    } else {
-                        builder.field("final_decision", d.type().toString());
-                    }
-                    builder.field("weight", entry.getValue());
-                    d.toXContent(builder, params);
                 }
-                builder.endObject(); // end node <uuid>
+                builder.endObject();
             }
-            builder.endObject(); // end nodes
+            if (this.clusterInfo != null) {
+                builder.startObject("cluster_info"); {
+                    this.clusterInfo.toXContent(builder, params);
+                }
+                builder.endObject(); // end "cluster_info"
+            }
+            if (shardAllocationDecision.isDecisionTaken()) {
+                shardAllocationDecision.toXContent(builder, params);
+            } else {
+                String explanation;
+                if (shardRouting.state() == ShardRoutingState.RELOCATING) {
+                    explanation = "the shard is in the process of relocating from node [" + currentNode.getName() + "] " +
+                                  "to node [" + relocationTargetNode.getName() + "], wait until relocation has completed";
+                } else {
+                    assert shardRouting.state() == ShardRoutingState.INITIALIZING;
+                    explanation = "the shard is in the process of initializing on node [" + currentNode.getName() + "], " +
+                                  "wait until initialization has completed";
+                }
+                builder.field("explanation", explanation);
+            }
         }
         builder.endObject(); // end wrapping object
         return builder;
     }
 
-    @Override
-    public ClusterAllocationExplanation readFrom(StreamInput in) throws IOException {
-        return new ClusterAllocationExplanation(in);
-    }
+    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder)
+        throws IOException {
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        this.getShard().writeTo(out);
-        out.writeBoolean(this.isPrimary());
-        out.writeOptionalString(this.getAssignedNodeId());
-        out.writeOptionalWriteable(this.getUnassignedInfo());
-
-        Map<DiscoveryNode, Decision> ntd = this.getNodeDecisions();
-        out.writeVInt(ntd.size());
-        for (Map.Entry<DiscoveryNode, Decision> entry : ntd.entrySet()) {
-            entry.getKey().writeTo(out);
-            Decision.writeTo(entry.getValue(), out);
+        builder.startObject("unassigned_info");
+        builder.field("reason", unassignedInfo.getReason());
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.printer().print(unassignedInfo.getUnassignedTimeInMillis()));
+        if (unassignedInfo.getNumFailedAllocations() >  0) {
+            builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
-        Map<DiscoveryNode, Float> ntw = this.getNodeWeights();
-        out.writeVInt(ntw.size());
-        for (Map.Entry<DiscoveryNode, Float> entry : ntw.entrySet()) {
-            entry.getKey().writeTo(out);
-            out.writeFloat(entry.getValue());
+        String details = unassignedInfo.getDetails();
+        if (details != null) {
+            builder.field("details", details);
         }
+        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.getLastAllocationStatus()));
+        builder.endObject();
+        return builder;
     }
 }

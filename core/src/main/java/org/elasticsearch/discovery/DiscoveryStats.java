@@ -22,27 +22,34 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 
 import java.io.IOException;
 
-public class DiscoveryStats implements Streamable, ToXContent {
+public class DiscoveryStats implements Writeable, ToXContent {
 
     @Nullable
-    private PendingClusterStateStats queueStats;
+    private final PendingClusterStateStats queueStats;
 
     public DiscoveryStats(PendingClusterStateStats queueStats) {
         this.queueStats = queueStats;
     }
 
+    public DiscoveryStats(StreamInput in) throws IOException {
+        queueStats = in.readOptionalWriteable(PendingClusterStateStats::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(queueStats);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DISCOVERY);
-
         if (queueStats != null ){
             queueStats.toXContent(builder, params);
         }
@@ -50,26 +57,8 @@ public class DiscoveryStats implements Streamable, ToXContent {
         return builder;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            queueStats = new PendingClusterStateStats();
-            queueStats.readFrom(in);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (queueStats != null ) {
-            out.writeBoolean(true);
-            queueStats.writeTo(out);
-        }else{
-            out.writeBoolean(false);
-        }
-    }
-
     static final class Fields {
-        static final XContentBuilderString DISCOVERY = new XContentBuilderString("discovery");
+        static final String DISCOVERY = "discovery";
     }
 
     public PendingClusterStateStats getQueueStats() {

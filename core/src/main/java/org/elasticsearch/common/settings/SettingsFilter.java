@@ -49,7 +49,6 @@ public final class SettingsFilter extends AbstractComponent {
 
     public SettingsFilter(Settings settings, Collection<String> patterns) {
         super(settings);
-        HashSet<String> set = new HashSet<>();
         for (String pattern : patterns) {
             if (isValidPattern(pattern) == false) {
                 throw new IllegalArgumentException("invalid pattern: " + pattern);
@@ -97,7 +96,7 @@ public final class SettingsFilter extends AbstractComponent {
     }
 
     private static Settings filterSettings(Iterable<String> patterns, Settings settings) {
-        Settings.Builder builder = Settings.settingsBuilder().put(settings);
+        Settings.Builder builder = Settings.builder().put(settings);
         List<String> simpleMatchPatternList = new ArrayList<>();
         for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {

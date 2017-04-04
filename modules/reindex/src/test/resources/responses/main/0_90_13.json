@@ -1,0 +1,13 @@
+{
+  "ok" : true,
+  "status" : 200,
+  "name" : "Mogul of the Mystic Mountain",
+  "version" : {
+    "number" : "0.90.13",
+    "build_hash" : "249c9c5e06765c9e929e92b1d235e1ba4dc679fa",
+    "build_timestamp" : "2014-03-25T15:27:12Z",
+    "build_snapshot" : false,
+    "lucene_version" : "4.6"
+  },
+  "tagline" : "You Know, for Search"
+}

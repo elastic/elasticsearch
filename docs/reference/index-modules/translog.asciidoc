@@ -71,3 +71,56 @@ update, or bulk request.  This setting accepts the following parameters:
     the event of hardware failure, all acknowledged writes since the last
     automatic commit will be discarded.
 --
+
+[float]
+[[corrupt-translog-truncation]]
+=== What to do if the translog becomes corrupted?
+
+In some cases (a bad drive, user error) the translog can become corrupted. When
+this corruption is detected by Elasticsearch due to mismatching checksums,
+Elasticsearch will fail the shard and refuse to allocate that copy of the data
+to the node, recovering from a replica if available.
+
+If there is no copy of the data from which Elasticsearch can recover
+successfully, a user may want to recover the data that is part of the shard at
+the cost of losing the data that is currently contained in the translog. We
+provide a command-line tool for this, `elasticsearch-translog`.
+
+[WARNING]
+The `elasticsearch-translog` tool should *not* be run while Elasticsearch is
+running, and you will permanently lose the documents that were contained only in
+the translog!
+
+In order to run the `elasticsearch-translog` tool, specify the `truncate`
+subcommand as well as the directory for the corrupted translog with the `-d`
+option:
+
+[source,js]
+--------------------------------------------------
+$ bin/elasticsearch-translog truncate -d /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+Checking existing translog files
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!   WARNING: Elasticsearch MUST be stopped before running this tool   !
+!                                                                     !
+!   WARNING:    Documents inside of translog files will be lost       !
+!                                                                     !
+!   WARNING:          The following files will be DELETED!            !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+--> data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-41.ckp
+--> data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-6.ckp
+--> data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-37.ckp
+--> data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-24.ckp
+--> data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-11.ckp
+
+Continue and DELETE files? [y/N] y
+Reading translog UUID information from Lucene commit from shard at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index]
+Translog Generation: 3
+Translog UUID      : AxqC4rocTC6e0fwsljAh-Q
+Removing existing translog files
+Creating new empty checkpoint at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog.ckp]
+Creating new empty translog at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-3.tlog]
+Done.
+--------------------------------------------------
+
+You can also use the `-h` option to get a list of all options and parameters
+that the `elasticsearch-translog` tool supports.

@@ -20,34 +20,20 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.contains;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
-    /**
-     * Check that parser throws exception on missing values field.
-     */
-    public void testIdsNotProvided() throws IOException {
-        String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
-        try {
-            parseQuery(noIdsFieldQuery);
-            fail("Expected ParsingException");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("no ids values provided"));
-        }
-    }
 
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
@@ -76,7 +62,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         }
         IdsQueryBuilder query;
         if (types.length > 0 || randomBoolean()) {
-            query = new IdsQueryBuilder(types);
+            query = new IdsQueryBuilder().types(types);
             query.addIds(ids);
         } else {
             query = new IdsQueryBuilder();
@@ -86,85 +72,111 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.ids().size() == 0) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            assertThat(((BooleanQuery)query).clauses().size(), equalTo(0));
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
-            assertThat(query, instanceOf(TermsQuery.class));
+            assertThat(query, instanceOf(TermInSetQuery.class));
         }
-    }
-
-    @Override
-    protected Map<String, IdsQueryBuilder> getAlternateVersions() {
-        Map<String, IdsQueryBuilder> alternateVersions = new HashMap<>();
-
-        IdsQueryBuilder tempQuery = createTestQueryBuilder();
-        if (tempQuery.types() != null && tempQuery.types().length > 0) {
-            String type = tempQuery.types()[0];
-            IdsQueryBuilder testQuery = new IdsQueryBuilder(type);
-
-            //single value type can also be called _type
-            String contentString1 = "{\n" +
-                        "    \"ids\" : {\n" +
-                        "        \"_type\" : \"" + type + "\",\n" +
-                        "        \"values\" : []\n" +
-                        "    }\n" +
-                        "}";
-            alternateVersions.put(contentString1, testQuery);
-
-            //array of types can also be called type rather than types
-            String contentString2 = "{\n" +
-                        "    \"ids\" : {\n" +
-                        "        \"type\" : [\"" + type + "\"],\n" +
-                        "        \"values\" : []\n" +
-                        "    }\n" +
-                        "}";
-            alternateVersions.put(contentString2, testQuery);
-        }
-
-        return alternateVersions;
     }
 
     public void testIllegalArguments() {
-        try {
-            new IdsQueryBuilder((String[])null);
-            fail("must be not null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IdsQueryBuilder().types((String[]) null));
+        assertEquals("[ids] types cannot be null", e.getMessage());
 
-        try {
-            new IdsQueryBuilder().addIds((String[])null);
-            fail("must be not null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
+        IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder();
+        e = expectThrows(IllegalArgumentException.class, () -> idsQueryBuilder.addIds((String[]) null));
+        assertEquals("[ids] ids cannot be null", e.getMessage());
     }
 
     // see #7686.
     public void testIdsQueryWithInvalidValues() throws Exception {
         String query = "{ \"ids\": { \"values\": [[1]] } }";
-        try {
-            parseQuery(query);
-            fail("Expected ParsingException");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), is("Illegal value for id, expecting a string or number, got: START_ARRAY"));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertEquals("[ids] failed to parse field [values]", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"ids\" : {\n" + 
-                "    \"type\" : [ \"my_type\" ],\n" + 
-                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"type\" : [ \"my_type\" ],\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-        assertEquals(json, 3, parsed.ids().size());
+        assertThat(parsed.ids(), contains("1","100","4"));
         assertEquals(json, "my_type", parsed.types()[0]);
+
+        // check that type that is not an array and also ids that are numbers are parsed
+        json =
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"type\" : \"my_type\",\n" +
+                "    \"values\" : [ 1, 100, 4 ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parsed = (IdsQueryBuilder) parseQuery(json);
+        assertThat(parsed.ids(), contains("1","100","4"));
+        assertEquals(json, "my_type", parsed.types()[0]);
+
+        // check with empty type array
+        json =
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"type\" : [ ],\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parsed = (IdsQueryBuilder) parseQuery(json);
+        assertThat(parsed.ids(), contains("1","100","4"));
+        assertEquals(json, 0, parsed.types().length);
+
+        // check without type
+        json =
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parsed = (IdsQueryBuilder) parseQuery(json);
+        assertThat(parsed.ids(), contains("1","100","4"));
+        assertEquals(json, 0, parsed.types().length);
+    }
+
+    public void testFromJsonDeprecatedSyntax() throws IOException {
+        IdsQueryBuilder testQuery = new IdsQueryBuilder().types("my_type");
+
+        //single value type can also be called _type
+        final String contentString = "{\n" +
+                "    \"ids\" : {\n" +
+                "        \"_type\" : \"my_type\",\n" +
+                "        \"values\" : [ ]\n" +
+                "    }\n" +
+                "}";
+
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString);
+        assertEquals(testQuery, parsed);
+
+        parseQuery(contentString);
+        assertWarnings("Deprecated field [_type] used, expected [type] instead");
+
+        //array of types can also be called types rather than type
+        final String contentString2 = "{\n" +
+                "    \"ids\" : {\n" +
+                "        \"types\" : [\"my_type\"],\n" +
+                "        \"values\" : [ ]\n" +
+                "    }\n" +
+                "}";
+        parsed = (IdsQueryBuilder) parseQuery(contentString2);
+        assertEquals(testQuery, parsed);
+
+        parseQuery(contentString2);
+        assertWarnings("Deprecated field [types] used, expected [type] instead");
     }
 }

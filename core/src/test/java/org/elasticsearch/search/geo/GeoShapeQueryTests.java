@@ -19,6 +19,9 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -42,6 +45,7 @@ import org.elasticsearch.test.geo.RandomShapeGenerator;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
@@ -53,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends ESSingleNodeTestCase {
@@ -62,11 +67,11 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("type", "geo_shape")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}").setRefresh(true)
-                .execute().actionGet();
+        client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
         GetResponse result = client().prepareGet("test", "type1", "aNullshape").execute().actionGet();
         assertThat(result.getField("location"), nullValue());
     }
@@ -78,7 +83,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -87,7 +92,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("type", "point")
                 .startArray("coordinates").value(-30).value(-30).endArray()
                 .endObject()
-                .endObject()).setRefresh(true).execute().actionGet();
+                .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Document 2")
@@ -95,7 +100,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("type", "point")
                 .startArray("coordinates").value(-45).value(-50).endArray()
                 .endObject()
-                .endObject()).setRefresh(true).execute().actionGet();
+                .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
 
@@ -105,8 +110,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test").setTypes("type1")
                 .setQuery(geoShapeQuery("location", shape))
@@ -114,8 +119,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
     public void testEdgeCases() throws Exception {
@@ -125,7 +130,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
@@ -139,7 +144,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .startArray().value(-122.83).value(48.57).endArray() // close the polygon
                 .endArray().endArray()
                 .endObject()
-                .endObject()).setRefresh(true).execute().actionGet();
+                .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         ShapeBuilder query = ShapeBuilders.newEnvelope(new Coordinate(-122.88, 48.62), new Coordinate(-122.82, 48.54));
 
@@ -151,8 +156,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("blakely"));
     }
 
     public void testIndexedShapeReference() throws Exception {
@@ -162,21 +167,21 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         createIndex("shapes");
         ensureGreen();
 
         ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
 
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
-                .field("shape", shape).endObject()).setRefresh(true).execute().actionGet();
+                .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
                 .field("type", "point")
                 .startArray("coordinates").value(-30).value(-30).endArray()
                 .endObject()
-                .endObject()).setRefresh(true).execute().actionGet();
+                .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
                 .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type"))
@@ -184,8 +189,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type"))
@@ -193,8 +198,32 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+    }
+
+    public void testIndexedShapeReferenceSourceDisabled() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("location")
+                        .field("type", "geo_shape")
+                        .field("tree", "quadtree")
+                    .endObject()
+                .endObject()
+            .endObject();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
+        createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
+        ensureGreen();
+
+        ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
+
+        client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
+            .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().prepareSearch("test").setTypes("type1")
+            .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type")).get());
+        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getRootCause().getMessage(), containsString("source disabled"));
     }
 
     public void testReusableBuilder() throws IOException {
@@ -225,8 +254,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setSource(
                         String.format(
                                 Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", location, location, location, location
-                        )
-                ).setRefresh(true).execute().actionGet();
+                        ), XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().startObject("location")
                         .field("type", "polygon")
@@ -237,7 +266,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                         .startArray().value(-20).value(20).endArray()
                         .startArray().value(-20).value(-20).endArray()
                         .endArray().endArray()
-                        .endObject().endObject()).setRefresh(true).execute().actionGet();
+                        .endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
@@ -305,7 +334,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .execute().actionGet();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
-        client().prepareIndex("test", "type", "1").setSource(docSource).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
 
@@ -326,12 +355,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .execute().actionGet();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
-        client().prepareIndex("test", "type", "1").setSource(docSource).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection
         EnvelopeBuilder env = new EnvelopeBuilder(new Coordinate(mbr.getMinX(), mbr.getMaxY()), new Coordinate(mbr.getMaxX(), mbr.getMinY()));
         docSource = env.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
-        client().prepareIndex("test", "type", "2").setSource(docSource).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", filterShape)
@@ -340,7 +369,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setPostFilter(filter).get();
         assertSearchResponse(response);
 
-        assertThat(response.getHits().totalHits(), greaterThan(0L));
+        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
     }
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
@@ -371,7 +400,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject().endObject();
         client().prepareIndex("test", "type", "1")
-                .setSource(docSource).setRefresh(true).execute().actionGet();
+                .setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery(
                 "location",
@@ -420,14 +449,14 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());
         try {
             client().prepareIndex("geo_points_only", "type1", "1")
                     .setSource(jsonBuilder().startObject().field("location", shape).endObject())
-                    .setRefresh(true).execute().actionGet();
+                    .setRefreshPolicy(IMMEDIATE).get();
         } catch (MapperParsingException e) {
             // RandomShapeGenerator created something other than a POINT type, verify the correct exception is thrown
             assertThat(e.getCause().getMessage(), containsString("is configured for points only"));

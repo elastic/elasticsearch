@@ -41,7 +41,6 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", "f", "type=keyword").get());
-        ensureYellow("index");
         numDocs = randomIntBetween(1, 20);
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
@@ -62,12 +61,12 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
         assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
 
         int total = response.getHits().getHits().length;
-        while (response.getHits().hits().length > 0) {
+        while (response.getHits().getHits().length > 0) {
             response = client().prepareSearchScroll(response.getScrollId())
                     .setScroll(new TimeValue(500))
                     .execute().actionGet();
             assertNull(response.getAggregations());
-            total += response.getHits().hits().length;
+            total += response.getHits().getHits().length;
         }
         clearScroll(response.getScrollId());
         assertEquals(numDocs, total);

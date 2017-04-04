@@ -50,15 +50,16 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_1
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_1
 
-  - length: { result: 1  }
-  - length: { result.0.options: 2  }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
 
 ---
 "Simple suggestion array should work":
@@ -75,28 +76,30 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "f"
-            completion:
-              field: suggest_2
+          suggest:
+            result:
+              text: "f"
+              completion:
+                field: suggest_2
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "foo" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foo" }
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_2
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_2
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "bar" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "bar" }
 
 ---
 "Suggestion entry should work":
@@ -125,17 +128,18 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_3
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_3
 
-  - length: { result: 1  }
-  - length: { result.0.options: 2  }
-  - match:  { result.0.options.0.text: "baz" }
-  - match:  { result.0.options.1.text: "bar" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+  - match:  { suggest.result.0.options.0.text: "baz" }
+  - match:  { suggest.result.0.options.1.text: "bar" }
 
 ---
 "Suggestion entry array should work":
@@ -168,30 +172,32 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_4
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_4
 
-  - length: { result: 1  }
-  - length: { result.0.options: 2  }
-  - match:  { result.0.options.0.text: "bar" }
-  - match:  { result.0.options.1.text: "baz" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+  - match:  { suggest.result.0.options.0.text: "bar" }
+  - match:  { suggest.result.0.options.1.text: "baz" }
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "f"
-            completion:
-              field: suggest_4
+          suggest:
+            result:
+              text: "f"
+              completion:
+                field: suggest_4
 
-  - length: { result: 1  }
-  - length: { result.0.options: 2  }
-  - match:  { result.0.options.0.text: "fo" }
-  - match:  { result.0.options.1.text: "foo" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+  - match:  { suggest.result.0.options.0.text: "fo" }
+  - match:  { suggest.result.0.options.1.text: "foo" }
 
 ---
 "Multiple Completion fields should work":
@@ -209,31 +215,33 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_5a
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_5a
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "bar" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "bar" }
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_5b
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_5b
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "baz" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "baz" }
 
 ---
-"Suggestions with payload fields should work":
+"Suggestions with source should work":
 
   - do:
       index:
@@ -263,20 +271,23 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "b"
-            completion:
-              field: suggest_6
-              payload: [ title, count ]
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_6
 
-  - length: { result: 1  }
-  - length: { result.0.options: 2  }
-  - match:  { result.0.options.0.text: "baz" }
-  - match:  { result.0.options.0.payload.title: ["title_baz"] }
-  - match:  { result.0.options.0.payload.count: [3] }
-  - match:  { result.0.options.1.text: "bar" }
-  - match:  { result.0.options.1.payload.title: ["title_bar"] }
-  - match:  { result.0.options.1.payload.count: [4] }
-
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+  - match:  { suggest.result.0.options.0.text: "baz" }
+  - match:  { suggest.result.0.options.0._index: "test" }
+  - match:  { suggest.result.0.options.0._type: "test" }
+  - match:  { suggest.result.0.options.0._source.title: "title_baz" }
+  - match:  { suggest.result.0.options.0._source.count: 3 }
+  - match:  { suggest.result.0.options.1.text: "bar" }
+  - match:  { suggest.result.0.options.1._index: "test" }
+  - match:  { suggest.result.0.options.1._type: "test" }
+  - match:  { suggest.result.0.options.1._source.title: "title_bar" }
+  - match:  { suggest.result.0.options.1._source.count: 4 }

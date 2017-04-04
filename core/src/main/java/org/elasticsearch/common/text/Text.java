@@ -82,13 +82,7 @@ public final class Text implements Comparable<Text> {
      * Returns a {@link String} view of the data.
      */
     public String string() {
-        if (text == null) {
-            if (!bytes.hasArray()) {
-                bytes = bytes.toBytesArray();
-            }
-            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length(), StandardCharsets.UTF_8);
-        }
-        return text;
+        return text == null ? bytes.utf8ToString() : text;
     }
 
     @Override
@@ -106,7 +100,10 @@ public final class Text implements Comparable<Text> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
         return bytes().equals(((Text) obj).bytes());
@@ -114,6 +111,6 @@ public final class Text implements Comparable<Text> {
 
     @Override
     public int compareTo(Text text) {
-        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
+        return bytes().compareTo(text.bytes());
     }
 }

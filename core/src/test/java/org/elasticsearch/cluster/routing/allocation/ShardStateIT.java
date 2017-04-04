@@ -42,13 +42,16 @@ public class ShardStateIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         final int shard = randomBoolean() ? 0 : 1;
         final String nodeId = state.routingTable().index("test").shard(shard).primaryShard().currentNodeId();
-        final String node = state.nodes().get(nodeId).name();
+        final String node = state.nodes().get(nodeId).getName();
         logger.info("--> failing primary of [{}] on node [{}]", shard, node);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
-        assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
+        // JDK 9 type inference gets confused, so we have to help the
+        // type inference
+        assertBusy(((Runnable) () -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW))));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

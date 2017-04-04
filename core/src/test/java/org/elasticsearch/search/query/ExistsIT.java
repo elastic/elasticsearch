@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,7 +46,6 @@ public class ExistsIT extends ESIntegTestCase {
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        ensureYellow("test");
         SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).execute().actionGet();
         assertSearchResponse(resp);
         resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).execute().actionGet();
@@ -118,7 +116,6 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
 
-        ensureYellow("idx");
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
         assertSearchResponse(allDocs);
@@ -130,7 +127,7 @@ public class ExistsIT extends ESIntegTestCase {
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).execute().actionGet();
             assertSearchResponse(resp);
             try {
-                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), count, resp.getHits().totalHits());
+                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), count, resp.getHits().getTotalHits());
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();

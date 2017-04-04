@@ -19,20 +19,17 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
+import org.elasticsearch.tasks.TaskId;
 
-import static java.util.Collections.unmodifiableList;
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.VersionType.INTERNAL;
@@ -49,11 +46,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      */
     private IndexRequest destination;
 
+    private RemoteInfo remoteInfo;
+
     public ReindexRequest() {
     }
 
     public ReindexRequest(SearchRequest search, IndexRequest destination) {
-        super(search);
+        this(search, destination, true);
+    }
+
+    private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
+        super(search, setDefaults);
         this.destination = destination;
     }
 
@@ -67,6 +70,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         ActionRequestValidationException e = super.validate();
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
+        }
+        if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
+            e = addValidationError("_source:false is not supported in this context", e);
         }
         /*
          * Note that we don't call index's validator - it won't work because
@@ -85,11 +91,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
         }
-        if (destination.ttl() != null) {
-            e = addValidationError("setting ttl on destination isn't supported. use scripts instead.", e);
-        }
-        if (destination.timestamp() != null) {
-            e = addValidationError("setting timestamp on destination isn't supported. use scripts instead.", e);
+        if (getRemoteInfo() != null) {
+            if (getSearchRequest().source().query() != null) {
+                e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
+            }
+            if (getSlices() != 1) {
+                e = addValidationError("reindex from remote sources doesn't support workers > 1 but was [" + getSlices() + "]", e);
+            }
         }
         return e;
     }
@@ -111,44 +119,48 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return destination;
     }
 
+    public void setRemoteInfo(RemoteInfo remoteInfo) {
+        this.remoteInfo = remoteInfo;
+    }
+
+    public RemoteInfo getRemoteInfo() {
+        return remoteInfo;
+    }
+
+    @Override
+    protected ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask);
+        sliced.setRemoteInfo(remoteInfo);
+        return sliced;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         destination = new IndexRequest();
         destination.readFrom(in);
+        remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         destination.writeTo(out);
+        out.writeOptionalWriteable(remoteInfo);
     }
 
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("reindex from ");
+        if (remoteInfo != null) {
+            b.append('[').append(remoteInfo).append(']');
+        }
         searchToString(b);
         b.append(" to [").append(destination.index()).append(']');
         if (destination.type() != null) {
             b.append('[').append(destination.type()).append(']');
         }
         return b.toString();
-    }
-
-    // CompositeIndicesRequest implementation so plugins can reason about the request. This is really just a best effort thing.
-    /**
-     * Accessor to get the underlying {@link IndicesRequest}s that this request wraps. Note that this method is <strong>not
-     * accurate</strong> since it returns a prototype {@link IndexRequest} and not the actual requests that will be issued as part of the
-     * execution of this request. Additionally, scripts can modify the underlying {@link IndexRequest} and change values such as the index,
-     * type, {@link org.elasticsearch.action.support.IndicesOptions}. In short - only use this for very course reasoning about the request.
-     *
-     * @return a list comprising of the {@link SearchRequest} and the prototype {@link IndexRequest}
-     */
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        assert getSearchRequest() != null;
-        assert getDestination() != null;
-        return unmodifiableList(Arrays.asList(getSearchRequest(), getDestination()));
     }
 }

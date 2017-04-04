@@ -19,9 +19,19 @@
 
 package org.elasticsearch.action.fieldstats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.fieldstats.FieldStatsTests;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
+import org.elasticsearch.test.VersionUtils;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GT;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
@@ -34,9 +44,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsRequestTests extends ESTestCase {
 
     public void testFieldsParsing() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/fieldstats-index-constraints-request.json");
+        BytesArray data = new BytesArray(
+            StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/" +
+                "fieldstats-index-constraints-request.json"));
         FieldStatsRequest request = new FieldStatsRequest();
-        request.source(new BytesArray(data));
+        request.source(createParser(JsonXContent.jsonXContent, data));
 
         assertThat(request.getFields().length, equalTo(5));
         assertThat(request.getFields()[0], equalTo("field1"));
@@ -64,7 +76,7 @@ public class FieldStatsRequestTests extends ESTestCase {
         assertThat(request.getIndexConstraints()[3].getComparison(), equalTo(LTE));
         assertThat(request.getIndexConstraints()[4].getField(), equalTo("field5"));
         assertThat(request.getIndexConstraints()[4].getValue(), equalTo("2"));
-        assertThat(request.getIndexConstraints()[4].getProperty(), equalTo(MAX));
+        assertThat(request.getIndexConstraints()[4].getProperty(), equalTo(MIN));
         assertThat(request.getIndexConstraints()[4].getComparison(), equalTo(GT));
         assertThat(request.getIndexConstraints()[5].getField(), equalTo("field5"));
         assertThat(request.getIndexConstraints()[5].getValue(), equalTo("9"));
@@ -80,6 +92,35 @@ public class FieldStatsRequestTests extends ESTestCase {
         assertThat(request.getIndexConstraints()[7].getProperty(), equalTo(MAX));
         assertThat(request.getIndexConstraints()[7].getComparison(), equalTo(LT));
         assertThat(request.getIndexConstraints()[7].getOptionalFormat(), equalTo("date_optional_time"));
+    }
+
+    public void testFieldStatsBWC() throws Exception {
+        int size = randomIntBetween(5, 20);
+        Map<String, FieldStats<?> > stats = new HashMap<> ();
+        for (int i = 0; i < size; i++) {
+            stats.put(Integer.toString(i), FieldStatsTests.randomFieldStats(true));
+        }
+
+        FieldStatsShardResponse response = new FieldStatsShardResponse(new ShardId("test", "test", 0), stats);
+        for (int i = 0; i < 10; i++) {
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setVersion(version);
+            response.writeTo(output);
+            output.flush();
+            StreamInput input = output.bytes().streamInput();
+            input.setVersion(version);
+            FieldStatsShardResponse deserialized = new FieldStatsShardResponse();
+            deserialized.readFrom(input);
+            final Map<String, FieldStats<?>> expected;
+            if (version.before(Version.V_5_2_0_UNRELEASED)) {
+                expected = deserialized.filterNullMinMax();
+            } else {
+                expected = deserialized.getFieldStats();
+            }
+            assertEquals(expected.size(), deserialized.getFieldStats().size());
+            assertThat(expected, equalTo(deserialized.getFieldStats()));
+        }
     }
 
 }

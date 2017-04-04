@@ -14,23 +14,28 @@ PUT my_index
 {
   "mappings": {
     "_default_": { <1>
-      "_all": {
+      "_source": {
         "enabled": false
       }
     },
     "user": {}, <2>
     "blogpost": { <3>
-      "_all": {
+      "_source": {
         "enabled": true
       }
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
-<1> The `_default_` mapping defaults the <<mapping-all-field,`_all`>> field to disabled.
+// CONSOLE
+<1> The `_default_` mapping defaults the <<mapping-source-field,`_source`>> field to disabled.
 <2> The `user` type inherits the settings from `_default_`.
-<3> The `blogpost` type overrides the defaults and enables the <<mapping-all-field,`_all`>> field.
+<3> The `blogpost` type overrides the defaults and enables the <<mapping-source-field,`_source`>> field.
+
+NOTE: When updating the `_default_` mapping with the
+<<indices-put-mapping,PUT mapping>> API, the new mapping is not merged with
+the existing mapping.  Instead, the new `_default_` mapping replaces the
+existing one.
 
 While the `_default_` mapping can be updated after an index has been created,
 the new defaults will only affect mapping types that are created afterwards.
@@ -44,11 +49,11 @@ within automatically created indices:
 --------------------------------------------------
 PUT _template/logging
 {
-  "template":   "logs-*", <1>
+  "index_patterns":   ["logs-*"], <1>
   "settings": { "number_of_shards": 1 }, <2>
   "mappings": {
     "_default_": {
-      "_all": { <3>
+      "_field_names": { <3>
         "enabled": false
       },
       "dynamic_templates": [
@@ -74,8 +79,8 @@ PUT _template/logging
 PUT logs-2015.10.01/event/1
 { "message": "error:16" }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `logging` template will match any indices beginning with `logs-`.
 <2> Matching indices will be created with a single primary shard.
-<3> The `_all` field will be disabled by default for new type mappings.
+<3> The `_field_names` field will be disabled by default for new type mappings.
 <4> String fields will be created with a `text` main field, and a `keyword` `.raw` field.

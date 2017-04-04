@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -30,35 +29,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * Results of the {@link ParentToChildrenAggregator}.
  */
 public class InternalChildren extends InternalSingleBucketAggregation implements Children {
-
-    public static final Type TYPE = new Type("children");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalChildren readResult(StreamInput in) throws IOException {
-            InternalChildren result = new InternalChildren();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    public InternalChildren() {
-    }
-
     public InternalChildren(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalChildren(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return ChildrenAggregationBuilder.NAME;
     }
 
     @Override

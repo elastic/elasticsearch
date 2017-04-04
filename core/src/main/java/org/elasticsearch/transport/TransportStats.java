@@ -21,25 +21,20 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class TransportStats implements Streamable, ToXContent {
+public class TransportStats implements Writeable, ToXContent {
 
-    private long serverOpen;
-    private long rxCount;
-    private long rxSize;
-    private long txCount;
-    private long txSize;
-
-    TransportStats() {
-
-    }
+    private final long serverOpen;
+    private final long rxCount;
+    private final long rxSize;
+    private final long txCount;
+    private final long txSize;
 
     public TransportStats(long serverOpen, long rxCount, long rxSize, long txCount, long txSize) {
         this.serverOpen = serverOpen;
@@ -47,6 +42,23 @@ public class TransportStats implements Streamable, ToXContent {
         this.rxSize = rxSize;
         this.txCount = txCount;
         this.txSize = txSize;
+    }
+
+    public TransportStats(StreamInput in) throws IOException {
+        serverOpen = in.readVLong();
+        rxCount = in.readVLong();
+        rxSize = in.readVLong();
+        txCount = in.readVLong();
+        txSize = in.readVLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(serverOpen);
+        out.writeVLong(rxCount);
+        out.writeVLong(rxSize);
+        out.writeVLong(txCount);
+        out.writeVLong(txSize);
     }
 
     public long serverOpen() {
@@ -89,30 +101,6 @@ public class TransportStats implements Streamable, ToXContent {
         return txSize();
     }
 
-    public static TransportStats readTransportStats(StreamInput in) throws IOException {
-        TransportStats stats = new TransportStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        serverOpen = in.readVLong();
-        rxCount = in.readVLong();
-        rxSize = in.readVLong();
-        txCount = in.readVLong();
-        txSize = in.readVLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(serverOpen);
-        out.writeVLong(rxCount);
-        out.writeVLong(rxSize);
-        out.writeVLong(txCount);
-        out.writeVLong(txSize);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
@@ -126,13 +114,13 @@ public class TransportStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString TRANSPORT = new XContentBuilderString("transport");
-        static final XContentBuilderString SERVER_OPEN = new XContentBuilderString("server_open");
-        static final XContentBuilderString RX_COUNT = new XContentBuilderString("rx_count");
-        static final XContentBuilderString RX_SIZE = new XContentBuilderString("rx_size");
-        static final XContentBuilderString RX_SIZE_IN_BYTES = new XContentBuilderString("rx_size_in_bytes");
-        static final XContentBuilderString TX_COUNT = new XContentBuilderString("tx_count");
-        static final XContentBuilderString TX_SIZE = new XContentBuilderString("tx_size");
-        static final XContentBuilderString TX_SIZE_IN_BYTES = new XContentBuilderString("tx_size_in_bytes");
+        static final String TRANSPORT = "transport";
+        static final String SERVER_OPEN = "server_open";
+        static final String RX_COUNT = "rx_count";
+        static final String RX_SIZE = "rx_size";
+        static final String RX_SIZE_IN_BYTES = "rx_size_in_bytes";
+        static final String TX_COUNT = "tx_count";
+        static final String TX_SIZE = "tx_size";
+        static final String TX_SIZE_IN_BYTES = "tx_size_in_bytes";
     }
 }

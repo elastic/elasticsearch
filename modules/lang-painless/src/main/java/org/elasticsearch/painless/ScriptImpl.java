@@ -20,23 +20,27 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link LeafSearchScript}
  * to run a previously compiled Painless script.
  */
 final class ScriptImpl implements ExecutableScript, LeafSearchScript {
+
     /**
-     * The Painless Executable script that can be run.
+     * The Painless script that can be run.
      */
-    private final Executable executable;
+    private final GenericElasticsearchScript script;
 
     /**
      * A map that can be used to access input parameters at run-time.
@@ -49,13 +53,40 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     private final LeafSearchLookup lookup;
 
     /**
+     * the 'doc' object accessed by the script, if available.
+     */
+    private final LeafDocLookup doc;
+
+    /**
+     * Looks up the {@code _score} from {@link #scorer} if {@code _score} is used, otherwise returns {@code 0.0}.
+     */
+    private final ScoreLookup scoreLookup;
+
+    /**
+     * Looks up the {@code ctx} from the {@link #variables} if {@code ctx} is used, otherwise return {@code null}.
+     */
+    private final Function<Map<String, Object>, Map<?, ?>> ctxLookup;
+
+    /**
+     * Current scorer being used
+     * @see #setScorer(Scorer)
+     */
+    private Scorer scorer;
+
+    /**
+     * Current _value for aggregation
+     * @see #setNextAggregationValue(Object)
+     */
+    private Object aggregationValue;
+
+    /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
-     * @param executable The previously compiled Painless script.
+     * @param script The previously compiled Painless script.
      * @param vars The initial variables to run the script with.
      * @param lookup The lookup to allow search fields to be available if this is run as a search script.
      */
-    ScriptImpl(final Executable executable, final Map<String, Object> vars, final LeafSearchLookup lookup) {
-        this.executable = executable;
+    ScriptImpl(final GenericElasticsearchScript script, final Map<String, Object> vars, final LeafSearchLookup lookup) {
+        this.script = script;
         this.lookup = lookup;
         this.variables = new HashMap<>();
 
@@ -65,7 +96,13 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
         if (lookup != null) {
             variables.putAll(lookup.asMap());
+            doc = lookup.doc();
+        } else {
+            doc = null;
         }
+
+        scoreLookup = script.uses$_score() ? ScriptImpl::getScore : scorer -> 0.0;
+        ctxLookup = script.uses$ctx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
     /**
@@ -79,12 +116,21 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     }
 
     /**
+     * Set the next aggregation value.
+     * @param value Per-document value, typically a String, Long, or Double.
+     */
+    @Override
+    public void setNextAggregationValue(Object value) {
+        this.aggregationValue = value;
+    }
+
+    /**
      * Run the script.
      * @return The script result.
      */
     @Override
     public Object run() {
-        return executable.execute(variables);
+        return script.execute(variables, scoreLookup.apply(scorer), doc, aggregationValue, ctxLookup.apply(variables));
     }
 
     /**
@@ -94,15 +140,6 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     @Override
     public double runAsDouble() {
         return ((Number)run()).doubleValue();
-    }
-
-    /**
-     * Run the script.
-     * @return The script result as a float.
-     */
-    @Override
-    public float runAsFloat() {
-        return ((Number)run()).floatValue();
     }
 
     /**
@@ -120,7 +157,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public void setScorer(final Scorer scorer) {
-        variables.put("#score", new ScoreAccessor(scorer));
+        this.scorer = scorer;
     }
 
     /**
@@ -143,5 +180,17 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         if (lookup != null) {
             lookup.source().setSource(source);
         }
+    }
+
+    private static double getScore(Scorer scorer) {
+        try {
+            return scorer.score();
+        } catch (IOException e) {
+            throw new ElasticsearchException("couldn't lookup score", e);
+        }
+    }
+
+    interface ScoreLookup {
+        double apply(Scorer scorer);
     }
 }

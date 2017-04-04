@@ -22,24 +22,27 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
-
+public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "field_masking_span";
+
+    private static final ParseField FIELD_FIELD = new ParseField("field");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
 
     private final SpanQueryBuilder queryBuilder;
 
     private final String fieldName;
-
-    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "text"), "field");
 
     /**
      * Constructs a new {@link FieldMaskingSpanQueryBuilder} given an inner {@link SpanQueryBuilder} for
@@ -59,6 +62,21 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     /**
+     * Read from a stream.
+     */
+    public FieldMaskingSpanQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        queryBuilder = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+        fieldName = in.readString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(queryBuilder);
+        out.writeString(fieldName);
+    }
+
+    /**
      * @return the field name for this query
      */
     public String fieldName() {
@@ -75,11 +93,62 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(FieldMaskingSpanQueryParser.QUERY_FIELD.getPreferredName());
+        builder.field(QUERY_FIELD.getPreferredName());
         queryBuilder.toXContent(builder, params);
-        builder.field(FieldMaskingSpanQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
+        builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static FieldMaskingSpanQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        SpanQueryBuilder inner = null;
+        String field = null;
+        String queryName = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (QUERY_FIELD.match(currentFieldName)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (query instanceof SpanQueryBuilder == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
+                    }
+                    inner = (SpanQueryBuilder) query;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
+                            + currentFieldName + "]");
+                }
+            } else {
+                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if (FIELD_FIELD.match(currentFieldName)) {
+                    field = parser.text();
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[field_masking_span] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        if (inner == null) {
+            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [query] span query clause");
+        }
+        if (field == null) {
+            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [field] set for it");
+        }
+
+        FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);
+        queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
+        return queryBuilder;
     }
 
     @Override
@@ -92,18 +161,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         Query innerQuery = queryBuilder.toQuery(context);
         assert innerQuery instanceof SpanQuery;
         return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
-    }
-
-    @Override
-    protected FieldMaskingSpanQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerQueryBuilder = in.readQuery();
-        return new FieldMaskingSpanQueryBuilder((SpanQueryBuilder) innerQueryBuilder, in.readString());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(queryBuilder);
-        out.writeString(fieldName);
     }
 
     @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +45,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-/**
- */
 public final class IndexWarmer extends AbstractComponent {
 
     private final List<Listener> listeners;
@@ -111,7 +111,7 @@ public final class IndexWarmer extends AbstractComponent {
     private static class FieldDataWarmer implements IndexWarmer.Listener {
 
         private final Executor executor;
-        public FieldDataWarmer(Executor executor) {
+        FieldDataWarmer(Executor executor) {
             this.executor = executor;
         }
 
@@ -143,11 +143,18 @@ public final class IndexWarmer extends AbstractComponent {
                         }
 
                         if (indexShard.warmerService().logger().isTraceEnabled()) {
-                            indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.name(),
+                            indexShard.warmerService().logger().trace(
+                                "warmed global ordinals for [{}], took [{}]",
+                                fieldType.name(),
                                 TimeValue.timeValueNanos(System.nanoTime() - start));
                         }
-                    } catch (Throwable t) {
-                        indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.name());
+                    } catch (Exception e) {
+                        indexShard
+                            .warmerService()
+                            .logger()
+                            .warn(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "failed to warm-up global ordinals for [{}]", fieldType.name()), e);
                     } finally {
                         latch.countDown();
                     }

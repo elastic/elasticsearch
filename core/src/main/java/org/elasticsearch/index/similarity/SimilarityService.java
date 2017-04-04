@@ -22,6 +22,7 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
@@ -32,21 +33,21 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
-    public final static String DEFAULT_SIMILARITY = "classic";
+    public static final String DEFAULT_SIMILARITY = "BM25";
     private final Similarity defaultSimilarity;
     private final Similarity baseSimilarity;
     private final Map<String, SimilarityProvider> similarities;
-    static final Map<String, BiFunction<String, Settings, SimilarityProvider>> DEFAULTS;
-    public static final Map<String, BiFunction<String, Settings, SimilarityProvider>> BUILT_IN;
+    private static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> DEFAULTS;
+    public static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> BUILT_IN;
     static {
-        Map<String, BiFunction<String, Settings, SimilarityProvider>> defaults = new HashMap<>();
-        Map<String, BiFunction<String, Settings, SimilarityProvider>> buildIn = new HashMap<>();
+        Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> defaults = new HashMap<>();
+        Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> buildIn = new HashMap<>();
         defaults.put("classic", ClassicSimilarityProvider::new);
         defaults.put("BM25", BM25SimilarityProvider::new);
+        defaults.put("boolean", BooleanSimilarityProvider::new);
         buildIn.put("classic", ClassicSimilarityProvider::new);
         buildIn.put("BM25", BM25SimilarityProvider::new);
         buildIn.put("DFR", DFRSimilarityProvider::new);
@@ -58,7 +59,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         BUILT_IN = Collections.unmodifiableMap(buildIn);
     }
 
-    public SimilarityService(IndexSettings indexSettings, Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities) {
+    public SimilarityService(IndexSettings indexSettings,
+                             Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> similarities) {
         super(indexSettings);
         Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
         Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
@@ -68,20 +70,22 @@ public final class SimilarityService extends AbstractIndexComponent {
             if(BUILT_IN.containsKey(name) && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
                 throw new IllegalArgumentException("Cannot redefine built-in Similarity [" + name + "]");
             }
-            Settings settings = entry.getValue();
-            String typeName = settings.get("type");
+            Settings providerSettings = entry.getValue();
+            String typeName = providerSettings.get("type");
             if (typeName == null) {
                 throw new IllegalArgumentException("Similarity [" + name + "] must have an associated type");
             } else if ((similarities.containsKey(typeName) || BUILT_IN.containsKey(typeName)) == false) {
                 throw new IllegalArgumentException("Unknown Similarity type [" + typeName + "] for [" + name + "]");
             }
-            BiFunction<String, Settings, SimilarityProvider> factory = similarities.getOrDefault(typeName, BUILT_IN.get(typeName));
-            if (settings == null) {
-                settings = Settings.Builder.EMPTY_SETTINGS;
+            TriFunction<String, Settings, Settings, SimilarityProvider> defaultFactory = BUILT_IN.get(typeName);
+            TriFunction<String, Settings, Settings, SimilarityProvider> factory = similarities.getOrDefault(typeName, defaultFactory);
+            if (providerSettings == null) {
+                providerSettings = Settings.Builder.EMPTY_SETTINGS;
             }
-            providers.put(name, factory.apply(name, settings));
+            providers.put(name, factory.apply(name, providerSettings, indexSettings.getSettings()));
         }
-        for (Map.Entry<String, SimilarityProvider> entry : addSimilarities(similaritySettings, DEFAULTS).entrySet()) {
+        Map<String, SimilarityProvider> providerMapping = addSimilarities(similaritySettings, indexSettings.getSettings(), DEFAULTS);
+        for (Map.Entry<String, SimilarityProvider> entry : providerMapping.entrySet()) {
             // Avoid overwriting custom providers for indices older that v5.0
             if (providers.containsKey(entry.getKey()) && indexSettings.getIndexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                 continue;
@@ -102,17 +106,17 @@ public final class SimilarityService extends AbstractIndexComponent {
                 defaultSimilarity;
     }
 
-    private Map<String, SimilarityProvider> addSimilarities(Map<String, Settings>  similaritySettings,
-                                 Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities)  {
+    private Map<String, SimilarityProvider> addSimilarities(Map<String, Settings>  similaritySettings, Settings indexSettings,
+                                 Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> similarities)  {
         Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
-        for (Map.Entry<String, BiFunction<String, Settings, SimilarityProvider>> entry : similarities.entrySet()) {
+        for (Map.Entry<String, TriFunction<String, Settings, Settings, SimilarityProvider>> entry : similarities.entrySet()) {
             String name = entry.getKey();
-            BiFunction<String, Settings, SimilarityProvider> factory = entry.getValue();
-            Settings settings = similaritySettings.get(name);
-            if (settings == null) {
-                settings = Settings.Builder.EMPTY_SETTINGS;
+            TriFunction<String, Settings, Settings, SimilarityProvider> factory = entry.getValue();
+            Settings providerSettings = similaritySettings.get(name);
+            if (providerSettings == null) {
+                providerSettings = Settings.Builder.EMPTY_SETTINGS;
             }
-            providers.put(name, factory.apply(name, settings));
+            providers.put(name, factory.apply(name, providerSettings, indexSettings));
         }
         return providers;
     }
@@ -121,30 +125,19 @@ public final class SimilarityService extends AbstractIndexComponent {
         return similarities.get(name);
     }
 
-    public SimilarityProvider getDefaultSimilarity() {
-        return similarities.get("default");
+    Similarity getDefaultSimilarity() {
+        return defaultSimilarity;
     }
 
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;
-        private final Similarity baseSimilarity;
         private final MapperService mapperService;
 
         PerFieldSimilarity(Similarity defaultSimilarity, Similarity baseSimilarity, MapperService mapperService) {
+            super(baseSimilarity);
             this.defaultSimilarity = defaultSimilarity;
-            this.baseSimilarity = baseSimilarity;
             this.mapperService = mapperService;
-        }
-
-        @Override
-        public float coord(int overlap, int maxOverlap) {
-            return baseSimilarity.coord(overlap, maxOverlap);
-        }
-
-        @Override
-        public float queryNorm(float valueForNormalization) {
-            return baseSimilarity.queryNorm(valueForNormalization);
         }
 
         @Override

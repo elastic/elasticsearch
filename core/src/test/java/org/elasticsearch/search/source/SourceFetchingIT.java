@@ -37,10 +37,10 @@ public class SourceFetchingIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
-        response = client().prepareSearch("test").addField("bla").get();
+        response = client().prepareSearch("test").addStoredField("bla").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
-        response = client().prepareSearch("test").addField("_source").get();
+        response = client().prepareSearch("test").addStoredField("_source").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
     }
@@ -60,17 +60,17 @@ public class SourceFetchingIT extends ESIntegTestCase {
 
         response = client().prepareSearch("test").setFetchSource("field1", null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat((String) response.getHits().getAt(0).getSource().get("field1"), equalTo("value"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value"));
 
         response = client().prepareSearch("test").setFetchSource("hello", null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(0));
 
         response = client().prepareSearch("test").setFetchSource(new String[]{"*"}, new String[]{"field2"}).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat((String) response.getHits().getAt(0).getSource().get("field1"), equalTo("value"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value"));
 
     }
 
@@ -87,12 +87,12 @@ public class SourceFetchingIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(new String[]{"*.notexisting","field"}, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));
 
         response = client().prepareSearch("test").setFetchSource(new String[]{"field.notexisting.*","field"}, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));
     }
 }

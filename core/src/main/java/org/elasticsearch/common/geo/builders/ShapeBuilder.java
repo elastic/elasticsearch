@@ -19,27 +19,26 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
-
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,9 +50,9 @@ import java.util.Locale;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable<ShapeBuilder> {
+public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable {
 
-    protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
+    protected static final Logger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
     private static final boolean DEBUG;
     static {
@@ -382,7 +381,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         }
     }
 
-    public static enum Orientation {
+    public enum Orientation {
         LEFT,
         RIGHT;
 
@@ -428,7 +427,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     /**
      * Enumeration that lists all {@link GeoShapeType}s that can be handled
      */
-    public static enum GeoShapeType {
+    public enum GeoShapeType {
         POINT("point"),
         MULTIPOINT("multipoint"),
         LINESTRING("linestring"),
@@ -441,7 +440,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         private final String shapename;
 
-        private GeoShapeType(String shapename) {
+        GeoShapeType(String shapename) {
             this.shapename = shapename;
         }
 

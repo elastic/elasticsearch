@@ -22,9 +22,10 @@ package org.elasticsearch.common.settings.loader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,7 +33,7 @@ public class JsonSettingsLoaderTests extends ESTestCase {
 
     public void testSimpleJsonSettings() throws Exception {
         final String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
-        final Settings settings = settingsBuilder()
+        final Settings settings = Settings.builder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .build();
 
@@ -49,8 +50,11 @@ public class JsonSettingsLoaderTests extends ESTestCase {
     }
 
     public void testDuplicateKeysThrowsException() {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
-        final SettingsException e = expectThrows(SettingsException.class, () -> settingsBuilder().loadFromSource(json).build());
+        final SettingsException e = expectThrows(SettingsException.class,
+            () -> Settings.builder().loadFromSource(json, XContentType.JSON).build());
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
         assertThat(
                 e.toString(),

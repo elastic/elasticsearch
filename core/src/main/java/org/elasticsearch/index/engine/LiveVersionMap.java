@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -41,13 +42,13 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
         // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
         final Map<BytesRef,VersionValue> old;
-      
-        public Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
+
+        Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
            this.current = current;
            this.old = old;
         }
 
-        public Maps() {
+        Maps() {
             this(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(),
                  ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
         }
@@ -58,26 +59,37 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private volatile Maps maps = new Maps();
 
-    private ReferenceManager mgr;
+    private ReferenceManager<?> mgr;
 
     /** Bytes consumed for each BytesRef UID:
-     *
-     *  NUM_BYTES_OBJECT_HEADER + 2*NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER [ + bytes.length] */
-    private static final int BASE_BYTES_PER_BYTESREF = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        2*Integer.BYTES +
-        RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
-        RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+     * In this base value, we account for the {@link BytesRef} object itself as
+     * well as the header of the byte[] array it holds, and some lost bytes due
+     * to object alignment. So consumers of this constant just have to add the
+     * length of the byte[] (assuming it is not shared between multiple
+     * instances). */
+    private static final long BASE_BYTES_PER_BYTESREF =
+            // shallow memory usage of the BytesRef object
+            RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) +
+            // header of the byte[] array
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER +
+            // with an alignment size (-XX:ObjectAlignmentInBytes) of 8 (default),
+            // there could be between 0 and 7 lost bytes, so we account for 3
+            // lost bytes on average
+            3;
 
-    /** Bytes used by having CHM point to a key/value:
-     *
-     *  CHM.Entry:
-     *     + NUM_BYTES_OBJECT_HEADER + 3*NUM_BYTES_OBJECT_REF + NUM_BYTES_INT
-     *
-     *  CHM's pointer to CHM.Entry, double for approx load factor:
-     *     + 2*NUM_BYTES_OBJECT_REF */
-    private static final int BASE_BYTES_PER_CHM_ENTRY = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        Integer.BYTES +
-        5*RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    /** Bytes used by having CHM point to a key/value. */
+    private static final long BASE_BYTES_PER_CHM_ENTRY;
+    static {
+        // use the same impl as the Maps does
+        Map<Integer, Integer> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        map.put(0, 0);
+        long chmEntryShallowSize = RamUsageEstimator.shallowSizeOf(map.entrySet().iterator().next());
+        // assume a load factor of 50%
+        // for each entry, we need two object refs, one for the entry itself
+        // and one for the free space that is due to the fact hash tables can
+        // not be fully loaded
+        BASE_BYTES_PER_CHM_ENTRY = chmEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    }
 
     /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones, we only account
      *  for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not clear this RAM. */
@@ -87,7 +99,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     final AtomicLong ramBytesUsedTombstones = new AtomicLong();
 
     /** Sync'd because we replace old mgr. */
-    synchronized void setManager(ReferenceManager newMgr) {
+    synchronized void setManager(ReferenceManager<?> newMgr) {
         if (mgr != null) {
             mgr.removeListener(this);
         }
@@ -126,26 +138,26 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     /** Returns the live version (add or delete) for this uid. */
-    VersionValue getUnderLock(BytesRef uid) {
+    VersionValue getUnderLock(final Term uid) {
         Maps currentMaps = maps;
 
         // First try to get the "live" value:
-        VersionValue value = currentMaps.current.get(uid);
+        VersionValue value = currentMaps.current.get(uid.bytes());
         if (value != null) {
             return value;
         }
 
-        value = currentMaps.old.get(uid);
+        value = currentMaps.old.get(uid.bytes());
         if (value != null) {
             return value;
         }
 
-        return tombstones.get(uid);
+        return tombstones.get(uid.bytes());
     }
 
     /** Adds this uid/version to the pending adds map. */
     void putUnderLock(BytesRef uid, VersionValue version) {
-
+        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
 
         final VersionValue prev = maps.current.put(uid, version);
@@ -244,7 +256,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         return ramBytesUsedCurrent.get() + ramBytesUsedTombstones.get();
     }
 
-    /** Returns how much RAM would be freed up by refreshing. This is {@link ramBytesUsed} except does not include tombstones because they
+    /** Returns how much RAM would be freed up by refreshing. This is {@link #ramBytesUsed} except does not include tombstones because they
      *  don't clear on refresh. */
     long ramBytesUsedForRefresh() {
         return ramBytesUsedCurrent.get();

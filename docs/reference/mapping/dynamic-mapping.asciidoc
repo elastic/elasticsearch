@@ -12,7 +12,7 @@ type, and fields will spring to life automatically:
 PUT data/counters/1 <1>
 { "count": 5 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Creates the `data` index, the `counters` mapping type, and a field
     called `count` with datatype `long`.
 
@@ -40,18 +40,37 @@ automatically or explicitly.
 [float]
 === Disabling automatic type creation
 
-Automatic type creation can be disabled by setting the `index.mapper.dynamic`
-setting to `false`, either by setting the default value in the
-`config/elasticsearch.yml` file, or per-index as an index setting:
+Automatic type creation can be disabled per-index by setting the `index.mapper.dynamic`
+setting to `false` in the index settings:
 
 [source,js]
 --------------------------------------------------
-PUT /_settings <1>
+PUT data/_settings
 {
-  "index.mapper.dynamic":false
+  "index.mapper.dynamic":false <1>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
+
+<1> Disable automatic type creation for the index named "data".
+
+Automatic type creation can also be disabled for all indices by setting an index template:
+
+[source,js]
+--------------------------------------------------
+PUT _template/template_all
+{
+  "index_patterns": ["*"],
+  "order":0,
+  "settings": {
+    "index.mapper.dynamic": false <1>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
 <1> Disable automatic type creation for all indices.
 
 Regardless of the value of this setting, types can still be added explicitly
@@ -64,4 +83,3 @@ include::dynamic/default-mapping.asciidoc[]
 include::dynamic/field-mapping.asciidoc[]
 
 include::dynamic/templates.asciidoc[]
-

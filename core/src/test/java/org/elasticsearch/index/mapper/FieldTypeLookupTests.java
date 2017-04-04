@@ -72,11 +72,12 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f = new MockFieldMapper("foo");
         MockFieldMapper f2 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f), randomBoolean());
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
+        lookup = lookup.copyAndAddAll("type1", newList(f), true);
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), true);
 
-        assertSame(f2.fieldType(), lookup2.get("foo"));
         assertEquals(1, size(lookup2.iterator()));
+        assertSame(f.fieldType(), lookup2.get("foo"));
+        assertEquals(f2.fieldType(), lookup2.get("foo"));
     }
 
     public void testAddExistingIndexName() {
@@ -205,8 +206,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         return count;
     }
 
-    static class OtherFakeFieldType extends MappedFieldType {
-        public OtherFakeFieldType() {
+    static class OtherFakeFieldType extends TermBasedFieldType {
+        OtherFakeFieldType() {
         }
 
         protected OtherFakeFieldType(OtherFakeFieldType ref) {

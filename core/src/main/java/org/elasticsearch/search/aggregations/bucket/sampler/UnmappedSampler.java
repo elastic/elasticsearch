@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -29,37 +28,23 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class UnmappedSampler extends InternalSampler {
+    public static final String NAME = "unmapped_sampler";
 
-    public static final Type TYPE = new Type("sampler", "umsampler");
-
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public UnmappedSampler readResult(StreamInput in) throws IOException {
-            UnmappedSampler sampler = new UnmappedSampler();
-            sampler.readFrom(in);
-            return sampler;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    UnmappedSampler() {
-    }
-
-    public UnmappedSampler(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    UnmappedSampler(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, 0, InternalAggregations.EMPTY, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public UnmappedSampler(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
@@ -74,7 +59,7 @@ public class UnmappedSampler extends InternalSampler {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalAggregation.CommonFields.DOC_COUNT, 0);
+        builder.field(InternalAggregation.CommonFields.DOC_COUNT.getPreferredName(), 0);
         return builder;
     }
 

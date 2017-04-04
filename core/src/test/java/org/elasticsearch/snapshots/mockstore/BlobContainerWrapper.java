@@ -21,16 +21,11 @@ package org.elasticsearch.snapshots.mockstore;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collection;
 import java.util.Map;
 
-/**
- *
- */
 public class BlobContainerWrapper implements BlobContainer {
     private BlobContainer delegate;
 
@@ -59,23 +54,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        delegate.writeBlob(blobName, bytes);
-    }
-
-    @Override
     public void deleteBlob(String blobName) throws IOException {
         delegate.deleteBlob(blobName);
-    }
-
-    @Override
-    public void deleteBlobs(Collection<String> blobNames) throws IOException {
-        delegate.deleteBlobs(blobNames);
-    }
-
-    @Override
-    public void deleteBlobsByPrefix(String blobNamePrefix) throws IOException {
-        delegate.deleteBlobsByPrefix(blobNamePrefix);
     }
 
     @Override

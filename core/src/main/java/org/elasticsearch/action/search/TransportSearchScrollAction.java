@@ -26,8 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,9 +34,6 @@ import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYP
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
-/**
- *
- */
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
     private final ClusterService clusterService;
@@ -46,9 +42,9 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     @Inject
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       ClusterService clusterService, SearchTransportService searchTransportService,
-                                       SearchPhaseController searchPhaseController,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       ClusterService clusterService, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver,
+                                       SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 SearchScrollRequest::new);
         this.clusterService = clusterService;
@@ -57,24 +53,28 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     }
 
     @Override
-    protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+    protected final void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        throw new UnsupportedOperationException("the task parameter is required");
+    }
+    @Override
+    protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             AbstractAsyncAction action;
             switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE:
                     action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
-                            searchPhaseController, request, scrollId, listener);
+                        searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
-                case QUERY_AND_FETCH_TYPE:
+                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
                     action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
-                            searchPhaseController, request, scrollId, listener);
+                        searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
                 default:
                     throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
             action.start();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

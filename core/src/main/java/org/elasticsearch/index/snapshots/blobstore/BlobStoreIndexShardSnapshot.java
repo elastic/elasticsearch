@@ -22,16 +22,12 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
@@ -43,14 +39,14 @@ import java.util.List;
 /**
  * Shard snapshot metadata
  */
-public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuilder<BlobStoreIndexShardSnapshot> {
-
-    public static final BlobStoreIndexShardSnapshot PROTO = new BlobStoreIndexShardSnapshot();
+public class BlobStoreIndexShardSnapshot implements ToXContent {
 
     /**
      * Information about snapshotted file
      */
     public static class FileInfo {
+        private static final String UNKNOWN_CHECKSUM = "_na_";
+
         private final String name;
         private final ByteSizeValue partSize;
         private final long partBytes;
@@ -70,7 +66,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
 
             long partBytes = Long.MAX_VALUE;
             if (partSize != null) {
-                partBytes = partSize.bytes();
+                partBytes = partSize.getBytes();
             }
 
             long totalLength = metaData.length();
@@ -208,26 +204,42 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
          * @return true if file in a store this this file have the same checksum and length
          */
         public boolean isSame(FileInfo fileInfo) {
-            if (numberOfParts != fileInfo.numberOfParts) return false;
-            if (partBytes != fileInfo.partBytes) return false;
-            if (!name.equals(fileInfo.name)) return false;
+            if (numberOfParts != fileInfo.numberOfParts) {
+                return false;
+            }
+            if (partBytes != fileInfo.partBytes) {
+                return false;
+            }
+            if (!name.equals(fileInfo.name)) {
+                return false;
+            }
             if (partSize != null) {
-                if (!partSize.equals(fileInfo.partSize)) return false;
+                if (!partSize.equals(fileInfo.partSize)) {
+                    return false;
+                }
             } else {
-                if (fileInfo.partSize != null) return false;
+                if (fileInfo.partSize != null) {
+                    return false;
+                }
             }
             return metadata.isSame(fileInfo.metadata);
         }
 
-        static final class Fields {
-            static final XContentBuilderString NAME = new XContentBuilderString("name");
-            static final XContentBuilderString PHYSICAL_NAME = new XContentBuilderString("physical_name");
-            static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-            static final XContentBuilderString CHECKSUM = new XContentBuilderString("checksum");
-            static final XContentBuilderString PART_SIZE = new XContentBuilderString("part_size");
-            static final XContentBuilderString WRITTEN_BY = new XContentBuilderString("written_by");
-            static final XContentBuilderString META_HASH = new XContentBuilderString("meta_hash");
+        /**
+         * Checks if the checksum for the file is unknown. This only is possible on an empty shard's
+         * segments_N file which was created in older Lucene versions.
+         */
+        public boolean hasUnknownChecksum() {
+            return metadata.checksum().equals(UNKNOWN_CHECKSUM);
         }
+
+        static final String NAME = "name";
+        static final String PHYSICAL_NAME = "physical_name";
+        static final String LENGTH = "length";
+        static final String CHECKSUM = "checksum";
+        static final String PART_SIZE = "part_size";
+        static final String WRITTEN_BY = "written_by";
+        static final String META_HASH = "meta_hash";
 
         /**
          * Serializes file info into JSON
@@ -238,22 +250,22 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
          */
         public static void toXContent(FileInfo file, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(Fields.NAME, file.name);
-            builder.field(Fields.PHYSICAL_NAME, file.metadata.name());
-            builder.field(Fields.LENGTH, file.metadata.length());
-            if (file.metadata.checksum() != null) {
-                builder.field(Fields.CHECKSUM, file.metadata.checksum());
+            builder.field(NAME, file.name);
+            builder.field(PHYSICAL_NAME, file.metadata.name());
+            builder.field(LENGTH, file.metadata.length());
+            if (file.metadata.checksum().equals(UNKNOWN_CHECKSUM) == false) {
+                builder.field(CHECKSUM, file.metadata.checksum());
             }
             if (file.partSize != null) {
-                builder.field(Fields.PART_SIZE, file.partSize.bytes());
+                builder.field(PART_SIZE, file.partSize.getBytes());
             }
 
             if (file.metadata.writtenBy() != null) {
-                builder.field(Fields.WRITTEN_BY, file.metadata.writtenBy());
+                builder.field(WRITTEN_BY, file.metadata.writtenBy());
             }
 
             if (file.metadata.hash() != null && file.metadata().hash().length > 0) {
-                builder.field(Fields.META_HASH, file.metadata.hash());
+                builder.field(META_HASH, file.metadata.hash());
             }
             builder.endObject();
         }
@@ -272,6 +284,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
             String checksum = null;
             ByteSizeValue partSize = null;
             Version writtenBy = null;
+            String writtenByStr = null;
             BytesRef metaHash = new BytesRef();
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -279,19 +292,20 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                         String currentFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (token.isValue()) {
-                            if ("name".equals(currentFieldName)) {
+                            if (NAME.equals(currentFieldName)) {
                                 name = parser.text();
-                            } else if ("physical_name".equals(currentFieldName)) {
+                            } else if (PHYSICAL_NAME.equals(currentFieldName)) {
                                 physicalName = parser.text();
-                            } else if ("length".equals(currentFieldName)) {
+                            } else if (LENGTH.equals(currentFieldName)) {
                                 length = parser.longValue();
-                            } else if ("checksum".equals(currentFieldName)) {
+                            } else if (CHECKSUM.equals(currentFieldName)) {
                                 checksum = parser.text();
-                            } else if ("part_size".equals(currentFieldName)) {
+                            } else if (PART_SIZE.equals(currentFieldName)) {
                                 partSize = new ByteSizeValue(parser.longValue());
-                            } else if ("written_by".equals(currentFieldName)) {
-                                writtenBy = Lucene.parseVersionLenient(parser.text(), null);
-                            } else if ("meta_hash".equals(currentFieldName)) {
+                            } else if (WRITTEN_BY.equals(currentFieldName)) {
+                                writtenByStr = parser.text();
+                                writtenBy = Lucene.parseVersionLenient(writtenByStr, null);
+                            } else if (META_HASH.equals(currentFieldName)) {
                                 metaHash.bytes = parser.binaryValue();
                                 metaHash.offset = 0;
                                 metaHash.length = metaHash.bytes.length;
@@ -306,6 +320,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                     }
                 }
             }
+
             // Verify that file information is complete
             if (name == null || Strings.validFileName(name) == false) {
                 throw new ElasticsearchParseException("missing or invalid file name [" + name + "]");
@@ -313,10 +328,29 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                 throw new ElasticsearchParseException("missing or invalid physical file name [" + physicalName + "]");
             } else if (length < 0) {
                 throw new ElasticsearchParseException("missing or invalid file length");
+            } else if (writtenBy == null) {
+                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
+            } else if (checksum == null) {
+                if (physicalName.startsWith("segments_")
+                        && writtenBy.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION) == false) {
+                    // its possible the checksum is null for segments_N files that belong to a shard with no data,
+                    // so we will assign it _na_ for now and try to get the checksum from the file itself later
+                    checksum = UNKNOWN_CHECKSUM;
+                } else {
+                    throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
+                }
             }
             return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }
 
+        @Override
+        public String toString() {
+            return "[name: " + name +
+                       ", numberOfParts: " + numberOfParts +
+                       ", partSize: " + partSize +
+                       ", partBytes: " + partBytes +
+                       ", metadata: " + metadata + "]";
+        }
     }
 
     private final String snapshot;
@@ -425,26 +459,21 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
         return totalSize;
     }
 
-    static final class Fields {
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString INDEX_VERSION = new XContentBuilderString("index_version");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString TIME = new XContentBuilderString("time");
-        static final XContentBuilderString NUMBER_OF_FILES = new XContentBuilderString("number_of_files");
-        static final XContentBuilderString TOTAL_SIZE = new XContentBuilderString("total_size");
-        static final XContentBuilderString FILES = new XContentBuilderString("files");
-    }
+    private static final String NAME = "name";
+    private static final String INDEX_VERSION = "index_version";
+    private static final String START_TIME = "start_time";
+    private static final String TIME = "time";
+    private static final String NUMBER_OF_FILES = "number_of_files";
+    private static final String TOTAL_SIZE = "total_size";
+    private static final String FILES = "files";
 
-    static final class ParseFields {
-        static final ParseField NAME = new ParseField("name");
-        static final ParseField INDEX_VERSION = new ParseField("index_version", "index-version");
-        static final ParseField START_TIME = new ParseField("start_time");
-        static final ParseField TIME = new ParseField("time");
-        static final ParseField NUMBER_OF_FILES = new ParseField("number_of_files");
-        static final ParseField TOTAL_SIZE = new ParseField("total_size");
-        static final ParseField FILES = new ParseField("files");
-    }
-
+    private static final ParseField PARSE_NAME = new ParseField("name");
+    private static final ParseField PARSE_INDEX_VERSION = new ParseField("index_version", "index-version");
+    private static final ParseField PARSE_START_TIME = new ParseField("start_time");
+    private static final ParseField PARSE_TIME = new ParseField("time");
+    private static final ParseField PARSE_NUMBER_OF_FILES = new ParseField("number_of_files");
+    private static final ParseField PARSE_TOTAL_SIZE = new ParseField("total_size");
+    private static final ParseField PARSE_FILES = new ParseField("files");
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -454,13 +483,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.NAME, snapshot);
-        builder.field(Fields.INDEX_VERSION, indexVersion);
-        builder.field(Fields.START_TIME, startTime);
-        builder.field(Fields.TIME, time);
-        builder.field(Fields.NUMBER_OF_FILES, numberOfFiles);
-        builder.field(Fields.TOTAL_SIZE, totalSize);
-        builder.startArray(Fields.FILES);
+        builder.field(NAME, snapshot);
+        builder.field(INDEX_VERSION, indexVersion);
+        builder.field(START_TIME, startTime);
+        builder.field(TIME, time);
+        builder.field(NUMBER_OF_FILES, numberOfFiles);
+        builder.field(TOTAL_SIZE, totalSize);
+        builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
             FileInfo.toXContent(fileInfo, builder, params);
         }
@@ -474,8 +503,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      * @param parser parser
      * @return shard snapshot metadata
      */
-    public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-
+    public static BlobStoreIndexShardSnapshot fromXContent(XContentParser parser) throws IOException {
         String snapshot = null;
         long indexVersion = -1;
         long startTime = 0;
@@ -494,24 +522,24 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token.isValue()) {
-                        if (parseFieldMatcher.match(currentFieldName, ParseFields.NAME)) {
+                        if (PARSE_NAME.match(currentFieldName)) {
                             snapshot = parser.text();
-                        } else if (parseFieldMatcher.match(currentFieldName, ParseFields.INDEX_VERSION)) {
+                        } else if (PARSE_INDEX_VERSION.match(currentFieldName)) {
                             // The index-version is needed for backward compatibility with v 1.0
                             indexVersion = parser.longValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, ParseFields.START_TIME)) {
+                        } else if (PARSE_START_TIME.match(currentFieldName)) {
                             startTime = parser.longValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, ParseFields.TIME)) {
+                        } else if (PARSE_TIME.match(currentFieldName)) {
                             time = parser.longValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, ParseFields.NUMBER_OF_FILES)) {
+                        } else if (PARSE_NUMBER_OF_FILES.match(currentFieldName)) {
                             numberOfFiles = parser.intValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, ParseFields.TOTAL_SIZE)) {
+                        } else if (PARSE_TOTAL_SIZE.match(currentFieldName)) {
                             totalSize = parser.longValue();
                         } else {
                             throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (parseFieldMatcher.match(currentFieldName, ParseFields.FILES)) {
+                        if (PARSE_FILES.match(currentFieldName)) {
                             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 indexFiles.add(FileInfo.fromXContent(parser));
                             }
@@ -527,6 +555,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
             }
         }
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
-                startTime, time, numberOfFiles, totalSize);
+                                               startTime, time, numberOfFiles, totalSize);
     }
 }

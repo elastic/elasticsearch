@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.single.shard;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -39,12 +40,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -93,7 +95,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract Response shardOperation(Request request, ShardId shardId);
+    protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected abstract Response newResponse();
 
@@ -124,7 +126,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private final ShardsIterator shardIt;
         private final InternalRequest internalRequest;
         private final DiscoveryNodes nodes;
-        private volatile Throwable lastFailure;
+        private volatile Exception lastFailure;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.listener = listener;
@@ -159,7 +161,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         public void start() {
             if (shardIt == null) {
                 // just execute it on the local node
-                transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
+                transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(), new TransportResponseHandler<Response>() {
                     @Override
                     public Response newInstance() {
                         return newResponse();
@@ -185,27 +187,31 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
         }
 
-        private void onFailure(ShardRouting shardRouting, Throwable e) {
+        private void onFailure(ShardRouting shardRouting, Exception e) {
             if (logger.isTraceEnabled() && e != null) {
-                logger.trace("{}: failed to execute [{}]", e, shardRouting, internalRequest.request());
+                logger.trace(
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
             }
             perform(e);
         }
 
-        private void perform(@Nullable final Throwable currentFailure) {
-            Throwable lastFailure = this.lastFailure;
+        private void perform(@Nullable final Exception currentFailure) {
+            Exception lastFailure = this.lastFailure;
             if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
-                Throwable failure = lastFailure;
+                Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
                     failure = new NoShardAvailableActionException(null, LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()), failure);
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("{}: failed to execute [{}]", failure, null, internalRequest.request());
+                        logger.debug(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()), failure);
                     }
                 }
                 listener.onFailure(failure);
@@ -224,7 +230,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             node
                     );
                 }
-                transportService.sendRequest(node, transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
+                transportService.sendRequest(node, transportShardAction, internalRequest.request(), new TransportResponseHandler<Response>() {
 
                     @Override
                     public Response newInstance() {
@@ -261,13 +267,13 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {

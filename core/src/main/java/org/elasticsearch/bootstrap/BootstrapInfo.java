@@ -24,16 +24,16 @@ import org.elasticsearch.common.SuppressForbidden;
 import java.util.Dictionary;
 import java.util.Enumeration;
 
-/** 
- * Exposes system startup information 
+/**
+ * Exposes system startup information
  */
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
     /** no instantiation */
     private BootstrapInfo() {}
-    
-    /** 
+
+    /**
      * Returns true if we successfully loaded native libraries.
      * <p>
      * If this returns false, then native operations such as locking
@@ -42,19 +42,19 @@ public final class BootstrapInfo {
     public static boolean isNativesAvailable() {
         return Natives.JNA_AVAILABLE;
     }
-    
-    /** 
+
+    /**
      * Returns true if we were able to lock the process's address space.
      */
     public static boolean isMemoryLocked() {
         return Natives.isMemoryLocked();
     }
-    
+
     /**
-     * Returns true if secure computing mode is enabled (supported systems only)
+     * Returns true if system call filter is installed (supported systems only)
      */
-    public static boolean isSeccompInstalled() {
-        return Natives.isSeccompInstalled();
+    public static boolean isSystemCallFilterInstalled() {
+        return Natives.isSystemCallFilterInstalled();
     }
 
     /**
@@ -120,4 +120,8 @@ public final class BootstrapInfo {
         }
         return SYSTEM_PROPERTIES;
     }
+
+    public static void init() {
+    }
+
 }

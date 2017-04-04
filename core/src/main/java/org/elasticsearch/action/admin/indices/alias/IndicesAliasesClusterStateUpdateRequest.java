@@ -21,29 +21,22 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 
+import java.util.List;
+
 /**
  * Cluster state update request that allows to add or remove aliases
  */
 public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateRequest<IndicesAliasesClusterStateUpdateRequest> {
+    private final List<AliasAction> actions;
 
-    AliasAction[] actions;
-
-    IndicesAliasesClusterStateUpdateRequest() {
-
+    public IndicesAliasesClusterStateUpdateRequest(List<AliasAction> actions) {
+        this.actions = actions;
     }
 
     /**
      * Returns the alias actions to be performed
      */
-    public AliasAction[] actions() {
+    public List<AliasAction> actions() {
         return actions;
-    }
-
-    /**
-     * Sets the alias actions to be executed
-     */
-    public IndicesAliasesClusterStateUpdateRequest actions(AliasAction[] actions) {
-        this.actions = actions;
-        return this;
     }
 }

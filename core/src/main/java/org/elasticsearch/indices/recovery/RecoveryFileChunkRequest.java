@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,9 +30,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class RecoveryFileChunkRequest extends TransportRequest {
     private boolean lastChunk;
     private long recoveryId;
@@ -76,7 +72,6 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         return position;
     }
 
-    @Nullable
     public String checksum() {
         return metaData.checksum();
     }
@@ -105,11 +100,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         String name = in.readString();
         position = in.readVLong();
         long length = in.readVLong();
-        String checksum = in.readOptionalString();
+        String checksum = in.readString();
         content = in.readBytesReference();
-        Version writtenBy = null;
-        String versionString = in.readOptionalString();
-        writtenBy = Lucene.parseVersionLenient(versionString, null);
+        Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
+        assert writtenBy != null;
         metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
         lastChunk = in.readBoolean();
         totalTranslogOps = in.readVInt();
@@ -124,9 +118,9 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         out.writeString(metaData.name());
         out.writeVLong(position);
         out.writeVLong(metaData.length());
-        out.writeOptionalString(metaData.checksum());
+        out.writeString(metaData.checksum());
         out.writeBytesReference(content);
-        out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().toString());
+        out.writeString(metaData.writtenBy().toString());
         out.writeBoolean(lastChunk);
         out.writeVInt(totalTranslogOps);
         out.writeLong(sourceThrottleTimeInNanos);

@@ -14,25 +14,29 @@ Here is a sample of associating the alias `alias1` with index `test1`:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         { "add" : { "index" : "test1", "alias" : "alias1" } }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
-An alias can also be removed, for example:
+And here is removing that same alias:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         { "remove" : { "index" : "test1", "alias" : "alias1" } }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Renaming an alias is a simple `remove` then `add` operation within the
 same API. This operation is atomic, no need to worry about a short
@@ -40,40 +44,46 @@ period of time where the alias does not point to an index:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test1", "alias" : "alias2" } }
+        { "add" : { "index" : "test2", "alias" : "alias1" } }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Associating an alias with more than one index are simply several `add`
 actions:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         { "add" : { "index" : "test1", "alias" : "alias1" } },
         { "add" : { "index" : "test2", "alias" : "alias1" } }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
 Multiple indices can be specified for an action with the `indices` array syntax:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
 To specify multiple aliases in one action, the corresponding `aliases` array
 syntax exists as well.
@@ -83,19 +93,40 @@ more than one index that share a common name:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
 In this case, the alias is a point-in-time alias that will group all
 current indices that match, it will not automatically update as new
 indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
+
+It is also possible to swap an index with an alias in one operation:
+
+[source,js]
+--------------------------------------------------
+PUT test     <1>
+PUT test_2   <2>
+POST /_aliases
+{
+    "actions" : [
+        { "add":  { "index": "test_2", "alias": "test" } },
+        { "remove_index": { "index": "test" } }  <3>
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+<1> An index we've added by mistake
+<2> The index we should have added
+<3> `remove_index` is just like <<indices-delete-index>>
 
 [float]
 [[filtered]]
@@ -111,7 +142,8 @@ exist in the mapping:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'http://localhost:9200/test1' -d '{
+PUT /test1
+{
   "mappings": {
     "type1": {
       "properties": {
@@ -123,12 +155,14 @@ curl -XPUT 'http://localhost:9200/test1' -d '{
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 Now we can create an alias that uses a filter on field `user`:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '{
+POST /_aliases
+{
     "actions" : [
         {
             "add" : {
@@ -138,8 +172,10 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '{
             }
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[aliases-routing]]
@@ -155,7 +191,7 @@ automatically modified to use value `1` for routing:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         {
@@ -166,15 +202,17 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
             }
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 It's also possible to specify different routing values for searching
 and indexing operations:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
+POST /_aliases
 {
     "actions" : [
         {
@@ -186,8 +224,10 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
             }
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 As shown in the example above, search routing may contain several values
 separated by comma. Index routing can contain only a single value.
@@ -199,8 +239,10 @@ routing value:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
+GET /alias2/_search?q=user:kimchy&routing=2,3
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 If an index operation that uses index routing alias also has a parent routing, the
 parent routing is ignored.
@@ -232,8 +274,10 @@ Adding time based alias::
 --
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/logs_201305/_alias/2013'
+PUT /logs_201305/_alias/2013
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT logs_201305\n/]
 --
 
 Adding a user alias::
@@ -243,7 +287,8 @@ First create the index and add a mapping for the `user_id` field:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/users' -d '{
+PUT /users
+{
     "mappings" : {
         "user" : {
             "properties" : {
@@ -251,22 +296,26 @@ curl -XPUT 'localhost:9200/users' -d '{
             }
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Then add the alias for a specific user:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
+PUT /users/_alias/user_12
+{
     "routing" : "12",
     "filter" : {
         "term" : {
             "user_id" : 12
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 --
 
@@ -278,7 +327,8 @@ Aliases can also be specified during <<create-index-aliases,index creation>>:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/logs_20142801 -d '{
+PUT /logs_20162801
+{
     "mappings" : {
         "type" : {
             "properties" : {
@@ -288,14 +338,15 @@ curl -XPUT localhost:9200/logs_20142801 -d '{
     },
     "aliases" : {
         "current_day" : {},
-        "2014" : {
+        "2016" : {
             "filter" : {
-                "term" : {"year" : 2014 }
+                "term" : {"year" : 2016 }
             }
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[deleting]]
@@ -314,8 +365,10 @@ Alternatively you can use the plural `_aliases`. Example:
 
 [source,js]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/users/_alias/user_12'
+DELETE /logs_20162801/_alias/current_day
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[alias-retrieving]]
@@ -351,92 +404,88 @@ All aliases for the index users:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/users/_alias/*'
+GET /logs_20162801/_alias/*
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Response:
 
 [source,js]
 --------------------------------------------------
- {
-  "users" : {
+{
+ "logs_20162801" : {
+   "aliases" : {
+     "2016" : {
+       "filter" : {
+         "term" : {
+           "year" : 2016
+         }
+       }
+     }
+   }
+ }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+All aliases with the name 2016 in any index:
+
+[source,js]
+--------------------------------------------------
+GET /_alias/2016
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "logs_20162801" : {
     "aliases" : {
-      "user_13" : {
+      "2016" : {
         "filter" : {
           "term" : {
-            "user_id" : 13
+            "year" : 2016
           }
-        },
-        "index_routing" : "13",
-        "search_routing" : "13"
-      },
-      "user_14" : {
-        "filter" : {
-          "term" : {
-            "user_id" : 14
-          }
-        },
-        "index_routing" : "14",
-        "search_routing" : "14"
-      },
-      "user_12" : {
-        "filter" : {
-          "term" : {
-            "user_id" : 12
-          }
-        },
-        "index_routing" : "12",
-        "search_routing" : "12"
+        }
       }
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
-All aliases with the name 2013 in any index:
+All aliases that start with 20 in any index:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_alias/2013'
+GET /_alias/20*
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
-  "logs_201304" : {
+  "logs_20162801" : {
     "aliases" : {
-      "2013" : { }
-    }
-  },
-  "logs_201305" : {
-    "aliases" : {
-      "2013" : { }
-    }
-  }
-}
---------------------------------------------------
-
-All aliases that start with 2013_01 in any index:
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_alias/2013_01*'
---------------------------------------------------
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-  "logs_20130101" : {
-    "aliases" : {
-      "2013_01" : { }
+      "2016" : {
+        "filter" : {
+          "term" : {
+            "year" : 2016
+          }
+        }
+      }
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 There is also a HEAD variant of the get indices aliases api to check if
 index aliases exist. The indices aliases exists api supports the same
@@ -444,7 +493,9 @@ option as the get indices aliases api. Examples:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD -i 'localhost:9200/_alias/2013'
-curl -XHEAD -i 'localhost:9200/_alias/2013_01*'
-curl -XHEAD -i 'localhost:9200/users/_alias/*'
+HEAD /_alias/2016
+HEAD /_alias/20*
+HEAD /logs_20162801/_alias/*
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]

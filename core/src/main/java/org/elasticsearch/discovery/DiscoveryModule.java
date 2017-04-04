@@ -19,120 +19,87 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.discovery.local.LocalDiscovery;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
-
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
+
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 /**
  * A module for loading classes for node discovery.
  */
-public class DiscoveryModule extends AbstractModule {
+public class DiscoveryModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", settings -> DiscoveryNode.localNode(settings) ? "local" : "zen", Function.identity(),
-            Property.NodeScope);
-    public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING =
-        new Setting<>("discovery.zen.masterservice.type", "zen", Function.identity(), Property.NodeScope);
+        new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
+    public static final Setting<Optional<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
+        new Setting<>("discovery.zen.hosts_provider", (String)null, Optional::ofNullable, Property.NodeScope);
 
-    private final Settings settings;
-    private final Map<String, List<Class<? extends UnicastHostsProvider>>> unicastHostProviders = new HashMap<>();
-    private final ExtensionPoint.ClassSet<ZenPing> zenPings = new ExtensionPoint.ClassSet<>("zen_ping", ZenPing.class);
-    private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
-    private final Map<String, Class<? extends ElectMasterService>> masterServiceType = new HashMap<>();
+    private final Discovery discovery;
 
-    public DiscoveryModule(Settings settings) {
-        this.settings = settings;
-        addDiscoveryType("local", LocalDiscovery.class);
-        addDiscoveryType("zen", ZenDiscovery.class);
-        addElectMasterService("zen", ElectMasterService.class);
-        // always add the unicast hosts, or things get angry!
-        addZenPing(UnicastZenPing.class);
-    }
+    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
+                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, ClusterService clusterService,
+                           List<DiscoveryPlugin> plugins) {
+        final UnicastHostsProvider hostsProvider;
 
-    /**
-     * Adds a custom unicast hosts provider to build a dynamic list of unicast hosts list when doing unicast discovery.
-     *
-     * @param type discovery for which this provider is relevant
-     * @param unicastHostProvider the host provider
-     */
-    public void addUnicastHostProvider(String type, Class<? extends UnicastHostsProvider> unicastHostProvider) {
-        List<Class<? extends UnicastHostsProvider>> providerList = unicastHostProviders.get(type);
-        if (providerList == null) {
-            providerList = new ArrayList<>();
-            unicastHostProviders.put(type, providerList);
+        Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
+        for (DiscoveryPlugin plugin : plugins) {
+            plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
+                if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Cannot register zen hosts provider [" + entry.getKey() + "] twice");
+                }
+            });
         }
-        providerList.add(unicastHostProvider);
-    }
-
-    /**
-     * Adds a custom Discovery type.
-     */
-    public void addDiscoveryType(String type, Class<? extends Discovery> clazz) {
-        if (discoveryTypes.containsKey(type)) {
-            throw new IllegalArgumentException("discovery type [" + type + "] is already registered");
+        Optional<String> hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        if (hostsProviderName.isPresent()) {
+            Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName.get());
+            if (hostsProviderSupplier == null) {
+                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName.get() + "]");
+            }
+            hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
+        } else {
+            hostsProvider = Collections::emptyList;
         }
-        discoveryTypes.put(type, clazz);
-    }
 
-    /**
-     * Adds a custom zen master service type.
-     */
-    public void addElectMasterService(String type, Class<? extends ElectMasterService> masterService) {
-        if (masterServiceType.containsKey(type)) {
-            throw new IllegalArgumentException("master service type [" + type + "] is already registered");
+        Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
+        discoveryTypes.put("zen",
+            () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
+        discoveryTypes.put("none", () -> new NoneDiscovery(settings, clusterService, clusterService.getClusterSettings()));
+        for (DiscoveryPlugin plugin : plugins) {
+            plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry,
+                clusterService, hostsProvider).entrySet().forEach(entry -> {
+                if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
+                }
+            });
         }
-        this.masterServiceType.put(type, masterService);
-    }
-
-    public void addZenPing(Class<? extends ZenPing> clazz) {
-        zenPings.registerExtension(clazz);
-    }
-
-    @Override
-    protected void configure() {
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
-        Class<? extends Discovery> discoveryClass = discoveryTypes.get(discoveryType);
-        if (discoveryClass == null) {
-            throw new IllegalArgumentException("Unknown Discovery type [" + discoveryType + "]");
+        Supplier<Discovery> discoverySupplier = discoveryTypes.get(discoveryType);
+        if (discoverySupplier == null) {
+            throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
+        discovery = Objects.requireNonNull(discoverySupplier.get());
+    }
 
-        if (discoveryType.equals("local") == false) {
-            String masterServiceTypeKey = ZEN_MASTER_SERVICE_TYPE_SETTING.get(settings);
-            final Class<? extends ElectMasterService> masterService = masterServiceType.get(masterServiceTypeKey);
-            if (masterService == null) {
-                throw new IllegalArgumentException("Unknown master service type [" + masterServiceTypeKey + "]");
-            }
-            if (masterService == ElectMasterService.class) {
-                bind(ElectMasterService.class).asEagerSingleton();
-            } else {
-                bind(ElectMasterService.class).to(masterService).asEagerSingleton();
-            }
-            bind(ZenPingService.class).asEagerSingleton();
-            Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
-            for (Class<? extends UnicastHostsProvider> unicastHostProvider :
-                    unicastHostProviders.getOrDefault(discoveryType, Collections.emptyList())) {
-                unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
-            }
-            zenPings.bind(binder());
-        }
-        bind(Discovery.class).to(discoveryClass).asEagerSingleton();
+    public Discovery getDiscovery() {
+        return discovery;
     }
 }

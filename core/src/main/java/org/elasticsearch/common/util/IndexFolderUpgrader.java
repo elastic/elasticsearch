@@ -19,11 +19,14 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -41,7 +44,7 @@ import java.nio.file.StandardCopyOption;
 public class IndexFolderUpgrader {
     private final NodeEnvironment nodeEnv;
     private final Settings settings;
-    private final ESLogger logger = Loggers.getLogger(IndexFolderUpgrader.class);
+    private final Logger logger = Loggers.getLogger(IndexFolderUpgrader.class);
 
     /**
      * Creates a new upgrader instance
@@ -64,8 +67,8 @@ public class IndexFolderUpgrader {
         } catch (NoSuchFileException | FileNotFoundException exception) {
             // thrown when the source is non-existent because the folder was renamed
             // by another node (shared FS) after we checked if the target exists
-            logger.error("multiple nodes trying to upgrade [{}] in parallel, retry upgrading with single node",
-                exception, target);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("multiple nodes trying to upgrade [{}] in parallel, retry " +
+                "upgrading with single node", target), exception);
             throw exception;
         } finally {
             if (success) {
@@ -84,7 +87,7 @@ public class IndexFolderUpgrader {
     void upgrade(final String indexFolderName) throws IOException {
         for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
             final Path indexFolderPath = nodePath.indicesPath.resolve(indexFolderName);
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolderPath);
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, indexFolderPath);
             if (indexMetaData != null) {
                 final Index index = indexMetaData.getIndex();
                 if (needsUpgrade(index, indexFolderName)) {

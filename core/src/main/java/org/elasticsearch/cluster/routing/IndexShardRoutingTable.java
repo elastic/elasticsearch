@@ -33,9 +33,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -59,7 +61,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final List<ShardRouting> shards;
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
-    final static List<ShardRouting> NO_SHARDS = Collections.emptyList();
+    static final List<ShardRouting> NO_SHARDS = Collections.emptyList();
     final boolean allShardsStarted;
 
     private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
@@ -97,7 +99,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
-                allInitializingShards.add(shard.buildTargetRelocatingShard());
+                allInitializingShards.add(shard.getTargetRelocatingShard());
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
@@ -181,6 +183,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      */
     public List<ShardRouting> activeShards() {
         return this.activeShards;
+    }
+
+    /**
+     * Returns a {@link List} of all initializing shards, including target shards of relocations
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> getAllInitializingShards() {
+        return this.allInitializingShards;
     }
 
     /**
@@ -331,61 +342,70 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        // fill it in a randomized fashion
-        for (int i = 0; i < activeShards.size(); i++) {
-            ShardRouting shardRouting = activeShards.get(i);
+        int seed = shuffler.nextSeed();
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
             if (nodeId.equals(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
-        for (int i = 0; i < allInitializingShards.size(); i++) {
-            ShardRouting shardRouting = allInitializingShards.get(i);
+        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
             if (nodeId.equals(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
         return new PlainShardIterator(shardId, ordered);
+    }
+
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttributes, DiscoveryNodes discoveryNodes) {
+        return onlyNodeSelectorActiveInitializingShardsIt(new String[] {nodeAttributes}, discoveryNodes);
     }
 
     /**
      * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
      * Supports node specifications in cluster API
      */
-    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttribute, DiscoveryNodes discoveryNodes) {
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttributes, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodesIds(nodeAttribute));
-
-        for (ShardRouting shardRouting : activeShards) {
+        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));
+        int seed = shuffler.nextSeed();
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
-        for (ShardRouting shardRouting : allInitializingShards) {
+        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
         if (ordered.isEmpty()) {
-            throw new IllegalArgumentException("No data node with criteria [" + nodeAttribute + "] found");
+            final String message = String.format(
+                    Locale.ROOT,
+                    "no data nodes with %s [%s] found for shard: %s",
+                    nodeAttributes.length == 1 ? "criteria" : "criterion",
+                    String.join(",", nodeAttributes),
+                    shardId());
+            throw new IllegalArgumentException(message);
         }
         return new PlainShardIterator(shardId, ordered);
     }
 
-    public ShardIterator preferNodeActiveInitializingShardsIt(String nodeId) {
-        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+    public ShardIterator preferNodeActiveInitializingShardsIt(Set<String> nodeIds) {
+        ArrayList<ShardRouting> preferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        ArrayList<ShardRouting> notPreferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         // fill it in a randomized fashion
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
-            ordered.add(shardRouting);
-            if (nodeId.equals(shardRouting.currentNodeId())) {
-                // switch, its the matching node id
-                ordered.set(ordered.size() - 1, ordered.get(0));
-                ordered.set(0, shardRouting);
+            if (nodeIds.contains(shardRouting.currentNodeId())) {
+                preferred.add(shardRouting);
+            } else {
+                notPreferred.add(shardRouting);
             }
         }
+        preferred.addAll(notPreferred);
         if (!allInitializingShards.isEmpty()) {
-            ordered.addAll(allInitializingShards);
+            preferred.addAll(allInitializingShards);
         }
-        return new PlainShardIterator(shardId, ordered);
+        return new PlainShardIterator(shardId, preferred);
     }
 
     @Override
@@ -477,7 +497,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private static List<ShardRouting> collectAttributeShards(AttributesKey key, DiscoveryNodes nodes, ArrayList<ShardRouting> from) {
         final ArrayList<ShardRouting> to = new ArrayList<>();
         for (final String attribute : key.attributes) {
-            final String localAttributeValue = nodes.localNode().getAttributes().get(attribute);
+            final String localAttributeValue = nodes.getLocalNode().getAttributes().get(attribute);
             if (localAttributeValue != null) {
                 for (Iterator<ShardRouting> iterator = from.iterator(); iterator.hasNext(); ) {
                     ShardRouting fromShard = iterator.next();
@@ -562,14 +582,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public Builder addShard(ShardRouting shardEntry) {
-            for (ShardRouting shard : shards) {
-                // don't add two that map to the same node id
-                // we rely on the fact that a node does not have primary and backup of the same shard
-                if (shard.assignedToNode() && shardEntry.assignedToNode()
-                        && shard.currentNodeId().equals(shardEntry.currentNodeId())) {
-                    return this;
-                }
-            }
             shards.add(shardEntry);
             return this;
         }
@@ -580,7 +592,26 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public IndexShardRoutingTable build() {
+            // don't allow more than one shard copy with same id to be allocated to same node
+            assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList<>(shards)));
+        }
+
+        static boolean distinctNodes(List<ShardRouting> shards) {
+            Set<String> nodes = new HashSet<>();
+            for (ShardRouting shard : shards) {
+                if (shard.assignedToNode()) {
+                    if (nodes.add(shard.currentNodeId()) == false) {
+                        return false;
+                    }
+                    if (shard.relocating()) {
+                        if (nodes.add(shard.relocatingNodeId()) == false) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
         }
 
         public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
@@ -590,11 +621,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
-            Builder builder = new Builder(new ShardId(index, iShardId));
+            ShardId shardId = new ShardId(index, iShardId);
+            Builder builder = new Builder(shardId);
 
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                ShardRouting shard = ShardRouting.readShardRoutingEntry(in, index, iShardId);
+                ShardRouting shard = new ShardRouting(shardId, in);
                 builder.addShard(shard);
             }
 

@@ -2,17 +2,39 @@
 == cat health
 
 `health` is a terse, one-line representation of the same information
-from `/_cluster/health`. It has one option `ts` to disable the
-timestamping.
+from `/_cluster/health`.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl localhost:9200/_cat/health
-1384308967 18:16:07 foo green 3 3 3 3 0 0 0
-% curl 'localhost:9200/_cat/health?v&ts=0'
-cluster status nodeTotal nodeData shards pri relo init unassign tasks
-foo     green          3        3      3   3    0    0        0     0
+GET /_cat/health?v
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+
+[source,txt]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475871424 16:17:04  elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/ s/elasticsearch/[^ ]+/ s/0                  -/\\d+ -/ _cat]
+
+It has one option `ts` to disable the timestamping:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/health?v&ts=false
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+
+which looks like:
+
+[source,txt]
+--------------------------------------------------
+cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ -/ _cat]
 
 A common use of this command is to verify the health is consistent
 across nodes:
@@ -27,6 +49,7 @@ across nodes:
 [3] 20:20:52 [SUCCESS] es2.vm
 1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
 --------------------------------------------------
+// NOTCONSOLE
 
 A less obvious use is to track recovery of a large cluster over
 time. With enough shards, starting a cluster, or even recovering after
@@ -42,6 +65,7 @@ to track its progress is by using this command in a delayed loop:
 1384309806 18:30:06 foo green 3 3 1832 916 4 0 0
 ^C
 --------------------------------------------------
+// NOTCONSOLE
 
 In this scenario, we can tell that recovery took roughly four minutes.
 If this were going on for hours, we would be able to watch the

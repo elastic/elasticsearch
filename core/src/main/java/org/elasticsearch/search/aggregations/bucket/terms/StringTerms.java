@@ -22,69 +22,40 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- *
+ * Result of the {@link TermsAggregator} when the field is a String.
  */
-public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> {
-
-    public static final InternalAggregation.Type TYPE = new Type("terms", "sterms");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public StringTerms readResult(StreamInput in) throws IOException {
-            StringTerms buckets = new StringTerms();
-            buckets.readFrom(in);
-            return buckets;
-        }
-    };
-
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket((boolean) context.attributes().get("showDocCountError"));
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            Map<String, Object> attributes = new HashMap<>();
-            attributes.put("showDocCountError", bucket.showDocCountError);
-            context.attributes(attributes);
-            return context;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
-
-    public static class Bucket extends InternalTerms.Bucket {
-
+public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bucket> {
+    public static final String NAME = "sterms";
+    public static class Bucket extends InternalTerms.Bucket<Bucket> {
         BytesRef termBytes;
 
-        public Bucket(boolean showDocCountError) {
-            super(null, showDocCountError);
+        public Bucket(BytesRef term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+                DocValueFormat format) {
+            super(docCount, aggregations, showDocCountError, docCountError, format);
+            this.termBytes = term;
         }
 
-        public Bucket(BytesRef term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
-            super(docCount, aggregations, showDocCountError, docCountError, null);
-            this.termBytes = term;
+        /**
+         * Read from a stream.
+         */
+        public Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
+            super(in, format, showDocCountError);
+            termBytes = in.readBytesRef();
+        }
+
+        @Override
+        protected void writeTermTo(StreamOutput out) throws IOException {
+            out.writeBytesRef(termBytes);
         }
 
         @Override
@@ -100,7 +71,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
 
         @Override
         public String getKeyAsString() {
-            return termBytes.utf8ToString();
+            return format.format(termBytes);
         }
 
         @Override
@@ -110,122 +81,64 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
 
         @Override
         Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(termBytes, docCount, aggs, showDocCountError, docCountError);
+            return new Bucket(termBytes, docCount, aggs, showDocCountError, docCountError, format);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            termBytes = in.readBytesRef();
-            docCount = in.readVLong();
-            docCountError = -1;
-            if (showDocCountError) {
-                docCountError = in.readLong();
-            }
-            aggregations = InternalAggregations.readAggregations(in);
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesRef(termBytes);
-            out.writeVLong(getDocCount());
-            if (showDocCountError) {
-                out.writeLong(docCountError);
-            }
-            aggregations.writeTo(out);
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(termBytes, ((Bucket) obj).termBytes);
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.utf8Field(CommonFields.KEY, termBytes);
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            if (showDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
-            }
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
-            return builder;
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), termBytes);
         }
     }
 
-    StringTerms() {
-    } // for serialization
+    public StringTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+            List<Bucket> buckets, long docCountError) {
+        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format,
+                shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
+    }
 
-    public StringTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount,
-            List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
-                metaData);
+    /**
+     * Read from a stream.
+     */
+    public StringTerms(StreamInput in) throws IOException {
+        super(in, Bucket::new);
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
     public StringTerms create(List<Bucket> buckets) {
-        return new StringTerms(this.name, this.order, this.requiredSize, this.shardSize, this.minDocCount, buckets,
-                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.pipelineAggregators(), this.metaData);
+        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData, format, shardSize,
+                showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.termBytes, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError);
+        return new Bucket(prototype.termBytes, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
+                prototype.format);
     }
 
     @Override
-    protected StringTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
-            long docCountError, long otherDocCount, InternalTerms prototype) {
-        return new StringTerms(name, prototype.order, prototype.requiredSize, prototype.shardSize, prototype.minDocCount, buckets,
-                prototype.showTermDocCountError, docCountError, otherDocCount, prototype.pipelineAggregators(), prototype.getMetaData());
+    protected StringTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
+        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
+                showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        this.docCountError = in.readLong();
-        this.order = InternalOrder.Streams.readOrder(in);
-        this.requiredSize = readSize(in);
-        this.shardSize = readSize(in);
-        this.showTermDocCountError = in.readBoolean();
-        this.minDocCount = in.readVLong();
-        this.otherDocCount = in.readVLong();
-        int size = in.readVInt();
-        List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            Bucket bucket = new Bucket(showTermDocCountError);
-            bucket.readFrom(in);
-            buckets.add(bucket);
-        }
-        this.buckets = buckets;
-        this.bucketMap = null;
+    protected Bucket[] createBucketsArray(int size) {
+        return new Bucket[size];
     }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeLong(docCountError);
-        InternalOrder.Streams.writeOrder(order, out);
-        writeSize(requiredSize, out);
-        writeSize(shardSize, out);
-        out.writeBoolean(showTermDocCountError);
-        out.writeVLong(minDocCount);
-        out.writeVLong(otherDocCount);
-        out.writeVInt(buckets.size());
-        for (InternalTerms.Bucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
-    }
-
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
-        builder.startArray(CommonFields.BUCKETS);
-        for (InternalTerms.Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
 }

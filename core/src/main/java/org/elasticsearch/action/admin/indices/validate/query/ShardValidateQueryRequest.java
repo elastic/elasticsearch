@@ -20,44 +20,42 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Internal validate request executed directly against a specific index shard.
  */
 public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
-    private QueryBuilder<?> query;
+    private QueryBuilder query;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
     private boolean rewrite;
     private long nowInMillis;
-
-    @Nullable
-    private String[] filteringAliases;
+    private AliasFilter filteringAliases;
 
     public ShardValidateQueryRequest() {
-
     }
 
-    ShardValidateQueryRequest(ShardId shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
+    public ShardValidateQueryRequest(ShardId shardId, AliasFilter filteringAliases, ValidateQueryRequest request) {
         super(shardId, request);
         this.query = request.query();
         this.types = request.types();
         this.explain = request.explain();
         this.rewrite = request.rewrite();
-        this.filteringAliases = filteringAliases;
+        this.filteringAliases = Objects.requireNonNull(filteringAliases, "filteringAliases must not be null");
         this.nowInMillis = request.nowInMillis;
     }
 
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
@@ -69,11 +67,11 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         return this.explain;
     }
 
-    public boolean rewrite() { 
-        return this.rewrite; 
+    public boolean rewrite() {
+        return this.rewrite;
     }
 
-    public String[] filteringAliases() {
+    public AliasFilter filteringAliases() {
         return filteringAliases;
     }
 
@@ -84,7 +82,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -93,14 +91,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
                 types[i] = in.readString();
             }
         }
-        int aliasesSize = in.readVInt();
-        if (aliasesSize > 0) {
-            filteringAliases = new String[aliasesSize];
-            for (int i = 0; i < aliasesSize; i++) {
-                filteringAliases[i] = in.readString();
-            }
-        }
-
+        filteringAliases = new AliasFilter(in);
         explain = in.readBoolean();
         rewrite = in.readBoolean();
         nowInMillis = in.readVLong();
@@ -109,21 +100,12 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeQuery(query);
-
+        out.writeNamedWriteable(query);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeString(type);
         }
-        if (filteringAliases != null) {
-            out.writeVInt(filteringAliases.length);
-            for (String alias : filteringAliases) {
-                out.writeString(alias);
-            }
-        } else {
-            out.writeVInt(0);
-        }
-
+        filteringAliases.writeTo(out);
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
         out.writeVLong(nowInMillis);

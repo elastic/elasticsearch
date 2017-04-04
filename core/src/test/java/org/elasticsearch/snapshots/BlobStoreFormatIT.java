@@ -21,28 +21,22 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
-import org.elasticsearch.repositories.blobstore.LegacyBlobStoreFormat;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -60,16 +54,13 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
-    private static final ParseFieldMatcher parseFieldMatcher = new ParseFieldMatcher(Settings.EMPTY);
-
     public static final String BLOB_CODEC = "blob";
 
-    private static class BlobObj implements ToXContent, FromXContentBuilder<BlobObj> {
-        public static final BlobObj PROTO = new BlobObj("");
+    private static class BlobObj implements ToXContent {
 
         private final String text;
 
-        public BlobObj(String text) {
+        BlobObj(String text) {
             this.text = text;
         }
 
@@ -77,8 +68,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             return text;
         }
 
-        @Override
-        public BlobObj fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        public static BlobObj fromXContent(XContentParser parser) throws IOException {
             String text = null;
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
@@ -115,65 +105,20 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    /**
-     * Extends legacy format with writing functionality. It's used to simulate legacy file formats in tests.
-     */
-    private static final class LegacyEmulationBlobStoreFormat<T extends ToXContent> extends LegacyBlobStoreFormat<T> {
-
-        protected final XContentType xContentType;
-
-        protected final boolean compress;
-
-        public LegacyEmulationBlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress, XContentType xContentType) {
-            super(blobNameFormat, reader, parseFieldMatcher);
-            this.xContentType = xContentType;
-            this.compress = compress;
-        }
-
-        public void write(T obj, BlobContainer blobContainer, String blobName) throws IOException {
-            BytesReference bytes = write(obj);
-            blobContainer.writeBlob(blobName, bytes);
-        }
-
-        private BytesReference write(T obj) throws IOException {
-            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-                if (compress) {
-                    try (StreamOutput compressedStreamOutput = CompressorFactory.defaultCompressor().streamOutput(bytesStreamOutput)) {
-                        write(obj, compressedStreamOutput);
-                    }
-                } else {
-                    write(obj, bytesStreamOutput);
-                }
-                return bytesStreamOutput.bytes();
-            }
-        }
-
-        private void write(T obj, StreamOutput streamOutput) throws IOException {
-            XContentBuilder builder = XContentFactory.contentBuilder(xContentType, streamOutput);
-            builder.startObject();
-            obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
-            builder.endObject();
-            builder.close();
-        }
-    }
-
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        ChecksumBlobStoreFormat<BlobObj> checksumJSON = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, false, XContentType.JSON);
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, false, XContentType.SMILE);
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILECompressed = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, true, XContentType.SMILE);
-        LegacyEmulationBlobStoreFormat<BlobObj> legacyJSON = new LegacyEmulationBlobStoreFormat<>("%s", BlobObj.PROTO, parseFieldMatcher, false, XContentType.JSON);
-        LegacyEmulationBlobStoreFormat<BlobObj> legacySMILE = new LegacyEmulationBlobStoreFormat<>("%s", BlobObj.PROTO, parseFieldMatcher, false, XContentType.SMILE);
-        LegacyEmulationBlobStoreFormat<BlobObj> legacySMILECompressed = new LegacyEmulationBlobStoreFormat<>("%s", BlobObj.PROTO, parseFieldMatcher, true, XContentType.SMILE);
+        ChecksumBlobStoreFormat<BlobObj> checksumJSON = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), false, XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), false, XContentType.SMILE);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILECompressed = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), true, XContentType.SMILE);
 
         // Write blobs in different formats
         checksumJSON.write(new BlobObj("checksum json"), blobContainer, "check-json");
         checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile");
         checksumSMILECompressed.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp");
-        legacyJSON.write(new BlobObj("legacy json"), blobContainer, "legacy-json");
-        legacySMILE.write(new BlobObj("legacy smile"), blobContainer, "legacy-smile");
-        legacySMILECompressed.write(new BlobObj("legacy smile compressed"), blobContainer, "legacy-smile-comp");
 
         // Assert that all checksum blobs can be read by all formats
         assertEquals(checksumJSON.read(blobContainer, "check-json").getText(), "checksum json");
@@ -182,14 +127,6 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         assertEquals(checksumSMILE.read(blobContainer, "check-smile").getText(), "checksum smile");
         assertEquals(checksumJSON.read(blobContainer, "check-smile-comp").getText(), "checksum smile compressed");
         assertEquals(checksumSMILE.read(blobContainer, "check-smile-comp").getText(), "checksum smile compressed");
-
-        // Assert that all legacy blobs can be read be all formats
-        assertEquals(legacyJSON.read(blobContainer, "legacy-json").getText(), "legacy json");
-        assertEquals(legacySMILE.read(blobContainer, "legacy-json").getText(), "legacy json");
-        assertEquals(legacyJSON.read(blobContainer, "legacy-smile").getText(), "legacy smile");
-        assertEquals(legacySMILE.read(blobContainer, "legacy-smile").getText(), "legacy smile");
-        assertEquals(legacyJSON.read(blobContainer, "legacy-smile-comp").getText(), "legacy smile compressed");
-        assertEquals(legacySMILE.read(blobContainer, "legacy-smile-comp").getText(), "legacy smile compressed");
     }
 
     public void testCompressionIsApplied() throws IOException {
@@ -199,8 +136,10 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
         }
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, false, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, true, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), false, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), true, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormatComp.write(blobObj, blobContainer, "blob-comp");
         checksumFormat.write(blobObj, blobContainer, "blob-not-comp");
@@ -214,7 +153,8 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
         String testString = randomAsciiOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         checksumFormat.write(blobObj, blobContainer, "test-path");
         assertEquals(checksumFormat.read(blobContainer, "test-path").getText(), testString);
         randomCorruption(blobContainer, "test-path");
@@ -248,7 +188,8 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
                 return builder;
             }
         };
-        final ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        final ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         ExecutorService threadPool = Executors.newFixedThreadPool(1);
         try {
             Future<Void> future = threadPool.submit(new Callable<Void>() {
@@ -283,7 +224,11 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             int location = randomIntBetween(0, buffer.length - 1);
             buffer[location] = (byte) (buffer[location] ^ 42);
         } while (originalChecksum == checksum(buffer));
-        blobContainer.writeBlob(blobName, new BytesArray(buffer));
+        blobContainer.deleteBlob(blobName); // delete original before writing new blob
+        BytesArray bytesArray = new BytesArray(buffer);
+        try (StreamInput stream = bytesArray.streamInput()) {
+            blobContainer.writeBlob(blobName, stream, bytesArray.length());
+        }
     }
 
     private long checksum(byte[] buffer) throws IOException {

@@ -22,6 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -42,60 +44,44 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Override
-    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         String fieldInQuery = queryBuilder.fieldName();
-        MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
+        MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldInQuery);
         if (fieldType != null) {
             fieldInQuery = fieldType.name();
         }
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
         assertThat(fieldMaskingSpanQuery.getField(), equalTo(fieldInQuery));
-        assertThat(fieldMaskingSpanQuery.getMaskedQuery(), equalTo(queryBuilder.innerQuery().toQuery(context)));
+        assertThat(fieldMaskingSpanQuery.getMaskedQuery(), equalTo(queryBuilder.innerQuery().toQuery(context.getQueryShardContext())));
     }
 
     public void testIllegalArguments() {
-        try {
-            new FieldMaskingSpanQueryBuilder(null, "maskedField");
-            fail("must be non null");
-        } catch (IllegalArgumentException e) {
-            // okay
-        }
-
-        try {
-            SpanQueryBuilder span = new SpanTermQueryBuilder("name", "value");
-            if (randomBoolean()) {
-                new FieldMaskingSpanQueryBuilder(span, null);
-            } else {
-                new FieldMaskingSpanQueryBuilder(span, "");
-            }
-            fail("must be non null");
-        } catch (IllegalArgumentException e) {
-            // okay
-        }
+        expectThrows(IllegalArgumentException.class, () -> new FieldMaskingSpanQueryBuilder(null, "maskedField"));
+        SpanQueryBuilder span = new SpanTermQueryBuilder("name", "value");
+        expectThrows(IllegalArgumentException.class, () -> new FieldMaskingSpanQueryBuilder(span, null));
+        expectThrows(IllegalArgumentException.class, () -> new FieldMaskingSpanQueryBuilder(span, ""));
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"field_masking_span\" : {\n" + 
-                "    \"query\" : {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"value\" : {\n" + 
-                "          \"value\" : 0.5,\n" + 
-                "          \"boost\" : 0.23\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"field\" : \"mapped_geo_shape\",\n" + 
-                "    \"boost\" : 42.0,\n" + 
-                "    \"_name\" : \"KPI\"\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"field_masking_span\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"value\" : {\n" +
+                "          \"value\" : 0.5,\n" +
+                "          \"boost\" : 0.23\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"field\" : \"mapped_geo_shape\",\n" +
+                "    \"boost\" : 42.0,\n" +
+                "    \"_name\" : \"KPI\"\n" +
+                "  }\n" +
                 "}";
-
         FieldMaskingSpanQueryBuilder parsed = (FieldMaskingSpanQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, 42.0, parsed.boost(), 0.00001);
         assertEquals(json, 0.23, parsed.innerQuery().boost(), 0.00001);
     }

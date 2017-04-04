@@ -23,9 +23,6 @@ import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 
-/**
- *
- */
 public class DataOutputStreamOutput extends StreamOutput {
 
     private final DataOutput out;

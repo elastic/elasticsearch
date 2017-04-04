@@ -39,19 +39,19 @@ import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 @ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
 public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
@@ -71,7 +71,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false)).execute().actionGet().isValid(), equalTo(false));
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
@@ -111,14 +111,14 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
-            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("_all:foo"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("(foo:foo | baz:foo)"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }
 
     // Issue #3629
     public void testExplainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -178,7 +178,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                Settings.settingsBuilder().put(indexSettings())
+                Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
@@ -212,7 +212,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=text,analyzer=whitespace")
@@ -256,6 +255,37 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("field:huge field:pidgin"), true);
     }
 
+    public void testExplainWithRewriteValidateQueryAllShards() throws Exception {
+        client().admin().indices().prepareCreate("test")
+            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .setSettings(SETTING_NUMBER_OF_SHARDS, 2).get();
+        // We are relying on specific routing behaviors for the result to be right, so
+        // we cannot randomize the number of shards or change ids here.
+        client().prepareIndex("test", "type1", "1")
+            .setSource("field", "quick lazy huge brown pidgin").get();
+        client().prepareIndex("test", "type1", "2")
+            .setSource("field", "the quick brown fox").get();
+        client().prepareIndex("test", "type1", "3")
+            .setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test", "type1", "4")
+            .setSource("field", "the lazy dog quacks like a duck").get();
+        refresh();
+
+        // prefix queries
+        assertExplanations(QueryBuilders.matchPhrasePrefixQuery("field", "qu"),
+            Arrays.asList(
+                equalTo("field:quick"),
+                allOf(containsString("field:quick"), containsString("field:quacks"))
+            ), true, true);
+        assertExplanations(QueryBuilders.matchPhrasePrefixQuery("field", "ju"),
+            Arrays.asList(
+                equalTo("field:jumps"),
+                equalTo("+MatchNoDocsQuery(\"empty MultiPhraseQuery\") +MatchNoDocsQuery(\"No " +
+                    "terms supplied for org.elasticsearch.common.lucene.search." +
+                    "MultiPhrasePrefixQuery\")")
+            ), true, true);
+    }
+
     public void testIrrelevantPropertiesBeforeQuery() throws IOException {
         createIndex("test");
         ensureGreen();
@@ -283,5 +313,23 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         assertThat(response.getQueryExplanation().get(0).getExplanation(), matcher);
         assertThat(response.isValid(), equalTo(true));
+    }
+
+    private static void assertExplanations(QueryBuilder queryBuilder,
+                                           List<Matcher<String>> matchers, boolean withRewrite,
+                                           boolean allShards) {
+        ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
+            .setTypes("type1")
+            .setQuery(queryBuilder)
+            .setExplain(true)
+            .setRewrite(withRewrite)
+            .setAllShards(allShards)
+            .execute().actionGet();
+        assertThat(response.getQueryExplanation().size(), equalTo(matchers.size()));
+        for (int i = 0; i < matchers.size(); i++) {
+            assertThat(response.getQueryExplanation().get(i).getError(), nullValue());
+            assertThat(response.getQueryExplanation().get(i).getExplanation(), matchers.get(i));
+            assertThat(response.isValid(), equalTo(true));
+        }
     }
 }

@@ -21,66 +21,70 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
-import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+
+import java.util.Map;
 
 /**
  * Utility class to create aggregations.
@@ -93,234 +97,248 @@ public class AggregationBuilders {
     /**
      * Create a new {@link ValueCount} aggregation with the given name.
      */
-    public static ValueCountAggregatorBuilder count(String name) {
-        return new ValueCountAggregatorBuilder(name, null);
+    public static ValueCountAggregationBuilder count(String name) {
+        return new ValueCountAggregationBuilder(name, null);
     }
 
     /**
      * Create a new {@link Avg} aggregation with the given name.
      */
-    public static AvgAggregatorBuilder avg(String name) {
-        return new AvgAggregatorBuilder(name);
+    public static AvgAggregationBuilder avg(String name) {
+        return new AvgAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Max} aggregation with the given name.
      */
-    public static MaxAggregatorBuilder max(String name) {
-        return new MaxAggregatorBuilder(name);
+    public static MaxAggregationBuilder max(String name) {
+        return new MaxAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Min} aggregation with the given name.
      */
-    public static MinAggregatorBuilder min(String name) {
-        return new MinAggregatorBuilder(name);
+    public static MinAggregationBuilder min(String name) {
+        return new MinAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Sum} aggregation with the given name.
      */
-    public static SumAggregatorBuilder sum(String name) {
-        return new SumAggregatorBuilder(name);
+    public static SumAggregationBuilder sum(String name) {
+        return new SumAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Stats} aggregation with the given name.
      */
-    public static StatsAggregatorBuilder stats(String name) {
-        return new StatsAggregatorBuilder(name);
+    public static StatsAggregationBuilder stats(String name) {
+        return new StatsAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link ExtendedStats} aggregation with the given name.
      */
-    public static ExtendedStatsAggregatorBuilder extendedStats(String name) {
-        return new ExtendedStatsAggregatorBuilder(name);
+    public static ExtendedStatsAggregationBuilder extendedStats(String name) {
+        return new ExtendedStatsAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Filter} aggregation with the given name.
      */
-    public static FilterAggregatorBuilder filter(String name, QueryBuilder<?> filter) {
-        return new FilterAggregatorBuilder(name, filter);
+    public static FilterAggregationBuilder filter(String name, QueryBuilder filter) {
+        return new FilterAggregationBuilder(name, filter);
     }
 
     /**
      * Create a new {@link Filters} aggregation with the given name.
      */
-    public static FiltersAggregatorBuilder filters(String name, KeyedFilter... filters) {
-        return new FiltersAggregatorBuilder(name, filters);
+    public static FiltersAggregationBuilder filters(String name, KeyedFilter... filters) {
+        return new FiltersAggregationBuilder(name, filters);
     }
 
     /**
      * Create a new {@link Filters} aggregation with the given name.
      */
-    public static FiltersAggregatorBuilder filters(String name, QueryBuilder<?>... filters) {
-        return new FiltersAggregatorBuilder(name, filters);
+    public static FiltersAggregationBuilder filters(String name, QueryBuilder... filters) {
+        return new FiltersAggregationBuilder(name, filters);
+    }
+    
+    /**
+     * Create a new {@link AdjacencyMatrix} aggregation with the given name.
+     */
+    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, Map<String, QueryBuilder> filters) {
+        return new AdjacencyMatrixAggregationBuilder(name, filters);
+    }    
+    
+    /**
+     * Create a new {@link AdjacencyMatrix} aggregation with the given name and separator
+     */
+    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, String separator,  Map<String, QueryBuilder> filters) {
+        return new AdjacencyMatrixAggregationBuilder(name, separator, filters);
+    }     
+
+    /**
+     * Create a new {@link Sampler} aggregation with the given name.
+     */
+    public static SamplerAggregationBuilder sampler(String name) {
+        return new SamplerAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Sampler} aggregation with the given name.
      */
-    public static SamplerAggregatorBuilder sampler(String name) {
-        return new SamplerAggregatorBuilder(name);
-    }
-
-    /**
-     * Create a new {@link Sampler} aggregation with the given name.
-     */
-    public static DiversifiedAggregatorBuilder diversifiedSampler(String name) {
-        return new DiversifiedAggregatorBuilder(name);
+    public static DiversifiedAggregationBuilder diversifiedSampler(String name) {
+        return new DiversifiedAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Global} aggregation with the given name.
      */
-    public static GlobalAggregatorBuilder global(String name) {
-        return new GlobalAggregatorBuilder(name);
+    public static GlobalAggregationBuilder global(String name) {
+        return new GlobalAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Missing} aggregation with the given name.
      */
-    public static MissingAggregatorBuilder missing(String name) {
-        return new MissingAggregatorBuilder(name, null);
+    public static MissingAggregationBuilder missing(String name) {
+        return new MissingAggregationBuilder(name, null);
     }
 
     /**
      * Create a new {@link Nested} aggregation with the given name.
      */
-    public static NestedAggregatorBuilder nested(String name, String path) {
-        return new NestedAggregatorBuilder(name, path);
+    public static NestedAggregationBuilder nested(String name, String path) {
+        return new NestedAggregationBuilder(name, path);
     }
 
     /**
      * Create a new {@link ReverseNested} aggregation with the given name.
      */
-    public static ReverseNestedAggregatorBuilder reverseNested(String name) {
-        return new ReverseNestedAggregatorBuilder(name);
+    public static ReverseNestedAggregationBuilder reverseNested(String name) {
+        return new ReverseNestedAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Children} aggregation with the given name.
      */
-    public static ChildrenAggregatorBuilder children(String name, String childType) {
-        return new ChildrenAggregatorBuilder(name, childType);
+    public static ChildrenAggregationBuilder children(String name, String childType) {
+        return new ChildrenAggregationBuilder(name, childType);
     }
 
     /**
      * Create a new {@link GeoDistance} aggregation with the given name.
      */
-    public static GeoDistanceAggregatorBuilder geoDistance(String name, GeoPoint origin) {
-        return new GeoDistanceAggregatorBuilder(name, origin);
+    public static GeoDistanceAggregationBuilder geoDistance(String name, GeoPoint origin) {
+        return new GeoDistanceAggregationBuilder(name, origin);
     }
 
     /**
      * Create a new {@link Histogram} aggregation with the given name.
      */
-    public static HistogramAggregatorBuilder histogram(String name) {
-        return new HistogramAggregatorBuilder(name);
+    public static HistogramAggregationBuilder histogram(String name) {
+        return new HistogramAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link GeoHashGrid} aggregation with the given name.
      */
-    public static GeoGridAggregatorBuilder geohashGrid(String name) {
-        return new GeoGridAggregatorBuilder(name);
+    public static GeoGridAggregationBuilder geohashGrid(String name) {
+        return new GeoGridAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link SignificantTerms} aggregation with the given name.
      */
-    public static SignificantTermsAggregatorBuilder significantTerms(String name) {
-        return new SignificantTermsAggregatorBuilder(name, null);
+    public static SignificantTermsAggregationBuilder significantTerms(String name) {
+        return new SignificantTermsAggregationBuilder(name, null);
     }
 
     /**
-     * Create a new {@link DateHistogramAggregatorBuilder} aggregation with the given
+     * Create a new {@link DateHistogramAggregationBuilder} aggregation with the given
      * name.
      */
-    public static DateHistogramAggregatorBuilder dateHistogram(String name) {
-        return new DateHistogramAggregatorBuilder(name);
+    public static DateHistogramAggregationBuilder dateHistogram(String name) {
+        return new DateHistogramAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Range} aggregation with the given name.
      */
-    public static RangeAggregatorBuilder range(String name) {
-        return new RangeAggregatorBuilder(name);
+    public static RangeAggregationBuilder range(String name) {
+        return new RangeAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link DateRangeAggregatorBuilder} aggregation with the
+     * Create a new {@link DateRangeAggregationBuilder} aggregation with the
      * given name.
      */
-    public static DateRangeAggregatorBuilder dateRange(String name) {
-        return new DateRangeAggregatorBuilder(name);
+    public static DateRangeAggregationBuilder dateRange(String name) {
+        return new DateRangeAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link IPv4RangeAggregatorBuilder} aggregation with the
+     * Create a new {@link IpRangeAggregationBuilder} aggregation with the
      * given name.
      */
-    public static IPv4RangeAggregatorBuilder ipRange(String name) {
-        return new IPv4RangeAggregatorBuilder(name);
+    public static IpRangeAggregationBuilder ipRange(String name) {
+        return new IpRangeAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Terms} aggregation with the given name.
      */
-    public static TermsAggregatorBuilder terms(String name) {
-        return new TermsAggregatorBuilder(name, null);
+    public static TermsAggregationBuilder terms(String name) {
+        return new TermsAggregationBuilder(name, null);
     }
 
     /**
      * Create a new {@link Percentiles} aggregation with the given name.
      */
-    public static PercentilesAggregatorBuilder percentiles(String name) {
-        return new PercentilesAggregatorBuilder(name);
+    public static PercentilesAggregationBuilder percentiles(String name) {
+        return new PercentilesAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link PercentileRanks} aggregation with the given name.
      */
-    public static PercentileRanksAggregatorBuilder percentileRanks(String name) {
-        return new PercentileRanksAggregatorBuilder(name);
+    public static PercentileRanksAggregationBuilder percentileRanks(String name) {
+        return new PercentileRanksAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link Cardinality} aggregation with the given name.
      */
-    public static CardinalityAggregatorBuilder cardinality(String name) {
-        return new CardinalityAggregatorBuilder(name, null);
+    public static CardinalityAggregationBuilder cardinality(String name) {
+        return new CardinalityAggregationBuilder(name, null);
     }
 
     /**
      * Create a new {@link TopHits} aggregation with the given name.
      */
-    public static TopHitsAggregatorBuilder topHits(String name) {
-        return new TopHitsAggregatorBuilder(name);
+    public static TopHitsAggregationBuilder topHits(String name) {
+        return new TopHitsAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link GeoBounds} aggregation with the given name.
      */
-    public static GeoBoundsAggregatorBuilder geoBounds(String name) {
-        return new GeoBoundsAggregatorBuilder(name);
+    public static GeoBoundsAggregationBuilder geoBounds(String name) {
+        return new GeoBoundsAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link GeoCentroid} aggregation with the given name.
      */
-    public static GeoCentroidAggregatorBuilder geoCentroid(String name) {
-        return new GeoCentroidAggregatorBuilder(name);
+    public static GeoCentroidAggregationBuilder geoCentroid(String name) {
+        return new GeoCentroidAggregationBuilder(name);
     }
 
     /**
      * Create a new {@link ScriptedMetric} aggregation with the given name.
      */
-    public static ScriptedMetricAggregatorBuilder scriptedMetric(String name) {
-        return new ScriptedMetricAggregatorBuilder(name);
+    public static ScriptedMetricAggregationBuilder scriptedMetric(String name) {
+        return new ScriptedMetricAggregationBuilder(name);
     }
 }

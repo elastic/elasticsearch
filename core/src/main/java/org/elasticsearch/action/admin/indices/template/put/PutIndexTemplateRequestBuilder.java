@@ -24,13 +24,14 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateRequestBuilder
+    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
         super(client, action, new PutIndexTemplateRequest());
@@ -41,10 +42,20 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
-     * Sets the template match expression that will be used to match on indices created.
+     * Sets the match expression that will be used to match on indices created.
+     *
+     * @deprecated Replaced by {@link #setPatterns(List)}
      */
-    public PutIndexTemplateRequestBuilder setTemplate(String template) {
-        request.template(template);
+    @Deprecated
+    public PutIndexTemplateRequestBuilder setTemplate(String indexPattern) {
+        return setPatterns(Collections.singletonList(indexPattern));
+    }
+
+    /**
+     * Sets the match expression that will be used to match on indices created.
+     */
+    public PutIndexTemplateRequestBuilder setPatterns(List<String> indexPatterns) {
+        request.patterns(indexPatterns);
         return this;
     }
 
@@ -57,8 +68,16 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
+     * Sets the optional version of this template.
+     */
+    public PutIndexTemplateRequestBuilder setVersion(Integer version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
      * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
-     * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
+     * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequestBuilder setCreate(boolean create) {
         request.create(create);
@@ -82,15 +101,15 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format)
+     * The settings to crete the index template with (either json or yaml format)
      */
-    public PutIndexTemplateRequestBuilder setSettings(String source) {
-        request.settings(source);
+    public PutIndexTemplateRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format)
+     * The settings to crete the index template with (either json or yaml format)
      */
     public PutIndexTemplateRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);
@@ -102,9 +121,10 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @param xContentType The type/format of the source
      */
-    public PutIndexTemplateRequestBuilder addMapping(String type, String source) {
-        request.mapping(type, source);
+    public PutIndexTemplateRequestBuilder addMapping(String type, String source, XContentType xContentType) {
+        request.mapping(type, source, xContentType);
         return this;
     }
 
@@ -209,32 +229,24 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequestBuilder setSource(String templateSource) {
-        request.source(templateSource);
+    public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource, XContentType xContentType) {
+        request.source(templateSource, xContentType);
         return this;
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource) {
-        request.source(templateSource);
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, XContentType xContentType) {
+        request.source(templateSource, xContentType);
         return this;
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource) {
-        request.source(templateSource);
-        return this;
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length) {
-        request.source(templateSource, offset, length);
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length, XContentType xContentType) {
+        request.source(templateSource, offset, length, xContentType);
         return this;
     }
 }

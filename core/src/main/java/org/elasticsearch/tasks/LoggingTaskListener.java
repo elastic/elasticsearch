@@ -19,7 +19,9 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.logging.Loggers;
 
 /**
@@ -27,7 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
  * need a listener but aren't returning the result to the user.
  */
 public final class LoggingTaskListener<Response> implements TaskListener<Response> {
-    private final static ESLogger logger = Loggers.getLogger(LoggingTaskListener.class);
+    private static final Logger logger = Loggers.getLogger(LoggingTaskListener.class);
 
     /**
      * Get the instance of NoopActionListener cast appropriately.
@@ -49,6 +51,6 @@ public final class LoggingTaskListener<Response> implements TaskListener<Respons
 
     @Override
     public void onFailure(Task task, Throwable e) {
-        logger.warn("{} failed with exception", e, task.getId());
+        logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed with exception", task.getId()), e);
     }
 }

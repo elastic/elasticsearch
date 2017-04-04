@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,16 +27,13 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
-public class SearchStats implements Streamable, ToXContent {
+public class SearchStats extends ToXContentToBytes implements Streamable {
 
     public static class Stats implements Streamable, ToXContent {
 
@@ -309,7 +307,7 @@ public class SearchStats implements Streamable, ToXContent {
         if (groupStats != null && !groupStats.isEmpty()) {
             builder.startObject(Fields.GROUPS);
             for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
-                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
@@ -320,31 +318,25 @@ public class SearchStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString SEARCH = new XContentBuilderString("search");
-        static final XContentBuilderString OPEN_CONTEXTS = new XContentBuilderString("open_contexts");
-        static final XContentBuilderString GROUPS = new XContentBuilderString("groups");
-        static final XContentBuilderString QUERY_TOTAL = new XContentBuilderString("query_total");
-        static final XContentBuilderString QUERY_TIME = new XContentBuilderString("query_time");
-        static final XContentBuilderString QUERY_TIME_IN_MILLIS = new XContentBuilderString("query_time_in_millis");
-        static final XContentBuilderString QUERY_CURRENT = new XContentBuilderString("query_current");
-        static final XContentBuilderString FETCH_TOTAL = new XContentBuilderString("fetch_total");
-        static final XContentBuilderString FETCH_TIME = new XContentBuilderString("fetch_time");
-        static final XContentBuilderString FETCH_TIME_IN_MILLIS = new XContentBuilderString("fetch_time_in_millis");
-        static final XContentBuilderString FETCH_CURRENT = new XContentBuilderString("fetch_current");
-        static final XContentBuilderString SCROLL_TOTAL = new XContentBuilderString("scroll_total");
-        static final XContentBuilderString SCROLL_TIME = new XContentBuilderString("scroll_time");
-        static final XContentBuilderString SCROLL_TIME_IN_MILLIS = new XContentBuilderString("scroll_time_in_millis");
-        static final XContentBuilderString SCROLL_CURRENT = new XContentBuilderString("scroll_current");
-        static final XContentBuilderString SUGGEST_TOTAL = new XContentBuilderString("suggest_total");
-        static final XContentBuilderString SUGGEST_TIME = new XContentBuilderString("suggest_time");
-        static final XContentBuilderString SUGGEST_TIME_IN_MILLIS = new XContentBuilderString("suggest_time_in_millis");
-        static final XContentBuilderString SUGGEST_CURRENT = new XContentBuilderString("suggest_current");
-    }
-
-    public static SearchStats readSearchStats(StreamInput in) throws IOException {
-        SearchStats searchStats = new SearchStats();
-        searchStats.readFrom(in);
-        return searchStats;
+        static final String SEARCH = "search";
+        static final String OPEN_CONTEXTS = "open_contexts";
+        static final String GROUPS = "groups";
+        static final String QUERY_TOTAL = "query_total";
+        static final String QUERY_TIME = "query_time";
+        static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";
+        static final String QUERY_CURRENT = "query_current";
+        static final String FETCH_TOTAL = "fetch_total";
+        static final String FETCH_TIME = "fetch_time";
+        static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";
+        static final String FETCH_CURRENT = "fetch_current";
+        static final String SCROLL_TOTAL = "scroll_total";
+        static final String SCROLL_TIME = "scroll_time";
+        static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";
+        static final String SCROLL_CURRENT = "scroll_current";
+        static final String SUGGEST_TOTAL = "suggest_total";
+        static final String SUGGEST_TIME = "suggest_time";
+        static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
+        static final String SUGGEST_CURRENT = "suggest_current";
     }
 
     @Override
@@ -352,11 +344,7 @@ public class SearchStats implements Streamable, ToXContent {
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {
-            int size = in.readVInt();
-            groupStats = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                groupStats.put(in.readString(), Stats.readStats(in));
-            }
+            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
         }
     }
 
@@ -368,24 +356,7 @@ public class SearchStats implements Streamable, ToXContent {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(groupStats.size());
-            for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        }
-    }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            out.writeMap(groupStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }

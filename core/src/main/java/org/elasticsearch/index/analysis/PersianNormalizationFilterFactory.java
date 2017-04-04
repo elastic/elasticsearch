@@ -24,10 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
-public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public PersianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -38,4 +35,8 @@ public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactor
         return new PersianNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
 }

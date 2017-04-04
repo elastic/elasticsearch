@@ -8,15 +8,19 @@ For example, the following command would show recovery information for the indic
 
 [source,js]
 --------------------------------------------------
-curl -XGET http://localhost:9200/index1,index2/_recovery
+GET index1,index2/_recovery?human
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\nPUT index2\n/]
 
 To see cluster-wide recovery status simply leave out the index names.
 
 [source,js]
 --------------------------------------------------
-curl -XGET http://localhost:9200/_recovery?pretty&human
+GET /_recovery?human
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
 
 Response:
 [source,js]
@@ -30,7 +34,7 @@ Response:
       "primary" : true,
       "start_time" : "2014-02-24T12:15:59.716",
       "start_time_in_millis": 1393244159716,
-      "total_time" : "2.9m"
+      "total_time" : "2.9m",
       "total_time_in_millis" : 175576,
       "source" : {
         "repository" : "my_repository",
@@ -45,7 +49,7 @@ Response:
       },
       "index" : {
         "size" : {
-          "total" : "75.4mb"
+          "total" : "75.4mb",
           "total_in_bytes" : 79063092,
           "reused" : "0b",
           "reused_in_bytes" : 0,
@@ -68,7 +72,7 @@ Response:
         "percent" : "100.0%",
         "total_on_start" : 0,
         "total_time" : "0s",
-        "total_time_in_millis" : 0
+        "total_time_in_millis" : 0,
       },
       "start" : {
         "check_index_time" : "0s",
@@ -80,6 +84,7 @@ Response:
   }
 }
 --------------------------------------------------
+// We should really assert that this is up to date but that is hard!
 
 The above response shows a single index recovering a single shard. In this case, the source of the recovery is a snapshot repository
 and the target of the recovery is the node with name "my_es_node".
@@ -90,7 +95,7 @@ In some cases a higher level of detail may be preferable. Setting "detailed=true
 
 [source,js]
 --------------------------------------------------
-curl -XGET http://localhost:9200/_recovery?pretty&human&detailed=true
+GET _recovery?human&detailed=true
 --------------------------------------------------
 
 Response:
@@ -170,6 +175,7 @@ Response:
   }
 }
 --------------------------------------------------
+// We should really assert that this is up to date but that is hard!
 
 This response shows a detailed listing (truncated for brevity) of the actual files recovered and their sizes.
 

@@ -3,8 +3,10 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-snapshots.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/snapshots/{repository}",
-      "paths": ["/_cat/snapshots/{repository}"],
+      "path": "/_cat/snapshots",
+      "paths": [
+        "/_cat/snapshots",
+        "/_cat/snapshots/{repository}"],
       "parts": {
         "repository": {
           "type" : "list",
@@ -34,6 +36,10 @@
           "type": "boolean",
           "description": "Return help information",
           "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
         },
         "v": {
           "type": "boolean",

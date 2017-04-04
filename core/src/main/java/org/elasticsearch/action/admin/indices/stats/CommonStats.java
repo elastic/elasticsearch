@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,15 +32,13 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -48,10 +46,59 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.Stream;
 
-/**
- */
-public class CommonStats implements Streamable, ToXContent {
+public class CommonStats implements Writeable, ToXContent {
+
+    @Nullable
+    public DocsStats docs;
+
+    @Nullable
+    public StoreStats store;
+
+    @Nullable
+    public IndexingStats indexing;
+
+    @Nullable
+    public GetStats get;
+
+    @Nullable
+    public SearchStats search;
+
+    @Nullable
+    public MergeStats merge;
+
+    @Nullable
+    public RefreshStats refresh;
+
+    @Nullable
+    public FlushStats flush;
+
+    @Nullable
+    public WarmerStats warmer;
+
+    @Nullable
+    public QueryCacheStats queryCache;
+
+    @Nullable
+    public FieldDataStats fieldData;
+
+    @Nullable
+    public CompletionStats completion;
+
+    @Nullable
+    public SegmentsStats segments;
+
+    @Nullable
+    public TranslogStats translog;
+
+    @Nullable
+    public RequestCacheStats requestCache;
+
+    @Nullable
+    public RecoveryStats recoveryStats;
 
     public CommonStats() {
         this(CommonStatsFlags.NONE);
@@ -101,9 +148,6 @@ public class CommonStats implements Streamable, ToXContent {
                 case Segments:
                     segments = new SegmentsStats();
                     break;
-                case PercolatorCache:
-                    percolatorCache = new PercolatorQueryCacheStats();
-                    break;
                 case Translog:
                     translog = new TranslogStats();
                     break;
@@ -122,12 +166,8 @@ public class CommonStats implements Streamable, ToXContent {
         }
     }
 
-
-    public CommonStats(IndicesQueryCache indicesQueryCache, PercolatorQueryCache percolatorQueryCache,
-                       IndexShard indexShard, CommonStatsFlags flags) {
-
+    public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
         CommonStatsFlags.Flag[] setFlags = flags.getFlags();
-
         for (CommonStatsFlags.Flag flag : setFlags) {
             switch (flag) {
                 case Docs:
@@ -169,9 +209,6 @@ public class CommonStats implements Streamable, ToXContent {
                 case Segments:
                     segments = indexShard.segmentStats(flags.includeSegmentFileSizes());
                     break;
-                case PercolatorCache:
-                    percolatorCache = percolatorQueryCache.getStats(indexShard.shardId());
-                    break;
                 case Translog:
                     translog = indexShard.translogStats();
                     break;
@@ -190,56 +227,44 @@ public class CommonStats implements Streamable, ToXContent {
         }
     }
 
-    @Nullable
-    public DocsStats docs;
+    public CommonStats(StreamInput in) throws IOException {
+        docs = in.readOptionalStreamable(DocsStats::new);
+        store = in.readOptionalStreamable(StoreStats::new);
+        indexing = in.readOptionalStreamable(IndexingStats::new);
+        get = in.readOptionalStreamable(GetStats::new);
+        search = in.readOptionalStreamable(SearchStats::new);
+        merge = in.readOptionalStreamable(MergeStats::new);
+        refresh =  in.readOptionalStreamable(RefreshStats::new);
+        flush =  in.readOptionalStreamable(FlushStats::new);
+        warmer =  in.readOptionalStreamable(WarmerStats::new);
+        queryCache = in.readOptionalStreamable(QueryCacheStats::new);
+        fieldData =  in.readOptionalStreamable(FieldDataStats::new);
+        completion =  in.readOptionalStreamable(CompletionStats::new);
+        segments =  in.readOptionalStreamable(SegmentsStats::new);
+        translog = in.readOptionalStreamable(TranslogStats::new);
+        requestCache = in.readOptionalStreamable(RequestCacheStats::new);
+        recoveryStats = in.readOptionalStreamable(RecoveryStats::new);
+    }
 
-    @Nullable
-    public StoreStats store;
-
-    @Nullable
-    public IndexingStats indexing;
-
-    @Nullable
-    public GetStats get;
-
-    @Nullable
-    public SearchStats search;
-
-    @Nullable
-    public MergeStats merge;
-
-    @Nullable
-    public RefreshStats refresh;
-
-    @Nullable
-    public FlushStats flush;
-
-    @Nullable
-    public WarmerStats warmer;
-
-    @Nullable
-    public QueryCacheStats queryCache;
-
-    @Nullable
-    public FieldDataStats fieldData;
-
-    @Nullable
-    public PercolatorQueryCacheStats percolatorCache;
-
-    @Nullable
-    public CompletionStats completion;
-
-    @Nullable
-    public SegmentsStats segments;
-
-    @Nullable
-    public TranslogStats translog;
-
-    @Nullable
-    public RequestCacheStats requestCache;
-
-    @Nullable
-    public RecoveryStats recoveryStats;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalStreamable(docs);
+        out.writeOptionalStreamable(store);
+        out.writeOptionalStreamable(indexing);
+        out.writeOptionalStreamable(get);
+        out.writeOptionalStreamable(search);
+        out.writeOptionalStreamable(merge);
+        out.writeOptionalStreamable(refresh);
+        out.writeOptionalStreamable(flush);
+        out.writeOptionalStreamable(warmer);
+        out.writeOptionalStreamable(queryCache);
+        out.writeOptionalStreamable(fieldData);
+        out.writeOptionalStreamable(completion);
+        out.writeOptionalStreamable(segments);
+        out.writeOptionalStreamable(translog);
+        out.writeOptionalStreamable(requestCache);
+        out.writeOptionalStreamable(recoveryStats);
+    }
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -330,14 +355,6 @@ public class CommonStats implements Streamable, ToXContent {
             }
         } else {
             fieldData.add(stats.getFieldData());
-        }
-        if (percolatorCache == null) {
-            if (stats.getPercolatorCache() != null) {
-                percolatorCache = new PercolatorQueryCacheStats();
-                percolatorCache.add(stats.getPercolatorCache());
-            }
-        } else {
-            percolatorCache.add(stats.getPercolatorCache());
         }
         if (completion == null) {
             if (stats.getCompletion() != null) {
@@ -437,11 +454,6 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public PercolatorQueryCacheStats getPercolatorCache() {
-        return percolatorCache;
-    }
-
-    @Nullable
     public CompletionStats getCompletion() {
         return completion;
     }
@@ -466,12 +478,6 @@ public class CommonStats implements Streamable, ToXContent {
         return recoveryStats;
     }
 
-    public static CommonStats readCommonStats(StreamInput in) throws IOException {
-        CommonStats stats = new CommonStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (memory, index writer, version map)
@@ -493,199 +499,15 @@ public class CommonStats implements Streamable, ToXContent {
         return new ByteSizeValue(size);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            docs = DocsStats.readDocStats(in);
-        }
-        if (in.readBoolean()) {
-            store = StoreStats.readStoreStats(in);
-        }
-        if (in.readBoolean()) {
-            indexing = IndexingStats.readIndexingStats(in);
-        }
-        if (in.readBoolean()) {
-            get = GetStats.readGetStats(in);
-        }
-        if (in.readBoolean()) {
-            search = SearchStats.readSearchStats(in);
-        }
-        if (in.readBoolean()) {
-            merge = MergeStats.readMergeStats(in);
-        }
-        if (in.readBoolean()) {
-            refresh = RefreshStats.readRefreshStats(in);
-        }
-        if (in.readBoolean()) {
-            flush = FlushStats.readFlushStats(in);
-        }
-        if (in.readBoolean()) {
-            warmer = WarmerStats.readWarmerStats(in);
-        }
-        if (in.readBoolean()) {
-            queryCache = QueryCacheStats.readQueryCacheStats(in);
-        }
-        if (in.readBoolean()) {
-            fieldData = FieldDataStats.readFieldDataStats(in);
-        }
-        if (in.readBoolean()) {
-            percolatorCache = PercolatorQueryCacheStats.readPercolateStats(in);
-        }
-        if (in.readBoolean()) {
-            completion = CompletionStats.readCompletionStats(in);
-        }
-        if (in.readBoolean()) {
-            segments = SegmentsStats.readSegmentsStats(in);
-        }
-        translog = in.readOptionalStreamable(TranslogStats::new);
-        requestCache = in.readOptionalStreamable(RequestCacheStats::new);
-        recoveryStats = in.readOptionalStreamable(RecoveryStats::new);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (docs == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            docs.writeTo(out);
-        }
-        if (store == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            store.writeTo(out);
-        }
-        if (indexing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            indexing.writeTo(out);
-        }
-        if (get == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            get.writeTo(out);
-        }
-        if (search == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            search.writeTo(out);
-        }
-        if (merge == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            merge.writeTo(out);
-        }
-        if (refresh == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            refresh.writeTo(out);
-        }
-        if (flush == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            flush.writeTo(out);
-        }
-        if (warmer == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            warmer.writeTo(out);
-        }
-        if (queryCache == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            queryCache.writeTo(out);
-        }
-        if (fieldData == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            fieldData.writeTo(out);
-        }
-        if (percolatorCache == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            percolatorCache.writeTo(out);
-        }
-        if (completion == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            completion.writeTo(out);
-        }
-        if (segments == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            segments.writeTo(out);
-        }
-        out.writeOptionalStreamable(translog);
-        out.writeOptionalStreamable(requestCache);
-        out.writeOptionalStreamable(recoveryStats);
-    }
-
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (docs != null) {
-            docs.toXContent(builder, params);
-        }
-        if (store != null) {
-            store.toXContent(builder, params);
-        }
-        if (indexing != null) {
-            indexing.toXContent(builder, params);
-        }
-        if (get != null) {
-            get.toXContent(builder, params);
-        }
-        if (search != null) {
-            search.toXContent(builder, params);
-        }
-        if (merge != null) {
-            merge.toXContent(builder, params);
-        }
-        if (refresh != null) {
-            refresh.toXContent(builder, params);
-        }
-        if (flush != null) {
-            flush.toXContent(builder, params);
-        }
-        if (warmer != null) {
-            warmer.toXContent(builder, params);
-        }
-        if (queryCache != null) {
-            queryCache.toXContent(builder, params);
-        }
-        if (fieldData != null) {
-            fieldData.toXContent(builder, params);
-        }
-        if (percolatorCache != null) {
-            percolatorCache.toXContent(builder, params);
-        }
-        if (completion != null) {
-            completion.toXContent(builder, params);
-        }
-        if (segments != null) {
-            segments.toXContent(builder, params);
-        }
-        if (translog != null) {
-            translog.toXContent(builder, params);
-        }
-        if (requestCache != null) {
-            requestCache.toXContent(builder, params);
-        }
-        if (recoveryStats != null) {
-            recoveryStats.toXContent(builder, params);
+        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
+            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
+            fieldData, completion, segments, translog, requestCache, recoveryStats})
+            .filter(Objects::nonNull);
+        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+            toXContent.toXContent(builder, params);
         }
         return builder;
     }

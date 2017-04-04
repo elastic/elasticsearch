@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
@@ -34,17 +34,17 @@ import java.util.Locale;
 /**
  * Simple class to log {@code ifconfig}-style output at DEBUG logging.
  */
-final class IfConfig {
+public final class IfConfig {
 
-    private static final ESLogger logger = Loggers.getLogger(IfConfig.class);
+    private static final Logger logger = Loggers.getLogger(IfConfig.class);
     private static final String INDENT = "        ";
 
     /** log interface configuration at debug level, if its enabled */
-    static void logIfNecessary() {
+    public static void logIfNecessary() {
         if (logger.isDebugEnabled()) {
             try {
                 doLogging();
-            } catch (IOException | SecurityException e) {
+            } catch (IOException e) {
                 logger.warn("unable to gather network information", e);
             }
         }
@@ -114,14 +114,14 @@ final class IfConfig {
         InetAddress address = interfaceAddress.getAddress();
         if (address instanceof Inet6Address) {
             sb.append("inet6 ");
-            sb.append(NetworkAddress.formatAddress(address));
+            sb.append(NetworkAddress.format(address));
             sb.append(" prefixlen:");
             sb.append(interfaceAddress.getNetworkPrefixLength());
         } else {
             sb.append("inet ");
-            sb.append(NetworkAddress.formatAddress(address));
+            sb.append(NetworkAddress.format(address));
             int netmask = 0xFFFFFFFF << (32 - interfaceAddress.getNetworkPrefixLength());
-            sb.append(" netmask:" + NetworkAddress.formatAddress(InetAddress.getByAddress(new byte[] {
+            sb.append(" netmask:" + NetworkAddress.format(InetAddress.getByAddress(new byte[] {
                     (byte)(netmask >>> 24),
                     (byte)(netmask >>> 16 & 0xFF),
                     (byte)(netmask >>> 8 & 0xFF),
@@ -129,7 +129,7 @@ final class IfConfig {
             })));
             InetAddress broadcast = interfaceAddress.getBroadcast();
             if (broadcast != null) {
-                sb.append(" broadcast:" + NetworkAddress.formatAddress(broadcast));
+                sb.append(" broadcast:" + NetworkAddress.format(broadcast));
             }
         }
         if (address.isLoopbackAddress()) {

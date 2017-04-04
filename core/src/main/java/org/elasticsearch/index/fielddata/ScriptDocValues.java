@@ -22,34 +22,66 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
+import org.joda.time.ReadableDateTime;
 
 import java.util.AbstractList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 
 /**
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public interface ScriptDocValues<T> extends List<T> {
-
+public abstract class ScriptDocValues<T> extends AbstractList<T> {
     /**
      * Set the current doc ID.
      */
-    void setNextDocId(int docId);
+    public abstract void setNextDocId(int docId);
 
     /**
      * Return a copy of the list of the values for the current document.
      */
-    List<T> getValues();
+    public final List<T> getValues() {
+        return this;
+    }
 
-    public final static class Strings extends AbstractList<String> implements ScriptDocValues<String> {
+    // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
+    @Override
+    public final void add(int index, T element) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final boolean remove(Object o) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final void replaceAll(UnaryOperator<T> operator) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final T set(int index, T element) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final void sort(Comparator<? super T> c) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    public static final class Strings extends ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
 
@@ -84,11 +116,6 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         @Override
-        public List<String> getValues() {
-            return Collections.unmodifiableList(this);
-        }
-
-        @Override
         public String get(int index) {
             return values.valueAt(index).utf8ToString();
         }
@@ -100,10 +127,11 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Longs extends AbstractList<Long> implements ScriptDocValues<Long> {
+    public static final class Longs extends ScriptDocValues<Long> {
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
 
         private final SortedNumericDocValues values;
-        private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
+        private Dates dates;
 
         public Longs(SortedNumericDocValues values) {
             this.values = values;
@@ -112,6 +140,9 @@ public interface ScriptDocValues<T> extends List<T> {
         @Override
         public void setNextDocId(int docId) {
             values.setDocument(docId);
+            if (dates != null) {
+                dates.refreshArray();
+            }
         }
 
         public SortedNumericDocValues getInternalValues() {
@@ -126,14 +157,24 @@ public interface ScriptDocValues<T> extends List<T> {
             return values.valueAt(0);
         }
 
-        @Override
-        public List<Long> getValues() {
-            return Collections.unmodifiableList(this);
+        @Deprecated
+        public ReadableDateTime getDate() {
+            deprecationLogger.deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
+            if (dates == null) {
+                dates = new Dates(values);
+                dates.refreshArray();
+            }
+            return dates.getValue();
         }
 
-        public MutableDateTime getDate() {
-            date.setMillis(getValue());
-            return date;
+        @Deprecated
+        public List<ReadableDateTime> getDates() {
+            deprecationLogger.deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
+            if (dates == null) {
+                dates = new Dates(values);
+                dates.refreshArray();
+            }
+            return dates;
         }
 
         @Override
@@ -145,10 +186,107 @@ public interface ScriptDocValues<T> extends List<T> {
         public int size() {
             return values.count();
         }
-
     }
 
-    public static class Doubles extends AbstractList<Double> implements ScriptDocValues<Double> {
+    public static final class Dates extends ScriptDocValues<ReadableDateTime> {
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+
+        private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+
+        private final SortedNumericDocValues values;
+        /**
+         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
+         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         */
+        private MutableDateTime[] dates;
+
+        public Dates(SortedNumericDocValues values) {
+            this.values = values;
+        }
+
+        /**
+         * Fetch the first field value or 0 millis after epoch if there are no values.
+         */
+        public ReadableDateTime getValue() {
+            if (values.count() == 0) {
+                return EPOCH;
+            }
+            return get(0);
+        }
+
+        /**
+         * Fetch the first value. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
+         */
+        @Deprecated
+        public ReadableDateTime getDate() {
+            deprecationLogger.deprecated("getDate is no longer necisary on date fields as the value is now a date.");
+            return getValue();
+        }
+
+        /**
+         * Fetch all the values. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
+         */
+        @Deprecated
+        public List<ReadableDateTime> getDates() {
+            deprecationLogger.deprecated("getDates is no longer necisary on date fields as the values are now dates.");
+            return this;
+        }
+
+        @Override
+        public ReadableDateTime get(int index) {
+            if (index >= values.count()) {
+                throw new IndexOutOfBoundsException(
+                        "attempted to fetch the [" + index + "] date when there are only [" + values.count() + "] dates.");
+            }
+            return dates[index];
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
+            refreshArray();
+        }
+
+        /**
+         * Refresh the backing array. Package private so it can be called when {@link Longs} loads dates.
+         */
+        void refreshArray() {
+            if (values.count() == 0) {
+                return;
+            }
+            if (dates == null) {
+                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
+                dates = new MutableDateTime[values.count()];
+                for (int i = 0; i < dates.length; i++) {
+                    dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
+                }
+                return;
+            }
+            if (values.count() > dates.length) {
+                // Happens when we move to a new document and it has more dates than any documents before it.
+                MutableDateTime[] backup = dates;
+                dates = new MutableDateTime[values.count()];
+                System.arraycopy(backup, 0, dates, 0, backup.length);
+                for (int i = 0; i < backup.length; i++) {
+                    dates[i].setMillis(values.valueAt(i));
+                }
+                for (int i = backup.length; i < dates.length; i++) {
+                    dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
+                }
+                return;
+            }
+            for (int i = 0; i < values.count(); i++) {
+                dates[i].setMillis(values.valueAt(i));
+            }
+        }
+    }
+
+    public static final class Doubles extends ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues values;
 
@@ -174,11 +312,6 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         @Override
-        public List<Double> getValues() {
-            return Collections.unmodifiableList(this);
-        }
-
-        @Override
         public Double get(int index) {
             return values.valueAt(index);
         }
@@ -189,7 +322,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    public static class GeoPoints extends AbstractList<GeoPoint> implements ScriptDocValues<GeoPoint> {
+    public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
 
         private final MultiGeoPointValues values;
 
@@ -237,11 +370,6 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         @Override
-        public List<GeoPoint> getValues() {
-            return Collections.unmodifiableList(this);
-        }
-
-        @Override
         public GeoPoint get(int index) {
             final GeoPoint point = values.valueAt(index);
             return new GeoPoint(point.lat(), point.lon());
@@ -252,124 +380,106 @@ public interface ScriptDocValues<T> extends List<T> {
             return values.count();
         }
 
-        public double factorDistance(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
-        }
-
-        public double factorDistanceWithDefault(double lat, double lon, double defaultValue) {
-            if (isEmpty()) {
-                return defaultValue;
-            }
-            GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
-        }
-
-        public double factorDistance02(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT) + 1;
-        }
-
-        public double factorDistance13(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT) + 2;
-        }
-
         public double arcDistance(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
+            return GeoUtils.arcDistance(point.lat(), point.lon(), lat, lon);
         }
 
         public double arcDistanceWithDefault(double lat, double lon, double defaultValue) {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
+            return arcDistance(lat, lon);
         }
 
-        public double arcDistanceInKm(double lat, double lon) {
+        public double planeDistance(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
+            return GeoUtils.planeDistance(point.lat(), point.lon(), lat, lon);
         }
 
-        public double arcDistanceInKmWithDefault(double lat, double lon, double defaultValue) {
+        public double planeDistanceWithDefault(double lat, double lon, double defaultValue) {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
-        }
-
-        public double arcDistanceInMiles(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
-        }
-
-        public double arcDistanceInMilesWithDefault(double lat, double lon, double defaultValue) {
-            if (isEmpty()) {
-                return defaultValue;
-            }
-            GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
-        }
-
-        public double distance(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
-        }
-
-        public double distanceWithDefault(double lat, double lon, double defaultValue) {
-            if (isEmpty()) {
-                return defaultValue;
-            }
-            GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
-        }
-
-        public double distanceInKm(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
-        }
-
-        public double distanceInKmWithDefault(double lat, double lon, double defaultValue) {
-            if (isEmpty()) {
-                return defaultValue;
-            }
-            GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
-        }
-
-        public double distanceInMiles(double lat, double lon) {
-            GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
-        }
-
-        public double distanceInMilesWithDefault(double lat, double lon, double defaultValue) {
-            if (isEmpty()) {
-                return defaultValue;
-            }
-            GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return planeDistance(lat, lon);
         }
 
         public double geohashDistance(String geohash) {
             GeoPoint point = getValue();
-            GeoPoint p = new GeoPoint().resetFromGeoHash(geohash);
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), p.lat(), p.lon(), DistanceUnit.DEFAULT);
+            return GeoUtils.arcDistance(point.lat(), point.lon(), GeoHashUtils.decodeLatitude(geohash),
+                GeoHashUtils.decodeLongitude(geohash));
         }
 
-        public double geohashDistanceInKm(String geohash) {
-            GeoPoint point = getValue();
-            GeoPoint p = new GeoPoint().resetFromGeoHash(geohash);
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), p.lat(), p.lon(), DistanceUnit.KILOMETERS);
+        public double geohashDistanceWithDefault(String geohash, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            return geohashDistance(geohash);
+        }
+    }
+
+    public static final class Booleans extends ScriptDocValues<Boolean> {
+
+        private final SortedNumericDocValues values;
+
+        public Booleans(SortedNumericDocValues values) {
+            this.values = values;
         }
 
-        public double geohashDistanceInMiles(String geohash) {
-            GeoPoint point = getValue();
-            GeoPoint p = new GeoPoint().resetFromGeoHash(geohash);
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), p.lat(), p.lon(), DistanceUnit.MILES);
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
         }
 
+        public boolean getValue() {
+            return values.count() != 0 && values.valueAt(0) == 1;
+        }
+
+        @Override
+        public Boolean get(int index) {
+            return values.valueAt(index) == 1;
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+
+    }
+
+    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
+
+        private final SortedBinaryDocValues values;
+
+        public BytesRefs(SortedBinaryDocValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
+        }
+
+        public SortedBinaryDocValues getInternalValues() {
+            return this.values;
+        }
+
+        public BytesRef getValue() {
+            int numValues = values.count();
+            if (numValues == 0) {
+                return new BytesRef();
+            }
+            return values.valueAt(0);
+        }
+
+        @Override
+        public BytesRef get(int index) {
+            return values.valueAt(index);
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
     }
 }

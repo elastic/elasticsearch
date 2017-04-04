@@ -31,7 +31,12 @@ Defaults to `_local_`.
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the
 initial list of other nodes that this node will try to contact. Accepts IP
-addresses or hostnames.
+addresses or hostnames.  If a hostname lookup resolves to multiple IP
+addresses then each IP address will be used for discovery.
+https://en.wikipedia.org/wiki/Round-robin_DNS[Round robin DNS] -- returning a
+different IP from a list on each lookup -- can be used for discovery; non-
+existent IP addresses will throw exceptions and cause another DNS lookup
+on the next round of pinging (subject to JVM DNS caching).
 +
 Defaults to `["127.0.0.1", "[::1]"]`.
 
@@ -115,7 +120,7 @@ The publish host is the single interface that the node advertises to other
 nodes in the cluster, so that those nodes can connect to it.   Currently an
 elasticsearch node may be bound to multiple addresses, but only publishes one.
 If not specified, this defaults to the ``best'' address from
-`network.bind_host`, sorted by IPv4/IPv6 stack preference, then by
+`network.host`, sorted by IPv4/IPv6 stack preference, then by
 reachability.
 
 Both of the above settings can be configured just like `network.host` -- they

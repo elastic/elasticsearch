@@ -1,0 +1,475 @@
+---
+"Index data and search on the upgraded cluster":
+ - do:
+     cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+
+ - do:
+     search:
+       index: test_index
+
+ - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
+
+ - do:
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v1_upgraded", "f2": 10}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v2_upgraded", "f2": 11}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v3_upgraded", "f2": 12}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v4_upgraded", "f2": 13}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v5_upgraded", "f2": 14}'
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
+
+---
+"Verify custom cluster metadata still exists after rolling upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+---
+"Test rolling upgrade for stored scripts between the old namespace and the new namespace":
+  - skip:
+      version: " - 6.0.0"
+      reason: test fails when using bwc version 5.3.0-SNAPSHOT
+      features: warnings
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+
+  - do:
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "match_all": {
+            }
+          }
+        }
+  - match: { hits.total: 3 }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "greater"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "greater" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value > 1.0" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "expression"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying the field [lang] for executing stored scripts is deprecated; use only the field [stored] to specify an <id>'
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "script": {
+              "script": {
+                "stored": "greater",
+                "lang": "painless"
+              }
+            }
+          },
+          "script_fields": {
+            "script_painless": {
+              "script": {
+                "stored": "value",
+                "lang": "painless"
+              }
+            },
+            "script_expressions": {
+              "script": {
+                "stored": "value",
+                "lang": "expression"
+              }
+            }
+          },
+          "sort": {
+            "num": {
+              "order": "asc"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0.fields.script_painless.0: 2.0 }
+  - match: { hits.hits.1.fields.script_painless.0: 3.0 }
+  - match: { hits.hits.0.fields.script_expressions.0: 2.0 }
+  - match: { hits.hits.1.fields.script_expressions.0: 3.0 }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated, use request content instead'
+      put_script:
+        id: "greater"
+        lang: "painless"
+        body: {
+          "script": "doc['num'].value > 1.0"
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      warnings:
+          - 'specifying lang [painless] as part of the url path is deprecated, use request content instead'
+      put_script:
+        id: "value"
+        lang: "painless"
+        body: {
+          "script": "doc['num'].value"
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      warnings:
+          - 'specifying lang [expression] as part of the url path is deprecated, use request content instead'
+          - 'stored script [value] already exists using a different lang [painless], the new namespace for stored scripts will only use (id) instead of (lang, id)'
+      put_script:
+        id: "value"
+        lang: "expression"
+        body: {
+          "script": "doc['num'].value"
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "greater"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "greater" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value > 1.0" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "expression"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying the field [lang] for executing stored scripts is deprecated; use only the field [stored] to specify an <id>'
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "script": {
+              "script": {
+                "stored": "greater",
+                "lang": "painless"
+              }
+            }
+          },
+          "script_fields": {
+            "script_painless": {
+              "script": {
+                "stored": "value"
+              }
+            },
+            "script_expressions": {
+              "script": {
+                "stored": "value",
+                "lang": "expression"
+              }
+            }
+          },
+          "sort": {
+            "num": {
+              "order": "asc"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0.fields.script_painless.0: 2.0 }
+  - match: { hits.hits.1.fields.script_painless.0: 3.0 }
+  - match: { hits.hits.0.fields.script_expressions.0: 2.0 }
+  - match: { hits.hits.1.fields.script_expressions.0: 3.0 }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      delete_script:
+        id: "value"
+        lang: "painless"
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        lang: "value"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { script.lang: "expression"}
+  - match: { script.code: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "expression"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      catch: missing
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { found: false }
+  - match: { _id: "value" }
+
+  - do:
+      warnings:
+        - 'stored script [value] already exists using a different lang [expression], the new namespace for stored scripts will only use (id) instead of (lang, id)'
+      put_script:
+        lang: "value"
+        body: {
+          "script": {
+            "code": "doc['num'].value",
+            "lang": "painless"
+          }
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        lang: "value"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { script.lang: "painless"}
+  - match: { script.code: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "expression"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "painless"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'stored script [value] already exists using a different lang [painless], the new namespace for stored scripts will only use (id) instead of (lang, id)'
+      put_script:
+        lang: "value"
+        body: {
+          "script": {
+            "code": "doc['num'].value",
+            "lang": "expression"
+          }
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        lang: "value"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { script.lang: "expression"}
+  - match: { script.code: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "expression"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "painless"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      delete_script:
+        lang: "value"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      get_script:
+        lang: "value"
+  - match: { found: false }
+  - match: { _id: "value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      catch: missing
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { found: false }
+  - match: { _id: "value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "painless"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      put_script:
+        lang: "value"
+        body: {
+          "script": {
+            "code": "doc['num'].value",
+            "lang": "painless"
+          }
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        lang: "value"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { script.lang: "painless"}
+  - match: { script.code: "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      catch: missing
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { found: false }
+  - match: { _id: "value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { found: true }
+  - match: { _id: "value" }
+  - match: { lang: "painless"}
+  - match: { script: "doc['num'].value" }
+
+  - do:
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "script": {
+              "script": {
+                "stored": "greater"
+              }
+            }
+          },
+          "script_fields": {
+            "script_painless": {
+              "script": {
+                "stored": "value"
+              }
+            }
+          },
+          "sort": {
+            "num": {
+              "order": "asc"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0.fields.script_painless.0: 2.0 }
+  - match: { hits.hits.1.fields.script_painless.0: 3.0 }

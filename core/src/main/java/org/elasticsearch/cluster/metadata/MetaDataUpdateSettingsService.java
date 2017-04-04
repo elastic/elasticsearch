@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,7 +34,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,7 +44,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,8 +55,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -63,27 +65,30 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
+    private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, IndexScopedSettings indexScopedSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.clusterService.add(this);
+        this.threadPool = threadPool;
+        this.clusterService.addListener(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
+        this.indicesService = indicesService;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // update an index with number of replicas based on data nodes if possible
-        if (!event.state().nodes().localNodeMaster()) {
+        if (!event.state().nodes().isLocalNodeElectedMaster()) {
             return;
         }
         // we will want to know this for translating "all" to a number
-        final int dataNodeCount = event.state().nodes().dataNodes().size();
+        final int dataNodeCount = event.state().nodes().getDataNodes().size();
 
         Map<Integer, List<Index>> nrReplicasChanged = new HashMap<>();
         // we need to do this each time in case it was changed by update settings
@@ -124,7 +129,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         if (nrReplicasChanged.size() > 0) {
             // update settings and kick of a reroute (implicit) for them to take effect
             for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
+                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
 
                 UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
@@ -141,7 +146,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
+                    public void onFailure(Exception t) {
                         for (Index index : indices) {
                             logger.warn("{} fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
                         }
@@ -152,7 +157,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final Settings normalizedSettings = Settings.settingsBuilder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        final Settings normalizedSettings = Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         Settings.Builder skipppedSettings = Settings.builder();
@@ -179,7 +184,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -207,13 +212,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (closeIndices.size() > 0 && closedSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
-                    throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update [%s] on closed indices %s - can leave index in an unopenable state", IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
-                            closeIndices
-                    ));
-                }
-                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s",
                             skippedSettigns.getAsMap().keySet(),
@@ -223,6 +222,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
                 if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+                    // we do *not* update the in sync allocation ids as they will be removed upon the first index
+                    // operation which make these copies stale
+                    // TODO: update the list once the data is deleted by the node?
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
@@ -266,17 +268,28 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
-                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
-                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-                for (Index index : openIndices) {
-                    indexScopedSettings.dryRun(updatedState.metaData().getIndexSafe(index).getSettings());
-                }
-                for (Index index : closeIndices) {
-                    indexScopedSettings.dryRun(updatedState.metaData().getIndexSafe(index).getSettings());
+                updatedState = allocationService.reroute(updatedState, "settings update");
+                try {
+                    for (Index index : openIndices) {
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                    }
+                    for (Index index : closeIndices) {
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                    }
+                } catch (IOException ex) {
+                    throw ExceptionsHelper.convertToElastic(ex);
                 }
                 return updatedState;
             }
         });
+    }
+
+    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
+        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
     }
 
     /**
@@ -297,9 +310,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-
-        clusterService.submitStateUpdateTask("update-index-compatibility-versions", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+        clusterService.submitStateUpdateTask("update-index-compatibility-versions",
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -316,8 +328,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
-                                            .settings(settingsBuilder().put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
+                                            .settings(Settings.builder().put(indexMetaData.getSettings())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )
                             );

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.elasticsearch.common.xcontent.XContentType;
+
 /**
  * A class holding factory methods for settings loaders that attempts
  * to infer the type of the underlying settings content.
@@ -33,9 +35,7 @@ public final class SettingsLoaderFactory {
      * name. This factory method assumes that if the resource name ends
      * with ".json" then the content should be parsed as JSON, else if
      * the resource name ends with ".yml" or ".yaml" then the content
-     * should be parsed as YAML, else if the resource name ends with
-     * ".properties" then the content should be parsed as properties,
-     * otherwise default to attempting to parse as JSON. Note that the
+     * should be parsed as YAML, otherwise throws an exception. Note that the
      * parsers returned by this method will not accept null-valued
      * keys.
      *
@@ -48,11 +48,8 @@ public final class SettingsLoaderFactory {
             return new JsonSettingsLoader(false);
         } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
             return new YamlSettingsLoader(false);
-        } else if (resourceName.endsWith(".properties")) {
-            return new PropertiesSettingsLoader();
         } else {
-            // lets default to the json one
-            return new JsonSettingsLoader(false);
+            throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
         }
     }
 
@@ -62,21 +59,39 @@ public final class SettingsLoaderFactory {
      * contains an opening and closing brace ('{' and '}') then the
      * content should be parsed as JSON, else if the underlying content
      * fails this condition but contains a ':' then the content should
-     * be parsed as YAML, and otherwise should be parsed as properties.
+     * be parsed as YAML, and otherwise throws an exception.
      * Note that the JSON and YAML parsers returned by this method will
      * accept null-valued keys.
      *
      * @param source The underlying settings content.
      * @return A settings loader.
+     * @deprecated use {@link #loaderFromXContentType(XContentType)} instead
      */
+    @Deprecated
     public static SettingsLoader loaderFromSource(String source) {
         if (source.indexOf('{') != -1 && source.indexOf('}') != -1) {
             return new JsonSettingsLoader(true);
-        }
-        if (source.indexOf(':') != -1) {
+        } else if (source.indexOf(':') != -1) {
             return new YamlSettingsLoader(true);
+        } else {
+            throw new IllegalArgumentException("unable to detect content type from source [" + source + "]");
         }
-        return new PropertiesSettingsLoader();
     }
 
+    /**
+     * Returns a {@link SettingsLoader} based on the {@link XContentType}. Note only {@link XContentType#JSON} and
+     * {@link XContentType#YAML} are supported
+     *
+     * @param xContentType The content type
+     * @return A settings loader.
+     */
+    public static SettingsLoader loaderFromXContentType(XContentType xContentType) {
+        if (xContentType == XContentType.JSON) {
+            return new JsonSettingsLoader(true);
+        } else if (xContentType == XContentType.YAML) {
+            return new YamlSettingsLoader(true);
+        } else {
+            throw new IllegalArgumentException("unsupported content type [" + xContentType + "]");
+        }
+    }
 }

@@ -18,16 +18,14 @@
  */
 package org.elasticsearch.plugin.example;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.cat.RestTable;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -37,29 +35,25 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class ExampleCatAction extends AbstractCatAction {
     private final ExamplePluginConfiguration config;
 
-    @Inject
-    public ExampleCatAction(Settings settings, RestController controller,
-            Client client, ExamplePluginConfiguration config) {
-        super(settings, controller, client);
+    public ExampleCatAction(Settings settings, RestController controller, ExamplePluginConfiguration config) {
+        super(settings);
         this.config = config;
         controller.registerHandler(GET, "/_cat/configured_example", this);
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();
         table.addCell(config.getTestConfig());
         table.endRow();
-        try {
-            channel.sendResponse(RestTable.buildResponse(table, channel));
-        } catch (Throwable e) {
+        return channel -> {
             try {
+                channel.sendResponse(RestTable.buildResponse(table, channel));
+            } catch (final Exception e) {
                 channel.sendResponse(new BytesRestResponse(channel, e));
-            } catch (Throwable e1) {
-                logger.error("failed to send failure response", e1);
             }
-        }
+        };
     }
 
     @Override

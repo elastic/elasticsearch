@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,58 +31,43 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContent {
 
     public NodesInfoResponse() {
     }
 
-    public NodesInfoResponse(ClusterName clusterName, NodeInfo[] nodes) {
-        super(clusterName, nodes);
+    public NodesInfoResponse(ClusterName clusterName, List<NodeInfo> nodes, List<FailedNodeException> failures) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = new NodeInfo[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = NodeInfo.readNodeInfo(in);
-        }
+    protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeInfo::readNodeInfo);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(nodes.length);
-        for (NodeInfo node : nodes) {
-            node.writeTo(out);
-        }
+    protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
+        out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", getClusterName().value(), XContentBuilder.FieldCaseConversion.NONE);
-
         builder.startObject("nodes");
-        for (NodeInfo nodeInfo : this) {
-            builder.startObject(nodeInfo.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
+        for (NodeInfo nodeInfo : getNodes()) {
+            builder.startObject(nodeInfo.getNode().getId());
 
-            builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", nodeInfo.getNode().address().toString());
-            builder.field("host", nodeInfo.getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", nodeInfo.getNode().getName());
+            builder.field("transport_address", nodeInfo.getNode().getAddress().toString());
+            builder.field("host", nodeInfo.getNode().getHostName());
+            builder.field("ip", nodeInfo.getNode().getHostAddress());
 
             builder.field("version", nodeInfo.getVersion());
             builder.field("build_hash", nodeInfo.getBuild().shortHash());
-
-            if (nodeInfo.getServiceAttributes() != null) {
-                for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
-                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue(), XContentBuilder.FieldCaseConversion.NONE);
-                }
+            if (nodeInfo.getTotalIndexingBuffer() != null) {
+                builder.byteSizeField("total_indexing_buffer", "total_indexing_buffer_in_bytes", nodeInfo.getTotalIndexingBuffer());
             }
 
             builder.startArray("roles");
@@ -93,7 +79,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             if (!nodeInfo.getNode().getAttributes().isEmpty()) {
                 builder.startObject("attributes");
                 for (Map.Entry<String, String> entry : nodeInfo.getNode().getAttributes().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(entry.getKey(), entry.getValue());
                 }
                 builder.endObject();
             }

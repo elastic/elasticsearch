@@ -8,12 +8,6 @@ Mapper plugins allow new field datatypes to be added to Elasticsearch.
 
 The core mapper plugins are:
 
-<<mapper-attachments>>::
-
-deprecated[5.0.0,The `mapper-attachments` plugin has been replaced by the <<ingest-attachment, `ingest-attachment`>> plugin]:
-The mapper-attachments integrates http://lucene.apache.org/tika/[Apache Tika] to provide a new field type `attachment`
-to allow indexing of documents such as PDFs and Microsoft Word.
-
 <<mapper-size>>::
 
 The mapper-size plugin provides the `_size` meta field which, when enabled,
@@ -25,6 +19,5 @@ indexes the size in bytes of the original
 The mapper-murmur3 plugin allows hashes to be computed at index-time and stored
 in the index for later use with the `cardinality` aggregation.
 
-include::mapper-attachments.asciidoc[]
 include::mapper-size.asciidoc[]
 include::mapper-murmur3.asciidoc[]

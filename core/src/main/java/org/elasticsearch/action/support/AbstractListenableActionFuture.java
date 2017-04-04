@@ -19,21 +19,18 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
-    private final static ESLogger logger = Loggers.getLogger(AbstractListenableActionFuture.class);
+    private static final Logger logger = Loggers.getLogger(AbstractListenableActionFuture.class);
 
     final ThreadPool threadPool;
     volatile Object listeners;
@@ -53,7 +50,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
     }
 
     public void internalAddListener(ActionListener<T> listener) {
-        listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
+        listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
         boolean executeImmediate = false;
         synchronized (this) {
             if (executedListeners) {
@@ -102,7 +99,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
             // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
             // here we know we will never block
             listener.onResponse(actionGet(0));
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

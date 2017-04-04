@@ -42,8 +42,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-/**
- */
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
@@ -139,9 +137,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             flags.set(CommonStatsFlags.Flag.FieldData);
             flags.fieldDataFields(request.fieldDataFields());
         }
-        if (request.percolate()) {
-            flags.set(CommonStatsFlags.Flag.PercolatorCache);
-        }
         if (request.segments()) {
             flags.set(CommonStatsFlags.Flag.Segments);
             flags.includeSegmentFileSizes(request.includeSegmentFileSizes());
@@ -163,6 +158,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             flags.set(CommonStatsFlags.Flag.Recovery);
         }
 
-        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), indexService.cache().getPercolatorQueryCache(), indexShard, flags), indexShard.commitStats());
+        return new ShardStats(
+            indexShard.routingEntry(),
+            indexShard.shardPath(),
+            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags), indexShard.commitStats(), indexShard.seqNoStats());
     }
 }

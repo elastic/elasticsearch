@@ -4,10 +4,8 @@ setup:
           index: test_1
           body:
               aliases:
-                alias_1: {}
-  - do:
-        cluster.health:
-            wait_for_status: yellow
+                alias_1:
+                  "filter" : { "term" : { "foo" : "bar"} }
 
   - do:
       index:

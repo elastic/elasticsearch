@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -39,10 +40,11 @@ import java.util.Arrays;
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> {
 
-    private QueryBuilder<?> query = new MatchAllQueryBuilder();
+    private QueryBuilder query = new MatchAllQueryBuilder();
 
     private boolean explain;
     private boolean rewrite;
+    private boolean allShards;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -73,11 +75,11 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     /**
      * The query to validate.
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
-    public ValidateQueryRequest query(QueryBuilder<?> query) {
+    public ValidateQueryRequest query(QueryBuilder query) {
         this.query = query;
         return this;
     }
@@ -125,10 +127,24 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         return rewrite;
     }
 
+    /**
+     * Indicates whether the query should be validated on all shards instead of one random shard
+     */
+    public void allShards(boolean allShards) {
+        this.allShards = allShards;
+    }
+
+    /**
+     * Indicates whether the query should be validated on all shards instead of one random shard
+     */
+    public boolean allShards() {
+        return allShards;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -138,23 +154,29 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            allShards = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeString(type);
         }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeBoolean(allShards);
+        }
     }
 
     @Override
     public String toString() {
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
-                ", rewrite:" + rewrite;
+                ", rewrite:" + rewrite + ", all_shards:" + allShards;
     }
 }

@@ -24,18 +24,24 @@ which indexes the field values for fast completions.
 
 [source,js]
 --------------------------------------------------
-PUT music/song/_mapping
+PUT music
 {
-  "song" : {
-        "properties" : {
-            ...
-            "suggest" : {
-                "type" : "completion",
+    "mappings": {
+        "song" : {
+            "properties" : {
+                "suggest" : {
+                    "type" : "completion"
+                },
+                "title" : {
+                    "type": "keyword"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 Mapping supports the following parameters:
 
@@ -80,7 +86,7 @@ the suggestions will be scored. Indexing a suggestion is as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh=true
+PUT music/song/1?refresh
 {
     "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
@@ -88,6 +94,8 @@ PUT music/song/1?refresh=true
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST
 
 The following parameters are supported:
 
@@ -104,7 +112,7 @@ You can index multiple suggestions for a document as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh=true
+PUT music/song/1?refresh
 {
     "suggest" : [
         {
@@ -118,16 +126,21 @@ PUT music/song/1?refresh=true
     ]
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
 a weight with suggestion(s).
 
 [source,js]
 --------------------------------------------------
+PUT music/song/1?refresh
 {
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [[querying]]
 ==== Querying
@@ -135,109 +148,146 @@ a weight with suggestion(s).
 Suggesting works as usual, except that you have to specify the suggest
 type as `completion`. Suggestions are near real-time, which means
 new suggestions can be made visible by <<indices-refresh,refresh>> and
-documents once deleted are never shown.
+documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "n",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
+returns this response:
+
+[source,js]
+--------------------------------------------------
 {
   "_shards" : {
     "total" : 5,
     "successful" : 5,
     "failed" : 0
   },
-  "song-suggest" : [ {
-    "text" : "n",
-    "offset" : 0,
-    "length" : 1,
-    "options" : [ {
-      "text" : "Nirvana",
-      "score" : 34.0
+  "hits": ...
+  "took": 2,
+  "timed_out": false,
+  "suggest": {
+    "song-suggest" : [ {
+      "text" : "nir",
+      "offset" : 0,
+      "length" : 3,
+      "options" : [ {
+        "text" : "Nirvana",
+        "_index": "music",
+        "_type": "song",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "suggest": ["Nevermind", "Nirvana"]
+        }
+      } ]
     } ]
-  } ]
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
-The configured weight for a suggestion is returned as `score`.
-The `text` field uses the `input` of your indexed suggestion.
 
-Suggestions are document oriented, you can specify fields to be
-returned as part of suggestion payload. All field types (`string`,
-`numeric`, `date`, etc) are supported.
+IMPORTANT: `_source` meta-field must be enabled, which is the default
+behavior, to enable returning `_source` with suggestions.
 
-For example, if you index a "title" field along with the suggestion
-as follows:
+The configured weight for a suggestion is returned as `_score`. The
+`text` field uses the `input` of your indexed suggestion. Suggestions
+return the full document `_source` by default. The size of the `_source`
+can impact performance due to disk fetch and network transport overhead.
+To save some network overhead, filter out unnecessary fields from the `_source`
+using <<search-request-source-filtering, source filtering>> to minimize
+`_source` size. Note that the _suggest endpoint doesn't support source
+filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/song
+POST music/_search?size=0
 {
-    "suggest" : "Nirvana",
-    "title" : "Nevermind"
-}
---------------------------------------------------
-
-You can get the "title" as part of the suggestion
-payload by specifying it as a `payload`:
-
-[source,js]
---------------------------------------------------
-POST music/_suggest?pretty
-{
-    "song-suggest" : {
-        "prefix" : "n",
-        "completion" : {
-            "field" : "suggest"
-            "payload" : [ "title" ] <1>
+    "_source": "suggest",
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
+Which should look like:
+
+[source,js]
+--------------------------------------------------
 {
-  "_shards" : {
-    "total" : 5,
-    "successful" : 5,
-    "failed" : 0
-  },
-  "song-suggest" : [ {
-    "text" : "n",
-    "offset" : 0,
-    "length" : 1,
-    "options" : [ {
-      "text" : "Nirvana",
-      "score" : 34.0,
-      "payload" : {
-        "title" : [ "Nevermind" ]
-      }
-    } ]
-  } ]
+    "took": 6,
+    "timed_out": false,
+    "_shards" : {
+        "total" : 5,
+        "successful" : 5,
+        "failed" : 0
+    },
+    "hits": {
+        "total" : 0,
+        "max_score" : 0.0,
+        "hits" : []
+    },
+    "suggest": {
+        "song-suggest" : [ {
+            "text" : "nir",
+            "offset" : 0,
+            "length" : 3,
+            "options" : [ {
+                "text" : "Nirvana",
+                "_index": "music",
+                "_type": "song",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                    "suggest": ["Nevermind", "Nirvana"]
+                }
+            } ]
+        } ]
+    }
 }
 --------------------------------------------------
-<1> The fields to be returned as part of each suggestion payload.
+// TESTRESPONSE[s/"took": 6,/"took": $body.took,/]
 
 The basic completion suggester query supports the following parameters:
 
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
-`payload`::  The name of the field or field name array to be returned
-             as payload (defaults to no fields).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
 documents instead.
 
-NOTE: Specifying `payload` fields will incur additional search performance
-hit. The `payload` fields are retrieved eagerly (single pass) for top
-suggestions at the shard level using field data or from doc values.
+NOTE: In case of completion queries spanning more than one shard, the suggest
+is executed in two phases, where the last phase fetches the relevant documents
+from shards, implying executing completion requests against a single shard is
+more performant due to the document fetch overhead when the suggest spans
+multiple shards. To get best performance for completions, it is recommended to
+index completions into a single shard index. In case of high heap usage due to
+shard size, it is still recommended to break index into multiple shards instead
+of optimizing for completion performance.
 
 [[fuzzy]]
 ==== Fuzzy queries
@@ -247,19 +297,22 @@ you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "n",
-        "completion" : {
-            "field" : "suggest",
-            "fuzzy" : {
-                "fuzziness" : 2
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "fuzzy" : {
+                    "fuzziness" : 2
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Suggestions that share the longest prefix to the query `prefix` will
 be scored higher.
@@ -303,16 +356,19 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "regex" : "n[ever|i]r",
-        "completion" : {
-            "field" : "suggest",
+    "suggest": {
+        "song-suggest" : {
+            "regex" : "n[ever|i]r",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The regex query can take specific regex parameters.
 The following parameters are supported:

@@ -35,8 +35,6 @@ import java.util.Set;
 import static java.util.Collections.emptySet;
 
 
-/**
- */
 abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFieldData {
 
     @Override

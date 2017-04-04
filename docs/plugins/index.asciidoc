@@ -1,7 +1,6 @@
 = Elasticsearch Plugins and Integrations
 
-:ref: https://www.elastic.co/guide/en/elasticsearch/reference/master
-:guide: https://www.elastic.co/guide
+include::../Versions.asciidoc[]
 
 [[intro]]
 == Introduction to plugins
@@ -10,32 +9,32 @@ Plugins are a way to enhance the core Elasticsearch functionality in a custom
 manner. They range from adding custom mapping types, custom analyzers, native
 scripts, custom discovery and more.
 
-There are three types of plugins:
+Plugins contain JAR files, but may also contain scripts and config files, and
+must be installed on every node in the cluster. After installation, each
+node must be restarted before the plugin becomes visible.
 
-Java plugins::
+NOTE: A full cluster restart is required for installing plugins that have
+custom cluster state metadata, such as X-Pack. It is still possible to upgrade
+such plugins with a rolling restart.
 
-    These plugins contain only JAR files, and must be installed on every node
-    in the cluster.  After installation, each node must be restarted before
-    the plugin becomes visible.
+This documentation distinguishes two categories of plugins:
 
-Site plugins::
-+
---
+Core Plugins::    This category identifies plugins that are part of Elasticsearch
+project. Delivered at the same time as Elasticsearch, their version number always
+matches the version number of Elasticsearch itself. These plugins are maintained
+by the Elastic team with the appreciated help of amazing community members (for
+open source plugins). Issues and bug reports can be reported on the
+https://github.com/elastic/elasticsearch[Github project page].
 
-These plugins contain static web content like Javascript, HTML, and CSS files,
-that can be served directly from Elasticsearch. Site plugins may only need to
-be installed on one node, and do not require a restart to become visible. The
-content of site plugins is accessible via a URL like:
-
-    http://yournode:9200/_plugin/[plugin name]
-
---
-
-Mixed plugins::
-
-    Mixed plugins contain both JAR files and web content.
+Community contributed::    This category identifies plugins that are external to
+the Elasticsearch project. They are provided by individual developers or private
+companies and have their own licenses as well as their own versioning system.
+Issues and bug reports can usually be reported on the community plugin's web site.
 
 For advice on writing your own plugin, see <<plugin-authors>>.
+
+IMPORTANT: Site plugins -- plugins containing HTML, CSS and Javascript -- are
+no longer supported.
 
 include::plugin-script.asciidoc[]
 
@@ -53,20 +52,14 @@ include::management.asciidoc[]
 
 include::mapper.asciidoc[]
 
-include::scripting.asciidoc[]
-
 include::security.asciidoc[]
 
 include::repository.asciidoc[]
 
 include::store.asciidoc[]
 
-include::transport.asciidoc[]
-
 include::integrations.asciidoc[]
 
 include::authors.asciidoc[]
 
 include::redirects.asciidoc[]
-
-

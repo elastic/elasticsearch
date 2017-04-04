@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
-public class NestedTests extends BaseAggregationTestCase<NestedAggregatorBuilder> {
+public class NestedTests extends BaseAggregationTestCase<NestedAggregationBuilder> {
 
     @Override
-    protected NestedAggregatorBuilder createTestAggregatorBuilder() {
-        return new NestedAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(3, 40));
+    protected NestedAggregationBuilder createTestAggregatorBuilder() {
+        return new NestedAggregationBuilder(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(3, 40));
     }
 
 }

@@ -23,21 +23,57 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.joda.time.Period;
 import org.joda.time.PeriodType;
 import org.joda.time.format.PeriodFormat;
 import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class TimeValue implements Streamable {
+public class TimeValue implements Writeable, Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
-    public static final long NSEC_PER_MSEC = 1000000;
+    public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+
+    private static Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
+    private static Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
+
+    static {
+        final Map<TimeUnit, Byte> timeUnitByteMap = new HashMap<>();
+        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
+        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
+        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
+        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
+        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
+        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
+        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
+
+        final Set<Byte> bytes = new HashSet<>();
+        for (TimeUnit value : TimeUnit.values()) {
+            assert timeUnitByteMap.containsKey(value) : value;
+            assert bytes.add(timeUnitByteMap.get(value));
+        }
+
+        final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
+        for (Map.Entry<TimeUnit, Byte> entry : timeUnitByteMap.entrySet()) {
+            byteTimeUnitMap.put(entry.getValue(), entry.getKey());
+        }
+
+        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
+        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
+    }
+
+    public static final TimeValue MINUS_ONE = timeValueMillis(-1);
+    public static final TimeValue ZERO = timeValueMillis(0);
 
     public static TimeValue timeValueNanos(long nanos) {
         return new TimeValue(nanos, TimeUnit.NANOSECONDS);
@@ -59,12 +95,18 @@ public class TimeValue implements Streamable {
         return new TimeValue(hours, TimeUnit.HOURS);
     }
 
-    private long duration;
+    private final long duration;
 
-    private TimeUnit timeUnit;
+    // visible for testing
+    long duration() {
+        return duration;
+    }
 
-    private TimeValue() {
+    private final TimeUnit timeUnit;
 
+    // visible for testing
+    TimeUnit timeUnit() {
+        return timeUnit;
     }
 
     public TimeValue(long millis) {
@@ -74,6 +116,20 @@ public class TimeValue implements Streamable {
     public TimeValue(long duration, TimeUnit timeUnit) {
         this.duration = duration;
         this.timeUnit = timeUnit;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TimeValue(StreamInput in) throws IOException {
+        duration = in.readZLong();
+        timeUnit = BYTE_TIME_UNIT_MAP.get(in.readByte());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeZLong(duration);
+        out.writeByte(TIME_UNIT_BYTE_MAP.get(timeUnit));
     }
 
     public long nanos() {
@@ -193,6 +249,12 @@ public class TimeValue implements Streamable {
         return PeriodFormat.getDefault().withParseType(type).print(period);
     }
 
+    /**
+     * Returns a {@link String} representation of the current {@link TimeValue}.
+     *
+     * Note that this method might produce fractional time values (ex 1.6m) which cannot be
+     * parsed by method like {@link TimeValue#parse(String, String, int)}.
+     */
     @Override
     public String toString() {
         if (duration < 0) {
@@ -232,19 +294,19 @@ public class TimeValue implements Streamable {
         }
         switch (timeUnit) {
             case NANOSECONDS:
-                return Strings.format1Decimals(duration, "nanos");
+                return duration + "nanos";
             case MICROSECONDS:
-                return Strings.format1Decimals(duration, "micros");
+                return duration + "micros";
             case MILLISECONDS:
-                return Strings.format1Decimals(duration, "ms");
+                return duration + "ms";
             case SECONDS:
-                return Strings.format1Decimals(duration, "s");
+                return duration + "s";
             case MINUTES:
-                return Strings.format1Decimals(duration, "m");
+                return duration + "m";
             case HOURS:
-                return Strings.format1Decimals(duration, "h");
+                return duration + "h";
             case DAYS:
-                return Strings.format1Decimals(duration, "d");
+                return duration + "d";
             default:
                 throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
         }
@@ -261,85 +323,80 @@ public class TimeValue implements Streamable {
         if (sValue == null) {
             return defaultValue;
         }
-        try {
-            long millis;
-            String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
-            if (lowerSValue.endsWith("ms")) {
-                millis = parse(lowerSValue, 2, 1);
-            } else if (lowerSValue.endsWith("s")) {
-                millis = parse(lowerSValue, 1, 1000);
-            } else if (lowerSValue.endsWith("m")) {
-                millis = parse(lowerSValue, 1, 60 * 1000);
-            } else if (lowerSValue.endsWith("h")) {
-                millis = parse(lowerSValue, 1, 60 * 60 * 1000);
-            } else if (lowerSValue.endsWith("d")) {
-                millis = parse(lowerSValue, 1, 24 * 60 * 60 * 1000);
-            } else if (lowerSValue.endsWith("w")) {
-                millis = parse(lowerSValue, 1, 7 * 24 * 60 * 60 * 1000);
-            } else if (lowerSValue.equals("-1")) {
-                // Allow this special value to be unit-less:
-                millis = -1;
-            } else if (lowerSValue.equals("0")) {
-                // Allow this special value to be unit-less:
-                millis = 0;
-            } else {
-                // Missing units:
-                throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
-            }
-            return new TimeValue(millis, TimeUnit.MILLISECONDS);
-        } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
+        final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
+        if (normalized.endsWith("nanos")) {
+            return new TimeValue(parse(sValue, normalized, 5), TimeUnit.NANOSECONDS);
+        } else if (normalized.endsWith("micros")) {
+            return new TimeValue(parse(sValue, normalized, 6), TimeUnit.MICROSECONDS);
+        } else if (normalized.endsWith("ms")) {
+            return new TimeValue(parse(sValue, normalized, 2), TimeUnit.MILLISECONDS);
+        } else if (normalized.endsWith("s")) {
+            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.SECONDS);
+        } else if (sValue.endsWith("m")) {
+            // parsing minutes should be case sensitive as `M` is generally
+            // accepted to mean months not minutes. This is the only case where
+            // the upper and lower case forms indicate different time units
+            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.MINUTES);
+        } else if (normalized.endsWith("h")) {
+            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.HOURS);
+        } else if (normalized.endsWith("d")) {
+            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.DAYS);
+        } else if (normalized.matches("-0*1")) {
+            return TimeValue.MINUS_ONE;
+        } else if (normalized.matches("0+")) {
+            return TimeValue.ZERO;
+        } else {
+            // Missing units:
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
+                settingName,
+                sValue);
         }
     }
 
-    private static long parse(String s, int suffixLength, long scale) {
-        return (long) (Double.parseDouble(s.substring(0, s.length() - suffixLength)) * scale);
+    private static long parse(final String initialInput, final String normalized, final int suffixLength) {
+        final String s = normalized.substring(0, normalized.length() - suffixLength).trim();
+        try {
+            return Long.parseLong(s);
+        } catch (final NumberFormatException e) {
+            try {
+                @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);
+                throw new ElasticsearchParseException("failed to parse [{}], fractional time values are not supported", e, initialInput);
+            } catch (final NumberFormatException ignored) {
+                throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+            }
+        }
     }
 
-    static final long C0 = 1L;
-    static final long C1 = C0 * 1000L;
-    static final long C2 = C1 * 1000L;
-    static final long C3 = C2 * 1000L;
-    static final long C4 = C3 * 60L;
-    static final long C5 = C4 * 60L;
-    static final long C6 = C5 * 24L;
-
-    public static TimeValue readTimeValue(StreamInput in) throws IOException {
-        TimeValue timeValue = new TimeValue();
-        timeValue.readFrom(in);
-        return timeValue;
-    }
-
-    /**
-     * serialization converts TimeValue internally to NANOSECONDS
-     */
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        duration = in.readLong();
-        timeUnit = TimeUnit.NANOSECONDS;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(nanos());
-    }
+    private static final long C0 = 1L;
+    private static final long C1 = C0 * 1000L;
+    private static final long C2 = C1 * 1000L;
+    private static final long C3 = C2 * 1000L;
+    private static final long C4 = C3 * 60L;
+    private static final long C5 = C4 * 60L;
+    private static final long C6 = C5 * 24L;
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TimeValue timeValue = (TimeValue) o;
-        return timeUnit.toNanos(duration) == timeValue.timeUnit.toNanos(timeValue.duration);
+        return this.compareTo(((TimeValue) o)) == 0;
     }
 
     @Override
     public int hashCode() {
-        long normalized = timeUnit.toNanos(duration);
-        return Long.hashCode(normalized);
+        return Double.hashCode(((double) duration) * timeUnit.toNanos(1));
     }
 
     public static long nsecToMSec(long ns) {
         return ns / NSEC_PER_MSEC;
+    }
+
+    @Override
+    public int compareTo(TimeValue timeValue) {
+        double thisValue = ((double) duration) * timeUnit.toNanos(1);
+        double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

@@ -19,16 +19,12 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -47,9 +43,9 @@ public class Build {
         final String date;
         final boolean isSnapshot;
 
-        Path path = getElasticsearchCodebase();
-        if (path.toString().endsWith(".jar")) {
-            try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
+        final URL url = getElasticsearchCodebase();
+        if (url.toString().endsWith(".jar")) {
+            try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
@@ -80,20 +76,14 @@ public class Build {
     /**
      * Returns path to elasticsearch codebase path
      */
-    @SuppressForbidden(reason = "looks up path of elasticsearch.jar directly")
-    static Path getElasticsearchCodebase() {
-        URL url = Build.class.getProtectionDomain().getCodeSource().getLocation();
-        try {
-            return PathUtils.get(url.toURI());
-        } catch (URISyntaxException bogus) {
-            throw new RuntimeException(bogus);
-        }
+    static URL getElasticsearchCodebase() {
+        return Build.class.getProtectionDomain().getCodeSource().getLocation();
     }
 
-    private String shortHash;
-    private String date;
+    private final String shortHash;
+    private final String date;
 
-    Build(String shortHash, String date, boolean isSnapshot) {
+    public Build(String shortHash, String date, boolean isSnapshot) {
         this.shortHash = shortHash;
         this.date = date;
         this.isSnapshot = isSnapshot;
@@ -127,5 +117,34 @@ public class Build {
     @Override
     public String toString() {
         return "[" + shortHash + "][" + date + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Build build = (Build) o;
+
+        if (isSnapshot != build.isSnapshot) {
+            return false;
+        }
+        if (!shortHash.equals(build.shortHash)) {
+            return false;
+        }
+        return date.equals(build.date);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (isSnapshot ? 1 : 0);
+        result = 31 * result + shortHash.hashCode();
+        result = 31 * result + date.hashCode();
+        return result;
     }
 }

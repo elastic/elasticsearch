@@ -20,63 +20,55 @@ package org.elasticsearch.update;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptEngineService;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomNativeScriptFactory.TestPlugin.class);
+        return Arrays.asList(CustomNativeScriptFactory.TestPlugin.class);
     }
 
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {
         createIndex("test");
-        ensureYellow();
 
         index("test", "type", "1", "text", "value");
 
         Map<String, Object> params = new HashMap<>();
         params.put("foo", "SETVALUE");
         client().prepareUpdate("test", "type", "1")
-                .setScript(new Script("custom", ScriptService.ScriptType.INLINE, NativeScriptEngineService.NAME, params)).get();
+                .setScript(new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "custom", params)).get();
 
         Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
         assertThat(data, hasKey("foo"));
         assertThat(data.get("foo").toString(), is("SETVALUE"));
     }
 
-    public static class CustomNativeScriptFactory implements NativeScriptFactory {
-        public static class TestPlugin extends Plugin {
+    public static class CustomNativeScriptFactory implements NativeScriptFactory  {
+        public static class TestPlugin extends Plugin implements ScriptPlugin {
             @Override
-            public String name() {
-                return "mock-native-script";
-            }
-            @Override
-            public String description() {
-                return "a mock native script for testing";
-            }
-            public void onModule(ScriptModule scriptModule) {
-                scriptModule.registerScript("custom", CustomNativeScriptFactory.class);
+            public List<NativeScriptFactory> getNativeScripts() {
+                return Collections.singletonList(new CustomNativeScriptFactory());
             }
         }
         @Override
@@ -87,13 +79,18 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return "custom";
+        }
     }
 
     static class CustomScript extends AbstractExecutableScript {
         private Map<String, Object> params;
         private Map<String, Object> vars = new HashMap<>(2);
 
-        public CustomScript(Map<String, Object> params) {
+        CustomScript(Map<String, Object> params) {
             this.params = params;
         }
 

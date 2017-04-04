@@ -24,18 +24,15 @@
                             text:
                                 type:     text
                                 analyzer: my_analyzer
-    - do:
-       cluster.health:
-           wait_for_status: yellow
 
     - do:
-      index:
-          index:  phonetic_sample
-          type:   type
-          id:     1
-          body:   { "text": "hello world" }
+        index:
+            index:  phonetic_sample
+            type:   type
+            id:     1
+            body:   { "text": "hello world" }
     - do:
-      indices.refresh: {}
+        indices.refresh: {}
 
     - do:
         search:

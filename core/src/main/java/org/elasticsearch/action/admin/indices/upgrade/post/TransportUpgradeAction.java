@@ -190,13 +190,13 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                     } else {
                         updateSettings(upgradeResponse, listener);
                     }
-                } catch (Throwable t) {
-                    listener.onFailure(t);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         };
@@ -212,7 +212,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

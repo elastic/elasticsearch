@@ -45,7 +45,7 @@ public class LatchedActionListener<T> implements ActionListener<T> {
     }
 
     @Override
-    public void onFailure(Throwable e) {
+    public void onFailure(Exception e) {
         try {
             delegate.onFailure(e);
         } finally {

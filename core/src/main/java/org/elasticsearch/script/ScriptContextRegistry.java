@@ -30,7 +30,8 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
- * Allows plugins to register custom operations that they use scripts for, via {@link ScriptModule#registerScriptContext(org.elasticsearch.script.ScriptContext.Plugin)}.
+ * Allows plugins to register custom operations that they use scripts for,
+ * via {@link org.elasticsearch.plugins.ScriptPlugin}
  * Scripts can be enabled/disabled via fine-grained settings for each single registered operation.
  */
 public final class ScriptContextRegistry {
@@ -78,8 +79,8 @@ public final class ScriptContextRegistry {
     }
 
     private static Set<String> reservedScriptContexts() {
-        Set<String> reserved = new HashSet<>(ScriptService.ScriptType.values().length + ScriptContext.Standard.values().length);
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        Set<String> reserved = new HashSet<>(ScriptType.values().length + ScriptContext.Standard.values().length);
+        for (ScriptType scriptType : ScriptType.values()) {
             reserved.add(scriptType.toString());
         }
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {

@@ -20,10 +20,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -32,10 +36,10 @@ import java.io.IOException;
  * A Span Query that matches documents containing a term.
  * @see SpanTermQuery
  */
-public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder<SpanTermQueryBuilder> {
-
+public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_term";
-    static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder("name", "value");
+
+    private static final ParseField TERM_FIELD = new ParseField("term");
 
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {
@@ -67,24 +71,68 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         super(name, value);
     }
 
-    @Override
-    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
-        BytesRef valueBytes = null;
-        String fieldName = this.fieldName;
-        MappedFieldType mapper = context.fieldMapper(fieldName);
-        if (mapper != null) {
-            fieldName = mapper.name();
-            valueBytes = mapper.indexedValueForSearch(value);
-        }
-        if (valueBytes == null) {
-            valueBytes = BytesRefs.toBytesRef(this.value);
-        }
-        return new SpanTermQuery(new Term(fieldName, valueBytes));
+    /**
+     * Read from a stream.
+     */
+    public SpanTermQueryBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    protected SpanTermQueryBuilder createBuilder(String fieldName, Object value) {
-        return new SpanTermQueryBuilder(fieldName, value);
+    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
+        MappedFieldType mapper = context.fieldMapper(fieldName);
+        Term term;
+        if (mapper == null) {
+            term = new Term(fieldName, BytesRefs.toBytesRef(value));
+        } else {
+            Query termQuery = mapper.termQuery(value, context);
+            term = MappedFieldType.extractTerm(termQuery);
+        }
+        return new SpanTermQuery(term);
+    }
+
+    public static SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+        XContentParser parser = parseContext.parser();
+        String fieldName = null;
+        Object value = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if (TERM_FIELD.match(currentFieldName)) {
+                            value = parser.objectBytes();
+                        } else if (BaseTermQueryBuilder.VALUE_FIELD.match(currentFieldName)) {
+                            value = parser.objectBytes();
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                            boost = parser.floatValue();
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                            queryName = parser.text();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[span_term] query does not support [" + currentFieldName + "]");
+                        }
+                    }
+                }
+            } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
+                fieldName = parser.currentName();
+                value = parser.objectBytes();
+            }
+        }
+
+        SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);
+        result.boost(boost).queryName(queryName);
+        return result;
     }
 
     @Override

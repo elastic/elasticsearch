@@ -21,11 +21,15 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -41,8 +45,11 @@ import java.util.Objects;
  * demoting effect
  */
 public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
-
     public static final String NAME = "boosting";
+
+    private static final ParseField POSITIVE_FIELD = new ParseField("positive");
+    private static final ParseField NEGATIVE_FIELD = new ParseField("negative");
+    private static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
 
     private final QueryBuilder positiveQuery;
 
@@ -50,7 +57,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(EmptyQueryBuilder.PROTOTYPE, EmptyQueryBuilder.PROTOTYPE);
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -67,6 +73,23 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         }
         this.positiveQuery = positiveQuery;
         this.negativeQuery = negativeQuery;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BoostingQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        positiveQuery = in.readNamedWriteable(QueryBuilder.class);
+        negativeQuery = in.readNamedWriteable(QueryBuilder.class);
+        negativeBoost = in.readFloat();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(positiveQuery);
+        out.writeNamedWriteable(negativeQuery);
+        out.writeFloat(negativeBoost);
     }
 
     /**
@@ -104,13 +127,70 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(BoostingQueryParser.POSITIVE_FIELD.getPreferredName());
+        builder.field(POSITIVE_FIELD.getPreferredName());
         positiveQuery.toXContent(builder, params);
-        builder.field(BoostingQueryParser.NEGATIVE_FIELD.getPreferredName());
+        builder.field(NEGATIVE_FIELD.getPreferredName());
         negativeQuery.toXContent(builder, params);
-        builder.field(BoostingQueryParser.NEGATIVE_BOOST_FIELD.getPreferredName(), negativeBoost);
+        builder.field(NEGATIVE_BOOST_FIELD.getPreferredName(), negativeBoost);
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        QueryBuilder positiveQuery = null;
+        boolean positiveQueryFound = false;
+        QueryBuilder negativeQuery = null;
+        boolean negativeQueryFound = false;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        float negativeBoost = -1;
+        String queryName = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (POSITIVE_FIELD.match(currentFieldName)) {
+                    positiveQuery = parseContext.parseInnerQueryBuilder();
+                    positiveQueryFound = true;
+                } else if (NEGATIVE_FIELD.match(currentFieldName)) {
+                    negativeQuery = parseContext.parseInnerQueryBuilder();
+                    negativeQueryFound = true;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (NEGATIVE_BOOST_FIELD.match(currentFieldName)) {
+                    negativeBoost = parser.floatValue();
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                    queryName = parser.text();
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+
+        if (!positiveQueryFound) {
+            throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'positive' query to be set'");
+        }
+        if (!negativeQueryFound) {
+            throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'negative' query to be set'");
+        }
+        if (negativeBoost < 0) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[boosting] query requires 'negative_boost' to be set to be a positive value'");
+        }
+
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
+        boostingQuery.negativeBoost(negativeBoost);
+        boostingQuery.boost(boost);
+        boostingQuery.queryName(queryName);
+        return boostingQuery;
     }
 
     @Override
@@ -122,12 +202,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query positive = positiveQuery.toQuery(context);
         Query negative = negativeQuery.toQuery(context);
-        // make upstream queries ignore this query by returning `null`
-        // if either inner query builder returns null
-        if (positive == null || negative == null) {
-            return null;
-        }
-
         return new BoostingQuery(positive, negative, negativeBoost);
     }
 
@@ -144,23 +218,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder positiveQuery = in.readQuery();
-        QueryBuilder negativeQuery = in.readQuery();
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
-        boostingQuery.negativeBoost = in.readFloat();
-        return boostingQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(positiveQuery);
-        out.writeQuery(negativeQuery);
-        out.writeFloat(negativeBoost);
-    }
-
-    @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
         QueryBuilder negativeQuery = this.negativeQuery.rewrite(queryRewriteContext);
         if (positiveQuery != this.positiveQuery || negativeQuery != this.negativeQuery) {
@@ -169,5 +227,11 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             return newQueryBuilder;
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(positiveQuery, innerHits);
+        InnerHitBuilder.extractInnerHits(negativeQuery, innerHits);
     }
 }

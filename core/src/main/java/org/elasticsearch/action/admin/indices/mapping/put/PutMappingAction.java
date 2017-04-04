@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class PutMappingAction extends Action<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
     public static final PutMappingAction INSTANCE = new PutMappingAction();

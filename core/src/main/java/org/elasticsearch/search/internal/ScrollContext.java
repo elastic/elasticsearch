@@ -29,5 +29,4 @@ public class ScrollContext {
     public float maxScore;
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;
-
 }

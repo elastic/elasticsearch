@@ -19,14 +19,11 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -85,7 +82,7 @@ public class ChannelsTests extends ESTestCase {
         BytesReference source = new BytesArray(randomBytes, offset + offsetToRead, lengthToRead);
         BytesReference read = new BytesArray(readBytes, offset + offsetToRead, lengthToRead);
 
-        assertThat("read bytes didn't match written bytes", source.toBytes(), Matchers.equalTo(read.toBytes()));
+        assertThat("read bytes didn't match written bytes", BytesReference.toBytes(source), Matchers.equalTo(BytesReference.toBytes(read)));
     }
 
     public void testBufferReadPastEOFWithException() throws Exception {
@@ -157,21 +154,9 @@ public class ChannelsTests extends ESTestCase {
         copy.flip();
 
         BytesReference sourceRef = new BytesArray(randomBytes, offset + offsetToRead, lengthToRead);
-        BytesReference copyRef = new ByteBufferBytesReference(copy);
-
-        assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));
-    }
-
-
-    public void testWriteFromChannel() throws IOException {
-        int length = randomIntBetween(1, randomBytes.length / 2);
-        int offset = randomIntBetween(0, randomBytes.length - length);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(randomBytes);
-        ChannelBuffer source = new ByteBufferBackedChannelBuffer(byteBuffer);
-        Channels.writeToChannel(source, offset, length, fileChannel);
-
-        BytesReference copyRef = new BytesArray(Channels.readFromFileChannel(fileChannel, 0, length));
-        BytesReference sourceRef = new BytesArray(randomBytes, offset, length);
+        byte[] tmp = new byte[copy.remaining()];
+        copy.duplicate().get(tmp);
+        BytesReference copyRef = new BytesArray(tmp);
 
         assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));
     }
@@ -180,7 +165,7 @@ public class ChannelsTests extends ESTestCase {
 
         FileChannel delegate;
 
-        public MockFileChannel(FileChannel delegate) {
+        MockFileChannel(FileChannel delegate) {
             this.delegate = delegate;
         }
 

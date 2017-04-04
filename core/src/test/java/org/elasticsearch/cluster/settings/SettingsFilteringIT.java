@@ -30,19 +30,21 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = SUITE, numDataNodes = 1)
+@ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class SettingsFilteringIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(SettingsFilteringPlugin.class);
+        return Arrays.asList(SettingsFilteringPlugin.class);
     }
 
     public static class SettingsFilteringPlugin extends Plugin {
@@ -51,33 +53,21 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
             Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
 
-        /**
-         * The name of the plugin.
-         */
-        @Override
-        public String name() {
-            return "settings-filtering";
-        }
-
-        /**
-         * The description of the plugin.
-         */
-        @Override
-        public String description() {
-            return "Settings Filtering Plugin";
-        }
-
         @Override
         public Settings additionalSettings() {
             return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(SOME_NODE_SETTING);
-            module.registerSetting(SOME_OTHER_NODE_SETTING);
-            module.registerSetting(Setting.groupSetting("index.filter_test.", Property.IndexScope));
-            module.registerSettingsFilter("index.filter_test.foo");
-            module.registerSettingsFilter("index.filter_test.bar*");
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(SOME_NODE_SETTING,
+            SOME_OTHER_NODE_SETTING,
+            Setting.groupSetting("index.filter_test.", Property.IndexScope));
+        }
+
+        @Override
+        public List<String> getSettingsFilter() {
+            return Arrays.asList("index.filter_test.foo", "index.filter_test.bar*");
         }
     }
 

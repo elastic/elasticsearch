@@ -24,17 +24,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-/**
- *
- */
-public enum SpatialStrategy implements Writeable<SpatialStrategy> {
+public enum SpatialStrategy implements Writeable {
 
     TERM("term"),
     RECURSIVE("recursive");
 
     private final String strategyName;
 
-    private SpatialStrategy(String strategyName) {
+    SpatialStrategy(String strategyName) {
         this.strategyName = strategyName;
     }
 
@@ -42,8 +39,7 @@ public enum SpatialStrategy implements Writeable<SpatialStrategy> {
         return strategyName;
     }
 
-    @Override
-    public SpatialStrategy readFrom(StreamInput in) throws IOException {
+    public static SpatialStrategy readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown SpatialStrategy ordinal [" + ordinal + "]");

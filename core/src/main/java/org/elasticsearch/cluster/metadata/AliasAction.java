@@ -19,213 +19,167 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
-
-import java.io.IOException;
-import java.util.Map;
+import org.elasticsearch.common.Strings;
 
 /**
- *
+ * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
  */
-public class AliasAction implements Streamable {
+public abstract class AliasAction {
+    private final String index;
 
-    public static enum Type {
-        ADD((byte) 0),
-        REMOVE((byte) 1);
-
-        private final byte value;
-
-        Type(byte value) {
-            this.value = value;
+    private AliasAction(String index) {
+        if (false == Strings.hasText(index)) {
+            throw new IllegalArgumentException("[index] is required");
         }
-
-        public byte value() {
-            return value;
-        }
-
-        public static Type fromValue(byte value) {
-            if (value == 0) {
-                return ADD;
-            } else if (value == 1) {
-                return REMOVE;
-            } else {
-                throw new IllegalArgumentException("No type for action [" + value + "]");
-            }
-        }
-    }
-
-    private Type actionType;
-
-    private String index;
-
-    private String alias;
-
-    @Nullable
-    private String filter;
-
-    @Nullable
-    private String indexRouting;
-
-    @Nullable
-    private String searchRouting;
-
-    private AliasAction() {
-
-    }
-    
-    public AliasAction(AliasAction other) {
-        this.actionType = other.actionType;
-        this.index = other.index;
-        this.alias = other.alias;
-        this.filter = other.filter;
-        this.indexRouting = other.indexRouting;
-        this.searchRouting = other.searchRouting;
-    }
-    
-    public AliasAction(Type actionType) {
-        this.actionType = actionType;
-    }
-    
-    public AliasAction(Type actionType, String index, String alias) {
-        this.actionType = actionType;
         this.index = index;
-        this.alias = alias;
     }
 
-    public AliasAction(Type actionType, String index, String alias, String filter) {
-        this.actionType = actionType;
-        this.index = index;
-        this.alias = alias;
-        this.filter = filter;
-    }
-
-    public Type actionType() {
-        return actionType;
-    }
-    
-    public AliasAction index(String index) {
-        this.index = index;
-        return this;
-    }
-
-    public String index() {
+    /**
+     * Get the index on which the operation should act.
+     */
+    public String getIndex() {
         return index;
     }
-    
-    public AliasAction alias(String alias) {
-        this.alias = alias;
-        return this;
+
+    /**
+     * Should this action remove the index? Actions that return true from this will never execute
+     * {@link #apply(NewAliasValidator, MetaData.Builder, IndexMetaData)}.
+     */
+    abstract boolean removeIndex();
+
+    /**
+     * Apply the action.
+     * 
+     * @param aliasValidator call to validate a new alias before adding it to the builder
+     * @param metadata metadata builder for the changes made by all actions as part of this request
+     * @param index metadata for the index being changed
+     * @return did this action make any changes?
+     */
+    abstract boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index);
+
+    /**
+     * Validate a new alias.
+     */
+    @FunctionalInterface
+    public interface NewAliasValidator {
+        void validate(String alias, @Nullable String indexRouting, @Nullable String filter);
     }
 
-    public String alias() {
-        return alias;
-    }
+    /**
+     * Operation to add an alias to an index.
+     */
+    public static class Add extends AliasAction {
+        private final String alias;
 
-    public String filter() {
-        return filter;
-    }
+        @Nullable
+        private final String filter;
 
-    public AliasAction filter(String filter) {
-        this.filter = filter;
-        return this;
-    }
+        @Nullable
+        private final String indexRouting;
 
-    public AliasAction filter(Map<String, Object> filter) {
-        if (filter == null || filter.isEmpty()) {
-            this.filter = null;
-            return this;
+        @Nullable
+        private final String searchRouting;
+
+        /**
+         * Build the operation.
+         */
+        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting) {
+            super(index);
+            if (false == Strings.hasText(alias)) {
+                throw new IllegalArgumentException("[alias] is required");
+            }
+            this.alias = alias;
+            this.filter = filter;
+            this.indexRouting = indexRouting;
+            this.searchRouting = searchRouting;
         }
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(filter);
-            this.filter = builder.string();
-            return this;
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
+
+        /**
+         * Alias to add to the index.
+         */
+        public String getAlias() {
+            return alias;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
+            aliasValidator.validate(alias, indexRouting, filter);
+            AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)
+                    .searchRouting(searchRouting).build();
+            // Check if this alias already exists
+            AliasMetaData currentAliasMd = index.getAliases().get(alias);
+            if (currentAliasMd != null && currentAliasMd.equals(newAliasMd)) {
+                // It already exists, ignore it
+                return false;
+            }
+            metadata.put(IndexMetaData.builder(index).putAlias(newAliasMd));
+            return true;
         }
     }
 
-    public AliasAction filter(QueryBuilder queryBuilder) {
-        if (queryBuilder == null) {
-            this.filter = null;
-            return this;
+    /**
+     * Operation to remove an alias from an index.
+     */
+    public static class Remove extends AliasAction {
+        private final String alias;
+
+        /**
+         * Build the operation.
+         */
+        public Remove(String index, String alias) {
+            super(index);
+            if (false == Strings.hasText(alias)) {
+                throw new IllegalArgumentException("[alias] is required");
+            }
+            this.alias = alias;
         }
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.close();
-            this.filter = builder.string();
-            return this;
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
+
+        /**
+         * Alias to remove from the index.
+         */
+        public String getAlias() {
+            return alias;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
+            if (false == index.getAliases().containsKey(alias)) {
+                return false;
+            }
+            metadata.put(IndexMetaData.builder(index).removeAlias(alias));
+            return true;
         }
     }
 
-    public AliasAction routing(String routing) {
-        this.indexRouting = routing;
-        this.searchRouting = routing;
-        return this;
-    }
+    /**
+     * Operation to remove an index. This is an "alias action" because it allows us to remove an index at the same time as we remove add an
+     * alias to replace it.
+     */
+    public static class RemoveIndex extends AliasAction {
+        public RemoveIndex(String index) {
+            super(index);
+        }
 
-    public String indexRouting() {
-        return indexRouting;
-    }
+        @Override
+        boolean removeIndex() {
+            return true;
+        }
 
-    public AliasAction indexRouting(String indexRouting) {
-        this.indexRouting = indexRouting;
-        return this;
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
+            throw new UnsupportedOperationException();
+        }
     }
-
-    public String searchRouting() {
-        return searchRouting;
-    }
-
-    public AliasAction searchRouting(String searchRouting) {
-        this.searchRouting = searchRouting;
-        return this;
-    }
-
-    public static AliasAction readAliasAction(StreamInput in) throws IOException {
-        AliasAction aliasAction = new AliasAction();
-        aliasAction.readFrom(in);
-        return aliasAction;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        actionType = Type.fromValue(in.readByte());
-        index = in.readOptionalString();
-        alias = in.readOptionalString();
-        filter = in.readOptionalString();
-        indexRouting = in.readOptionalString();
-        searchRouting = in.readOptionalString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte(actionType.value());
-        out.writeOptionalString(index);
-        out.writeOptionalString(alias);
-        out.writeOptionalString(filter);
-        out.writeOptionalString(indexRouting);
-        out.writeOptionalString(searchRouting);
-    }
-
-    public static AliasAction newAddAliasAction(String index, String alias) {
-        return new AliasAction(Type.ADD, index, alias);
-    }
-
-    public static AliasAction newRemoveAliasAction(String index, String alias) {
-        return new AliasAction(Type.REMOVE, index, alias);
-    }
-
 }

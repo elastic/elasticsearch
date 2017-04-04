@@ -21,9 +21,10 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
@@ -49,8 +50,8 @@ public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings);
-        final RestRecoveryAction action = new RestRecoveryAction(settings, restController, restController, null);
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null);
+        final RestRecoveryAction action = new RestRecoveryAction(settings, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
@@ -64,7 +65,7 @@ public class RestRecoveryActionTests extends ESTestCase {
             final RecoveryState.Timer timer = mock(RecoveryState.Timer.class);
             when(timer.time()).thenReturn((long)randomIntBetween(1000000, 10 * 1000000));
             when(state.getTimer()).thenReturn(timer);
-            when(state.getType()).thenReturn(randomFrom(RecoveryState.Type.values()));
+            when(state.getRecoverySource()).thenReturn(TestShardRouting.randomRecoverySource());
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {
@@ -74,14 +75,6 @@ public class RestRecoveryActionTests extends ESTestCase {
             final DiscoveryNode targetNode = mock(DiscoveryNode.class);
             when(targetNode.getHostName()).thenReturn(randomAsciiOfLength(8));
             when(state.getTargetNode()).thenReturn(targetNode);
-
-            final RestoreSource restoreSource = randomBoolean() ? mock(RestoreSource.class) : null;
-            if (restoreSource != null) {
-                final SnapshotId snapshotId = mock(SnapshotId.class);
-                when(snapshotId.getRepository()).thenReturn(randomAsciiOfLength(8));
-                when(snapshotId.getSnapshot()).thenReturn(randomAsciiOfLength(8));
-                when(restoreSource.snapshotId()).thenReturn(snapshotId);
-            }
 
             RecoveryState.Index index = mock(RecoveryState.Index.class);
 
@@ -128,26 +121,29 @@ public class RestRecoveryActionTests extends ESTestCase {
         assertNotNull(table);
 
         List<Table.Cell> headers = table.getHeaders();
+
         assertThat(headers.get(0).value, equalTo("index"));
         assertThat(headers.get(1).value, equalTo("shard"));
         assertThat(headers.get(2).value, equalTo("time"));
         assertThat(headers.get(3).value, equalTo("type"));
         assertThat(headers.get(4).value, equalTo("stage"));
         assertThat(headers.get(5).value, equalTo("source_host"));
-        assertThat(headers.get(6).value, equalTo("target_host"));
-        assertThat(headers.get(7).value, equalTo("repository"));
-        assertThat(headers.get(8).value, equalTo("snapshot"));
-        assertThat(headers.get(9).value, equalTo("files"));
-        assertThat(headers.get(10).value, equalTo("files_recovered"));
-        assertThat(headers.get(11).value, equalTo("files_percent"));
-        assertThat(headers.get(12).value, equalTo("files_total"));
-        assertThat(headers.get(13).value, equalTo("bytes"));
-        assertThat(headers.get(14).value, equalTo("bytes_recovered"));
-        assertThat(headers.get(15).value, equalTo("bytes_percent"));
-        assertThat(headers.get(16).value, equalTo("bytes_total"));
-        assertThat(headers.get(17).value, equalTo("translog_ops"));
-        assertThat(headers.get(18).value, equalTo("translog_ops_recovered"));
-        assertThat(headers.get(19).value, equalTo("translog_ops_percent"));
+        assertThat(headers.get(6).value, equalTo("source_node"));
+        assertThat(headers.get(7).value, equalTo("target_host"));
+        assertThat(headers.get(8).value, equalTo("target_node"));
+        assertThat(headers.get(9).value, equalTo("repository"));
+        assertThat(headers.get(10).value, equalTo("snapshot"));
+        assertThat(headers.get(11).value, equalTo("files"));
+        assertThat(headers.get(12).value, equalTo("files_recovered"));
+        assertThat(headers.get(13).value, equalTo("files_percent"));
+        assertThat(headers.get(14).value, equalTo("files_total"));
+        assertThat(headers.get(15).value, equalTo("bytes"));
+        assertThat(headers.get(16).value, equalTo("bytes_recovered"));
+        assertThat(headers.get(17).value, equalTo("bytes_percent"));
+        assertThat(headers.get(18).value, equalTo("bytes_total"));
+        assertThat(headers.get(19).value, equalTo("translog_ops"));
+        assertThat(headers.get(20).value, equalTo("translog_ops_recovered"));
+        assertThat(headers.get(21).value, equalTo("translog_ops_percent"));
 
         assertThat(table.getRows().size(), equalTo(successfulShards));
         for (int i = 0; i < successfulShards; i++) {
@@ -156,27 +152,33 @@ public class RestRecoveryActionTests extends ESTestCase {
             assertThat(cells.get(0).value, equalTo("index"));
             assertThat(cells.get(1).value, equalTo(i));
             assertThat(cells.get(2).value, equalTo(new TimeValue(state.getTimer().time())));
-            assertThat(cells.get(3).value, equalTo(state.getType().name().toLowerCase(Locale.ROOT)));
+            assertThat(cells.get(3).value, equalTo(state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT)));
             assertThat(cells.get(4).value, equalTo(state.getStage().name().toLowerCase(Locale.ROOT)));
             assertThat(cells.get(5).value, equalTo(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName()));
-            assertThat(cells.get(6).value, equalTo(state.getTargetNode().getHostName()));
+            assertThat(cells.get(6).value, equalTo(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName()));
+            assertThat(cells.get(7).value, equalTo(state.getTargetNode().getHostName()));
+            assertThat(cells.get(8).value, equalTo(state.getTargetNode().getName()));
             assertThat(
-                    cells.get(7).value,
-                    equalTo(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository()));
+                    cells.get(9).value,
+                    equalTo(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
+                        "n/a" :
+                        ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository()));
             assertThat(
-                    cells.get(8).value,
-                    equalTo(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot()));
-            assertThat(cells.get(9).value, equalTo(state.getIndex().totalRecoverFiles()));
-            assertThat(cells.get(10).value, equalTo(state.getIndex().recoveredFileCount()));
-            assertThat(cells.get(11).value, equalTo(percent(state.getIndex().recoveredFilesPercent())));
-            assertThat(cells.get(12).value, equalTo(state.getIndex().totalFileCount()));
-            assertThat(cells.get(13).value, equalTo(state.getIndex().totalRecoverBytes()));
-            assertThat(cells.get(14).value, equalTo(state.getIndex().recoveredBytes()));
-            assertThat(cells.get(15).value, equalTo(percent(state.getIndex().recoveredBytesPercent())));
-            assertThat(cells.get(16).value, equalTo(state.getIndex().totalBytes()));
-            assertThat(cells.get(17).value, equalTo(state.getTranslog().totalOperations()));
-            assertThat(cells.get(18).value, equalTo(state.getTranslog().recoveredOperations()));
-            assertThat(cells.get(19).value, equalTo(percent(state.getTranslog().recoveredPercent())));
+                    cells.get(10).value,
+                    equalTo(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
+                        "n/a" :
+                        ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName()));
+            assertThat(cells.get(11).value, equalTo(state.getIndex().totalRecoverFiles()));
+            assertThat(cells.get(12).value, equalTo(state.getIndex().recoveredFileCount()));
+            assertThat(cells.get(13).value, equalTo(percent(state.getIndex().recoveredFilesPercent())));
+            assertThat(cells.get(14).value, equalTo(state.getIndex().totalFileCount()));
+            assertThat(cells.get(15).value, equalTo(state.getIndex().totalRecoverBytes()));
+            assertThat(cells.get(16).value, equalTo(state.getIndex().recoveredBytes()));
+            assertThat(cells.get(17).value, equalTo(percent(state.getIndex().recoveredBytesPercent())));
+            assertThat(cells.get(18).value, equalTo(state.getIndex().totalBytes()));
+            assertThat(cells.get(19).value, equalTo(state.getTranslog().totalOperations()));
+            assertThat(cells.get(20).value, equalTo(state.getTranslog().recoveredOperations()));
+            assertThat(cells.get(21).value, equalTo(percent(state.getTranslog().recoveredPercent())));
         }
     }
 

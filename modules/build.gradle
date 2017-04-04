@@ -18,11 +18,17 @@
  */
 
 subprojects {
+  group = 'org.elasticsearch.plugin' // for modules which publish client jars
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
+  }
+  
+  run {
+    // these cannot be run with the normal distribution, since they are included in it!
+    distribution = 'integ-test-zip'
   }
 
   if (project.file('src/main/packaging').exists()) {
@@ -34,8 +40,4 @@ subprojects {
   if (project.file('src/main/config').exists()) {
     throw new InvalidModelException("Modules cannot contain config files") 
   }
-
-  // these are implementation details of our build, no need to publish them!
-  install.enabled = false
-  uploadArchives.enabled = false
 }

@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class RetryHttpInitializerWrapperTests extends ESTestCase {
 
-    static private class FailThenSuccessBackoffTransport extends MockHttpTransport {
+    private static class FailThenSuccessBackoffTransport extends MockHttpTransport {
 
         public int lowLevelExecCalls;
         int errorStatusCode;

@@ -20,15 +20,15 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 
-public class ChildrenTests extends BaseAggregationTestCase<ChildrenAggregatorBuilder> {
+public class ChildrenTests extends BaseAggregationTestCase<ChildrenAggregationBuilder> {
 
     @Override
-    protected ChildrenAggregatorBuilder createTestAggregatorBuilder() {
+    protected ChildrenAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String childType = randomAsciiOfLengthBetween(5, 40);
-        ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);
+        ChildrenAggregationBuilder factory = new ChildrenAggregationBuilder(name, childType);
         return factory;
     }
 

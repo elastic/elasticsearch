@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -28,36 +27,29 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
-*
-*/
 public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
+    public static final String NAME = "mapped_sampler";
 
-    public final static Type TYPE = new Type("sampler");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalSampler readResult(StreamInput in) throws IOException {
-            InternalSampler result = new InternalSampler();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    InternalSampler() {
-    } // for serialization
-
-    InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, docCount, subAggregations, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalSampler(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected String getType() {
+        return "sampler";
     }
 
     @Override

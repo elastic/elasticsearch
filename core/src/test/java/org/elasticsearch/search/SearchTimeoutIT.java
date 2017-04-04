@@ -23,24 +23,24 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchTimeoutIT extends ESIntegTestCase {
 
@@ -51,31 +51,23 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     public void testSimpleTimeout() throws Exception {
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
-                .setQuery(scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, ScriptType.INLINE, "native", null)))
+                .setQuery(scriptQuery(
+                    new Script(ScriptType.INLINE, "native", NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, Collections.emptyMap())))
                 .execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 
-    public static class ScriptedTimeoutPlugin extends Plugin {
+    public static class ScriptedTimeoutPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return "test-scripted-search-timeout";
-        }
-
-        @Override
-        public String description() {
-            return "Test for scripted timeouts on searches";
-        }
-
-        public void onModule(ScriptModule module) {
-            module.registerScript(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, NativeTestScriptedTimeout.Factory.class);
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Collections.singletonList(new NativeTestScriptedTimeout.Factory());
         }
     }
 
@@ -93,6 +85,11 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             @Override
             public boolean needsScores() {
                 return false;
+            }
+
+            @Override
+            public String getName() {
+                return TEST_NATIVE_SCRIPT_TIMEOUT;
             }
         }
 

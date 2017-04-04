@@ -37,8 +37,8 @@ public class AbstractRunnableTests extends ESTestCase {
 
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                fail("It should not fail");
+            public void onFailure(Exception e) {
+                fail(e.toString());
             }
 
             @Override
@@ -57,8 +57,8 @@ public class AbstractRunnableTests extends ESTestCase {
 
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                assertSame(exception, t);
+            public void onFailure(Exception e) {
+                assertSame(exception, e);
             }
 
             @Override
@@ -76,8 +76,8 @@ public class AbstractRunnableTests extends ESTestCase {
 
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                fail("It should not fail");
+            public void onFailure(Exception e) {
+                fail(e.toString());
             }
 
             @Override
@@ -91,7 +91,7 @@ public class AbstractRunnableTests extends ESTestCase {
                     afterCallable.call();
                 }
                 catch (Exception e) {
-                    fail("Unexpected for mock.");
+                    fail(e.toString());
                 }
             }
         };
@@ -111,8 +111,8 @@ public class AbstractRunnableTests extends ESTestCase {
 
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                assertSame(exception, t);
+            public void onFailure(Exception e) {
+                assertSame(exception, e);
             }
 
             @Override
@@ -126,7 +126,7 @@ public class AbstractRunnableTests extends ESTestCase {
                     afterCallable.call();
                 }
                 catch (Exception e) {
-                    fail("Unexpected for mock.");
+                    fail(e.toString());
                 }
             }
         };
@@ -142,14 +142,15 @@ public class AbstractRunnableTests extends ESTestCase {
 
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                assertSame(exception, t);
+            public void onFailure(Exception e) {
+                assertSame(exception, e);
 
                 try {
                     failureCallable.call();
                 }
-                catch (Exception e) {
-                    fail("Unexpected for mock.");
+                catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    fail(inner.toString());
                 }
             }
 
@@ -165,8 +166,8 @@ public class AbstractRunnableTests extends ESTestCase {
     public void testIsForceExecutuonDefaultsFalse() {
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                fail("Not tested");
+            public void onFailure(Exception e) {
+                fail(e.toString());
             }
 
             @Override

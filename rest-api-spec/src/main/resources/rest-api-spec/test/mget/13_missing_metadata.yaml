@@ -9,10 +9,6 @@
           body:   { foo: bar }
 
   - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
       catch: /action_request_validation_exception.+ id is missing/
       mget:
         body:

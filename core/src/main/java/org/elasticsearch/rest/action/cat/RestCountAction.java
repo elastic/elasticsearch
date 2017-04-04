@@ -19,41 +19,30 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
-import java.util.concurrent.TimeUnit;
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCountAction extends AbstractCatAction {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestCountAction(Settings settings, RestController restController, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+    public RestCountAction(Settings settings, RestController restController) {
+        super(settings);
         restController.registerHandler(GET, "/_cat/count", this);
         restController.registerHandler(GET, "/_cat/count/{index}", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -63,21 +52,26 @@ public class RestCountAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);
-        String source = request.param("source");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
-        if (source != null) {
-            searchSourceBuilder.query(RestActions.getQueryContent(new BytesArray(source), indicesQueriesRegistry, parseFieldMatcher));
-        } else {
-            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            if (queryBuilder != null) {
-                searchSourceBuilder.query(queryBuilder);
-            }
+        try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser == null) {
+                    QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                    if (queryBuilder != null) {
+                        searchSourceBuilder.query(queryBuilder);
+                    }
+                } else {
+                    searchSourceBuilder.query(RestActions.getQueryContent(parser));
+                }
+            });
+        } catch (IOException e) {
+            throw new ElasticsearchException("Couldn't parse query", e);
         }
-        client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
+        return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);
@@ -88,23 +82,16 @@ public class RestCountAction extends AbstractCatAction {
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
-        table.startHeaders();
-        table.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00, that the count was executed");
-        table.addCell("timestamp", "alias:ts,hms;desc:time that the count was executed");
+        table.startHeadersWithTimestamp();
         table.addCell("count", "alias:dc,docs.count,docsCount;desc:the document count");
         table.endHeaders();
         return table;
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
-
     private Table buildTable(RestRequest request, SearchResponse response) {
         Table table = getTableWithHeader(request);
-        long time = System.currentTimeMillis();
         table.startRow();
-        table.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
-        table.addCell(dateFormat.print(time));
-        table.addCell(response.getHits().totalHits());
+        table.addCell(response.getHits().getTotalHits());
         table.endRow();
 
         return table;

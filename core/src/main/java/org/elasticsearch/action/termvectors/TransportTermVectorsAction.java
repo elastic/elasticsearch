@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -44,12 +44,6 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     private final IndicesService indicesService;
 
-    @Override
-    protected void doExecute(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
-        request.startTime = System.currentTimeMillis();
-        super.doExecute(request, listener);
-    }
-
     @Inject
     public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                       IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
@@ -62,7 +56,14 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting().getShards(state, request.concreteIndex(), request.request().type(), request.request().id(),
+        if (request.request().doc() != null && request.request().routing() == null) {
+            // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
+            GroupShardsIterator groupShardsIter = clusterService.operationRouting().searchShards(state,
+                    new String[] { request.concreteIndex() }, null, request.request().preference());
+            return groupShardsIter.iterator().next();
+        }
+
+        return clusterService.operationRouting().getShards(state, request.concreteIndex(), request.request().id(),
                 request.request().routing(), request.request().preference());
     }
 
@@ -85,9 +86,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(indexShard, request);
-        response.updateTookInMillis(request.startTime());
-        return response;
+        return TermVectorsService.getTermVectors(indexShard, request);
     }
 
     @Override

@@ -50,6 +50,9 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -80,6 +83,9 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -92,6 +98,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -431,7 +440,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
 
     /**
-     * Explicitly force mergee one or more indices into a the number of segments.
+     * Explicitly force merge one or more indices into a the number of segments.
      */
     ForceMergeRequestBuilder prepareForceMerge(String... indices);
 
@@ -782,4 +791,33 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      */
     GetSettingsRequestBuilder prepareGetSettings(String... indices);
 
+    /**
+     * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
+     */
+    ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex);
+
+    /**
+     * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
+     */
+    ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request);
+
+    /**
+     * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
+     */
+    void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener);
+
+    /**
+     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     */
+    RolloverRequestBuilder prepareRolloverIndex(String sourceAlias);
+
+    /**
+     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     */
+    ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request);
+
+    /**
+     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     */
+    void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 }

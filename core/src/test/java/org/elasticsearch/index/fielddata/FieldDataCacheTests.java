@@ -35,9 +35,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -86,7 +87,8 @@ public class FieldDataCacheTests extends ESTestCase {
     }
 
     private SortedSetDVOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService());
+        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService(),
+                AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {

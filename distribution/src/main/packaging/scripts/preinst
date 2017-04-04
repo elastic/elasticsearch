@@ -62,7 +62,7 @@ case "$1" in
         # Create elasticsearch user if not existing
         if ! id $ES_USER > /dev/null 2>&1 ; then
             echo -n "Creating $ES_USER user..."
-            useradd --system \
+            useradd -r \
                     -M \
                     --gid "$ES_GROUP" \
                     --shell /sbin/nologin \

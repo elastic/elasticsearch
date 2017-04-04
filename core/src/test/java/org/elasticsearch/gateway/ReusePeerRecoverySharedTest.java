@@ -19,16 +19,15 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,7 +56,7 @@ public class ReusePeerRecoverySharedTest {
      *            should this use synced flush? can't use synced from in the bwc
      *            tests
      */
-    public static void testCase(Settings indexSettings, Runnable restartCluster, ESLogger logger, boolean useSyncIds) {
+    public static void testCase(Settings indexSettings, Runnable restartCluster, Logger logger, boolean useSyncIds) {
         /*
          * prevent any rebalance actions during the peer recovery if we run into
          * a relocation the reuse count will be 0 and this fails the test. We
@@ -81,13 +80,13 @@ public class ReusePeerRecoverySharedTest {
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("30s").get();
         // just wait for merges
         client().admin().indices().prepareForceMerge("test").setMaxNumSegments(100).get();
-        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get();
 
         if (useSyncIds == false) {
             logger.info("--> disabling allocation while the cluster is shut down");
 
             // Disable allocations while we are closing nodes
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                     .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)).get();
             logger.info("--> full cluster restart");
             restartCluster.run();
@@ -103,7 +102,7 @@ public class ReusePeerRecoverySharedTest {
         logger.info("--> disabling allocation while the cluster is shut down{}", useSyncIds ? "" : " a second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
+                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
         logger.info("--> full cluster restart");
         restartCluster.run();
@@ -124,7 +123,7 @@ public class ReusePeerRecoverySharedTest {
             }
             if (!recoveryState.getPrimary() && (useSyncIds == false)) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}", recoveryState.getShardId().getId(),
-                        recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
@@ -139,7 +138,7 @@ public class ReusePeerRecoverySharedTest {
             } else {
                 if (useSyncIds && !recoveryState.getPrimary()) {
                     logger.info("--> replica shard {} recovered from {} to {} using sync id, recovered {}, reuse {}",
-                            recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                            recoveryState.getShardId().getId(), recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));

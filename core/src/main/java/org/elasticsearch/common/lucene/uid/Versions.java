@@ -19,14 +19,25 @@
 
 package org.elasticsearch.common.lucene.uid;
 
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReader.CoreClosedListener;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,11 +52,7 @@ public class Versions {
     /** indicates that the current document was not found in lucene and in the version map */
     public static final long NOT_FOUND = -1L;
 
-    /**
-     * used when the document is old and doesn't contain any version information in the index
-     * see {@link PerThreadIDAndVersionLookup#lookup}
-     */
-    public static final long NOT_SET = -2L;
+    // -2 was used for docs that can be found in the index but do not have a version
 
     /**
      * used to indicate that the write operation should be executed if the document is currently deleted
@@ -114,7 +121,7 @@ public class Versions {
     /**
      * Load the internal doc ID and version for the uid from the reader, returning<ul>
      * <li>null if the uid wasn't found,
-     * <li>a doc ID and a version otherwise, the version being potentially set to {@link #NOT_SET} if the uid has no associated version
+     * <li>a doc ID and a version otherwise
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
@@ -140,12 +147,122 @@ public class Versions {
     /**
      * Load the version for the uid from the reader, returning<ul>
      * <li>{@link #NOT_FOUND} if no matching doc exists,
-     * <li>{@link #NOT_SET} if no version is available,
      * <li>the version associated with the provided uid otherwise
      * </ul>
      */
     public static long loadVersion(IndexReader reader, Term term) throws IOException {
         final DocIdAndVersion docIdAndVersion = loadDocIdAndVersion(reader, term);
         return docIdAndVersion == null ? NOT_FOUND : docIdAndVersion.version;
+    }
+
+
+    /**
+     * Returns the sequence number for the given uid term, returning
+     * {@code SequenceNumbersService.UNASSIGNED_SEQ_NO} if none is found.
+     */
+    public static long loadSeqNo(IndexReader reader, Term term) throws IOException {
+        assert term.field().equals(UidFieldMapper.NAME) : "can only load _seq_no by uid";
+        List<LeafReaderContext> leaves = reader.leaves();
+        if (leaves.isEmpty()) {
+            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            LeafReader leaf = leaves.get(i).reader();
+            Bits liveDocs = leaf.getLiveDocs();
+
+            TermsEnum termsEnum = null;
+            SortedNumericDocValues dvField = null;
+            PostingsEnum docsEnum = null;
+
+            final Fields fields = leaf.fields();
+            if (fields != null) {
+                Terms terms = fields.terms(UidFieldMapper.NAME);
+                if (terms != null) {
+                    termsEnum = terms.iterator();
+                    assert termsEnum != null;
+                    dvField = leaf.getSortedNumericDocValues(SeqNoFieldMapper.NAME);
+                    assert dvField != null;
+
+                    final BytesRef id = term.bytes();
+                    if (termsEnum.seekExact(id)) {
+                        // there may be more than one matching docID, in the
+                        // case of nested docs, so we want the last one:
+                        docsEnum = termsEnum.postings(docsEnum, 0);
+                        int docID = DocIdSetIterator.NO_MORE_DOCS;
+                        for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+                            if (liveDocs != null && liveDocs.get(d) == false) {
+                                continue;
+                            }
+                            docID = d;
+                        }
+
+                        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                            dvField.setDocument(docID);
+                            assert dvField.count() == 1 : "expected only a single value for _seq_no but got " +
+                                    dvField.count();
+                            return dvField.valueAt(0);
+                        }
+                    }
+                }
+            }
+
+        }
+        return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+    }
+
+    /**
+     * Returns the primary term for the given uid term, returning {@code 0} if none is found.
+     */
+    public static long loadPrimaryTerm(IndexReader reader, Term term) throws IOException {
+        assert term.field().equals(UidFieldMapper.NAME) : "can only load _primary_term by uid";
+        List<LeafReaderContext> leaves = reader.leaves();
+        if (leaves.isEmpty()) {
+            return 0;
+        }
+
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            LeafReader leaf = leaves.get(i).reader();
+            Bits liveDocs = leaf.getLiveDocs();
+
+            TermsEnum termsEnum = null;
+            NumericDocValues dvField = null;
+            PostingsEnum docsEnum = null;
+
+            final Fields fields = leaf.fields();
+            if (fields != null) {
+                Terms terms = fields.terms(UidFieldMapper.NAME);
+                if (terms != null) {
+                    termsEnum = terms.iterator();
+                    assert termsEnum != null;
+                    dvField = leaf.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                    assert dvField != null;
+
+                    final BytesRef id = term.bytes();
+                    if (termsEnum.seekExact(id)) {
+                        // there may be more than one matching docID, in the
+                        // case of nested docs, so we want the last one:
+                        docsEnum = termsEnum.postings(docsEnum, 0);
+                        int docID = DocIdSetIterator.NO_MORE_DOCS;
+                        for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+                            if (liveDocs != null && liveDocs.get(d) == false) {
+                                continue;
+                            }
+                            docID = d;
+                        }
+
+                        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                            return dvField.get(docID);
+                        }
+                    }
+                }
+            }
+
+        }
+        return 0;
     }
 }

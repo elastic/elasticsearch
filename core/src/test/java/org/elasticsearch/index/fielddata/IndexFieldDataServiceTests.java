@@ -35,18 +35,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.ByteFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.ShortFieldMapper;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -54,6 +49,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -79,22 +75,24 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-                new ByteFieldMapper.Builder("int").build(ctx).fieldType(),
-                new ShortFieldMapper.Builder("int").build(ctx).fieldType(),
-                new IntegerFieldMapper.Builder("int").build(ctx).fieldType(),
-                new LongFieldMapper.Builder("long").build(ctx).fieldType()
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE).build(ctx).fieldType(),
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.SHORT).build(ctx).fieldType(),
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.INTEGER).build(ctx).fieldType(),
+                new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG).build(ctx).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper);
             assertTrue(fd instanceof SortedNumericDVIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new FloatFieldMapper.Builder("float").build(ctx).fieldType();
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT)
+                .build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper);
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
 
-        final MappedFieldType doubleMapper = new DoubleFieldMapper.Builder("double").build(ctx).fieldType();
+        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE)
+                .build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper);
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
@@ -174,7 +172,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     private void doTestRequireDocValues(MappedFieldType ft) {
-        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
+        ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
@@ -185,7 +183,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             try {
                 ifds.getForField(ft);
                 fail();
-            } catch (IllegalStateException e) {
+            } catch (IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("doc values"));
             }
         } finally {
@@ -194,11 +192,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new LongFieldMapper.LongFieldType());
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new DoubleFieldMapper.DoubleFieldType());
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
     }
 
     public void testRequireDocValuesOnBools() {

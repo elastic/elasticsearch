@@ -19,43 +19,123 @@
 
 package org.elasticsearch.action.fieldstats;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Objects;
 
-public abstract class FieldStats<T extends Comparable<T>> implements Streamable, ToXContent {
+public abstract class FieldStats<T> implements Writeable, ToXContent {
 
-    private byte type;
+    private final byte type;
     private long maxDoc;
     private long docCount;
     private long sumDocFreq;
     private long sumTotalTermFreq;
+    private boolean isSearchable;
+    private boolean isAggregatable;
+    private boolean hasMinMax;
     protected T minValue;
     protected T maxValue;
 
-    protected FieldStats() {
-    }
-
-    protected FieldStats(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq) {
-        this.type = (byte) type;
+    /**
+     * Builds a FieldStats where min and max value are not available for the field.
+     * @param type The native type of this FieldStats
+     * @param maxDoc Max number of docs
+     * @param docCount  the number of documents that have at least one term for this field,
+     *                  or -1 if this information isn't available for this field.
+     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field,
+     *                    or -1 if this information isn't available for this field.
+     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field,
+     *                         or -1 if this measure isn't available for this field.
+     * @param isSearchable true if this field is searchable
+     * @param isAggregatable true if this field is aggregatable
+     */
+    FieldStats(byte type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+               boolean isSearchable, boolean isAggregatable) {
+        this.type = type;
         this.maxDoc = maxDoc;
         this.docCount = docCount;
         this.sumDocFreq = sumDocFreq;
         this.sumTotalTermFreq = sumTotalTermFreq;
+        this.isSearchable = isSearchable;
+        this.isAggregatable = isAggregatable;
+        this.hasMinMax = false;
+    }
+
+    /**
+     * Builds a FieldStats with min and max value for the field.
+     * @param type The native type of this FieldStats
+     * @param maxDoc Max number of docs
+     * @param docCount  the number of documents that have at least one term for this field,
+     *                  or -1 if this information isn't available for this field.
+     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field,
+     *                    or -1 if this information isn't available for this field.
+     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field,
+     *                         or -1 if this measure isn't available for this field.
+     * @param isSearchable true if this field is searchable
+     * @param isAggregatable true if this field is aggregatable
+     * @param minValue the minimum value indexed in this field
+     * @param maxValue the maximum value indexed in this field
+     */
+    FieldStats(byte type,
+               long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+               boolean isSearchable, boolean isAggregatable, T minValue, T maxValue) {
+        Objects.requireNonNull(minValue, "minValue must not be null");
+        Objects.requireNonNull(maxValue, "maxValue must not be null");
+        this.type = type;
+        this.maxDoc = maxDoc;
+        this.docCount = docCount;
+        this.sumDocFreq = sumDocFreq;
+        this.sumTotalTermFreq = sumTotalTermFreq;
+        this.isSearchable = isSearchable;
+        this.isAggregatable = isAggregatable;
+        this.hasMinMax = true;
+        this.minValue = minValue;
+        this.maxValue = maxValue;
     }
 
     byte getType() {
-        return type;
+        return this.type;
+    }
+
+    public String getDisplayType() {
+        switch (type) {
+            case 0:
+                return "integer";
+            case 1:
+                return "float";
+            case 2:
+                return "date";
+            case 3:
+                return "string";
+            case 4:
+                return "ip";
+            case 5:
+                return "geo_point";
+            default:
+                throw new IllegalArgumentException("Unknown type.");
+        }
+    }
+
+    /**
+     * @return true if min/max information is available for this field
+     */
+    public boolean hasMinMax() {
+        return hasMinMax;
     }
 
     /**
@@ -68,7 +148,8 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     /**
-     * @return the number of documents that have at least one term for this field, or -1 if this measurement isn't available.
+     * @return the number of documents that have at least one term for this field,
+     * or -1 if this measurement isn't available.
      *
      * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
      */
@@ -99,13 +180,28 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     /**
-     * @return the sum of the term frequencies of all terms in this field across all documents, or -1 if this measurement
+     * @return the sum of the term frequencies of all terms in this field across all documents,
+     * or -1 if this measurement
      * isn't available. Term frequency is the total number of occurrences of a term in a particular document and field.
      *
      * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
      */
     public long getSumTotalTermFreq() {
         return sumTotalTermFreq;
+    }
+
+    /**
+     * @return <code>true</code> if any of the instances of the field name is searchable.
+     */
+    public boolean isSearchable() {
+        return isSearchable;
+    }
+
+    /**
+     * @return <code>true</code> if any of the instances of the field name is aggregatable.
+     */
+    public boolean isAggregatable() {
+        return isAggregatable;
     }
 
     /**
@@ -149,48 +245,112 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     protected abstract T valueOf(String value, String optionalFormat);
 
     /**
-     * @param value
-     *            The value to be converted to a String
-     * @param optionalFormat
-     *            A string describing how to print the specified value. Whether
-     *            this parameter is supported depends on the implementation. If
-     *            optionalFormat is specified and the implementation doesn't
-     *            support it an {@link UnsupportedOperationException} is thrown
+     * Accumulates the provided stats into this stats instance.
      */
-    public abstract String stringValueOf(Object value, String optionalFormat);
-
-    /**
-     * Merges the provided stats into this stats instance.
-     */
-    public void append(FieldStats stats) {
-        this.maxDoc += stats.maxDoc;
-        if (stats.docCount == -1) {
+    public final void accumulate(FieldStats other) {
+        this.maxDoc += other.maxDoc;
+        if (other.docCount == -1) {
             this.docCount = -1;
         } else if (this.docCount != -1) {
-            this.docCount += stats.docCount;
+            this.docCount += other.docCount;
         }
-        if (stats.sumDocFreq == -1) {
+        if (other.sumDocFreq == -1) {
             this.sumDocFreq = -1;
         } else if (this.sumDocFreq != -1) {
-            this.sumDocFreq += stats.sumDocFreq;
+            this.sumDocFreq += other.sumDocFreq;
         }
-        if (stats.sumTotalTermFreq == -1) {
+        if (other.sumTotalTermFreq == -1) {
             this.sumTotalTermFreq = -1;
         } else if (this.sumTotalTermFreq != -1) {
-            this.sumTotalTermFreq += stats.sumTotalTermFreq;
+            this.sumTotalTermFreq += other.sumTotalTermFreq;
+        }
+
+        isSearchable |= other.isSearchable;
+        isAggregatable |= other.isAggregatable;
+
+        assert type == other.getType();
+        if (hasMinMax && other.hasMinMax) {
+            updateMinMax((T) other.minValue, (T) other.maxValue);
+        } else {
+            hasMinMax = false;
+            minValue = null;
+            maxValue = null;
         }
     }
 
+    protected void updateMinMax(T min, T max) {
+        if (compare(minValue, min) > 0) {
+            minValue = min;
+        }
+        if (compare(maxValue, max) < 0) {
+            maxValue = max;
+        }
+    }
+
+    protected abstract int compare(T o1, T o2);
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(TYPE_FIELD, getDisplayType());
+        builder.field(MAX_DOC_FIELD, maxDoc);
+        builder.field(DOC_COUNT_FIELD, docCount);
+        builder.field(DENSITY_FIELD, getDensity());
+        builder.field(SUM_DOC_FREQ_FIELD, sumDocFreq);
+        builder.field(SUM_TOTAL_TERM_FREQ_FIELD, sumTotalTermFreq);
+        builder.field(SEARCHABLE_FIELD, isSearchable);
+        builder.field(AGGREGATABLE_FIELD, isAggregatable);
+        if (hasMinMax) {
+            toInnerXContent(builder);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    protected void toInnerXContent(XContentBuilder builder) throws IOException {
+        builder.field(MIN_VALUE_FIELD, getMinValue());
+        builder.field(MIN_VALUE_AS_STRING_FIELD, getMinValueAsString());
+        builder.field(MAX_VALUE_FIELD, getMaxValue());
+        builder.field(MAX_VALUE_AS_STRING_FIELD, getMaxValueAsString());
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(type);
+        out.writeLong(maxDoc);
+        out.writeLong(docCount);
+        out.writeLong(sumDocFreq);
+        out.writeLong(sumTotalTermFreq);
+        out.writeBoolean(isSearchable);
+        out.writeBoolean(isAggregatable);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeBoolean(hasMinMax);
+            if (hasMinMax) {
+                writeMinMax(out);
+            }
+        } else {
+            assert hasMinMax : "cannot serialize null min/max fieldstats in a mixed-cluster " +
+                    "with pre-" + Version.V_5_2_0_UNRELEASED + " nodes, remote version [" + out.getVersion() + "]";
+            writeMinMax(out);
+        }
+    }
+
+    protected abstract void writeMinMax(StreamOutput out) throws IOException;
+
     /**
-     * @return <code>true</code> if this instance matches with the provided index constraint, otherwise <code>false</code> is returned
+     * @return <code>true</code> if this instance matches with the provided index constraint,
+     * otherwise <code>false</code> is returned
      */
     public boolean match(IndexConstraint constraint) {
+        if (hasMinMax == false) {
+            return false;
+        }
         int cmp;
         T value  = valueOf(constraint.getValue(), constraint.getOptionalFormat());
         if (constraint.getProperty() == IndexConstraint.Property.MIN) {
-            cmp = minValue.compareTo(value);
+            cmp = compare(minValue, value);
         } else if (constraint.getProperty() == IndexConstraint.Property.MAX) {
-            cmp = maxValue.compareTo(value);
+            cmp = compare(maxValue, value);
         } else {
             throw new IllegalArgumentException("Unsupported property [" + constraint.getProperty() + "]");
         }
@@ -210,250 +370,215 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(Fields.MAX_DOC, maxDoc);
-        builder.field(Fields.DOC_COUNT, docCount);
-        builder.field(Fields.DENSITY, getDensity());
-        builder.field(Fields.SUM_DOC_FREQ, sumDocFreq);
-        builder.field(Fields.SUM_TOTAL_TERM_FREQ, sumTotalTermFreq);
-        toInnerXContent(builder);
-        builder.endObject();
-        return builder;
-    }
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
-    protected void toInnerXContent(XContentBuilder builder) throws IOException {
-        builder.field(Fields.MIN_VALUE, getMinValue());
-        builder.field(Fields.MIN_VALUE_AS_STRING, getMinValueAsString());
-        builder.field(Fields.MAX_VALUE, getMaxValue());
-        builder.field(Fields.MAX_VALUE_AS_STRING, getMaxValueAsString());
-    }
+        FieldStats<?> that = (FieldStats<?>) o;
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        maxDoc = in.readVLong();
-        docCount = in.readLong();
-        sumDocFreq = in.readLong();
-        sumTotalTermFreq = in.readLong();
+        if (type != that.type) return false;
+        if (maxDoc != that.maxDoc) return false;
+        if (docCount != that.docCount) return false;
+        if (sumDocFreq != that.sumDocFreq) return false;
+        if (sumTotalTermFreq != that.sumTotalTermFreq) return false;
+        if (isSearchable != that.isSearchable) return false;
+        if (isAggregatable != that.isAggregatable) return false;
+        if (hasMinMax != that.hasMinMax) return false;
+        if (hasMinMax == false) {
+            return true;
+        }
+        if (!minValue.equals(that.minValue)) return false;
+        return maxValue.equals(that.maxValue);
+
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte(type);
-        out.writeVLong(maxDoc);
-        out.writeLong(docCount);
-        out.writeLong(sumDocFreq);
-        out.writeLong(sumTotalTermFreq);
+    public int hashCode() {
+        return Objects.hash(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
+            hasMinMax, minValue, maxValue);
     }
 
     public static class Long extends FieldStats<java.lang.Long> {
-
-        public Long() {
+        public Long(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                    boolean isSearchable, boolean isAggregatable) {
+            super((byte) 0, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable);
         }
 
-        public Long(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
-            this(0, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
-        }
-
-        protected Long(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
-            super(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
-            this.minValue = minValue;
-            this.maxValue = maxValue;
-        }
-
-        @Override
-        public String getMinValueAsString() {
-            return String.valueOf(minValue.longValue());
+        public Long(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                    boolean isSearchable, boolean isAggregatable,
+                    long minValue, long maxValue) {
+            super((byte) 0, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable, minValue, maxValue);
         }
 
         @Override
-        public String getMaxValueAsString() {
-            return String.valueOf(maxValue.longValue());
+        public int compare(java.lang.Long o1, java.lang.Long o2) {
+            return o1.compareTo(o2);
         }
 
         @Override
-        public void append(FieldStats stats) {
-            super.append(stats);
-            Long other = (Long) stats;
-            this.minValue = Math.min(other.minValue, minValue);
-            this.maxValue = Math.max(other.maxValue, maxValue);
-        }
-
-        @Override
-        protected java.lang.Long valueOf(String value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            return java.lang.Long.valueOf(value);
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            if (value instanceof Number) {
-                return java.lang.Long.toString(((Number) value).longValue());
-            } else {
-                throw new IllegalArgumentException("value must be a Long: " + value);
-            }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            minValue = in.readLong();
-            maxValue = in.readLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        public void writeMinMax(StreamOutput out) throws IOException {
             out.writeLong(minValue);
             out.writeLong(maxValue);
         }
 
-    }
-
-    public static final class Float extends FieldStats<java.lang.Float> {
-
-        public Float() {
-        }
-
-        public Float(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, float minValue, float maxValue) {
-            super(1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
-            this.minValue = minValue;
-            this.maxValue = maxValue;
+        @Override
+        public java.lang.Long valueOf(String value, String optionalFormat) {
+            return java.lang.Long.parseLong(value);
         }
 
         @Override
         public String getMinValueAsString() {
-            return String.valueOf(minValue.floatValue());
+            return java.lang.Long.toString(minValue);
         }
 
         @Override
         public String getMaxValueAsString() {
-            return String.valueOf(maxValue.floatValue());
+            return java.lang.Long.toString(maxValue);
         }
-
-        @Override
-        public void append(FieldStats stats) {
-            super.append(stats);
-            Float other = (Float) stats;
-            this.minValue = Math.min(other.minValue, minValue);
-            this.maxValue = Math.max(other.maxValue, maxValue);
-        }
-
-        @Override
-        protected java.lang.Float valueOf(String value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            return java.lang.Float.valueOf(value);
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            if (value instanceof Number) {
-                return java.lang.Float.toString(((Number) value).floatValue());
-            } else {
-                throw new IllegalArgumentException("value must be a Float: " + value);
-            }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            minValue = in.readFloat();
-            maxValue = in.readFloat();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeFloat(minValue);
-            out.writeFloat(maxValue);
-        }
-
     }
 
-    public static final class Double extends FieldStats<java.lang.Double> {
-
-        public Double() {
+    public static class Double extends FieldStats<java.lang.Double> {
+        public Double(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                      boolean isSearchable, boolean isAggregatable) {
+            super((byte) 1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable);
         }
 
-        public Double(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, double minValue, double maxValue) {
-            super(2, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
-            this.minValue = minValue;
-            this.maxValue = maxValue;
-        }
-
-        @Override
-        public String getMinValueAsString() {
-            return String.valueOf(minValue.doubleValue());
+        public Double(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                      boolean isSearchable, boolean isAggregatable,
+                      double minValue, double maxValue) {
+            super((byte) 1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
+                minValue, maxValue);
         }
 
         @Override
-        public String getMaxValueAsString() {
-            return String.valueOf(maxValue.doubleValue());
+        public int compare(java.lang.Double o1, java.lang.Double o2) {
+            return o1.compareTo(o2);
         }
 
         @Override
-        public void append(FieldStats stats) {
-            super.append(stats);
-            Double other = (Double) stats;
-            this.minValue = Math.min(other.minValue, minValue);
-            this.maxValue = Math.max(other.maxValue, maxValue);
-        }
-
-        @Override
-        protected java.lang.Double valueOf(String value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            return java.lang.Double.valueOf(value);
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            if (value instanceof Number) {
-                return java.lang.Double.toString(((Number) value).doubleValue());
-            } else {
-                throw new IllegalArgumentException("value must be a Double: " + value);
-            }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            minValue = in.readDouble();
-            maxValue = in.readDouble();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        public void writeMinMax(StreamOutput out) throws IOException {
             out.writeDouble(minValue);
             out.writeDouble(maxValue);
         }
 
-    }
-
-    public static final class Text extends FieldStats<BytesRef> {
-
-        public Text() {
+        @Override
+        public java.lang.Double valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            return java.lang.Double.parseDouble(value);
         }
 
-        public Text(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, BytesRef minValue, BytesRef maxValue) {
-            super(3, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
-            this.minValue = minValue;
-            this.maxValue = maxValue;
+        @Override
+        public String getMinValueAsString() {
+            return java.lang.Double.toString(minValue);
+        }
+
+        @Override
+        public String getMaxValueAsString() {
+            return java.lang.Double.toString(maxValue);
+        }
+    }
+
+    public static class Date extends FieldStats<java.lang.Long> {
+        private FormatDateTimeFormatter formatter;
+
+        public Date(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                    boolean isSearchable, boolean isAggregatable) {
+            super((byte) 2, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable);
+            this.formatter = null;
+        }
+
+        public Date(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                    boolean isSearchable, boolean isAggregatable,
+                    FormatDateTimeFormatter formatter,
+                    long minValue, long maxValue) {
+            super((byte) 2, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
+                minValue, maxValue);
+            this.formatter = formatter;
+        }
+
+        @Override
+        public int compare(java.lang.Long o1, java.lang.Long o2) {
+            return o1.compareTo(o2);
+        }
+
+        @Override
+        public void writeMinMax(StreamOutput out) throws IOException {
+            out.writeString(formatter.format());
+            out.writeLong(minValue);
+            out.writeLong(maxValue);
+        }
+
+        @Override
+        public java.lang.Long valueOf(String value, String fmt) {
+            FormatDateTimeFormatter f = formatter;
+            if (fmt != null) {
+                f = Joda.forPattern(fmt);
+            }
+            return f.parser().parseDateTime(value).getMillis();
+        }
+
+        @Override
+        public String getMinValueAsString() {
+            return formatter.printer().print(minValue);
+        }
+
+        @Override
+        public String getMaxValueAsString() {
+            return formatter.printer().print(maxValue);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!super.equals(o)) return false;
+            Date that = (Date) o;
+            return Objects.equals(formatter == null ? null : formatter.format(),
+                that.formatter == null ? null : that.formatter.format());
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + (formatter == null ? 0 : formatter.format().hashCode());
+            return result;
+        }
+    }
+
+    public static class Text extends FieldStats<BytesRef> {
+        public Text(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                    boolean isSearchable, boolean isAggregatable) {
+            super((byte) 3, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable);
+        }
+
+        public Text(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                    boolean isSearchable, boolean isAggregatable,
+                    BytesRef minValue, BytesRef maxValue) {
+            super((byte) 3, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable,
+                minValue, maxValue);
+        }
+
+        @Override
+        public int compare(BytesRef o1, BytesRef o2) {
+            return o1.compareTo(o2);
+        }
+
+        @Override
+        public void writeMinMax(StreamOutput out) throws IOException {
+            out.writeBytesRef(minValue);
+            out.writeBytesRef(maxValue);
+        }
+
+        @Override
+        protected BytesRef valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            return new BytesRef(value);
         }
 
         @Override
@@ -467,184 +592,198 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public void append(FieldStats stats) {
-            super.append(stats);
-            Text other = (Text) stats;
-            if (other.minValue.compareTo(minValue) < 0) {
-                minValue = other.minValue;
-            }
-            if (other.maxValue.compareTo(maxValue) > 0) {
-                maxValue = other.maxValue;
-            }
-        }
-
-        @Override
-        protected BytesRef valueOf(String value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            return new BytesRef(value);
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            if (value instanceof BytesRef) {
-                return ((BytesRef) value).utf8ToString();
-            } else {
-                throw new IllegalArgumentException("value must be a BytesRef: " + value);
-            }
-        }
-
-        @Override
         protected void toInnerXContent(XContentBuilder builder) throws IOException {
-            builder.field(Fields.MIN_VALUE, getMinValueAsString());
-            builder.field(Fields.MAX_VALUE, getMaxValueAsString());
+            builder.field(MIN_VALUE_FIELD, getMinValueAsString());
+            builder.field(MAX_VALUE_FIELD, getMaxValueAsString());
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            minValue = in.readBytesRef();
-            maxValue = in.readBytesRef();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBytesRef(minValue);
-            out.writeBytesRef(maxValue);
-        }
-
     }
 
-    public static final class Date extends Long {
-
-        private FormatDateTimeFormatter dateFormatter;
-
-        public Date() {
+    public static class Ip extends FieldStats<InetAddress> {
+        public Ip(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                  boolean isSearchable, boolean isAggregatable) {
+            super((byte) 4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable);
         }
 
-        public Date(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue, FormatDateTimeFormatter dateFormatter) {
-            super(4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
-            this.dateFormatter = dateFormatter;
+
+        public Ip(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                  boolean isSearchable, boolean isAggregatable,
+                  InetAddress minValue, InetAddress maxValue) {
+            super((byte) 4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable,
+                minValue, maxValue);
+        }
+
+        @Override
+        public int compare(InetAddress o1, InetAddress o2) {
+            byte[] b1 = InetAddressPoint.encode(o1);
+            byte[] b2 = InetAddressPoint.encode(o2);
+            return StringHelper.compare(b1.length, b1, 0, b2, 0);
+        }
+
+        @Override
+        public void writeMinMax(StreamOutput out) throws IOException {
+            byte[] b1 = InetAddressPoint.encode(minValue);
+            byte[] b2 = InetAddressPoint.encode(maxValue);
+            out.writeByte((byte) b1.length);
+            out.writeBytes(b1);
+            out.writeByte((byte) b2.length);
+            out.writeBytes(b2);
+        }
+
+        @Override
+        public InetAddress valueOf(String value, String fmt) {
+            return InetAddresses.forString(value);
         }
 
         @Override
         public String getMinValueAsString() {
-            return dateFormatter.printer().print(minValue);
+            return NetworkAddress.format(minValue);
         }
 
         @Override
         public String getMaxValueAsString() {
-            return dateFormatter.printer().print(maxValue);
-        }
-
-        @Override
-        protected java.lang.Long valueOf(String value, String optionalFormat) {
-            FormatDateTimeFormatter dateFormatter = this.dateFormatter;
-            if (optionalFormat != null) {
-                dateFormatter = Joda.forPattern(optionalFormat);
-            }
-            return dateFormatter.parser().parseMillis(value);
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            FormatDateTimeFormatter dateFormatter = this.dateFormatter;
-            if (optionalFormat != null) {
-                dateFormatter = Joda.forPattern(optionalFormat);
-            }
-            long millis;
-            if (value instanceof java.lang.Long) {
-                millis = ((java.lang.Long) value).longValue();
-            } else if (value instanceof DateTime) {
-                millis = ((DateTime) value).getMillis();
-            } else if (value instanceof BytesRef) {
-                millis = dateFormatter.parser().parseMillis(((BytesRef) value).utf8ToString());
-            } else {
-                throw new IllegalArgumentException("value must be either a DateTime or a long: " + value);
-            }
-            return dateFormatter.printer().print(millis);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            dateFormatter =  Joda.forPattern(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(dateFormatter.format());
-        }
-
-    }
-
-    public static class Ip extends Long {
-
-        public Ip(int maxDoc, int docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
-            super(maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
-        }
-
-        protected Ip(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
-            super(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
-        }
-
-        public Ip() {
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            if (value instanceof BytesRef) {
-                return super.stringValueOf(IpFieldMapper.ipToLong(((BytesRef) value).utf8ToString()), optionalFormat);
-            }
-            return super.stringValueOf(value, optionalFormat);
+            return NetworkAddress.format(maxValue);
         }
     }
 
-    public static FieldStats read(StreamInput in) throws IOException {
-        FieldStats stats;
+    public static class GeoPoint extends FieldStats<org.elasticsearch.common.geo.GeoPoint> {
+        public GeoPoint(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                  boolean isSearchable, boolean isAggregatable) {
+            super((byte) 5, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable);
+        }
+
+        public GeoPoint(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                        boolean isSearchable, boolean isAggregatable,
+                        org.elasticsearch.common.geo.GeoPoint minValue, org.elasticsearch.common.geo.GeoPoint maxValue) {
+            super((byte) 5, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
+                minValue, maxValue);
+        }
+
+        @Override
+        public org.elasticsearch.common.geo.GeoPoint valueOf(String value, String fmt) {
+            return org.elasticsearch.common.geo.GeoPoint.parseFromLatLon(value);
+        }
+
+        @Override
+        protected void updateMinMax(org.elasticsearch.common.geo.GeoPoint min, org.elasticsearch.common.geo.GeoPoint max) {
+            minValue.reset(Math.min(min.lat(), minValue.lat()), Math.min(min.lon(), minValue.lon()));
+            maxValue.reset(Math.max(max.lat(), maxValue.lat()), Math.max(max.lon(), maxValue.lon()));
+        }
+
+        @Override
+        public int compare(org.elasticsearch.common.geo.GeoPoint p1, org.elasticsearch.common.geo.GeoPoint p2) {
+            throw new IllegalArgumentException("compare is not supported for geo_point field stats");
+        }
+
+        @Override
+        public void writeMinMax(StreamOutput out) throws IOException {
+            out.writeDouble(minValue.lat());
+            out.writeDouble(minValue.lon());
+            out.writeDouble(maxValue.lat());
+            out.writeDouble(maxValue.lon());
+        }
+
+        @Override
+        public String getMinValueAsString() {
+            return minValue.toString();
+        }
+
+        @Override
+        public String getMaxValueAsString() {
+            return maxValue.toString();
+        }
+    }
+
+    public static FieldStats readFrom(StreamInput in) throws IOException {
         byte type = in.readByte();
+        long maxDoc = in.readLong();
+        long docCount = in.readLong();
+        long sumDocFreq = in.readLong();
+        long sumTotalTermFreq = in.readLong();
+        boolean isSearchable = in.readBoolean();
+        boolean isAggregatable = in.readBoolean();
+        boolean hasMinMax = true;
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            hasMinMax = in.readBoolean();
+        }
         switch (type) {
             case 0:
-                stats = new Long();
-                break;
+                if (hasMinMax) {
+                    return new Long(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable, in.readLong(), in.readLong());
+                } else {
+                    return new Long(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
             case 1:
-                stats = new Float();
-                break;
+                if (hasMinMax) {
+                    return new Double(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable, in.readDouble(), in.readDouble());
+                } else {
+                    return new Double(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
             case 2:
-                stats = new Double();
-                break;
+                if (hasMinMax) {
+                    FormatDateTimeFormatter formatter = Joda.forPattern(in.readString());
+                    return new Date(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable, formatter, in.readLong(), in.readLong());
+                } else {
+                    return new Date(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
             case 3:
-                stats = new Text();
-                break;
-            case 4:
-                stats = new Date();
-                break;
+                if (hasMinMax) {
+                    return new Text(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable, in.readBytesRef(), in.readBytesRef());
+                } else {
+                    return new Text(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
+
+            case 4: {
+                if (hasMinMax == false) {
+                    return new Ip(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
+                int l1 = in.readByte();
+                byte[] b1 = new byte[l1];
+                in.readBytes(b1, 0, l1);
+                int l2 = in.readByte();
+                byte[] b2 = new byte[l2];
+                in.readBytes(b2, 0, l2);
+                InetAddress min = InetAddressPoint.decode(b1);
+                InetAddress max = InetAddressPoint.decode(b2);
+                return new Ip(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                    isSearchable, isAggregatable, min, max);
+            }
+            case 5: {
+                if (hasMinMax == false) {
+                    return new GeoPoint(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
+                org.elasticsearch.common.geo.GeoPoint min = new org.elasticsearch.common.geo.GeoPoint(in.readDouble(), in.readDouble());
+                org.elasticsearch.common.geo.GeoPoint max = new org.elasticsearch.common.geo.GeoPoint(in.readDouble(), in.readDouble());
+                return new GeoPoint(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                    isSearchable, isAggregatable, min, max);
+            }
             default:
-                throw new IllegalArgumentException("Illegal type [" + type + "]");
+                throw new IllegalArgumentException("Unknown type.");
         }
-        stats.type = type;
-        stats.readFrom(in);
-        return stats;
     }
 
-    private final static class Fields {
-
-        final static XContentBuilderString MAX_DOC = new XContentBuilderString("max_doc");
-        final static XContentBuilderString DOC_COUNT = new XContentBuilderString("doc_count");
-        final static XContentBuilderString DENSITY = new XContentBuilderString("density");
-        final static XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
-        final static XContentBuilderString SUM_TOTAL_TERM_FREQ = new XContentBuilderString("sum_total_term_freq");
-        final static XContentBuilderString MIN_VALUE = new XContentBuilderString("min_value");
-        final static XContentBuilderString MIN_VALUE_AS_STRING = new XContentBuilderString("min_value_as_string");
-        final static XContentBuilderString MAX_VALUE = new XContentBuilderString("max_value");
-        final static XContentBuilderString MAX_VALUE_AS_STRING = new XContentBuilderString("max_value_as_string");
-
-    }
-
+    private static final String TYPE_FIELD = "type";
+    private static final String MAX_DOC_FIELD = "max_doc";
+    private static final String DOC_COUNT_FIELD = "doc_count";
+    private static final String DENSITY_FIELD = "density";
+    private static final String SUM_DOC_FREQ_FIELD = "sum_doc_freq";
+    private static final String SUM_TOTAL_TERM_FREQ_FIELD = "sum_total_term_freq";
+    private static final String SEARCHABLE_FIELD = "searchable";
+    private static final String AGGREGATABLE_FIELD = "aggregatable";
+    private static final String MIN_VALUE_FIELD = "min_value";
+    private static final String MIN_VALUE_AS_STRING_FIELD = "min_value_as_string";
+    private static final String MAX_VALUE_FIELD = "max_value";
+    private static final String MAX_VALUE_AS_STRING_FIELD = "max_value_as_string";
 }

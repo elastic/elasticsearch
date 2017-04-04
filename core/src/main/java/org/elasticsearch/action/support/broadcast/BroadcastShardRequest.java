@@ -21,18 +21,15 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class BroadcastShardRequest extends ChildTaskRequest implements IndicesRequest {
+public abstract class BroadcastShardRequest extends TransportRequest implements IndicesRequest {
 
     private ShardId shardId;
 

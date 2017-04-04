@@ -14,13 +14,20 @@ by the query.
 
 [source,js]
 --------------------------------------------------
-"function_score": {
-    "query": {},
-    "boost": "boost for the whole query",
-    "FUNCTION": {}, <1>
-    "boost_mode":"(multiply|replace|...)"
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "query": { "match_all": {} },
+            "boost": "5",
+            "random_score": {}, <1>
+            "boost_mode":"multiply"
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
+
 <1> See <<score-functions>> for a list of supported functions.
 
 Furthermore, several functions can be combined. In this case one can
@@ -29,34 +36,39 @@ given filtering query
 
 [source,js]
 --------------------------------------------------
-"function_score": {
-    "query": {},
-    "boost": "boost for the whole query",
-    "functions": [
-        {
-            "filter": {},
-            "FUNCTION": {}, <1>
-            "weight": number
-        },
-        {
-            "FUNCTION": {} <1>
-        },
-        {
-            "filter": {},
-            "weight": number
+GET /_search
+{
+    "query": {
+        "function_score": {
+          "query": { "match_all": {} },
+          "boost": "5", <1>
+          "functions": [
+              {
+                  "filter": { "match": { "test": "bar" } },
+                  "random_score": {}, <2>
+                  "weight": 23
+              },
+              {
+                  "filter": { "match": { "test": "cat" } },
+                  "weight": 42
+              }
+          ],
+          "max_boost": 42,
+          "score_mode": "max",
+          "boost_mode": "multiply",
+          "min_score" : 42
         }
-    ],
-    "max_boost": number,
-    "score_mode": "(multiply|max|...)",
-    "boost_mode": "(multiply|replace|...)",
-    "min_score" : number
+    }
 }
 --------------------------------------------------
-<1> See <<score-functions>> for a list of supported functions.
+// CONSOLE
+
+<1> Boost for the whole query.
+<2> See <<score-functions>> for a list of supported functions.
 
 NOTE: The scores produced by the filtering query of each function do not matter.
 
-If no query is given with a function this is equivalent to specifying
+If no filter is given with a function this is equivalent to specifying
 `"match_all": {}`
 
 First, each document is scored by the defined functions. The parameter
@@ -71,8 +83,15 @@ First, each document is scored by the defined functions. The parameter
 `max`::         maximum score is used
 `min`::         minimum score is used
 
-Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also
+because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined
+`weight`. The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by
+the respective function.
 If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
+
+In case `score_mode` is set to `avg` the individual scores will be combined by a **weighted** average.
+For example, if two functions return score 1 and 2 and their respective weights are 3 and 4, then their scores will be combined as
+`(1*3+2*4)/(3+4)` and **not** `(1*3+2*4)/2`.
 
 The new score can be restricted to not exceed a certain limit by setting
 the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
@@ -90,6 +109,8 @@ query. The parameter `boost_mode` defines how:
 
 By default, modifying the score does not change which documents match. To exclude
 documents that do not meet a certain score threshold the `min_score` parameter can be set to the desired score threshold.
+
+NOTE: For `min_score` to work, **all** documents returned by the query need to be scored and then filtered out one by one.
 
 [[score-functions]]
 
@@ -112,7 +133,10 @@ simple sample:
 [source,js]
 --------------------------------------------------
 "script_score" : {
-    "script" : "_score * doc['my_numeric_field'].value"
+    "script" : {
+      "lang": "painless",
+      "inline": "_score * doc['my_numeric_field'].value"
+    }
 }
 --------------------------------------------------
 
@@ -128,12 +152,12 @@ script, and provide parameters to it:
 --------------------------------------------------
 "script_score": {
     "script": {
-        "lang": "lang",
+        "lang": "painless",
         "params": {
             "param1": value1,
             "param2": value2
         },
-        "inline": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
+        "inline": "_score * doc['my_numeric_field'].value / Math.pow(params.param1, params.param2)"
     }
 }
 --------------------------------------------------
@@ -148,7 +172,7 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
-not.
+not. The number value is of type float.
 
 [source,js]
 --------------------------------------------------
@@ -296,7 +320,7 @@ In the above example, the field is a <<geo-point,`geo_point`>> and origin can be
     math (for example `now-1h`) is supported for origin.
 
 `scale`::
-    Required for all types. Defines the distance from origin at which the computed
+    Required for all types. Defines the distance from origin + offset at which the computed
     score will equal `decay` parameter. For geo fields: Can be defined as number+unit (1km, 12m,...).
     Default unit is meters. For date fields: Can to be defined as a number+unit ("1h", "10d",...).
     Default unit is milliseconds. For numeric field: Any number.
@@ -337,6 +361,7 @@ image:images/Gaussian.png[]
 
 where image:images/sigma.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
 
+// \sigma^2 = -scale^2/(2 \cdot ln(decay))
 image:images/sigma_calc.png[]
 
 See <<gauss-decay>> for graphs demonstrating the curve generated by the `gauss` function.
@@ -352,6 +377,7 @@ image:images/Exponential.png[]
 
 where again the parameter image:images/lambda.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
 
+// \lambda = ln(decay)/scale
 image:images/lambda_calc.png[]
 
 See <<exp-decay>> for graphs demonstrating the curve generated by the `exp` function.
@@ -459,39 +485,39 @@ the request would look like this:
 
 [source,js]
 --------------------------------------------------
-GET /hotels/_search/
+GET /_search
 {
-  "query": {
-    "function_score": {
-      "functions": [
-        {
-          "gauss": {
-            "price": {
-              "origin": "0",
-              "scale": "20"
+    "query": {
+        "function_score": {
+          "functions": [
+            {
+              "gauss": {
+                "price": {
+                  "origin": "0",
+                  "scale": "20"
+                }
+              }
+            },
+            {
+              "gauss": {
+                "location": {
+                  "origin": "11, 12",
+                  "scale": "2km"
+                }
+              }
             }
-          }
-        },
-        {
-          "gauss": {
-            "location": {
-              "origin": "11, 12",
-              "scale": "2km"
+          ],
+          "query": {
+            "match": {
+              "properties": "balcony"
             }
-          }
+          },
+          "score_mode": "multiply"
         }
-      ],
-      "query": {
-        "match": {
-          "properties": "balcony"
-        }
-      },
-      "score_mode": "multiply"
     }
-  }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Next, we show how the computed score looks like for each of the three
 possible decay functions.
@@ -546,4 +572,3 @@ Only numeric, date, and geo-point fields are supported.
 
 If the numeric field is missing in the document, the function will
 return 1.
-

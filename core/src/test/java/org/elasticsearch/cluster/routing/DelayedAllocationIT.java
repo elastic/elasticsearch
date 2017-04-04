@@ -33,8 +33,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DelayedAllocationIT extends ESIntegTestCase {
 
@@ -43,7 +41,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * get allocated to a free node when the node hosting it leaves the cluster.
      */
     public void testNoDelayedTimeout() throws Exception {
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -62,7 +60,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * on it before.
      */
     public void testDelayedAllocationNodeLeavesAndComesBack() throws Exception {
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -86,7 +84,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * though the node hosting the shard is not coming back.
      */
     public void testDelayedAllocationTimesOut() throws Exception {
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -108,7 +106,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * even though the node it was hosted on will not come back.
      */
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -134,7 +132,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * even though the node it was hosted on will not come back.
      */
     public void testDelayedAllocationChangeWithSettingTo0() throws Exception {
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -142,12 +140,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true));
-            }
-        });
+        assertBusy(() -> assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true)));
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))).get());
         ensureGreen("test");

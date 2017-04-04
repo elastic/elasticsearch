@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.StreamableReader;
 
 import java.io.IOException;
 
@@ -41,12 +40,7 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         }
     }
 
-    @Override
-    public Diff<T> readDiffFrom(StreamInput in) throws IOException {
-        return new CompleteDiff<>(this, in);
-    }
-
-    public static <T extends Diffable<T>> Diff<T> readDiffFrom(StreamableReader<T> reader, StreamInput in) throws IOException {
+    public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
         return new CompleteDiff<T>(reader, in);
     }
 
@@ -58,23 +52,23 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         /**
          * Creates simple diff with changes
          */
-        public CompleteDiff(T part) {
+        CompleteDiff(T part) {
             this.part = part;
         }
 
         /**
          * Creates simple diff without changes
          */
-        public CompleteDiff() {
+        CompleteDiff() {
             this.part = null;
         }
 
         /**
          * Read simple diff from the stream
          */
-        public CompleteDiff(StreamableReader<T> reader, StreamInput in) throws IOException {
+        CompleteDiff(Reader<T> reader, StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                this.part = reader.readFrom(in);
+                this.part = reader.read(in);
             } else {
                 this.part = null;
             }

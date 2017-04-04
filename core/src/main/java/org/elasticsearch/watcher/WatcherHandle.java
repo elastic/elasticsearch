@@ -19,9 +19,6 @@
 
 package org.elasticsearch.watcher;
 
-/**
-*
-*/
 public class WatcherHandle<W extends ResourceWatcher> {
 
     private final ResourceWatcherService.ResourceMonitor monitor;

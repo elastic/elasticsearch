@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
 
     /**
-     * Constructs the new snapshotstatus request
+     * Constructs the new snapshot status request
      */
     public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action) {
         super(client, action, new SnapshotsStatusRequest());
@@ -72,6 +72,18 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
      */
     public SnapshotsStatusRequestBuilder addSnapshots(String... snapshots) {
         request.snapshots(ArrayUtils.concat(request.snapshots(), snapshots));
+        return this;
+    }
+
+    /**
+     * Set to <code>true</code> to ignore unavailable snapshots, instead of throwing an exception.
+     * Defaults to <code>false</code>, which means unavailable snapshots cause an exception to be thrown.
+     *
+     * @param ignoreUnavailable whether to ignore unavailable snapshots.
+     * @return this builder
+     */
+    public SnapshotsStatusRequestBuilder setIgnoreUnavailable(boolean ignoreUnavailable) {
+        request.ignoreUnavailable(ignoreUnavailable);
         return this;
     }
 }

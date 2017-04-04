@@ -20,12 +20,12 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -45,7 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  */
 public abstract class TestCluster implements Closeable {
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = Loggers.getLogger(getClass());
     private final long seed;
 
     protected Random random;
@@ -82,7 +82,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Assertions that should run before the cluster is wiped should be called in this method
      */
-    public void beforeIndexDeletion() {
+    public void beforeIndexDeletion() throws Exception {
     }
 
     /**

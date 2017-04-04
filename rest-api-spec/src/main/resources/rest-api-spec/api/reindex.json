@@ -1,6 +1,6 @@
 {
   "reindex": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-reindex.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
     "methods": ["POST"],
     "url": {
       "path": "/_reindex",
@@ -16,20 +16,24 @@
           "default": "1m",
           "description" : "Time each individual bulk request should wait for shards that are unavailable."
         },
-        "consistency": {
-          "type" : "enum",
-          "options" : ["one", "quorum", "all"],
-          "description" : "Explicit write consistency setting for the operation"
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Sets the number of shard copies that must be active before proceeding with the reindex operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
         },
         "wait_for_completion": {
           "type" : "boolean",
-          "default": false,
+          "default": true,
           "description" : "Should the request should block until the reindex is complete."
         },
         "requests_per_second": {
-          "type": "float",
+          "type": "number",
           "default": 0,
-          "description": "The throttle for this request in sub-requests per second. 0 means set no throttle."
+          "description": "The throttle to set on this request in sub-requests per second. -1 means no throttle."
+        },
+        "slices": {
+          "type": "number",
+          "default": 1,
+          "description": "The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks."
         }
       }
     },

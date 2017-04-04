@@ -27,6 +27,9 @@ import org.apache.tools.ant.Project;
 import org.elasticsearch.gradle.AntTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.OutputFile
 
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -40,17 +43,62 @@ import java.util.regex.Pattern;
  * Basic static checking to keep tabs on third party JARs
  */
 public class ThirdPartyAuditTask extends AntTask {
-    
+
     // patterns for classes to exclude, because we understand their issues
-    private String[] excludes = new String[0];
-    
+    private List<String> excludes = [];
+
+    /**
+     * Input for the task. Set javadoc for {#link getJars} for more. Protected
+     * so the afterEvaluate closure in the constructor can write it.
+     */
+    protected FileCollection jars;
+
+    /**
+     * Classpath against which to run the third patty audit. Protected so the
+     * afterEvaluate closure in the constructor can write it.
+     */
+    protected FileCollection classpath;
+
+    /**
+     * We use a simple "marker" file that we touch when the task succeeds
+     * as the task output. This is compared against the modified time of the
+     * inputs (ie the jars/class files).
+     */
+    @OutputFile
+    File successMarker = new File(project.buildDir, 'markers/thirdPartyAudit')
+
     ThirdPartyAuditTask() {
         // we depend on this because its the only reliable configuration
         // this probably makes the build slower: gradle you suck here when it comes to configurations, you pay the price.
         dependsOn(project.configurations.testCompile);
         description = "Checks third party JAR bytecode for missing classes, use of internal APIs, and other horrors'";
+
+        project.afterEvaluate {
+            Configuration configuration = project.configurations.findByName('runtime');
+            if (configuration == null) {
+                // some projects apparently do not have 'runtime'? what a nice inconsistency,
+                // basically only serves to waste time in build logic!
+                configuration = project.configurations.findByName('testCompile');
+            }
+            assert configuration != null;
+            classpath = configuration
+
+            // we only want third party dependencies.
+            jars = configuration.fileCollection({ dependency ->
+                dependency.group.startsWith("org.elasticsearch") == false
+            });
+
+            // we don't want provided dependencies, which we have already scanned. e.g. don't
+            // scan ES core's dependencies for every single plugin
+            Configuration provided = project.configurations.findByName('provided')
+            if (provided != null) {
+                jars -= provided
+            }
+            inputs.files(jars)
+            onlyIf { jars.isEmpty() == false }
+        }
     }
-    
+
     /**
      * classes that should be excluded from the scan,
      * e.g. because we know what sheisty stuff those particular classes are up to.
@@ -61,21 +109,22 @@ public class ThirdPartyAuditTask extends AntTask {
                 throw new IllegalArgumentException("illegal third party audit exclusion: '" + s + "', wildcards are not permitted!");
             }
         }
-        excludes = classes;
+        excludes = classes.sort();
     }
-    
+
     /**
      * Returns current list of exclusions.
      */
-    public String[] getExcludes() {
+    @Input
+    public List<String> getExcludes() {
         return excludes;
     }
 
     // yes, we parse Uwe Schindler's errors to find missing classes, and to keep a continuous audit. Just don't let him know!
     static final Pattern MISSING_CLASS_PATTERN =
         Pattern.compile(/WARNING: The referenced class '(.*)' cannot be loaded\. Please fix the classpath\!/);
-        
-    static final Pattern VIOLATION_PATTERN = 
+
+    static final Pattern VIOLATION_PATTERN =
         Pattern.compile(/\s\sin ([a-zA-Z0-9\$\.]+) \(.*\)/);
 
     // we log everything and capture errors and handle them with our whitelist
@@ -94,6 +143,10 @@ public class ThirdPartyAuditTask extends AntTask {
                     if (m.matches()) {
                         missingClasses.add(m.group(1).replace('.', '/') + ".class");
                     }
+
+                    // Reset the priority of the event to DEBUG, so it doesn't
+                    // pollute the build output
+                    event.setMessage(event.getMessage(), Project.MSG_DEBUG);
                 } else if (event.getPriority() == Project.MSG_ERR) {
                     Matcher m = VIOLATION_PATTERN.matcher(event.getMessage());
                     if (m.matches()) {
@@ -124,31 +177,7 @@ public class ThirdPartyAuditTask extends AntTask {
 
     @Override
     protected void runAnt(AntBuilder ant) {
-        Configuration configuration = project.configurations.findByName('runtime');
-        if (configuration == null) {
-            // some projects apparently do not have 'runtime'? what a nice inconsistency,
-            // basically only serves to waste time in build logic!
-            configuration = project.configurations.findByName('testCompile');
-        }
-        assert configuration != null;
         ant.project.addTaskDefinition('thirdPartyAudit', de.thetaphi.forbiddenapis.ant.AntTask);
-
-        // we only want third party dependencies.
-        FileCollection jars = configuration.fileCollection({ dependency ->
-            dependency.group.startsWith("org.elasticsearch") == false
-        });
-
-        // we don't want provided dependencies, which we have already scanned. e.g. don't
-        // scan ES core's dependencies for every single plugin
-        Configuration provided = project.configurations.findByName('provided');
-        if (provided != null) {
-            jars -= provided;
-        }
-
-        // no dependencies matched, we are done
-        if (jars.isEmpty()) {
-            return;
-        }
 
         // print which jars we are going to scan, always
         // this is not the time to try to be succinct! Forbidden will print plenty on its own!
@@ -171,26 +200,24 @@ public class ThirdPartyAuditTask extends AntTask {
         }
 
         // convert exclusion class names to binary file names
-        String[] excludedFiles = new String[excludes.length];
-        for (int i = 0; i < excludes.length; i++) {
-            excludedFiles[i] = excludes[i].replace('.', '/') + ".class";
-        }
-        Set<String> excludedSet = new TreeSet<>(Arrays.asList(excludedFiles));
+        List<String> excludedFiles = excludes.collect {it.replace('.', '/') + ".class"}
+        Set<String> excludedSet = new TreeSet<>(excludedFiles);
 
         // jarHellReprise
         Set<String> sheistySet = getSheistyClasses(tmpDir.toPath());
 
-        try { 
-            ant.thirdPartyAudit(internalRuntimeForbidden: false,
-                            failOnUnsupportedJava: false,
+        try {
+            ant.thirdPartyAudit(failOnUnsupportedJava: false,
                             failOnMissingClasses: false,
-                            signaturesFile: new File(getClass().getResource('/forbidden/third-party-audit.txt').toURI()),
-                            classpath: configuration.asPath) {
+                            classpath: classpath.asPath) {
                 fileset(dir: tmpDir)
+                signatures {
+                    string(value: getClass().getResourceAsStream('/forbidden/third-party-audit.txt').getText('UTF-8'))
+                }
             }
         } catch (BuildException ignore) {}
 
-	EvilLogger evilLogger = null;
+        EvilLogger evilLogger = null;
         for (BuildListener listener : ant.project.getBuildListeners()) {
             if (listener instanceof EvilLogger) {
                 evilLogger = (EvilLogger) listener;
@@ -228,6 +255,8 @@ public class ThirdPartyAuditTask extends AntTask {
 
         // clean up our mess (if we succeed)
         ant.delete(dir: tmpDir.getAbsolutePath());
+
+        successMarker.setText("", 'UTF-8')
     }
 
     /**
@@ -235,11 +264,11 @@ public class ThirdPartyAuditTask extends AntTask {
      */
     private Set<String> getSheistyClasses(Path root) {
         // system.parent = extensions loader.
-        // note: for jigsaw, this evilness will need modifications (e.g. use jrt filesystem!). 
+        // note: for jigsaw, this evilness will need modifications (e.g. use jrt filesystem!).
         // but groovy/gradle needs to work at all first!
         ClassLoader ext = ClassLoader.getSystemClassLoader().getParent();
         assert ext != null;
-        
+
         Set<String> sheistySet = new TreeSet<>();
         Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
             @Override

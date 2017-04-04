@@ -26,17 +26,18 @@ import java.util.Objects;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 /**
  * A ValueSource to create FunctionValues to get the count of the number of values in a field for a document.
  */
-public class CountMethodValueSource extends ValueSource {
-    protected IndexFieldData<?> fieldData;
+final class CountMethodValueSource extends ValueSource {
+    IndexFieldData<?> fieldData;
 
-    protected CountMethodValueSource(IndexFieldData<?> fieldData) {
+    CountMethodValueSource(IndexFieldData<?> fieldData) {
         Objects.requireNonNull(fieldData);
 
         this.fieldData = fieldData;
@@ -45,10 +46,16 @@ public class CountMethodValueSource extends ValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
+        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        final SortedNumericDoubleValues values = leafData.getDoubleValues();
 
-        return new CountMethodFunctionValues(this, (AtomicNumericFieldData)leafData);
+        return new DoubleDocValues(this) {
+          @Override
+          public double doubleVal(int doc) {
+            values.setDocument(doc);
+            return values.count();
+          }
+        };
     }
 
     @Override
@@ -63,7 +70,7 @@ public class CountMethodValueSource extends ValueSource {
 
     @Override
     public int hashCode() {
-        return fieldData.hashCode();
+        return 31 * getClass().hashCode() + fieldData.hashCode();
     }
 
     @Override

@@ -19,8 +19,10 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -33,10 +35,10 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
-/**
- */
 public class DanglingIndicesStateTests extends ESTestCase {
+
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -45,8 +47,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
             assertTrue(danglingState.getDanglingIndices().isEmpty());
             MetaData metaData = MetaData.builder().build();
@@ -56,8 +58,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
     }
     public void testDanglingIndicesDiscovery() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
             assertTrue(danglingState.getDanglingIndices().isEmpty());
             MetaData metaData = MetaData.builder().build();
@@ -74,8 +76,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testInvalidIndexFolder() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
             MetaData metaData = MetaData.builder().build();
             final String uuid = "test1UUID";
@@ -98,8 +100,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testDanglingProcessing() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
             MetaData metaData = MetaData.builder().build();
 
@@ -138,5 +140,26 @@ public class DanglingIndicesStateTests extends ESTestCase {
             danglingState.cleanupAllocatedDangledIndices(metaData);
             assertTrue(danglingState.getDanglingIndices().isEmpty());
         }
+    }
+
+    public void testDanglingIndicesNotImportedWhenTombstonePresent() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
+
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
+            final MetaData metaData = MetaData.builder().indexGraveyard(graveyard).build();
+            assertThat(danglingState.findNewDanglingIndices(metaData).size(), equalTo(0));
+
+        }
+    }
+
+    private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env, MetaStateService metaStateService) {
+        return new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null,
+            mock(ClusterService.class));
     }
 }

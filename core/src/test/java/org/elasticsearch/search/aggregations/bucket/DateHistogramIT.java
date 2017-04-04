@@ -23,11 +23,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
@@ -46,9 +48,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -64,13 +66,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class DateHistogramIT extends ESIntegTestCase {
 
@@ -79,7 +77,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private DateTime date(String date) {
-        return DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
     }
 
     private static String format(DateTime date, String pattern) {
@@ -106,8 +104,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "_timestamp", "enabled=true"));
-        createIndex("idx_unmapped");
+        createIndex("idx", "idx_unmapped");
         // TODO: would be nice to have more random data here
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -144,7 +141,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private static String getBucketKeyAsString(DateTime key, DateTimeZone tz) {
-        return Joda.forPattern(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format()).printer().withZone(tz).print(key);
+        return Joda.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()).printer().withZone(tz).print(key);
     }
 
     public void testSingleValuedField() throws Exception {
@@ -236,6 +233,46 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(1L));
+    }
+
+    public void testSingleValued_timeZone_epoch() throws Exception {
+        String format = randomBoolean() ? "epoch_millis" : "epoch_second";
+        int millisDivider = format.equals("epoch_millis") ? 1 : 1000;
+        if (randomBoolean()) {
+            format = format + "||date_optional_time";
+        }
+        DateTimeZone tz = DateTimeZone.forID("+01:00");
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(dateHistogram("histo").field("date")
+                        .dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(1)
+                        .timeZone(tz).format(format))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(6));
+
+        List<DateTime> expectedKeys = new ArrayList<>();
+        expectedKeys.add(new DateTime(2012, 1, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 2, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 2, 14, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 14, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 22, 23, 0, DateTimeZone.UTC));
+
+
+        Iterator<DateTime> keyIterator = expectedKeys.iterator();
+        for (Histogram.Bucket bucket : buckets) {
+            assertThat(bucket, notNullValue());
+            DateTime expectedKey = keyIterator.next();
+            assertThat(bucket.getKeyAsString(), equalTo(Long.toString(expectedKey.getMillis() / millisDivider)));
+            assertThat(((DateTime) bucket.getKey()), equalTo(expectedKey));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+        }
     }
 
     public void testSingleValuedFieldOrderedByKeyAsc() throws Exception {
@@ -340,6 +377,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(3));
+        assertThat(histo.getProperty("_bucket_count"), equalTo(3));
         Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
         Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
@@ -459,7 +497,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")
-                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -560,7 +598,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
@@ -595,7 +633,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -647,8 +685,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
-                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME,
+                    params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -685,8 +723,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
-                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME,
+                    params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -800,7 +838,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         Histogram.Bucket bucket = buckets.get(1);
         assertThat(bucket, Matchers.notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("1"));
+        assertThat(bucket.getKeyAsString(), equalTo("1.0"));
 
         Histogram dateHisto = bucket.getAggregations().get("date_histo");
         assertThat(dateHisto, Matchers.notNullValue());
@@ -968,20 +1006,13 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         DateMathParser parser = new DateMathParser(Joda.getStrictStandardDateFormatter());
 
-        final Callable<Long> callable = new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return System.currentTimeMillis();
-            }
-        };
-
         // we pick a random timezone offset of +12/-12 hours and insert two documents
         // one at 00:00 in that time zone and one at 12:00
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int timeZoneHourOffset = randomIntBetween(-12, 12);
         DateTimeZone timezone = DateTimeZone.forOffsetHours(timeZoneHourOffset);
-        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", callable, false, timezone), DateTimeZone.UTC);
-        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", callable, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", System::currentTimeMillis, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", System::currentTimeMillis, false, timezone), DateTimeZone.UTC);
         builders.add(indexDoc(index, timeZoneStartToday, 1));
         builders.add(indexDoc(index, timeZoneNoonToday, 2));
         indexRandom(true, builders);
@@ -998,7 +1029,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 ).execute().actionGet();
         assertSearchResponse(response);
 
-        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2L));
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits(), equalTo(2L));
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1021,7 +1052,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy").endObject().endObject().endObject().endObject().string();
-        prepareCreate("idx2").addMapping("type", mappingJson).execute().actionGet();
+        prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).execute().actionGet();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
             reqs[i] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
@@ -1140,10 +1171,68 @@ public class DateHistogramIT extends ESIntegTestCase {
         }
     }
 
-    public void testTimestampField() { // see #11692
-        SearchResponse response = client().prepareSearch("idx").addAggregation(dateHistogram("histo").field("_timestamp").dateHistogramInterval(randomFrom(DateHistogramInterval.DAY, DateHistogramInterval.MONTH))).get();
-        assertSearchResponse(response);
+    /**
+     * When DST ends, local time turns back one hour, so between 2am and 4am wall time we should have four buckets:
+     * "2015-10-25T02:00:00.000+02:00",
+     * "2015-10-25T02:00:00.000+01:00",
+     * "2015-10-25T03:00:00.000+01:00",
+     * "2015-10-25T04:00:00.000+01:00".
+     */
+    public void testDSTEndTransition() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .setQuery(new MatchNoneQueryBuilder())
+                .addAggregation(dateHistogram("histo").field("date").timeZone(DateTimeZone.forID("Europe/Oslo"))
+                        .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                                new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+                .execute().actionGet();
+
         Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo.getBuckets().size(), greaterThan(0));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+        assertThat(((DateTime) buckets.get(1).getKey()).getMillis() - ((DateTime) buckets.get(0).getKey()).getMillis(), equalTo(3600000L));
+        assertThat(((DateTime) buckets.get(2).getKey()).getMillis() - ((DateTime) buckets.get(1).getKey()).getMillis(), equalTo(3600000L));
+        assertThat(((DateTime) buckets.get(3).getKey()).getMillis() - ((DateTime) buckets.get(2).getKey()).getMillis(), equalTo(3600000L));
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=date")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("d", date(1, 1)),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("d", date(2, 1)));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "d");
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateHistogram("histo").field("d")
+                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
+                .dateHistogramInterval(DateHistogramInterval.MONTH)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(dateHistogram("histo").field("d").dateHistogramInterval(DateHistogramInterval.MONTH)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 }

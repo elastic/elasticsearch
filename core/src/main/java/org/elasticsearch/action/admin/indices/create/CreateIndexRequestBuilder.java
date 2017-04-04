@@ -20,12 +20,14 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -75,10 +77,20 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * The settings to create the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json or yaml format)
+     * @deprecated use {@link #setSettings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public CreateIndexRequestBuilder setSettings(String source) {
         request.settings(source);
+        return this;
+    }
+
+    /**
+     * The settings to create the index with (either json or yaml format)
+     */
+    public CreateIndexRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 
@@ -103,9 +115,10 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @param xContentType The content type of the source
      */
-    public CreateIndexRequestBuilder addMapping(String type, String source) {
-        request.mapping(type, source);
+    public CreateIndexRequestBuilder addMapping(String type, String source, XContentType xContentType) {
+        request.mapping(type, source, xContentType);
         return this;
     }
 
@@ -191,32 +204,32 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(String source) {
-        request.source(source);
+    public CreateIndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+    public CreateIndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(byte[] source) {
-        request.source(source);
+    public CreateIndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
+    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 
@@ -248,5 +261,33 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     public CreateIndexRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
         request.updateAllTypes(updateAllTypes);
         return this;
+    }
+
+    /**
+     * Sets the number of shard copies that should be active for index creation to return.
+     * Defaults to {@link ActiveShardCount#DEFAULT}, which will wait for one shard copy
+     * (the primary) to become active. Set this value to {@link ActiveShardCount#ALL} to
+     * wait for all shards (primary and all replicas) to be active before returning.
+     * Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
+     * non-negative integer, up to the number of copies per shard (number of replicas + 1),
+     * to wait for the desired amount of shard copies to become active before returning.
+     * Index creation will only wait up until the timeout value for the number of shard copies
+     * to be active before returning.  Check {@link CreateIndexResponse#isShardsAcked()} to
+     * determine if the requisite shard copies were all started before returning or timing out.
+     *
+     * @param waitForActiveShards number of active shard copies to wait on
+     */
+    public CreateIndexRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        request.waitForActiveShards(waitForActiveShards);
+        return this;
+    }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public CreateIndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 }

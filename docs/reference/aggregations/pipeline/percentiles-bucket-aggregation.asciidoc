@@ -34,7 +34,9 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search
 {
+    "size": 0,
     "aggs" : {
         "sales_per_month" : {
             "date_histogram" : {
@@ -49,24 +51,31 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
                 }
             }
         },
-        "sum_monthly_sales": {
+        "percentiles_monthly_sales": {
             "percentiles_bucket": {
-                "buckets_paths": "sales_per_month>sales", <1>
+                "buckets_path": "sales_per_month>sales", <1>
                 "percents": [ 25.0, 50.0, 75.0 ] <2>
             }
         }
     }
 }
 --------------------------------------------------
-<1> `bucket_paths` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
+// CONSOLE
+// TEST[setup:sales]
+
+<1> `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
 the `sales` aggregation in the `sales_per_month` date histogram.
-<2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentil
+<2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentiles.
 
 And the following may be the response:
 
 [source,js]
 --------------------------------------------------
 {
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
    "aggregations": {
       "sales_per_month": {
          "buckets": [
@@ -75,7 +84,7 @@ And the following may be the response:
                "key": 1420070400000,
                "doc_count": 3,
                "sales": {
-                  "value": 550
+                  "value": 550.0
                }
             },
             {
@@ -83,7 +92,7 @@ And the following may be the response:
                "key": 1422748800000,
                "doc_count": 2,
                "sales": {
-                  "value": 60
+                  "value": 60.0
                }
             },
             {
@@ -91,22 +100,24 @@ And the following may be the response:
                "key": 1425168000000,
                "doc_count": 2,
                "sales": {
-                  "value": 375
+                  "value": 375.0
                }
             }
          ]
       },
       "percentiles_monthly_sales": {
         "values" : {
-            "25.0": 60,
-            "50.0": 375",
-            "75.0": 550
+            "25.0": 375.0,
+            "50.0": 375.0,
+            "75.0": 550.0
          }
       }
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ==== Percentiles_bucket implementation
 

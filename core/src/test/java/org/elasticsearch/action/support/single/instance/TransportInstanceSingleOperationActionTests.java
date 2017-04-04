@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -60,8 +61,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TransportInstanceSingleOperationActionTests extends ESTestCase {
@@ -87,7 +88,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
         private final Map<ShardId, Object> shards = new HashMap<>();
 
-        public TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+        TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
             super(settings, actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request);
         }
 
@@ -121,7 +122,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     }
 
     class MyResolver extends IndexNameExpressionResolver {
-        public MyResolver() {
+        MyResolver() {
             super(Settings.EMPTY);
         }
 
@@ -133,15 +134,17 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new ThreadPool(TransportInstanceSingleOperationActionTests.class.getSimpleName());
+        THREAD_POOL = new TestThreadPool(TransportInstanceSingleOperationActionTests.class.getSimpleName());
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(transport, THREAD_POOL);
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
@@ -154,6 +157,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         );
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -178,9 +182,9 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
             action.new AsyncSingleAction(request, listener).start();
             listener.get();
             fail("expected ClusterBlockException");
-        } catch (Throwable t) {
-            if (ExceptionsHelper.unwrap(t, ClusterBlockException.class) == null) {
-                logger.info("expected ClusterBlockException  but got ", t);
+        } catch (Exception e) {
+            if (ExceptionsHelper.unwrap(e, ClusterBlockException.class) == null) {
+                logger.info("expected ClusterBlockException  but got ", e);
                 fail("expected ClusterBlockException");
             }
         }
@@ -316,9 +320,9 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(0));
         try {
             listener.get();
-        } catch (Throwable t) {
-            if (ExceptionsHelper.unwrap(t, IllegalStateException.class) == null) {
-                logger.info("expected IllegalStateException  but got ", t);
+        } catch (Exception e) {
+            if (ExceptionsHelper.unwrap(e, IllegalStateException.class) == null) {
+                logger.info("expected IllegalStateException  but got ", e);
                 fail("expected and IllegalStateException");
             }
         }

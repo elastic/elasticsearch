@@ -19,16 +19,13 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class BaseNodeRequest extends ChildTaskRequest {
+public abstract class BaseNodeRequest extends TransportRequest {
 
     private String nodeId;
 

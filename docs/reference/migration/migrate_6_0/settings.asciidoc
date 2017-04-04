@@ -1,0 +1,36 @@
+[[breaking_60_settings_changes]]
+=== Settings changes
+
+==== Coercion of boolean settings
+
+Previously, Elasticsearch recognized the strings `true`, `false`, `on`, `off`, `yes`, `no`, `0`, `1` as booleans. Elasticsearch 6.0
+recognizes only `true` and `false` as boolean and will throw an error otherwise. For backwards compatibility purposes, during the 6.x series
+index settings on pre-6.0 indices will continue to work. Note that this does not apply to node-level settings that are stored
+in `elasticsearch.yml`.
+
+==== Snapshot settings
+
+The internal setting `cluster.routing.allocation.snapshot.relocation_enabled` that allowed shards with running snapshots to be reallocated to
+different nodes has been removed. Enabling this setting could cause allocation issues if a shard got allocated off a node and then
+reallocated back to this node while a snapshot was running.
+
+==== Store throttling settings
+
+Store throttling has been removed. As a consequence, the
+`indices.store.throttle.type` and `indices.store.throttle.max_bytes_per_sec`
+cluster settings and the `index.store.throttle.type` and
+`index.store.throttle.max_bytes_per_sec` index settings are not
+recognized anymore.
+
+==== Store settings
+
+The `default` `index.store.type` has been removed. If you were using it, we
+advise that you simply remove it from your index settings and Elasticsearch
+will use the best `store` implementation for your operating system.
+
+==== Network settings
+
+The blocking TCP client, blocking TCP server, and blocking HTTP server have been removed.
+As a consequence, the `network.tcp.blocking_server`, `network.tcp.blocking_client`,
+`network.tcp.blocking`,`transport.tcp.blocking_client`, `transport.tcp.blocking_server`,
+and `http.tcp.blocking_server` settings are not recognized anymore.

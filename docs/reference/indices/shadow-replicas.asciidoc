@@ -1,7 +1,7 @@
 [[indices-shadow-replicas]]
 == Shadow replica indices
 
-experimental[]
+deprecated[5.2.0, Shadow replicas don't see much usage and we are planning to remove them]
 
 If you would like to use a shared filesystem, you can use the shadow replicas
 settings to choose where on disk the data for an index should be kept, as well
@@ -10,12 +10,12 @@ index.
 
 In order to fully utilize the `index.data_path` and `index.shadow_replicas`
 settings, you need to allow Elasticsearch to use the same data directory for
-multiple instances by setting `node.add_id_to_custom_path` to false in
+multiple instances by setting `node.add_lock_id_to_custom_path` to false in
 elasticsearch.yml:
 
 [source,yaml]
 --------------------------------------------------
-node.add_id_to_custom_path: false
+node.add_lock_id_to_custom_path: false
 --------------------------------------------------
 
 You will also need to indicate to the security manager where the custom indices
@@ -44,7 +44,7 @@ mappings when using shadow replicas.
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my_index' -d '
+PUT /my_index
 {
     "index" : {
         "number_of_shards" : 1,
@@ -52,8 +52,10 @@ curl -XPUT 'localhost:9200/my_index' -d '
         "data_path": "/opt/data/my_index",
         "shadow_replicas": true
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:no way to configure path.shared_data for /opt/data]
 
 [WARNING]
 ========================
@@ -114,7 +116,7 @@ settings API:
 
 These are non-dynamic settings that need to be configured in `elasticsearch.yml`
 
-`node.add_id_to_custom_path`::
+`node.add_lock_id_to_custom_path`::
     Boolean setting indicating whether Elasticsearch should append the node's
     ordinal to the custom data path. For example, if this is enabled and a path
     of "/tmp/foo" is used, the first locally-running node will use "/tmp/foo/0",

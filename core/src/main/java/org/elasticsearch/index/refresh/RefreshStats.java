@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.refresh;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class RefreshStats implements Streamable, ToXContent {
 
@@ -35,18 +36,19 @@ public class RefreshStats implements Streamable, ToXContent {
 
     private long totalTimeInMillis;
 
+    /**
+     * Number of waiting refresh listeners.
+     */
+    private int listeners;
+
     public RefreshStats() {
 
     }
 
-    public RefreshStats(long total, long totalTimeInMillis) {
+    public RefreshStats(long total, long totalTimeInMillis, int listeners) {
         this.total = total;
         this.totalTimeInMillis = totalTimeInMillis;
-    }
-
-    public void add(long total, long totalTimeInMillis) {
-        this.total += total;
-        this.totalTimeInMillis += totalTimeInMillis;
+        this.listeners = listeners;
     }
 
     public void add(RefreshStats refreshStats) {
@@ -59,6 +61,7 @@ public class RefreshStats implements Streamable, ToXContent {
         }
         this.total += refreshStats.total;
         this.totalTimeInMillis += refreshStats.totalTimeInMillis;
+        this.listeners += refreshStats.listeners;
     }
 
     /**
@@ -82,37 +85,56 @@ public class RefreshStats implements Streamable, ToXContent {
         return new TimeValue(totalTimeInMillis);
     }
 
-    public static RefreshStats readRefreshStats(StreamInput in) throws IOException {
-        RefreshStats refreshStats = new RefreshStats();
-        refreshStats.readFrom(in);
-        return refreshStats;
+    /**
+     * The number of waiting refresh listeners.
+     */
+    public int getListeners() {
+        return listeners;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.REFRESH);
-        builder.field(Fields.TOTAL, total);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
+        builder.startObject("refresh");
+        builder.field("total", total);
+        builder.timeValueField("total_time_in_millis", "total_time", totalTimeInMillis);
+        builder.field("listeners", listeners);
         builder.endObject();
         return builder;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString REFRESH = new XContentBuilderString("refresh");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            listeners = in.readVInt();
+        } else {
+            listeners = 0;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeVInt(listeners);
+        }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != RefreshStats.class) {
+            return false;
+        }
+        RefreshStats rhs = (RefreshStats) obj;
+        return total == rhs.total
+                && totalTimeInMillis == rhs.totalTimeInMillis
+                && listeners == rhs.listeners;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(total, totalTimeInMillis, listeners);
     }
 }

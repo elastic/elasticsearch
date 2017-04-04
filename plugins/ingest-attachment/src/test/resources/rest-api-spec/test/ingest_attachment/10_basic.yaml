@@ -8,19 +8,5 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: ingest-attachment  }
-    - match:  { nodes.$master.ingest.processors.0.type: append }
-    - match:  { nodes.$master.ingest.processors.1.type: attachment }
-    - match:  { nodes.$master.ingest.processors.2.type: convert }
-    - match:  { nodes.$master.ingest.processors.3.type: date }
-    - match:  { nodes.$master.ingest.processors.4.type: fail }
-    - match:  { nodes.$master.ingest.processors.5.type: foreach }
-    - match:  { nodes.$master.ingest.processors.6.type: gsub }
-    - match:  { nodes.$master.ingest.processors.7.type: join }
-    - match:  { nodes.$master.ingest.processors.8.type: lowercase }
-    - match:  { nodes.$master.ingest.processors.9.type: remove }
-    - match:  { nodes.$master.ingest.processors.10.type: rename }
-    - match:  { nodes.$master.ingest.processors.11.type: set }
-    - match:  { nodes.$master.ingest.processors.12.type: split }
-    - match:  { nodes.$master.ingest.processors.13.type: trim }
-    - match:  { nodes.$master.ingest.processors.14.type: uppercase }
+    - match:  { nodes.$master.ingest.processors.0.type: attachment }
 

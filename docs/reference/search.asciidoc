@@ -18,13 +18,14 @@ when indexing tweets, the routing value can be the user name:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/tweet?routing=kimchy' -d '{
+POST /twitter/tweet?routing=kimchy
+{
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
 }
-'
 --------------------------------------------------
+// CONSOLE
 
 In such a case, if we want to search only on the tweets for a specific
 user, we can specify it as the routing, resulting in the search hitting
@@ -32,7 +33,8 @@ only the relevant shard:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
+POST /twitter/tweet/_search?routing=kimchy
+{
     "query": {
         "bool" : {
             "must" : {
@@ -46,8 +48,9 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The routing parameter can be multi valued represented as a comma
 separated string. This will result in hitting the relevant shards where
@@ -65,6 +68,7 @@ the request with two different groups:
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
     "query" : {
         "match_all" : {}
@@ -72,6 +76,8 @@ the request with two different groups:
     "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[global-search-timeout]]
@@ -85,6 +91,19 @@ timeout in the <<search-request-body>>. The default value is no global
 timeout. The setting key is `search.default_search_timeout` and can be
 set using the <<cluster-update-settings>> endpoints. Setting this value
 to `-1` resets the global search timeout to no timeout.
+
+[float]
+[[global-search-cancellation]]
+== Search Cancellation
+
+Searches can be cancelled using standard <<task-cancellation,task cancellation>>
+mechanism. By default, a running search only checks if it is cancelled or
+not on segment boundaries, therefore the cancellation can be delayed by large
+segments. The search cancellation responsiveness can be improved by setting
+the dynamic cluster-level setting `search.low_level_cancellation` to `true`.
+However, it comes with an additional overhead of more frequent cancellation
+checks that can be noticeable on large fast running search queries. Changing this
+setting only affects the searches that start after the change is made.
 
 --
 
@@ -109,7 +128,5 @@ include::search/validate.asciidoc[]
 include::search/explain.asciidoc[]
 
 include::search/profile.asciidoc[]
-
-include::search/percolate.asciidoc[]
 
 include::search/field-stats.asciidoc[]

@@ -1,0 +1,53 @@
+{
+  "task" : {
+    "dynamic" : "strict",
+    "properties" : {
+      "completed": {
+        "type": "boolean"
+      },
+      "task" : {
+        "properties": {
+          "action": {
+            "type": "keyword"
+          },
+          "cancellable": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "long"
+          },
+          "parent_id": {
+            "type": "keyword"
+          },
+          "node": {
+            "type": "keyword"
+          },
+          "running_time_in_nanos": {
+            "type": "long"
+          },
+          "start_time_in_millis": {
+            "type": "long"
+          },
+          "type": {
+            "type": "keyword"
+          },
+          "status": {
+            "type" : "object",
+            "enabled" : false
+          },
+          "description": {
+            "type": "text"
+          }
+        }
+      },
+      "response" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "error" : {
+        "type" : "object",
+        "enabled" : false
+      }
+    }
+  }
+}

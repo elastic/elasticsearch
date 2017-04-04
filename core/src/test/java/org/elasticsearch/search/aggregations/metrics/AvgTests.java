@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 
-public class AvgTests extends AbstractNumericMetricTestCase<AvgAggregatorBuilder> {
+public class AvgTests extends AbstractNumericMetricTestCase<AvgAggregationBuilder> {
 
     @Override
-    protected AvgAggregatorBuilder doCreateTestAggregatorFactory() {
-        return new AvgAggregatorBuilder("foo");
+    protected AvgAggregationBuilder doCreateTestAggregatorFactory() {
+        return new AvgAggregationBuilder("foo");
     }
 
 }

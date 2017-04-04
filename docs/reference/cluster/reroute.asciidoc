@@ -11,22 +11,26 @@ Here is a short example of how a simple reroute API call:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_cluster/reroute' -d '{
-    "commands" : [ {
-        "move" :
-            {
-              "index" : "test", "shard" : 0,
-              "from_node" : "node1", "to_node" : "node2"
+POST /_cluster/reroute
+{
+    "commands" : [
+        {
+            "move" : {
+                "index" : "test", "shard" : 0,
+                "from_node" : "node1", "to_node" : "node2"
             }
         },
         {
           "allocate_replica" : {
-              "index" : "test", "shard" : 1, "node" : "node3"
+                "index" : "test", "shard" : 1,
+                "node" : "node3"
           }
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:doc tests run with only a single node]
 
 An important aspect to remember is the fact that once when an allocation
 occurs, the cluster will aim at re-balancing its state back to an even
@@ -103,3 +107,16 @@ are available:
     To ensure that these implications are well-understood,
     this command requires the special field `accept_data_loss` to be
     explicitly set to `true` for it to work.
+
+[float]
+=== Retry failed shards
+
+The cluster will attempt to allocate a shard a maximum of
+`index.allocation.max_retries` times in a row (defaults to `5`), before giving
+up and leaving the shard unallocated. This scenario can be caused by
+structural problems such as having an analyzer which refers to a stopwords
+file which doesn't exist on all nodes.
+
+Once the problem has been corrected, allocation can be manually retried by
+calling the <<cluster-reroute,`_reroute`>> API with `?retry_failed`, which
+will attempt a single retry round for these shards.

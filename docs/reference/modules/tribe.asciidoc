@@ -87,7 +87,6 @@ configuration options are passed down from the tribe node to each node client:
 * `transport.publish_host`
 * `path.home`
 * `path.conf`
-* `path.plugins`
 * `path.logs`
 * `path.scripts`
 * `shield.*`

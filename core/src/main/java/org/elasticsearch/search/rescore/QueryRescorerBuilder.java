@@ -41,7 +41,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
     public static final float DEFAULT_QUERYWEIGHT = 1.0f;
     public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
-    private final QueryBuilder<?> queryBuilder;
+    private final QueryBuilder queryBuilder;
     private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
     private float queryWeight = DEFAULT_QUERYWEIGHT;
     private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
@@ -70,7 +70,10 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
      * Creates a new {@link QueryRescorerBuilder} instance
      * @param builder the query builder to build the rescore query from
      */
-    public QueryRescorerBuilder(QueryBuilder<?> builder) {
+    public QueryRescorerBuilder(QueryBuilder builder) {
+        if (builder == null) {
+            throw new IllegalArgumentException("rescore_query cannot be null");
+        }
         this.queryBuilder = builder;
     }
 
@@ -79,7 +82,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
      */
     public QueryRescorerBuilder(StreamInput in) throws IOException {
         super(in);
-        queryBuilder = in.readQuery();
+        queryBuilder = in.readNamedWriteable(QueryBuilder.class);
         scoreMode = QueryRescoreMode.readFromStream(in);
         rescoreQueryWeight = in.readFloat();
         queryWeight = in.readFloat();
@@ -87,7 +90,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(queryBuilder);
+        out.writeNamedWriteable(queryBuilder);
         scoreMode.writeTo(out);
         out.writeFloat(rescoreQueryWeight);
         out.writeFloat(queryWeight);
@@ -96,7 +99,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     /**
      * @return the query used for this rescore query
      */
-    public QueryBuilder<?> getRescoreQuery() {
+    public QueryBuilder getRescoreQuery() {
         return this.queryBuilder;
     }
 
@@ -209,12 +212,12 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
      */
     private static class InnerBuilder {
 
-        private QueryBuilder<?> queryBuilder;
+        private QueryBuilder queryBuilder;
         private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
         private float queryWeight = DEFAULT_QUERYWEIGHT;
         private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
 
-        void setQueryBuilder(QueryBuilder<?> builder) {
+        void setQueryBuilder(QueryBuilder builder) {
             this.queryBuilder = builder;
         }
 

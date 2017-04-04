@@ -19,21 +19,18 @@
 
 package org.elasticsearch.index.analysis.synonyms;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -43,14 +40,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class SynonymsAnalysisTests extends ESTestCase {
-    protected final ESLogger logger = Loggers.getLogger(getClass());
-    private AnalysisService analysisService;
+    protected final Logger logger = Loggers.getLogger(getClass());
+    private IndexAnalyzers indexAnalyzers;
 
     public void testSynonymsAnalysis() throws IOException {
         InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
@@ -62,32 +56,25 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Files.copy(synonymsWordnet, config.resolve("synonyms_wordnet.txt"));
 
         String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
-        Settings settings = settingsBuilder().
+        Settings settings = Settings.builder().
             loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-
+        indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzerWordnet", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWordnet_file", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
-
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {
+        Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
-        Analyzer analyzer = analysisService.analyzer(analyzerName).analyzer();
-
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field", source, 1.0f);
-        allEntries.reset();
-
-        TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
+        TokenStream stream = AllTokenStream.allTokenStream("_all", source, 1.0f, analyzer);
         stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 

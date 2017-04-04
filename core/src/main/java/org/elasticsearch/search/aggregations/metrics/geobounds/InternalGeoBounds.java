@@ -23,41 +23,26 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
+public class InternalGeoBounds extends InternalAggregation implements GeoBounds {
+    final double top;
+    final double bottom;
+    final double posLeft;
+    final double posRight;
+    final double negLeft;
+    final double negRight;
+    final boolean wrapLongitude;
 
-    public final static Type TYPE = new Type("geo_bounds");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalGeoBounds readResult(StreamInput in) throws IOException {
-            InternalGeoBounds result = new InternalGeoBounds();
-            result.readFrom(in);
-            return result;
-        }
-    };
-    
-    private double top;
-    private double bottom;
-    private double posLeft;
-    private double posRight;
-    private double negLeft;
-    private double negRight;
-    private boolean wrapLongitude;
-
-    InternalGeoBounds() {
-    }
-    
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-            double negLeft, double negRight, boolean wrapLongitude,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+                      double negLeft, double negRight, boolean wrapLongitude,
+                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.top = top;
         this.bottom = bottom;
@@ -68,11 +53,36 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         this.wrapLongitude = wrapLongitude;
     }
 
-    @Override
-    public Type type() {
-        return TYPE;
+    /**
+     * Read from a stream.
+     */
+    public InternalGeoBounds(StreamInput in) throws IOException {
+        super(in);
+        top = in.readDouble();
+        bottom = in.readDouble();
+        posLeft = in.readDouble();
+        posRight = in.readDouble();
+        negLeft = in.readDouble();
+        negRight = in.readDouble();
+        wrapLongitude = in.readBoolean();
     }
-    
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(top);
+        out.writeDouble(bottom);
+        out.writeDouble(posLeft);
+        out.writeDouble(posRight);
+        out.writeDouble(negLeft);
+        out.writeDouble(negRight);
+        out.writeBoolean(wrapLongitude);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return GeoBoundsAggregationBuilder.NAME;
+    }
+
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double top = Double.NEGATIVE_INFINITY;
@@ -104,7 +114,8 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 negRight = bounds.negRight;
             }
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(), getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(),
+                getMetaData());
     }
 
     @Override
@@ -173,50 +184,24 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         return builder;
     }
 
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        top = in.readDouble();
-        bottom = in.readDouble();
-        posLeft = in.readDouble();
-        posRight = in.readDouble();
-        negLeft = in.readDouble();
-        negRight = in.readDouble();
-        wrapLongitude = in.readBoolean();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(top);
-        out.writeDouble(bottom);
-        out.writeDouble(posLeft);
-        out.writeDouble(posRight);
-        out.writeDouble(negLeft);
-        out.writeDouble(negRight);
-        out.writeBoolean(wrapLongitude);
-    }
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-    
     private static class BoundingBox {
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;
-        
-        public BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+
+        BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
-        
+
         public GeoPoint topLeft() {
             return topLeft;
         }
-        
+
         public GeoPoint bottomRight() {
             return bottomRight;
         }
     }
-    
+
     private BoundingBox resolveBoundingBox() {
         if (Double.isInfinite(top)) {
             return null;
@@ -257,4 +242,19 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         }
     }
 
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalGeoBounds other = (InternalGeoBounds) obj;
+        return bottom == other.bottom &&
+            posLeft == other.posLeft &&
+            posRight == other.posRight &&
+            negLeft == other.negLeft &&
+            negRight == other.negRight &&
+            wrapLongitude == other.wrapLongitude;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
+    }
 }

@@ -31,12 +31,13 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.search.highlight.HighlightUtils;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;

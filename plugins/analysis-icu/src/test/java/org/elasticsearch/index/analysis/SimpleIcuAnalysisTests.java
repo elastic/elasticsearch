@@ -27,29 +27,27 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
-/**
- */
+
 public class SimpleIcuAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"),
-            Settings.EMPTY, new AnalysisICUPlugin()::onModule);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisICUPlugin());
 
-        TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("icu_tokenizer");
         assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("icu_normalizer");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("icu_normalizer");
         assertThat(filterFactory, instanceOf(IcuNormalizerTokenFilterFactory.class));
 
-        filterFactory = analysisService.tokenFilter("icu_folding");
+        filterFactory = analysis.tokenFilter.get("icu_folding");
         assertThat(filterFactory, instanceOf(IcuFoldingTokenFilterFactory.class));
 
-        filterFactory = analysisService.tokenFilter("icu_collation");
+        filterFactory = analysis.tokenFilter.get("icu_collation");
         assertThat(filterFactory, instanceOf(IcuCollationTokenFilterFactory.class));
 
-        filterFactory = analysisService.tokenFilter("icu_transform");
+        filterFactory = analysis.tokenFilter.get("icu_transform");
         assertThat(filterFactory, instanceOf(IcuTransformTokenFilterFactory.class));
 
-        CharFilterFactory charFilterFactory = analysisService.charFilter("icu_normalizer");
+        CharFilterFactory charFilterFactory = analysis.charFilter.get("icu_normalizer");
         assertThat(charFilterFactory, instanceOf(IcuNormalizerCharFilterFactory.class));
     }
 }

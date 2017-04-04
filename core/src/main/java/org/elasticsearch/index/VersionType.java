@@ -25,10 +25,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 
-/**
- *
- */
-public enum VersionType implements Writeable<VersionType> {
+public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
@@ -54,9 +51,6 @@ public enum VersionType implements Writeable<VersionType> {
         }
 
         private boolean isVersionConflict(long currentVersion, long expectedVersion, boolean deleted) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
             if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }
@@ -71,7 +65,7 @@ public enum VersionType implements Writeable<VersionType> {
 
         @Override
         public long updateVersion(long currentVersion, long expectedVersion) {
-            return (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
+            return currentVersion == Versions.NOT_FOUND ? 1 : currentVersion + 1;
         }
 
         @Override
@@ -95,9 +89,6 @@ public enum VersionType implements Writeable<VersionType> {
     EXTERNAL((byte) 1) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
             if (currentVersion == Versions.NOT_FOUND) {
                 return false;
             }
@@ -117,9 +108,6 @@ public enum VersionType implements Writeable<VersionType> {
 
         @Override
         public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
             if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }
@@ -156,9 +144,6 @@ public enum VersionType implements Writeable<VersionType> {
     EXTERNAL_GTE((byte) 2) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
             if (currentVersion == Versions.NOT_FOUND) {
                 return false;
             }
@@ -178,9 +163,6 @@ public enum VersionType implements Writeable<VersionType> {
 
         @Override
         public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
             if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }
@@ -216,13 +198,13 @@ public enum VersionType implements Writeable<VersionType> {
     },
     /**
      * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
+     *
+     * @deprecated this will be removed in 7.0 and should not be used! It is *ONLY* for backward compatibility with 5.0 indices
      */
+    @Deprecated
     FORCE((byte) 3) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
             if (currentVersion == Versions.NOT_FOUND) {
                 return false;
             }
@@ -265,8 +247,6 @@ public enum VersionType implements Writeable<VersionType> {
     };
 
     private final byte value;
-
-    private static final VersionType PROTOTYPE = INTERNAL;
 
     VersionType(byte value) {
         this.value = value;
@@ -383,15 +363,10 @@ public enum VersionType implements Writeable<VersionType> {
         throw new IllegalArgumentException("No version type match [" + value + "]");
     }
 
-    @Override
-    public VersionType readFrom(StreamInput in) throws IOException {
+    public static VersionType readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3);
         return VersionType.values()[ordinal];
-    }
-
-    public static VersionType readVersionTypeFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 
     @Override

@@ -43,7 +43,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `name` field is an analyzed string field which uses the default `standard` analyzer.
 <2> The `name.length` field is a `token_count` <<multi-fields,multi-field>> which will index the number of tokens in the `name` field.
 <3> This query matches only the document containing `Rachel Alice Williams`, as it contains three tokens.
@@ -83,23 +83,11 @@ The following parameters are accepted by `token_count` fields:
 
     Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
 
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false`. Note: if `true`, it is the string value that is added to `_all`,
-    not the calculated token count.
-
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
     substituted for any explicit `null` values.  Defaults to `null`, which
     means the field is treated as missing.
-
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. Defaults to `32`.
 
 <<mapping-store,`store`>>::
 

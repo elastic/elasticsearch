@@ -56,11 +56,6 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-    }
-
-    @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
@@ -86,7 +81,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         }
         try {
             return cache.load(indexReader, this);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
@@ -97,7 +92,8 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
+        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger,
+                AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     @Override
@@ -131,7 +127,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
         private int minFreq;
         private int maxFreq;
-        public FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
+        FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
             super(delegate, false);
             this.minFreq = minFreq;
             this.maxFreq = maxFreq;

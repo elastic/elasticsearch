@@ -9,7 +9,7 @@
               {
                 "grok" : {
                   "field" : "log",
-                  "pattern": "%{COMBINEDAPACHELOG}"
+                  "patterns": ["%{COMBINEDAPACHELOG}"]
                 }
               },
               {
@@ -26,14 +26,14 @@
               },
               {
                 "date" : {
-                  "match_field" : "timestamp",
+                  "field" : "timestamp",
                   "target_field" : "timestamp",
-                  "match_formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
+                  "formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
                 }
               },
               {
                 "geoip" : {
-                  "source_field" : "clientip"
+                  "field" : "clientip"
                 }
               }
             ]
@@ -55,7 +55,7 @@
         index: test
         type: test
         id: 1
-  - length: { _source: 14 }
+  - length: { _source: 13 }
   - match: { _source.request: "/presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png" }
   - match: { _source.agent: "\"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\"" }
   - match: { _source.auth: "-" }
@@ -67,7 +67,7 @@
   - match: { _source.httpversion: "1.1" }
   - match: { _source.timestamp: "2014-09-08T02:54:42.000Z" }
   - match: { _source.geoip.continent_name: "North America" }
-  - match: { _source.geoip.city_name: "Charlotte" }
+  - match: { _source.geoip.city_name: "Fayetteville" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.region_name: "North Carolina" }
 
@@ -82,13 +82,11 @@
               {
                 "foreach" : {
                   "field" : "friends",
-                  "processors" : [
-                    {
+                  "processor" : {
                       "remove" : {
-                        "field" : "_value.id"
+                        "field" : "_ingest._value.id"
                       }
-                    }
-                  ]
+                  }
                 }
               },
               {
@@ -106,13 +104,11 @@
               {
                 "foreach" : {
                   "field" : "address",
-                  "processors" : [
-                    {
+                  "processor" : {
                       "trim" : {
-                        "field" : "_value"
+                        "field" : "_ingest._value"
                       }
-                    }
-                  ]
+                  }
                 }
               },
               {
@@ -128,7 +124,7 @@
               {
                 "rename" : {
                    "field" : "eyeColor",
-                   "to" : "eye_color"
+                   "target_field" : "eye_color"
                 }
               }
             ]

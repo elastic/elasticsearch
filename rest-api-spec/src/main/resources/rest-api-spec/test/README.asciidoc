@@ -10,7 +10,7 @@ Elasticsearch as follows:
 
 [source,sh]
 ---------------------
-bin/elasticsearch --script.inline true --node.testattr test --path.repo /tmp --repositories.url.allowed_urls 'http://snapshot.*'
+bin/elasticsearch -Enode.attr.testattr=test -Epath.repo=/tmp -Erepositories.url.allowed_urls='http://snapshot.*'
 ---------------------
 
 =======================================
@@ -20,12 +20,17 @@ Test file structure
 
 A YAML test file consists of:
 * an optional `setup` section, followed by
+* an optional `teardown` section, followed by
 * one or more test sections
 
 For instance:
 
     setup:
       - do: ....
+      - do: ....
+
+    ---
+    teardown:
       - do: ....
 
     ---
@@ -42,6 +47,11 @@ For instance:
 A `setup` section contains a list of commands to run before each test
 section in order to setup the same environment for each test section.
 
+A `teardown` section contains a list of commands to run after each test
+section in order to setup the same environment for each test section. This
+may be needed for modifications made by the testthat are not cleared by the
+deletion of indices and templates.
+
 A test section represents an independent test, containing multiple `do`
 statements and assertions. The contents of a test section must be run in
 order, but individual test sections may be run in any order, as follows:
@@ -49,9 +59,8 @@ order, but individual test sections may be run in any order, as follows:
 1. run `setup` (if any)
 2. reset the `response` var and the `stash` (see below)
 2. run test contents
-3. run teardown
-
-The `teardown` should delete all indices and all templates.
+3. run `teardown` (if any)
+4. delete all indices and all templates
 
 Dot notation:
 -------------
@@ -164,6 +173,25 @@ The argument to `catch` can be any of:
 If `catch` is specified, then the `response` var must be cleared, and the test
 should fail if no error is thrown.
 
+If the arguments to `do` include `warnings` then we are expecting a `Warning`
+header to come back from the request. If the arguments *don't* include a
+`warnings` argument then we *don't* expect the response to include a `Warning`
+header. The warnings must match exactly. Using it looks like this:
+
+....
+    - do:
+        warnings:
+            - '[index] is deprecated'
+            - quotes are not required because yaml
+            - but this argument is always a list, never a single string
+            - no matter how many warnings you expect
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
+
 === `set`
 
 For some tests, it is necessary to extract a value from the previous `response`, in
@@ -255,7 +283,7 @@ Supports also regular expressions with flag X for more readability (accepts whit
 Compares two numeric values, eg:
 
 ....
-    - lt: { _ttl: 10000 }  # the `_ttl` value is less than 10,000
+    - lt: { foo: 10000 }  # the `foo` value is less than 10,000
 ....
 
 === `lte` and `gte`
@@ -263,7 +291,7 @@ Compares two numeric values, eg:
 Compares two numeric values, eg:
 
 ....
-    - lte: { _ttl: 10000 }  # the `_ttl` value is less than or equal to 10,000
+    - lte: { foo: 10000 }  # the `foo` value is less than or equal to 10,000
 ....
 
 === `length`
@@ -275,4 +303,3 @@ This depends on the datatype of the value being examined, eg:
     - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
     - length: { _source: 5 }   # the `_source` hash has 5 keys
 ....
-

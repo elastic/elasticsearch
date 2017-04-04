@@ -21,9 +21,10 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,11 +42,12 @@ import java.util.Objects;
  * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
  * behavior to how ShardRouting#currentNodeId is used.
  */
-public class AllocationId implements ToXContent {
+public class AllocationId implements ToXContent, Writeable {
     private static final String ID_KEY = "id";
     private static final String RELOCATION_ID_KEY = "relocation_id";
 
-    private static final ObjectParser<AllocationId.Builder, Void> ALLOCATION_ID_PARSER = new ObjectParser<>("allocationId");
+    private static final ObjectParser<AllocationId.Builder, Void> ALLOCATION_ID_PARSER = new ObjectParser<>(
+            "allocationId");
 
     static {
         ALLOCATION_ID_PARSER.declareString(AllocationId.Builder::setId, new ParseField(ID_KEY));
@@ -78,6 +80,7 @@ public class AllocationId implements ToXContent {
         this.relocationId = in.readOptionalString();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.id);
         out.writeOptionalString(this.relocationId);
@@ -93,7 +96,7 @@ public class AllocationId implements ToXContent {
      * Creates a new allocation id for initializing allocation.
      */
     public static AllocationId newInitializing() {
-        return new AllocationId(Strings.randomBase64UUID(), null);
+        return new AllocationId(UUIDs.randomBase64UUID(), null);
     }
 
     /**
@@ -118,7 +121,7 @@ public class AllocationId implements ToXContent {
      */
     public static AllocationId newRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() == null;
-        return new AllocationId(allocationId.getId(), Strings.randomBase64UUID());
+        return new AllocationId(allocationId.getId(), UUIDs.randomBase64UUID());
     }
 
     /**
@@ -198,6 +201,6 @@ public class AllocationId implements ToXContent {
     }
 
     public static AllocationId fromXContent(XContentParser parser) throws IOException {
-        return ALLOCATION_ID_PARSER.parse(parser, new AllocationId.Builder()).build();
+        return ALLOCATION_ID_PARSER.parse(parser, new AllocationId.Builder(), null).build();
     }
 }

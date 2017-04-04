@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # CONTROLLING STARTUP:
 #
@@ -6,14 +6,14 @@
 # behavior, those variables are:
 #
 #   ES_CLASSPATH -- A Java classpath containing everything necessary to run.
-#   JAVA_OPTS    -- Additional arguments to the JVM for heap size, etc
+#   ES_JVM_OPTIONS -- Path to file containing JVM options
 #   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
 #
+# Optionally, exact memory values can be set using the `ES_JAVA_OPTS`.
+# Note that the Xms and Xmx lines in the JVM options file must be
+# commented out. Sample format include "512m", and "10g".
 #
-# Optionally, exact memory values can be set using the following values, note,
-# they can still be set using the `ES_JAVA_OPTS`. Sample format include "512m", and "10g".
-#
-#   ES_HEAP_SIZE -- Sets both the minimum and maximum memory to allocate (recommended)
+#   ES_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/elasticsearch
 #
 # As a convenience, a fragment of shell is sourced in order to set one or
 # more of these variables. This so-called `include' can be placed in a
@@ -44,14 +44,21 @@
 
 # Check to see if you are trying to run this without building it first. Gradle
 # will replace the project.name with _something_.
+
 if echo '${project.name}' | grep project.name > /dev/null ; then
     cat >&2 << EOF
-Error: You must build the project with Maven or download a pre-built package
+Error: You must build the project with Gradle or download a pre-built package
 before you can run Elasticsearch. See 'Building from Source' in README.textile
 or visit https://www.elastic.co/download to get a pre-built package.
 EOF
     exit 1
 fi
+
+parse_jvm_options() {
+  if [ -f "$1" ]; then
+    echo "$(grep "^-" "$1" | tr '\n' ' ')"
+  fi
+}
 
 CDPATH=""
 SCRIPT="$0"
@@ -74,6 +81,17 @@ ES_HOME=`dirname "$SCRIPT"`/..
 # make ELASTICSEARCH_HOME absolute
 ES_HOME=`cd "$ES_HOME"; pwd`
 
+if [ -z "$ES_JVM_OPTIONS" ]; then
+    for jvm_options in "$ES_HOME"/config/jvm.options \
+                      /etc/elasticsearch/jvm.options; do
+        if [ -r "$jvm_options" ]; then
+            ES_JVM_OPTIONS=$jvm_options
+            break
+        fi
+    done
+fi
+
+ES_JAVA_OPTS="$(parse_jvm_options "$ES_JVM_OPTIONS") $ES_JAVA_OPTS"
 
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$ES_INCLUDE" = "x" ]; then
@@ -114,8 +132,22 @@ fi
 # works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
 if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
     echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
-    echo "Please pass JVM parameters via JAVA_OPTS instead"
+    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
     unset JAVA_TOOL_OPTIONS
+fi
+
+# JAVA_OPTS is not a built-in JVM mechanism but some people think it is
+# so let us warn them that we are not observing the value of $JAVA_OPTS
+if [ "x$JAVA_OPTS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_OPTS=$JAVA_OPTS"
+    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
+fi
+
+"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
+
+if [ $? -ne 0 ]; then
+    echo "Elasticsearch requires at least Java 8 but your Java version from $JAVA does not meet this requirement"
+    exit 1
 fi
 
 # full hostname passed through cut for portability on systems that do not support hostname -s
@@ -126,10 +158,10 @@ export HOSTNAME
 # manual parsing to find out, if process should be detached
 daemonized=`echo $* | egrep -- '(^-d |-d$| -d |--daemonize$|--daemonize )'`
 if [ -z "$daemonized" ] ; then
-    exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+    exec "$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
           org.elasticsearch.bootstrap.Elasticsearch "$@"
 else
-    exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+    exec "$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
           org.elasticsearch.bootstrap.Elasticsearch "$@" <&- &
     retval=$?
     pid=$!

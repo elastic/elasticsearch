@@ -19,41 +19,37 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
  */
 public class PluginCli extends MultiCommand {
 
-    public PluginCli(Environment env) {
+    private final Collection<Command> commands;
+
+    private PluginCli() {
         super("A tool for managing installed elasticsearch plugins");
-        subcommands.put("list", new ListPluginsCommand(env));
-        subcommands.put("install", new InstallPluginCommand(env));
-        subcommands.put("remove", new RemovePluginCommand(env));
+        subcommands.put("list", new ListPluginsCommand());
+        subcommands.put("install", new InstallPluginCommand());
+        subcommands.put("remove", new RemovePluginCommand());
+        commands = Collections.unmodifiableCollection(subcommands.values());
     }
 
     public static void main(String[] args) throws Exception {
-        // initialize default for es.logger.level because we will not read the logging.yml
-        String loggerLevel = System.getProperty("es.logger.level", "INFO");
-        // Set the appender for all potential log files to terminal so that other components that use the logger print out the
-        // same terminal.
-        // The reason for this is that the plugin cli cannot be configured with a file appender because when the plugin command is
-        // executed there is no way of knowing where the logfiles should be placed. For example, if elasticsearch
-        // is run as service then the logs should be at /var/log/elasticsearch but when started from the tar they should be at es.home/logs.
-        // Therefore we print to Terminal.
-        Environment loggingEnvironment = InternalSettingsPreparer.prepareEnvironment(Settings.builder()
-                .put("appender.terminal.type", "terminal")
-                .put("rootLogger", "${es.logger.level}, terminal")
-                .put("es.logger.level", loggerLevel)
-                .build(), Terminal.DEFAULT);
-        LogConfigurator.configure(loggingEnvironment.settings(), false);
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
-        exit(new PluginCli(env).main(args, Terminal.DEFAULT));
+        exit(new PluginCli().main(args, Terminal.DEFAULT));
     }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(commands);
+    }
+
 }

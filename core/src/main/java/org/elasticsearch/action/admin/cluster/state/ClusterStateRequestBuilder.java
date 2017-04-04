@@ -23,9 +23,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
 
     public ClusterStateRequestBuilder(ElasticsearchClient client, ClusterStateAction action) {
@@ -72,7 +69,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include teh {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
+     * Should the cluster state result include the {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
      * to <tt>true</tt>.
      */
     public ClusterStateRequestBuilder setRoutingTable(boolean filter) {

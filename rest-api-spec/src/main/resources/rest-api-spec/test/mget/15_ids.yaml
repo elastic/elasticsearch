@@ -15,10 +15,6 @@
           body:   { foo: baz }
 
   - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
       mget:
         index:  test_1
         type:   test

@@ -26,14 +26,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -44,24 +45,35 @@ import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
 
-    public static class BucketCountThresholds implements Writeable<BucketCountThresholds>, ToXContent {
-
-        private static final BucketCountThresholds PROTOTYPE = new BucketCountThresholds(-1, -1, -1, -1);
-
+    public static class BucketCountThresholds implements Writeable, ToXContent {
         private long minDocCount;
         private long shardMinDocCount;
         private int requiredSize;
         private int shardSize;
-
-        public static BucketCountThresholds readFromStream(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
             this.minDocCount = minDocCount;
             this.shardMinDocCount = shardMinDocCount;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public BucketCountThresholds(StreamInput in) throws IOException {
+            requiredSize = in.readInt();
+            shardSize = in.readInt();
+            minDocCount = in.readLong();
+            shardMinDocCount = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(requiredSize);
+            out.writeInt(shardSize);
+            out.writeLong(minDocCount);
+            out.writeLong(shardMinDocCount);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
@@ -71,13 +83,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
         public void ensureValidity() {
 
-            if (shardSize == 0) {
-                setShardSize(Integer.MAX_VALUE);
-            }
-
-            if (requiredSize == 0) {
-                setRequiredSize(Integer.MAX_VALUE);
-            }
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
             if (shardSize < requiredSize) {
                 setShardSize(requiredSize);
@@ -88,8 +93,12 @@ public abstract class TermsAggregator extends BucketsAggregator {
                 setShardMinDocCount(minDocCount);
             }
 
-            if (requiredSize < 0 || minDocCount < 0) {
-                throw new ElasticsearchException("parameters [requiredSize] and [minDocCount] must be >=0 in terms aggregation.");
+            if (requiredSize <= 0 || shardSize <= 0) {
+                throw new ElasticsearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
+            }
+
+            if (minDocCount < 0 || shardMinDocCount < 0) {
+                throw new ElasticsearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
             }
         }
 
@@ -127,28 +136,13 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TermsAggregatorBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
-            builder.field(TermsAggregatorBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
-            builder.field(TermsAggregatorBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
-            builder.field(TermsAggregatorBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
+            builder.field(TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
+            if (shardSize != -1) {
+                builder.field(TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
+            }
+            builder.field(TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
+            builder.field(TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
             return builder;
-        }
-
-        @Override
-        public BucketCountThresholds readFrom(StreamInput in) throws IOException {
-            int requiredSize = in.readInt();
-            int shardSize = in.readInt();
-            long minDocCount = in.readLong();
-            long shardMinDocCount = in.readLong();
-            return new BucketCountThresholds(minDocCount, shardMinDocCount, requiredSize, shardSize);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(requiredSize);
-            out.writeInt(shardSize);
-            out.writeLong(minDocCount);
-            out.writeLong(shardMinDocCount);
         }
 
         @Override
@@ -172,15 +166,19 @@ public abstract class TermsAggregator extends BucketsAggregator {
         }
     }
 
+    protected final DocValueFormat format;
     protected final BucketCountThresholds bucketCountThresholds;
     protected final Terms.Order order;
     protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
     protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode collectMode, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public TermsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+            BucketCountThresholds bucketCountThresholds, Terms.Order order, DocValueFormat format, SubAggCollectionMode collectMode,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
+        this.format = format;
         this.collectMode = collectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
@@ -200,7 +198,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

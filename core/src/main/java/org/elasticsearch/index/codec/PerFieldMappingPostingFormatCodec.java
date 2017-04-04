@@ -19,15 +19,15 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene60.Lucene60Codec;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.lucene.codecs.lucene62.Lucene62Codec;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -38,15 +38,15 @@ import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
  * configured for a specific field the default postings format is used.
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
-public class PerFieldMappingPostingFormatCodec extends Lucene60Codec {
-    private final ESLogger logger;
+public class PerFieldMappingPostingFormatCodec extends Lucene62Codec {
+    private final Logger logger;
     private final MapperService mapperService;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) : "PerFieldMappingPostingFormatCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, ESLogger logger) {
+    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, Logger logger) {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
@@ -54,10 +54,10 @@ public class PerFieldMappingPostingFormatCodec extends Lucene60Codec {
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        final MappedFieldType indexName = mapperService.fullName(field);
-        if (indexName == null) {
+        final MappedFieldType fieldType = mapperService.fullName(field);
+        if (fieldType == null) {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-        } else if (indexName instanceof CompletionFieldMapper.CompletionFieldType) {
+        } else if (fieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             return CompletionFieldMapper.CompletionFieldType.postingsFormat();
         }
         return super.getPostingsFormatForField(field);

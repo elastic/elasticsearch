@@ -19,16 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.DoubleArrayList;
-import com.carrotsearch.hppc.FloatArrayList;
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
-
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,11 +30,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.RandomAccess;
 
+import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
+
 /** Collections-related utility methods. */
 public class CollectionUtils {
-    public static void sort(LongArrayList list) {
-        sort(list.buffer, list.size());
-    }
 
     public static void sort(final long[] array, int len) {
         new IntroSorter() {
@@ -74,29 +68,6 @@ public class CollectionUtils {
             }
 
         }.sort(0, len);
-    }
-
-    public static void sortAndDedup(LongArrayList list) {
-        list.elementsCount = sortAndDedup(list.buffer, list.elementsCount);
-    }
-
-    /** Sort and deduplicate values in-place, then return the unique element count. */
-    public static int sortAndDedup(long[] array, int len) {
-        if (len <= 1) {
-            return len;
-        }
-        sort(array, len);
-        int uniqueCount = 1;
-        for (int i = 1; i < len; ++i) {
-            if (array[i] != array[i - 1]) {
-                array[uniqueCount++] = array[i];
-            }
-        }
-        return uniqueCount;
-    }
-
-    public static void sort(FloatArrayList list) {
-        sort(list.buffer, list.size());
     }
 
     public static void sort(final float[] array, int len) {
@@ -129,29 +100,6 @@ public class CollectionUtils {
         }.sort(0, len);
     }
 
-    public static void sortAndDedup(FloatArrayList list) {
-        list.elementsCount = sortAndDedup(list.buffer, list.elementsCount);
-    }
-
-    /** Sort and deduplicate values in-place, then return the unique element count. */
-    public static int sortAndDedup(float[] array, int len) {
-        if (len <= 1) {
-            return len;
-        }
-        sort(array, len);
-        int uniqueCount = 1;
-        for (int i = 1; i < len; ++i) {
-            if (Float.compare(array[i], array[i - 1]) != 0) {
-                array[uniqueCount++] = array[i];
-            }
-        }
-        return uniqueCount;
-    }
-
-    public static void sort(DoubleArrayList list) {
-        sort(list.buffer, list.size());
-    }
-
     public static void sort(final double[] array, int len) {
         new IntroSorter() {
 
@@ -180,25 +128,6 @@ public class CollectionUtils {
             }
 
         }.sort(0, len);
-    }
-
-    public static void sortAndDedup(DoubleArrayList list) {
-        list.elementsCount = sortAndDedup(list.buffer, list.elementsCount);
-    }
-
-    /** Sort and deduplicate values in-place, then return the unique element count. */
-    public static int sortAndDedup(double[] array, int len) {
-        if (len <= 1) {
-            return len;
-        }
-        sort(array, len);
-        int uniqueCount = 1;
-        for (int i = 1; i < len; ++i) {
-            if (Double.compare(array[i], array[i - 1]) != 0) {
-                array[uniqueCount++] = array[i];
-            }
-        }
-        return uniqueCount;
     }
 
     /**
@@ -297,7 +226,7 @@ public class CollectionUtils {
         private final List<T> in;
         private final int distance;
 
-        public RotatedList(List<T> list, int distance) {
+        RotatedList(List<T> list, int distance) {
             if (distance < 0 || distance >= list.size()) {
                 throw new IllegalArgumentException();
             }

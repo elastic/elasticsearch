@@ -1,288 +1,76 @@
-[[setup-configuration]]
-== Configuration
-
-[float]
-=== Environment Variables
-
-Within the scripts, Elasticsearch comes with built in `JAVA_OPTS` passed
-to the JVM started. The most important setting for that is the `-Xmx` to
-control the maximum allowed memory for the process, and `-Xms` to
-control the minimum allocated memory for the process (_in general, the
-more memory allocated to the process, the better_).
-
-Most times it is better to leave the default `JAVA_OPTS` as they are,
-and use the `ES_JAVA_OPTS` environment variable in order to set / change
-JVM settings or arguments.
-
-The `ES_HEAP_SIZE` environment variable allows to set the heap memory
-that will be allocated to elasticsearch java process. It will allocate
-the same value to both min and max values, though those can be set
-explicitly (not recommended) by setting `ES_MIN_MEM` (defaults to
-`256m`), and `ES_MAX_MEM` (defaults to `1g`).
-
-It is recommended to set the min and max memory to the same value, and
-enable <<setup-configuration-memory,`mlockall`>>.
-
-[float]
-[[system]]
-=== System Configuration
-
-[float]
-[[file-descriptors]]
-==== File Descriptors
-
-Make sure to increase the number of open files descriptors on the
-machine (or for the user running elasticsearch). Setting it to 32k or
-even 64k is recommended.
-
-You can retrieve the `max_file_descriptors` for each node
-using the <<cluster-nodes-info>> API, with:
-
-[source,js]
---------------------------------------------------
-curl localhost:9200/_nodes/stats/process?pretty
---------------------------------------------------
-
-[float]
-[[max-number-of-threads]]
-==== Number of threads
-
-Make sure that the number of threads that the Elasticsearch user can
-create is at least 2048.
-
-[float]
-[[vm-max-map-count]]
-==== Virtual memory
-
-Elasticsearch uses a <<default_fs,`hybrid mmapfs / niofs`>> directory by default to store its indices.  The default
-operating system limits on mmap counts is likely to be too low, which may
-result in out of memory exceptions.  On Linux, you can increase the limits by
-running the following command as `root`:
-
-[source,sh]
--------------------------------------
-sysctl -w vm.max_map_count=262144
--------------------------------------
-
-To set this value permanently, update the `vm.max_map_count` setting in
-`/etc/sysctl.conf`.
-
-NOTE: If you installed Elasticsearch using a package (.deb, .rpm) this setting will be changed automatically.  To verify, run `sysctl vm.max_map_count`.
-
-[float]
-[[setup-configuration-memory]]
-==== Memory Settings
-
-Most operating systems try to use as much memory as possible for file system
-caches and eagerly swap out unused application memory, possibly resulting
-in the elasticsearch process being swapped. Swapping is very bad for
-performance and for node stability, so it should be avoided at all costs.
-
-There are three options:
-
-* **Disable swap**
-+
---
-
-The simplest option is to completely disable swap. Usually Elasticsearch
-is the only service running on a box, and its memory usage is controlled
-by the `ES_HEAP_SIZE` environment variable.  There should be no need
-to have swap enabled.
-
-On Linux systems, you can disable swap temporarily
-by running: `sudo swapoff -a`. To disable it permanently, you will need
-to edit the `/etc/fstab` file and comment out any lines that contain the
-word `swap`.
-
-On Windows, the equivalent can be achieved by disabling the paging file entirely
-via `System Properties → Advanced → Performance → Advanced → Virtual memory`.
-
---
-
-* **Configure `swappiness`**
-+
---
-The second option is to ensure that the sysctl value `vm.swappiness` is set
-to `0`. This reduces the kernel's tendency to swap and should not lead to
-swapping under normal circumstances, while still allowing the whole system
-to swap in emergency conditions.
-
-NOTE: From kernel version 3.5-rc1 and above, a `swappiness` of `0` will
-cause the OOM killer to kill the process instead of allowing swapping.
-You will need to set `swappiness` to `1` to still allow swapping in
-emergencies.
---
-
-* **`mlockall`**
-+
---
-The third option is to use
-http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on Linux/Unix systems, or https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock] on Windows, to
-try to lock the process address space into RAM, preventing any Elasticsearch
-memory from being swapped out.  This can be done, by adding this line
-to the `config/elasticsearch.yml` file:
-
-[source,yaml]
---------------
-bootstrap.mlockall: true
---------------
-
-After starting Elasticsearch, you can see whether this setting was applied
-successfully by checking the value of `mlockall` in the output from this
-request:
-
-[source,sh]
---------------
-curl http://localhost:9200/_nodes/process?pretty
---------------
-
-If you see that `mlockall` is `false`, then it means that the `mlockall`
-request has failed.  The most probable reason, on Linux/Unix systems, is that
-the user running Elasticsearch doesn't have permission to lock memory.  This can
-be granted by running `ulimit -l unlimited` as `root` before starting Elasticsearch.
-
-Another possible reason why `mlockall` can fail is that the temporary directory
-(usually `/tmp`) is mounted with the `noexec` option. This can be solved by
-specifying a new temp directory, by starting Elasticsearch with:
-
-[source,sh]
---------------
-./bin/elasticsearch -Djna.tmpdir=/path/to/new/dir
---------------
-
-WARNING: `mlockall` might cause the JVM or shell session to exit if it tries
-to allocate more memory than is available!
---
-
-[float]
 [[settings]]
-=== Elasticsearch Settings
+== Configuring Elasticsearch
 
-*elasticsearch* configuration files can be found under `ES_HOME/config`
-folder. The folder comes with two files, the `elasticsearch.yml` for
-configuring Elasticsearch different
-<<modules,modules>>, and `logging.yml` for
-configuring the Elasticsearch logging.
+Elasticsearch ships with good defaults and requires very little configuration.
+Most settings can be changed on a running cluster using the
+<<cluster-update-settings>> API.
+
+The configuration files should contain settings which are node-specific (such
+as `node.name` and paths), or settings which a node requires in order to be
+able to join a cluster, such as `cluster.name` and `network.host`.
+
+[float]
+=== Config file location
+
+Elasticsearch has two configuration files:
+
+* `elasticsearch.yml` for configuring Elasticsearch, and
+* `log4j2.properties` for configuring Elasticsearch logging.
+
+These files are located in the config directory, whose location defaults to
+`$ES_HOME/config/`.  The Debian and RPM packages set the config directory
+location to `/etc/elasticsearch/`.
+
+The location of the config directory can be changed with the `path.conf`
+setting, as follows:
+
+[source,sh]
+-------------------------------
+./bin/elasticsearch -Epath.conf=/path/to/my/config/
+-------------------------------
+
+[float]
+=== Config file format
 
 The configuration format is http://www.yaml.org/[YAML]. Here is an
-example of changing the address all network based modules will use to
-bind and publish to:
-
-[source,yaml]
---------------------------------------------------
-network :
-    host : 10.0.0.4
---------------------------------------------------
-
-
-[float]
-[[paths]]
-==== Paths
-
-In production use, you will almost certainly want to change paths for
-data and log files:
+example of changing the path of the data and logs directories:
 
 [source,yaml]
 --------------------------------------------------
 path:
-  logs: /var/log/elasticsearch
-  data: /var/data/elasticsearch
+    data: /var/lib/elasticsearch
+    logs: /var/log/elasticsearch
+--------------------------------------------------
+
+Settings can also be flattened as follows:
+
+[source,yaml]
+--------------------------------------------------
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
 --------------------------------------------------
 
 [float]
-[[cluster-name]]
-==== Cluster name
+=== Environment variable subsitution
 
-Also, don't forget to give your production cluster a name, which is used
-to discover and auto-join other nodes:
+Environment variables referenced with the `${...}` notation within the
+configuration file will be replaced with the value of the environment
+variable, for instance:
 
 [source,yaml]
 --------------------------------------------------
-cluster:
-  name: <NAME OF YOUR CLUSTER>
+node.name:    ${HOSTNAME}
+network.host: ${ES_NETWORK_HOST}
 --------------------------------------------------
-
-Make sure that you don't reuse the same cluster names in different
-environments, otherwise you might end up with nodes joining the wrong cluster.
-For instance you could use `logging-dev`, `logging-stage`, and `logging-prod`
-for the development, staging, and production clusters.
 
 [float]
-[[node-name]]
-==== Node name
+=== Prompting for settings
 
-You may also want to change the default node name for each node to
-something like the display hostname. By default Elasticsearch will
-randomly pick a Marvel character name from a list of around 3000 names
-when your node starts up.
-
-[source,yaml]
---------------------------------------------------
-node:
-  name: <NAME OF YOUR NODE>
---------------------------------------------------
-
-The hostname of the machine is provided in the environment
-variable `HOSTNAME`. If on your machine you only run a
-single elasticsearch node for that cluster, you can set
-the node name to the hostname using the `${...}` notation:
-
-[source,yaml]
---------------------------------------------------
-node:
-  name: ${HOSTNAME}
---------------------------------------------------
-
-Internally, all settings are collapsed into "namespaced" settings. For
-example, the above gets collapsed into `node.name`. This means that
-its easy to support other configuration formats, for example,
-http://www.json.org[JSON]. If JSON is a preferred configuration format,
-simply rename the `elasticsearch.yml` file to `elasticsearch.json` and
-add:
-
-[float]
-[[styles]]
-==== Configuration styles
-
-[source,yaml]
---------------------------------------------------
-{
-    "network" : {
-        "host" : "10.0.0.4"
-    }
-}
---------------------------------------------------
-
-It also means that its easy to provide the settings externally either
-using the `ES_JAVA_OPTS` or as parameters to the `elasticsearch`
-command, for example:
-
-[source,sh]
---------------------------------------------------
-$ elasticsearch -Ees.network.host=10.0.0.4
---------------------------------------------------
-
-Another option is to set `es.default.` prefix instead of `es.` prefix,
-which means the default setting will be used only if not explicitly set
-in the configuration file.
-
-Another option is to use the `${...}` notation within the configuration
-file which will resolve to an environment setting, for example:
-
-[source,js]
---------------------------------------------------
-{
-    "network" : {
-        "host" : "${ES_NET_HOST}"
-    }
-}
---------------------------------------------------
-
-Additionally, for settings that you do not wish to store in the configuration
-file, you can use the value `${prompt.text}` or `${prompt.secret}` and start
-Elasticsearch in the foreground. `${prompt.secret}` has echoing disabled so
-that the value entered will not be shown in your terminal; `${prompt.text}`
-will allow you to see the value as you type it in. For example:
+For settings that you do not wish to store in the configuration file, you can
+use the value `${prompt.text}` or `${prompt.secret}` and start Elasticsearch
+in the foreground. `${prompt.secret}` has echoing disabled so that the value
+entered will not be shown in your terminal; `${prompt.text}` will allow you to
+see the value as you type it in. For example:
 
 [source,yaml]
 --------------------------------------------------
@@ -290,8 +78,8 @@ node:
   name: ${prompt.text}
 --------------------------------------------------
 
-On execution of the `elasticsearch` command, you will be prompted to enter
-the actual value like so:
+When starting Elasticsearch, you will be prompted to enter the actual value
+like so:
 
 [source,sh]
 --------------------------------------------------
@@ -302,84 +90,126 @@ NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`
 is used in the settings and the process is run as a service or in the background.
 
 [float]
-[[configuration-index-settings]]
-=== Index Settings
+=== Setting default settings
 
-Indices created within the cluster can provide their own settings. For
-example, the following creates an index with a refresh interval of 5
-seconds instead of the default refresh interval (the format can be either
-YAML or JSON):
+New default settings may be specified on the command line using the
+`default.` prefix.  This will specify a value that will be used by
+default unless another value is specified in the config file.
 
-[source,sh]
---------------------------------------------------
-$ curl -XPUT http://localhost:9200/kimchy/ -d \
-'
-index:
-    refresh_interval: 5s
-'
---------------------------------------------------
-
-Index level settings can be set on the node level as well, for example,
-within the `elasticsearch.yml` file, the following can be set:
-
-[source,yaml]
---------------------------------------------------
-index :
-    refresh_interval: 5s
---------------------------------------------------
-
-This means that every index that gets created on the specific node
-started with the mentioned configuration will use a refresh interval of
-5 seconds *unless the index explicitly sets it*. In other words, any
-index level settings override what is set in the node configuration. Of
-course, the above can also be set as a "collapsed" setting, for example:
+For instance, if Elasticsearch is started as follows:
 
 [source,sh]
---------------------------------------------------
-$ elasticsearch -Ees.index.refresh_interval=5s
---------------------------------------------------
+---------------------------
+./bin/elasticsearch -Edefault.node.name=My_Node
+---------------------------
 
-All of the index level configuration can be found within each
-<<index-modules,index module>>.
+the value for `node.name` will be `My_Node`, unless it is overwritten on the
+command line with `es.node.name` or in the config file with `node.name`.
 
 [float]
 [[logging]]
-=== Logging
+== Logging configuration
 
-Elasticsearch uses an internal logging abstraction and comes, out of the
-box, with http://logging.apache.org/log4j/1.2/[log4j]. It tries to simplify
-log4j configuration by using http://www.yaml.org/[YAML] to configure it,
-and the logging configuration file is `config/logging.yml`. The
-http://en.wikipedia.org/wiki/JSON[JSON] and
-http://en.wikipedia.org/wiki/.properties[properties] formats are also
-supported. Multiple configuration files can be loaded, in which case they will
-get merged, as long as they start with the `logging.` prefix and end with one
-of the supported suffixes (either `.yml`, `.yaml`, `.json` or `.properties`).
-The logger section contains the java packages and their corresponding log
-level, where it is possible to omit the `org.elasticsearch` prefix. The
-appender section contains the destinations for the logs. Extensive information
-on how to customize logging and all the supported appenders can be found on
-the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
+Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
+logging. Log4j 2 can be configured using the log4j2.properties
+file. Elasticsearch exposes three properties, `${sys:es.logs.base_path}`,
+`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name}` (if the node name
+is explicitly set via `node.name`) that can be referenced in the configuration
+file to determine the location of the log files. The property
+`${sys:es.logs.base_path}` will resolve to the log directory,
+`${sys:es.logs.cluster_name}` will resolve to the cluster name (used as the
+prefix of log filenames in the default configuration), and
+`${sys:es.logs.node_name}` will resolve to the node name (if the node name is
+explicitly set).
 
-Additional Appenders and other logging classes provided by
-http://logging.apache.org/log4j/extras/[log4j-extras] are also available,
-out of the box.
+For example, if your log directory (`path.logs`) is `/var/log/elasticsearch` and
+your cluster is named `production` then `${sys:es.logs.base_path}` will resolve
+to `/var/log/elasticsearch` and
+`${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log`
+will resolve to `/var/log/elasticsearch/production.log`.
+
+[source,properties]
+--------------------------------------------------
+appender.rolling.type = RollingFile <1>
+appender.rolling.name = rolling
+appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log <2>
+appender.rolling.layout.type = PatternLayout
+appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %.10000m%n
+appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}.log <3>
+appender.rolling.policies.type = Policies
+appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <4>
+appender.rolling.policies.time.interval = 1 <5>
+appender.rolling.policies.time.modulate = true <6>
+--------------------------------------------------
+
+<1> Configure the `RollingFile` appender
+<2> Log to `/var/log/elasticsearch/production.log`
+<3> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd.log`
+<4> Using a time-based roll policy
+<5> Roll logs on a daily basis
+<6> Align rolls on the day boundary (as opposed to rolling every twenty-four
+    hours)
+
+If you append `.gz` or `.zip` to `appender.rolling.filePattern`, then the logs
+will be compressed as they are rolled.
+
+If you want to retain log files for a specified period of time, you can use a
+rollover strategy with a delete action.
+
+[source,properties]
+--------------------------------------------------
+appender.rolling.strategy.type = DefaultRolloverStrategy <1>
+appender.rolling.strategy.action.type = Delete <2>
+appender.rolling.strategy.action.basepath = ${sys:es.logs.base_path} <3>
+appender.rolling.strategy.action.condition.type = IfLastModified <4>
+appender.rolling.strategy.action.condition.age = 7D <5>
+appender.rolling.strategy.action.PathConditions.type = IfFileName <6>
+appender.rolling.strategy.action.PathConditions.glob = ${sys:es.logs.cluster_name}-* <7>
+--------------------------------------------------
+
+<1> Configure the `DefaultRolloverStrategy`
+<2> Configure the `Delete` action for handling rollovers
+<3> The base path to the Elasticsearch logs
+<4> The condition to apply when handling rollovers
+<5> Retain logs for seven days
+<6> Only delete files older than seven days if they match the specified glob
+<7> Delete files from the base path matching the glob
+    `${sys:es.logs.cluster_name}-*`; this is the glob that log files are rolled
+    to; this is needed to only delete the rolled Elasticsearch logs but not also
+    delete the deprecation and slow logs
+
+Multiple configuration files can be loaded (in which case they will get merged)
+as long as they are named `log4j2.properties` and have the Elasticsearch config
+directory as an ancestor; this is useful for plugins that expose additional
+loggers. The logger section contains the java packages and their corresponding
+log level. The appender section contains the destinations for the logs.
+Extensive information on how to customize logging and all the supported
+appenders can be found on the
+http://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
+documentation].
 
 [float]
 [[deprecation-logging]]
-==== Deprecation logging
+=== Deprecation logging
 
 In addition to regular logging, Elasticsearch allows you to enable logging
 of deprecated actions. For example this allows you to determine early, if
 you need to migrate certain functionality in the future. By default,
-deprecation logging is disabled. You can enable it in the `config/logging.yml`
-file by setting the deprecation log level to `DEBUG`.
+deprecation logging is enabled at the WARN level, the level at which all
+deprecation log messages will be emitted.
 
-[source,yaml]
+[source,properties]
 --------------------------------------------------
-deprecation: DEBUG, deprecation_log_file
+logger.deprecation.level = warn
 --------------------------------------------------
 
 This will create a daily rolling deprecation log file in your log directory.
 Check this file regularly, especially when you intend to upgrade to a new
 major version.
+
+The default logging configuration has set the roll policy for the deprecation
+logs to roll and compress after 1 GB, and to preserve a maximum of five log
+files (four rolled logs, and the active log).
+
+You can disable it in the `config/log4j2.properties` file by setting the deprecation
+log level to `error`.

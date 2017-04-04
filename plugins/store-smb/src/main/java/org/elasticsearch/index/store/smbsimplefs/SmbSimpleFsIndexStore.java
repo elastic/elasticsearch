@@ -23,12 +23,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreConfig;
 
 public class SmbSimpleFsIndexStore extends IndexStore {
 
-    public SmbSimpleFsIndexStore(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig) {
-        super(indexSettings, indexStoreConfig);
+    public SmbSimpleFsIndexStore(IndexSettings indexSettings) {
+        super(indexSettings);
     }
 
     @Override

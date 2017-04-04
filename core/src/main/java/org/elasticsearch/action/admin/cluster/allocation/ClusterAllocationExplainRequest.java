@@ -19,19 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -40,34 +38,47 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
 
-    private static ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser("cluster/allocation/explain");
+    private static ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {
         PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
         PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
         PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField("primary"));
+        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField("current_node"));
     }
 
+    @Nullable
     private String index;
+    @Nullable
     private Integer shard;
+    @Nullable
     private Boolean primary;
+    @Nullable
+    private String currentNode;
     private boolean includeYesDecisions = false;
+    private boolean includeDiskInfo = false;
 
-    /** Explain the first unassigned shard */
+    /**
+     * Create a new allocation explain request to explain any unassigned shard in the cluster.
+     */
     public ClusterAllocationExplainRequest() {
         this.index = null;
         this.shard = null;
         this.primary = null;
+        this.currentNode = null;
     }
 
     /**
      * Create a new allocation explain request. If {@code primary} is false, the first unassigned replica
      * will be picked for explanation. If no replicas are unassigned, the first assigned replica will
      * be explained.
+     *
+     * Package private for testing.
      */
-    public ClusterAllocationExplainRequest(String index, int shard, boolean primary) {
+    ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNode) {
         this.index = index;
         this.shard = shard;
         this.primary = primary;
+        this.currentNode = currentNode;
     }
 
     @Override
@@ -91,46 +102,105 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * Returns {@code true} iff the first unassigned shard is to be used
      */
     public boolean useAnyUnassignedShard() {
-        return this.index == null && this.shard == null && this.primary == null;
+        return this.index == null && this.shard == null && this.primary == null && this.currentNode == null;
     }
 
+    /**
+     * Sets the index name of the shard to explain.
+     */
     public ClusterAllocationExplainRequest setIndex(String index) {
         this.index = index;
         return this;
     }
 
+    /**
+     * Returns the index name of the shard to explain, or {@code null} to use any unassigned shard (see {@link #useAnyUnassignedShard()}).
+     */
     @Nullable
     public String getIndex() {
         return this.index;
     }
 
+    /**
+     * Sets the shard id of the shard to explain.
+     */
     public ClusterAllocationExplainRequest setShard(Integer shard) {
         this.shard = shard;
         return this;
     }
 
+    /**
+     * Returns the shard id of the shard to explain, or {@code null} to use any unassigned shard (see {@link #useAnyUnassignedShard()}).
+     */
     @Nullable
     public Integer getShard() {
         return this.shard;
     }
 
+    /**
+     * Sets whether to explain the allocation of the primary shard or a replica shard copy
+     * for the shard id (see {@link #getShard()}).
+     */
     public ClusterAllocationExplainRequest setPrimary(Boolean primary) {
         this.primary = primary;
         return this;
     }
 
+    /**
+     * Returns {@code true} if explaining the primary shard for the shard id (see {@link #getShard()}),
+     * {@code false} if explaining a replica shard copy for the shard id, or {@code null} to use any
+     * unassigned shard (see {@link #useAnyUnassignedShard()}).
+     */
     @Nullable
     public Boolean isPrimary() {
         return this.primary;
     }
 
+    /**
+     * Requests the explain API to explain an already assigned replica shard currently allocated to
+     * the given node.
+     */
+    public ClusterAllocationExplainRequest setCurrentNode(String currentNodeId) {
+        this.currentNode = currentNodeId;
+        return this;
+    }
+
+    /**
+     * Returns the node holding the replica shard to be explained.  Returns {@code null} if any replica shard
+     * can be explained.
+     */
+    @Nullable
+    public String getCurrentNode() {
+        return currentNode;
+    }
+
+    /**
+     * Set to {@code true} to include yes decisions for a particular node.
+     */
     public void includeYesDecisions(boolean includeYesDecisions) {
         this.includeYesDecisions = includeYesDecisions;
     }
 
-    /** Returns true if all decisions should be included. Otherwise only "NO" and "THROTTLE" decisions are returned */
+    /**
+     * Returns {@code true} if yes decisions should be included.  Otherwise only "no" and "throttle"
+     * decisions are returned.
+     */
     public boolean includeYesDecisions() {
         return this.includeYesDecisions;
+    }
+
+    /**
+     * Set to {@code true} to include information about the gathered disk information of nodes in the cluster.
+     */
+    public void includeDiskInfo(boolean includeDiskInfo) {
+        this.includeDiskInfo = includeDiskInfo;
+    }
+
+    /**
+     * Returns {@code true} if information about disk usage and shard sizes should also be returned.
+     */
+    public boolean includeDiskInfo() {
+        return this.includeDiskInfo;
     }
 
     @Override
@@ -142,35 +212,46 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
             sb.append("index=").append(index);
             sb.append(",shard=").append(shard);
             sb.append(",primary?=").append(primary);
+            if (currentNode != null) {
+                sb.append(",currentNode=").append(currentNode);
+            }
         }
         sb.append(",includeYesDecisions?=").append(includeYesDecisions);
         return sb.toString();
     }
 
     public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
-        ClusterAllocationExplainRequest req = PARSER.parse(parser, new ClusterAllocationExplainRequest());
-        Exception e = req.validate();
-        if (e != null) {
-            throw new ElasticsearchParseException("'index', 'shard', and 'primary' must be specified in allocation explain request", e);
-        }
-        return req;
+        return PARSER.parse(parser, new ClusterAllocationExplainRequest(), null);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        checkVersion(in.getVersion());
         super.readFrom(in);
         this.index = in.readOptionalString();
         this.shard = in.readOptionalVInt();
         this.primary = in.readOptionalBoolean();
+        this.currentNode = in.readOptionalString();
         this.includeYesDecisions = in.readBoolean();
+        this.includeDiskInfo = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        checkVersion(out.getVersion());
         super.writeTo(out);
         out.writeOptionalString(index);
         out.writeOptionalVInt(shard);
         out.writeOptionalBoolean(primary);
+        out.writeOptionalString(currentNode);
         out.writeBoolean(includeYesDecisions);
+        out.writeBoolean(includeDiskInfo);
+    }
+
+    private void checkVersion(Version version) {
+        if (version.before(Version.V_5_2_0_UNRELEASED)) {
+            throw new IllegalArgumentException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0_UNRELEASED +
+                                               " nodes, node version [" + version + "]");
+        }
     }
 }

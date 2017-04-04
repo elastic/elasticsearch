@@ -21,25 +21,22 @@ package org.elasticsearch.versioning;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;
@@ -53,7 +50,7 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.error("Unexpected exception while indexing", e);
                     failure.set(e);
                     latch.countDown();

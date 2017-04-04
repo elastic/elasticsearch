@@ -16,6 +16,10 @@
           "type" : "boolean",
           "description" : "Return an explanation of why the commands can or cannot be executed"
         },
+        "retry_failed": {
+          "type" : "boolean",
+          "description" : "Retries allocation of shards that are blocked due to too many subsequent allocation failures"
+        },
         "metric": {
           "type": "list",
           "options": ["_all", "blocks", "metadata", "nodes", "routing_table", "master_node", "version"],

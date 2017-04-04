@@ -51,6 +51,20 @@ case "$1" in
     ;;
 esac
 
+# to pick up /usr/lib/sysctl.d/elasticsearch.conf
+if [ "${ES_SKIP_SET_KERNEL_PARAMETERS:-false}" == "false" ]; then
+    if command -v /usr/lib/systemd/systemd-sysctl > /dev/null; then
+        /usr/lib/systemd/systemd-sysctl
+    elif command -v /lib/systemd/systemd-sysctl > /dev/null; then
+        /lib/systemd/systemd-sysctl
+    fi
+elif [ "$ES_SKIP_SET_KERNEL_PARAMETERS" == "true" ]; then
+    echo "skipping setting kernel parameters"
+else
+    echo "unrecognized value [$ES_SKIP_SET_KERNEL_PARAMETERS] for ES_SKIP_SET_KERNEL_PARAMETERS; must [false] (default) or [true]"
+    exit 1
+fi
+
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
     if command -v systemctl >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using systemd"
@@ -99,5 +113,11 @@ fi
 chown -R $ES_USER:$ES_GROUP /var/lib/elasticsearch
 chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch
 chown -R root:$ES_GROUP /etc/elasticsearch
+chmod 0750 /etc/elasticsearch
+chmod 0750 /etc/elasticsearch/scripts
+
+if [ -f /etc/sysconfig/elasticsearch ]; then
+   chmod 0660 /etc/sysconfig/elasticsearch
+fi
 
 ${scripts.footer}

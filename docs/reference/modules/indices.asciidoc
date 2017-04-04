@@ -30,10 +30,6 @@ Available settings include:
 
     Control the resource limits on the shard recovery process.
 
-<<indices-ttl,TTL interval>>::
-
-    Control how expired documents are removed.
-
 include::indices/circuit_breaker.asciidoc[]
 
 include::indices/fielddata.asciidoc[]
@@ -45,6 +41,4 @@ include::indices/indexing_buffer.asciidoc[]
 include::indices/request_cache.asciidoc[]
 
 include::indices/recovery.asciidoc[]
-
-include::indices/ttl_interval.asciidoc[]
 

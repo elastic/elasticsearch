@@ -1,7 +1,7 @@
 [[search-search]]
 == Search
 
-The search API allows to execute a search query and get back search hits
+The search API allows you to execute a search query and get back search hits
 that match the query. The query can either be provided using a simple
 <<search-uri-request,query string as a parameter>>, or using a
 <<search-request-body,request body>>.
@@ -17,38 +17,48 @@ twitter index:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/_search?q=user:kimchy'
+GET /twitter/_search?q=user:kimchy
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 We can also search within specific types:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet,user/_search?q=user:kimchy'
+GET /twitter/tweet,user/_search?q=user:kimchy
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 We can also search all tweets with a certain tag across several indices
 (for example, when each user has his own index):
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/kimchy,elasticsearch/tweet/_search?q=tag:wow'
+GET /kimchy,elasticsearch/tweet/_search?q=tag:wow
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 Or we can search all tweets across all available indices using `_all`
 placeholder:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_all/tweet/_search?q=tag:wow'
+GET /_all/tweet/_search?q=tag:wow
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Or even search across all indices and all types:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_search?q=tag:wow'
+GET /_search?q=tag:wow
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 By default elasticsearch rejects search requests that would query more than
 1000 shards. The reason is that such large numbers of shards make the job of

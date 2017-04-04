@@ -19,7 +19,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.test.ESTestCase;
@@ -31,8 +34,10 @@ import java.util.List;
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends ESTestCase {
 
+    private static final Settings INDEX_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+
     /** Abstraction for mutating a property of a MappedFieldType */
-    public static abstract class Modifier {
+    public abstract static class Modifier {
         /** The name of the property that is being modified. Used in test failure messages. */
         public final String property;
         /** true if this modifier only makes types incompatible in strict mode, false otherwise */
@@ -68,65 +73,65 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("analyzer", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setIndexAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setIndexAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("analyzer", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setIndexAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setIndexAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setIndexAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSearchAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setSearchAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_quote_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_quote_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSearchQuoteAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setSearchQuoteAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("similarity", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY));
+                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS));
             }
         },
         new Modifier("similarity", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY));
+                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSimilarity(new BM25SimilarityProvider("bar", Settings.EMPTY));
+                other.setSimilarity(new BM25SimilarityProvider("bar", Settings.EMPTY, INDEX_SETTINGS));
             }
         },
         new Modifier("eager_global_ordinals", true) {
@@ -273,7 +278,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         fieldType.checkCompatibility(fieldType, conflicts, random().nextBoolean()); // no exception
         assertTrue(conflicts.toString(), conflicts.isEmpty());
 
-        MappedFieldType bogus = new MappedFieldType() {
+        MappedFieldType bogus = new TermBasedFieldType() {
             @Override
             public MappedFieldType clone() {return null;}
             @Override
@@ -287,7 +292,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         }
         assertTrue(conflicts.toString(), conflicts.isEmpty());
 
-        MappedFieldType other = new MappedFieldType() {
+        MappedFieldType other = new TermBasedFieldType() {
             @Override
             public MappedFieldType clone() {return null;}
             @Override

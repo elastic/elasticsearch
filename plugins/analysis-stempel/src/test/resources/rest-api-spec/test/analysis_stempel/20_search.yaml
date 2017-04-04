@@ -12,18 +12,15 @@
                             text:
                                 type:     text
                                 analyzer: polish
-    - do:
-       cluster.health:
-           wait_for_status: yellow
 
     - do:
-      index:
-          index:  test
-          type:   type
-          id:     1
-          body:   { "text": "studenta był" }
+        index:
+            index:  test
+            type:   type
+            id:     1
+            body:   { "text": "studenta był" }
     - do:
-      indices.refresh: {}
+        indices.refresh: {}
 
     - do:
         search:

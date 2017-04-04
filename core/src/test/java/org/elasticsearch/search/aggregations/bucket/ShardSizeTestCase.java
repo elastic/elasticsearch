@@ -69,8 +69,8 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
 
-        routing1 = routingKeyForShard("idx", "type", 0);
-        routing2 = routingKeyForShard("idx", "type", 1);
+        routing1 = routingKeyForShard("idx", 0);
+        routing2 = routingKeyForShard("idx", 1);
 
         docs.addAll(indexDoc(routing1, "1", 5));
         docs.addAll(indexDoc(routing1, "2", 4));
@@ -103,7 +103,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx", "type").setRouting(shard).setCreate(true).setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx", "type").setRouting(shard).setSource(jsonBuilder()
                     .startObject()
                     .field("key", key)
                     .field("value", 1)

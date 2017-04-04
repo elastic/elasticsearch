@@ -1,7 +1,7 @@
 [[indices-put-mapping]]
 == Put Mapping
 
-The PUT mapping API allows you to add a new type to an existing index, or new
+The PUT mapping API allows you to add a new type to an existing index, or add new
 fields to an existing type:
 
 [source,js]
@@ -37,7 +37,7 @@ PUT twitter/_mapping/tweet <3>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> <<indices-create-index,Creates an index>> called `twitter` with the `message` field in the `tweet` <<mapping-type,mapping type>>.
 <2> Uses the PUT mapping API to add a new mapping type called `user`.
 <3> Uses the PUT mapping API to add a new field called `user_name` to the `tweet` mapping type.
@@ -62,6 +62,11 @@ PUT /{index}/_mapping/{type}
 * `{body}` contains the mapping changes that should be applied.
 
 
+NOTE: When updating the `_default_` mapping with the
+<<indices-put-mapping,PUT mapping>> API, the new mapping is not merged with
+the existing mapping.  Instead, the new `_default_` mapping replaces the
+existing one.
+
 [[updating-field-mappings]]
 [float]
 === Updating field mappings
@@ -71,7 +76,6 @@ exceptions to this rule. For instance:
 
 * new <<properties>> can be added to <<object>> fields.
 * new <<multi-fields,multi-fields>> can be added to existing fields.
-* <<doc-values>> can be disabled, but not enabled.
 * the <<ignore-above>> parameter can be updated.
 
 For example:
@@ -115,7 +119,7 @@ PUT my_index/_mapping/user
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Create an index with a `first` field under the `name` <<object>> field, and a `user_id` field.
 <2> Add a `last` field under the `name` object field.
 <3> Update the `ignore_above` setting from its default of 0.
@@ -135,9 +139,9 @@ exists in more than one type will throw an exception, unless you specify the
 across all fields with the same name in the same index.
 
 TIP: The only parameters which are exempt from this rule -- they can be set to
-different values on each field -- can be found in  <<field-conflicts>>.
+different values on each field -- can be found in <<field-conflicts>>.
 
-For example:
+For example, this fails:
 
 [source,js]
 -----------------------------------
@@ -173,8 +177,17 @@ PUT my_index/_mapping/type_one <2>
     }
   }
 }
+-----------------------------------
+// CONSOLE
+// TEST[catch:request]
+<1> Create an index with two types, both of which contain a `text` field which have the same mapping.
+<2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
 
-PUT my_index/_mapping/type_one?update_all_types <3>
+But this then running this succeeds:
+
+[source,js]
+-----------------------------------
+PUT my_index/_mapping/type_one?update_all_types <1>
 {
   "properties": {
     "text": {
@@ -185,9 +198,6 @@ PUT my_index/_mapping/type_one?update_all_types <3>
   }
 }
 -----------------------------------
-// AUTOSENSE
-<1> Create an index with two types, both of which contain a `text` field which have the same mapping.
-<2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
-<3> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.
-
-
+// CONSOLE
+// TEST[continued]
+<1> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.

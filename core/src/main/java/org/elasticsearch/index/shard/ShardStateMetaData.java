@@ -31,31 +31,21 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- */
 public final class ShardStateMetaData {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
     private static final String PRIMARY_KEY = "primary";
-    private static final String VERSION_KEY = "version";
+    private static final String VERSION_KEY = "version"; // for pre-5.0 shards that have not yet been active
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String ALLOCATION_ID_KEY = "allocation_id";
 
-    public static final long NO_VERSION = -1L;
-
-    public final long legacyVersion; // for pre-3.0 shards that have not yet been active
     public final String indexUUID;
     public final boolean primary;
     @Nullable
     public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
 
     public ShardStateMetaData(boolean primary, String indexUUID, AllocationId allocationId) {
-        this(NO_VERSION, primary, indexUUID, allocationId);
-    }
-
-    ShardStateMetaData(long legacyVersion, boolean primary, String indexUUID, AllocationId allocationId) {
         assert indexUUID != null;
-        this.legacyVersion = legacyVersion;
         this.primary = primary;
         this.indexUUID = indexUUID;
         this.allocationId = allocationId;
@@ -75,9 +65,6 @@ public final class ShardStateMetaData {
         if (primary != that.primary) {
             return false;
         }
-        if (legacyVersion != that.legacyVersion) {
-            return false;
-        }
         if (indexUUID != null ? !indexUUID.equals(that.indexUUID) : that.indexUUID != null) {
           return false;
         }
@@ -90,8 +77,7 @@ public final class ShardStateMetaData {
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(legacyVersion);
-        result = 31 * result + (indexUUID != null ? indexUUID.hashCode() : 0);
+        int result = (indexUUID != null ? indexUUID.hashCode() : 0);
         result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
         return result;
@@ -99,7 +85,7 @@ public final class ShardStateMetaData {
 
     @Override
     public String toString() {
-        return "version [" + legacyVersion + "], primary [" + primary + "], allocation [" + allocationId + "]";
+        return "primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
     public static final MetaDataStateFormat<ShardStateMetaData> FORMAT = new MetaDataStateFormat<ShardStateMetaData>(XContentType.SMILE, SHARD_STATE_FILE_PREFIX) {
@@ -113,7 +99,6 @@ public final class ShardStateMetaData {
 
         @Override
         public void toXContent(XContentBuilder builder, ShardStateMetaData shardStateMetaData) throws IOException {
-            builder.field(VERSION_KEY, shardStateMetaData.legacyVersion);
             builder.field(PRIMARY_KEY, shardStateMetaData.primary);
             builder.field(INDEX_UUID_KEY, shardStateMetaData.indexUUID);
             if (shardStateMetaData.allocationId != null) {
@@ -127,7 +112,6 @@ public final class ShardStateMetaData {
             if (token == null) {
                 return null;
             }
-            long version = NO_VERSION;
             Boolean primary = null;
             String currentFieldName = null;
             String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -136,12 +120,12 @@ public final class ShardStateMetaData {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (VERSION_KEY.equals(currentFieldName)) {
-                        version = parser.longValue();
-                    } else if (PRIMARY_KEY.equals(currentFieldName)) {
+                    if (PRIMARY_KEY.equals(currentFieldName)) {
                         primary = parser.booleanValue();
                     } else if (INDEX_UUID_KEY.equals(currentFieldName)) {
                         indexUUID = parser.text();
+                    } else if (VERSION_KEY.equals(currentFieldName)) {
+                        // ES versions before 6.0 wrote this for legacy reasons, just ignore for now and remove in 7.0
                     } else {
                         throw new CorruptStateException("unexpected field in shard state [" + currentFieldName + "]");
                     }
@@ -158,7 +142,7 @@ public final class ShardStateMetaData {
             if (primary == null) {
                 throw new CorruptStateException("missing value for [primary] in shard state");
             }
-            return new ShardStateMetaData(version, primary, indexUUID, allocationId);
+            return new ShardStateMetaData(primary, indexUUID, allocationId);
         }
     };
 }

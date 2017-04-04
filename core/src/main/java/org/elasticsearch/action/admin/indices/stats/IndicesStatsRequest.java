@@ -184,15 +184,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.FieldData);
     }
 
-    public IndicesStatsRequest percolate(boolean percolate) {
-        flags.set(Flag.PercolatorCache, percolate);
-        return this;
-    }
-
-    public boolean percolate() {
-        return flags.isSet(Flag.PercolatorCache);
-    }
-
     public IndicesStatsRequest segments(boolean segments) {
         flags.set(Flag.Segments, segments);
         return this;
@@ -283,6 +274,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        flags = CommonStatsFlags.readCommonStatsFlags(in);
+        flags = new CommonStatsFlags(in);
     }
 }

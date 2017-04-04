@@ -33,7 +33,7 @@ import java.util.List;
  */
 public interface Terms extends MultiBucketsAggregation {
 
-    static enum ValueType {
+    enum ValueType {
 
         STRING(org.elasticsearch.search.aggregations.support.ValueType.STRING),
         LONG(org.elasticsearch.search.aggregations.support.ValueType.LONG),
@@ -41,7 +41,7 @@ public interface Terms extends MultiBucketsAggregation {
 
         final org.elasticsearch.search.aggregations.support.ValueType scriptValueType;
 
-        private ValueType(org.elasticsearch.search.aggregations.support.ValueType scriptValueType) {
+        ValueType(org.elasticsearch.search.aggregations.support.ValueType scriptValueType) {
             this.scriptValueType = scriptValueType;
         }
 
@@ -62,7 +62,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         public abstract Number getKeyAsNumber();
 
@@ -97,7 +97,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * Determines the order by which the term buckets will be sorted
      */
-    static abstract class Order implements ToXContent {
+    abstract class Order implements ToXContent {
 
         /**
          * @return a bucket ordering strategy that sorts buckets by their document counts (ascending or descending)

@@ -24,7 +24,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.joda.time.DateTimeZone;
 
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -53,11 +52,7 @@ public class QueryParserSettings {
 
     private boolean analyzeWildcard;
 
-    private boolean lowercaseExpandedTerms;
-
     private boolean enablePositionIncrements;
-
-    private Locale locale;
 
     private Fuzziness fuzziness;
     private int fuzzyPrefixLength;
@@ -78,6 +73,8 @@ public class QueryParserSettings {
 
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates;
+
+    private boolean splitOnWhitespace;
 
     public QueryParserSettings(String queryString) {
         this.queryString = queryString;
@@ -133,14 +130,6 @@ public class QueryParserSettings {
 
     public void allowLeadingWildcard(boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
-    }
-
-    public boolean lowercaseExpandedTerms() {
-        return lowercaseExpandedTerms;
-    }
-
-    public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
     }
 
     public boolean enablePositionIncrements() {
@@ -267,14 +256,6 @@ public class QueryParserSettings {
         this.useDisMax = useDisMax;
     }
 
-    public void locale(Locale locale) {
-        this.locale = locale;
-    }
-
-    public Locale locale() {
-        return this.locale;
-    }
-
     public void timeZone(DateTimeZone timeZone) {
         this.timeZone = timeZone;
     }
@@ -289,5 +270,13 @@ public class QueryParserSettings {
 
     public Fuzziness fuzziness() {
         return fuzziness;
+    }
+
+    public void splitOnWhitespace(boolean value) {
+        this.splitOnWhitespace = value;
+    }
+
+    public boolean splitOnWhitespace() {
+        return splitOnWhitespace;
     }
 }

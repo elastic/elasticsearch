@@ -19,14 +19,15 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
-
-import org.elasticsearch.common.SuppressForbidden;
+import java.util.Locale;
 
 /**
  * A Terminal wraps access to reading input and writing output for a cli.
@@ -81,9 +82,35 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, String msg) {
+        print(verbosity, msg + lineSeparator);
+    }
+
+    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    public final void print(Verbosity verbosity, String msg) {
         if (this.verbosity.ordinal() >= verbosity.ordinal()) {
-            getWriter().print(msg + lineSeparator);
+            getWriter().print(msg);
             getWriter().flush();
+        }
+    }
+
+    /**
+     * Prompt for a yes or no answer from the user. This method will loop until 'y' or 'n'
+     * (or the default empty value) is entered.
+     */
+    public final boolean promptYesNo(String prompt, boolean defaultYes) {
+        String answerPrompt = defaultYes ? " [Y/n]" : " [y/N]";
+        while (true) {
+            String answer = readText(prompt + answerPrompt);
+            if (answer == null || answer.isEmpty()) {
+                return defaultYes;
+            }
+            answer = answer.toLowerCase(Locale.ROOT);
+            boolean answerYes = answer.equals("y");
+            if (answerYes == false && answer.equals("n") == false) {
+                println("Did not understand answer '" + answer + "'");
+                continue;
+            }
+            return answerYes;
         }
     }
 

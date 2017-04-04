@@ -33,8 +33,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 
-/**
- */
 public final class ShardSearchStats implements SearchOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();
@@ -179,7 +177,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.scrollMetric.inc(System.nanoTime() - context.getOriginNanoTime());
     }
 
-    final static class StatsHolder {
+    static final class StatsHolder {
         public final MeanMetric queryMetric = new MeanMetric();
         public final MeanMetric fetchMetric = new MeanMetric();
         public final MeanMetric scrollMetric = new MeanMetric();

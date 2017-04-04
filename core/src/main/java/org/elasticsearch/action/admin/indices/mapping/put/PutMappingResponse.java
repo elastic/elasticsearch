@@ -30,11 +30,11 @@ import java.io.IOException;
  */
 public class PutMappingResponse extends AcknowledgedResponse {
 
-    PutMappingResponse() {
+    protected PutMappingResponse() {
 
     }
 
-    PutMappingResponse(boolean acknowledged) {
+    protected PutMappingResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

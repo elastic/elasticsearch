@@ -19,9 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
@@ -29,38 +33,46 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 
 /**
- *
+ * Represents a request for starting a peer recovery.
  */
 public class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;
-
     private ShardId shardId;
-
     private DiscoveryNode sourceNode;
-
     private DiscoveryNode targetNode;
-
     private Store.MetadataSnapshot metadataSnapshot;
-
-    private RecoveryState.Type recoveryType;
+    private boolean primaryRelocation;
+    private long startingSeqNo;
 
     public StartRecoveryRequest() {
     }
 
     /**
-     * Start recovery request.
+     * Construct a request for starting a peer recovery.
      *
-     * @param sourceNode       The node to recover from
-     * @param targetNode       The node to recover to
+     * @param shardId           the shard ID to recover
+     * @param sourceNode        the source node to remover from
+     * @param targetNode        the target node to recover to
+     * @param metadataSnapshot  the Lucene metadata
+     * @param primaryRelocation whether or not the recovery is a primary relocation
+     * @param recoveryId        the recovery ID
+     * @param startingSeqNo     the starting sequence number
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
+    public StartRecoveryRequest(final ShardId shardId,
+                                final DiscoveryNode sourceNode,
+                                final DiscoveryNode targetNode,
+                                final Store.MetadataSnapshot metadataSnapshot,
+                                final boolean primaryRelocation,
+                                final long recoveryId,
+                                final long startingSeqNo) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
-        this.recoveryType = recoveryType;
         this.metadataSnapshot = metadataSnapshot;
+        this.primaryRelocation = primaryRelocation;
+        this.startingSeqNo = startingSeqNo;
     }
 
     public long recoveryId() {
@@ -79,12 +91,16 @@ public class StartRecoveryRequest extends TransportRequest {
         return targetNode;
     }
 
-    public RecoveryState.Type recoveryType() {
-        return recoveryType;
+    public boolean isPrimaryRelocation() {
+        return primaryRelocation;
     }
 
     public Store.MetadataSnapshot metadataSnapshot() {
         return metadataSnapshot;
+    }
+
+    public long startingSeqNo() {
+        return startingSeqNo;
     }
 
     @Override
@@ -95,8 +111,12 @@ public class StartRecoveryRequest extends TransportRequest {
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
-        recoveryType = RecoveryState.Type.fromId(in.readByte());
-
+        primaryRelocation = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            startingSeqNo = in.readLong();
+        } else {
+            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
     }
 
     @Override
@@ -107,7 +127,10 @@ public class StartRecoveryRequest extends TransportRequest {
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
-        out.writeByte(recoveryType.id());
+        out.writeBoolean(primaryRelocation);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeLong(startingSeqNo);
+        }
     }
 
 }

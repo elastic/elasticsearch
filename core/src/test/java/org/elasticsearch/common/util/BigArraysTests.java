@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -28,18 +27,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
-public class BigArraysTests extends ESSingleNodeTestCase {
+public class BigArraysTests extends ESTestCase {
 
     private BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     private BigArrays bigArrays;
@@ -339,7 +337,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), size - 1, ByteSizeUnit.BYTES)
                             .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             try {
                 create.invoke(bigArrays, size);
@@ -359,7 +357,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(1, 20);
             BigArray array = (BigArray) create.invoke(bigArrays, size);

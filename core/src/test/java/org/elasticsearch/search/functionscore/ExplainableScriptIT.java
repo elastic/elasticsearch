@@ -32,7 +32,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,7 +42,9 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -56,11 +58,11 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ExplainableScriptIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ExplainableScriptPlugin.class);
+        return Arrays.asList(ExplainableScriptPlugin.class);
     }
 
     public void testNativeExplainScript() throws InterruptedException, IOException, ExecutionException {
@@ -75,7 +77,8 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(new Script("native_explainable_script", ScriptType.INLINE, "native", null)))
+                                        scriptFunction(
+                                            new Script(ScriptType.INLINE, "native", "native_explainable_script", Collections.emptyMap())))
                                         .boostMode(CombineFunction.REPLACE)))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
@@ -84,9 +87,10 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString("1.0 = tf(freq=1.0), with freq of"));
-            assertThat(hit.explanation().getDetails().length, equalTo(2));
+            assertThat(hit.getExplanation().toString(),
+                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
+            assertThat(hit.getExplanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
+            assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }
     }
@@ -99,6 +103,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return true;
+        }
+
+        @Override
+        public String getName() {
+            return "native_explainable_script";
         }
     }
 

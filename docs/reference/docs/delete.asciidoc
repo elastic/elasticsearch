@@ -25,7 +25,8 @@ The result of the above delete operation is:
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
-    "_version" : 2
+    "_version" : 2,
+    "result": "deleted"
 }
 --------------------------------------------------
 
@@ -56,10 +57,9 @@ The above will delete a tweet with id 1, but will be routed based on the
 user. Note, issuing a delete without the correct routing, will cause the
 document to not be deleted.
 
-Many times, the routing value is not known when deleting a document. For
-those cases, when specifying the `_routing` mapping as `required`, and
-no routing value is specified, the delete will be broadcast
-automatically to all shards.
+When the `_routing` mapping is set as `required` and no routing value is
+specified, the delete api will throw a `RoutingMissingException` and reject
+the request.
 
 [float]
 [[delete-parent]]
@@ -70,9 +70,13 @@ setting the routing parameter.
 
 Note that deleting a parent document does not automatically delete its
 children. One way of deleting all child documents given a parent's id is
-to use the `delete-by-query` plugin to perform a delete on the child
-index with the automatically generated (and indexed)
+to use the <<docs-delete-by-query,Delete By Query API>> to perform a
+ index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
+
+When deleting a child document its parent id must be specified, otherwise
+the delete request will be rejected and a `RoutingMissingException` will be
+thrown instead.
 
 [float]
 [[delete-index-creation]]
@@ -94,30 +98,22 @@ redirected into the primary shard within that id group, and replicated
 (if needed) to shard replicas within that id group.
 
 [float]
-[[delete-consistency]]
-=== Write Consistency
+[[delete-wait-for-active-shards]]
+=== Wait For Active Shards
 
-Control if the operation will be allowed to execute based on the number
-of active shards within that partition (replication group). The values
-allowed are `one`, `quorum`, and `all`. The parameter to set it is
-`consistency`, and it defaults to the node level setting of
-`action.write_consistency` which in turn defaults to `quorum`.
-
-For example, in a N shards with 2 replicas index, there will have to be
-at least 2 active shards within the relevant partition (`quorum`) for
-the operation to succeed. In a N shards with 1 replica scenario, there
-will need to be a single shard active (in this case, `one` and `quorum`
-is the same).
+When making delete requests, you can set the `wait_for_active_shards`
+parameter to require a minimum number of shard copies to be active
+before starting to process the delete request. See
+<<index-wait-for-active-shards,here>> for further details and a usage
+example.
 
 [float]
 [[delete-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the relevant
-primary and replica shards after the delete operation has occurred and make it
-searchable. Setting it to `true` should be done after careful thought and
-verification that this does not cause a heavy load on the system (and slows
-down indexing).
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
+
 
 [float]
 [[delete-timeout]]

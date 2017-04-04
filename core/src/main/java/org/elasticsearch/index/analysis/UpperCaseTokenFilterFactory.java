@@ -25,10 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
-public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory {
+public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public UpperCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -37,6 +34,11 @@ public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new UpperCaseFilter(tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }
 

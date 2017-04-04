@@ -37,22 +37,21 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 public final class HdfsRepository extends BlobStoreRepository {
 
     private final BlobPath basePath = BlobPath.cleanPath();
-    private final RepositorySettings repositorySettings;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
 
@@ -62,18 +61,17 @@ public final class HdfsRepository extends BlobStoreRepository {
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
-    @Inject
-    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
-        this.repositorySettings = repositorySettings;
+    public HdfsRepository(RepositoryMetaData metadata, Environment environment,
+                          NamedXContentRegistry namedXContentRegistry) throws IOException {
+        super(metadata, environment.settings(), namedXContentRegistry);
 
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);
-        this.compress = repositorySettings.settings().getAsBoolean("compress", false);
+        this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
+        this.compress = metadata.settings().getAsBoolean("compress", false);
     }
 
     @Override
     protected void doStart() {
-        String uriSetting = repositorySettings.settings().get("uri");
+        String uriSetting = getMetadata().settings().get("uri");
         if (Strings.hasText(uriSetting) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
@@ -87,26 +85,19 @@ public final class HdfsRepository extends BlobStoreRepository {
                     "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
         }
 
-        String pathSetting = repositorySettings.settings().get("path");
+        String pathSetting = getMetadata().settings().get("path");
         // get configuration
         if (pathSetting == null) {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
-        
-        int bufferSize = repositorySettings.settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
+
+        int bufferSize = getMetadata().settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
 
         try {
             // initialize our filecontext
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
-            }
-            FileContext fileContext = AccessController.doPrivileged(new PrivilegedAction<FileContext>() {
-                @Override
-                public FileContext run() {
-                    return createContext(uri, repositorySettings);
-                }
-            });
+            SpecialPermission.check();
+            FileContext fileContext = AccessController.doPrivileged((PrivilegedAction<FileContext>)
+                () -> createContext(uri, getMetadata().settings()));
             blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
         } catch (IOException e) {
@@ -114,15 +105,15 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
         super.doStart();
     }
-    
+
     // create hadoop filecontext
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
-    private static FileContext createContext(URI uri, RepositorySettings repositorySettings)  {
-        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
+    private static FileContext createContext(URI uri, Settings repositorySettings)  {
+        Configuration cfg = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         cfg.setClassLoader(HdfsRepository.class.getClassLoader());
         cfg.reloadConfiguration();
 
-        Map<String, String> map = repositorySettings.settings().getByPrefix("conf.").getAsMap();
+        Map<String, String> map = repositorySettings.getByPrefix("conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
         }
@@ -143,15 +134,12 @@ public final class HdfsRepository extends BlobStoreRepository {
         cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
 
         // create the filecontext with our user
-        return Subject.doAs(subject, new PrivilegedAction<FileContext>() {
-            @Override
-            public FileContext run() {
-                try {
-                    AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
-                    return FileContext.getFileContext(fs, cfg);
-                } catch (UnsupportedFileSystemException e) {
-                    throw new RuntimeException(e);
-                }
+        return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
+            try {
+                AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
+                return FileContext.getFileContext(fs, cfg);
+            } catch (UnsupportedFileSystemException e) {
+                throw new RuntimeException(e);
             }
         });
     }

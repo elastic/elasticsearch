@@ -25,9 +25,6 @@ import org.elasticsearch.common.inject.Binder;
  * Elements#getElements(org.elasticsearch.common.inject.Module[]) Elements.getElements()} to read the elements
  * from a module, and {@link Elements#getModule(Iterable) Elements.getModule()} to rewrite them.
  * This can be used for static analysis and generation of Guice modules.
- * <p>
- * The elements of an injector can be inspected and exercised. Use {@link
- * org.elasticsearch.common.inject.Injector#getBindings Injector.getBindings()} to reflect on Guice injectors.
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @author crazybob@google.com (Bob Lee)

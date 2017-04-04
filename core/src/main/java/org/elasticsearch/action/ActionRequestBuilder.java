@@ -26,9 +26,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> {
 
     protected final Action<Request, Response, RequestBuilder> action;

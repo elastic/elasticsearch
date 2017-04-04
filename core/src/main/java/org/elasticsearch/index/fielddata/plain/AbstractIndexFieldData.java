@@ -33,8 +33,6 @@ import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
     private final String fieldName;
@@ -69,7 +67,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         try {
             FD fd = cache.load(context, this);
             return fd;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
@@ -98,7 +96,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         /**
          * @return the number of bytes for the given term
          */
-        public long bytesPerValue(BytesRef term);
+        long bytesPerValue(BytesRef term);
 
         /**
          * Execute any pre-loading estimations for the terms. May also
@@ -109,7 +107,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          * @param terms terms to be estimated
          * @return A TermsEnum for the given terms
          */
-        public TermsEnum beforeLoad(Terms terms) throws IOException;
+        TermsEnum beforeLoad(Terms terms) throws IOException;
 
         /**
          * Possibly adjust a circuit breaker after field data has been loaded,
@@ -118,6 +116,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          * @param termsEnum  terms that were loaded
          * @param actualUsed actual field data memory usage
          */
-        public void afterLoad(TermsEnum termsEnum, long actualUsed);
+        void afterLoad(TermsEnum termsEnum, long actualUsed);
     }
 }

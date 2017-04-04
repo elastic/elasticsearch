@@ -60,11 +60,11 @@ public class MultiCommand extends Command {
         }
         String[] args = arguments.values(options).toArray(new String[0]);
         if (args.length == 0) {
-            throw new UserError(ExitCodes.USAGE, "Missing command");
+            throw new UserException(ExitCodes.USAGE, "Missing command");
         }
         Command subcommand = subcommands.get(args[0]);
         if (subcommand == null) {
-            throw new UserError(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
+            throw new UserException(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
         }
         subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
     }

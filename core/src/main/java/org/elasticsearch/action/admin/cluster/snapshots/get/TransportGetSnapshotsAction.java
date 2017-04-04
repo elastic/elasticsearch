@@ -26,21 +26,22 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -53,7 +54,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSnapshotsRequest::new);
+        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+              GetSnapshotsRequest::new);
         this.snapshotsService = snapshotsService;
     }
 
@@ -73,44 +75,54 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     @Override
-    protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) {
+    protected void masterOperation(final GetSnapshotsRequest request, ClusterState state,
+                                   final ActionListener<GetSnapshotsResponse> listener) {
         try {
+            final String repository = request.repository();
             List<SnapshotInfo> snapshotInfoBuilder = new ArrayList<>();
+            final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
+            final List<SnapshotId> currentSnapshotIds = new ArrayList<>();
+            for (SnapshotInfo snapshotInfo : snapshotsService.currentSnapshots(repository)) {
+                SnapshotId snapshotId = snapshotInfo.snapshotId();
+                allSnapshotIds.put(snapshotId.getName(), snapshotId);
+                currentSnapshotIds.add(snapshotId);
+            }
+            if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
+                for (SnapshotId snapshotId : snapshotsService.getRepositoryData(repository).getAllSnapshotIds()) {
+                    allSnapshotIds.put(snapshotId.getName(), snapshotId);
+                }
+            }
+            final Set<SnapshotId> toResolve = new HashSet<>();
             if (isAllSnapshots(request.snapshots())) {
-                List<Snapshot> snapshots = snapshotsService.snapshots(request.repository(), request.ignoreUnavailable());
-                for (Snapshot snapshot : snapshots) {
-                    snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
-                }
-            } else if (isCurrentSnapshots(request.snapshots())) {
-                List<Snapshot> snapshots = snapshotsService.currentSnapshots(request.repository());
-                for (Snapshot snapshot : snapshots) {
-                    snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
-                }
+                toResolve.addAll(allSnapshotIds.values());
             } else {
-                Set<String> snapshotsToGet = new LinkedHashSet<>(); // to keep insertion order
-                List<Snapshot> snapshots = null;
                 for (String snapshotOrPattern : request.snapshots()) {
-                    if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
-                        snapshotsToGet.add(snapshotOrPattern);
-                    } else {
-                        if (snapshots == null) { // lazily load snapshots
-                            snapshots = snapshotsService.snapshots(request.repository(), request.ignoreUnavailable());
+                    if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
+                        toResolve.addAll(currentSnapshotIds);
+                    } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                        if (allSnapshotIds.containsKey(snapshotOrPattern)) {
+                            toResolve.add(allSnapshotIds.get(snapshotOrPattern));
+                        } else if (request.ignoreUnavailable() == false) {
+                            throw new SnapshotMissingException(repository, snapshotOrPattern);
                         }
-                        for (Snapshot snapshot : snapshots) {
-                            if (Regex.simpleMatch(snapshotOrPattern, snapshot.name())) {
-                                snapshotsToGet.add(snapshot.name());
+                    } else {
+                        for (Map.Entry<String, SnapshotId> entry : allSnapshotIds.entrySet()) {
+                            if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
+                                toResolve.add(entry.getValue());
                             }
                         }
                     }
                 }
-                for (String snapshot : snapshotsToGet) {
-                    SnapshotId snapshotId = new SnapshotId(request.repository(), snapshot);
-                    snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)));
+
+                if (toResolve.isEmpty() && request.ignoreUnavailable() == false && isCurrentSnapshotsOnly(request.snapshots()) == false) {
+                    throw new SnapshotMissingException(repository, request.snapshots()[0]);
                 }
             }
-            listener.onResponse(new GetSnapshotsResponse(Collections.unmodifiableList(snapshotInfoBuilder)));
-        } catch (Throwable t) {
-            listener.onFailure(t);
+
+            snapshotInfoBuilder.addAll(snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable()));
+            listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder));
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -118,7 +130,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return (snapshots.length == 0) || (snapshots.length == 1 && GetSnapshotsRequest.ALL_SNAPSHOTS.equalsIgnoreCase(snapshots[0]));
     }
 
-    private boolean isCurrentSnapshots(String[] snapshots) {
+    private boolean isCurrentSnapshotsOnly(String[] snapshots) {
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 }

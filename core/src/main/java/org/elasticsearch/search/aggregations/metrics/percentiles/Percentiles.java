@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
  */
 public interface Percentiles extends NumericMetricsAggregation.MultiValue, Iterable<Percentile> {
 
-    public static final String TYPE_NAME = "percentiles";
+    String TYPE_NAME = "percentiles";
 
     /**
      * Return the value associated with the provided percentile.

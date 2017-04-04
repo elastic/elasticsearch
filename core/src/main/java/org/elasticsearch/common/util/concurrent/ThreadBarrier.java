@@ -24,7 +24,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-
 /**
  * A synchronization aid that allows a set of threads to all wait for each other
  * to reach a common barrier point. Barriers are useful in programs involving a
@@ -55,9 +54,9 @@ import java.util.concurrent.TimeoutException;
  *                  process();
  *                  barrier.await();    //wait for all threads to process
  *                }
- *              catch(Throwable t){
- *                  log(&quot;Worker thread caught exception&quot;, t);
- *                  barrier.reset(t);
+ *              catch(Exception e){
+ *                  log(&quot;Worker thread caught exception&quot;, e);
+ *                  barrier.reset(e);
  *                }
  *            }
  *        }
@@ -88,9 +87,9 @@ import java.util.concurrent.TimeoutException;
  *               Assert.assertFalse(&quot;Exceeded notification count&quot;,
  *                                          actualNotificationCount &gt; EXPECTED_COUNT);
  *            }
- *          catch(Throwable t) {
- *              log(&quot;Worker thread caught exception&quot;, t);
- *              barrier.reset(t);
+ *          catch(Exception e) {
+ *              log(&quot;Worker thread caught exception&quot;, e);
+ *              barrier.reset(e);
  *            }
  *        }
  *
@@ -118,9 +117,9 @@ import java.util.concurrent.TimeoutException;
 public class ThreadBarrier extends CyclicBarrier {
     /**
      * The cause of a {@link BrokenBarrierException} and {@link TimeoutException}
-     * thrown from an await() when {@link #reset(Throwable)} was invoked.
+     * thrown from an await() when {@link #reset(Exception)} was invoked.
      */
-    private Throwable cause;
+    private Exception cause;
 
     public ThreadBarrier(int parties) {
         super(parties);
@@ -166,7 +165,7 @@ public class ThreadBarrier extends CyclicBarrier {
      *
      * @param cause The cause of the BrokenBarrierException
      */
-    public synchronized void reset(Throwable cause) {
+    public synchronized void reset(Exception cause) {
         if (!isBroken()) {
             super.reset();
         }
@@ -178,7 +177,7 @@ public class ThreadBarrier extends CyclicBarrier {
 
     /**
      * Queries if this barrier is in a broken state. Note that if
-     * {@link #reset(Throwable)} is invoked the barrier will remain broken, while
+     * {@link #reset(Exception)} is invoked the barrier will remain broken, while
      * {@link #reset()} will reset the barrier to its initial state and
      * {@link #isBroken()} will return false.
      *
@@ -229,7 +228,7 @@ public class ThreadBarrier extends CyclicBarrier {
 
     /**
      * Initializes the cause of this throwable to the specified value. The cause
-     * is the throwable that was initialized by {@link #reset(Throwable)}.
+     * is the throwable that was initialized by {@link #reset(Exception)}.
      *
      * @param t throwable.
      */
@@ -301,4 +300,5 @@ public class ThreadBarrier extends CyclicBarrier {
             return (time) / 1000000000.0;
         }
     }
+
 }

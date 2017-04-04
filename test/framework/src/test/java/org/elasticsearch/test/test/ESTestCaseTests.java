@@ -20,9 +20,25 @@
 package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
+
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+
 public class ESTestCaseTests extends ESTestCase {
+
     public void testExpectThrows() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             throw new IllegalArgumentException("bad arg");
@@ -47,5 +63,66 @@ public class ESTestCaseTests extends ESTestCase {
             assertNull(assertFailed.getCause());
             assertEquals("Expected exception IllegalArgumentException", assertFailed.getMessage());
         }
+    }
+
+    public void testShuffleXContent() throws IOException {
+        Map<String, Object> randomStringObjectMap = randomStringObjectMap(5);
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.map(randomStringObjectMap);
+        XContentBuilder shuffleXContent = shuffleXContent(builder);
+        XContentParser parser = createParser(shuffleXContent);
+        Map<String, Object> resultMap = parser.map();
+        assertEquals("both maps should contain the same mappings", randomStringObjectMap, resultMap);
+        assertNotEquals("Both builders string representations should be different", builder.bytes(), shuffleXContent.bytes());
+    }
+
+    private static Map<String, Object> randomStringObjectMap(int depth) {
+        Map<String, Object> result = new HashMap<>();
+        int entries = randomInt(10);
+        for (int i = 0; i < entries; i++) {
+            String key = randomAsciiOfLengthBetween(5, 15);
+            int suprise = randomIntBetween(0, 4);
+            switch (suprise) {
+            case 0:
+                result.put(key, randomUnicodeOfCodepointLength(20));
+                break;
+            case 1:
+                result.put(key, randomInt(100));
+                break;
+            case 2:
+                result.put(key, randomDoubleBetween(-100.0, 100.0, true));
+                break;
+            case 3:
+                result.put(key, randomBoolean());
+                break;
+            case 4:
+                List<String> stringList = new ArrayList<>();
+                int size = randomInt(5);
+                for (int s = 0; s < size; s++) {
+                    stringList.add(randomUnicodeOfCodepointLength(20));
+                }
+                result.put(key, stringList);
+                break;
+            default:
+                throw new IllegalArgumentException("unexpected random option: " + suprise);
+            }
+        }
+        if (depth > 0) {
+            result.put(randomAsciiOfLengthBetween(5, 15), randomStringObjectMap(depth - 1));
+        }
+        return result;
+    }
+
+    public void testRandomUniqueNotUnique() {
+        assertThat(randomUnique(() -> 1, 10), hasSize(1));
+    }
+
+    public void testRandomUniqueTotallyUnique() {
+        AtomicInteger i = new AtomicInteger();
+        assertThat(randomUnique(i::incrementAndGet, 100), hasSize(100));
+    }
+
+    public void testRandomUniqueNormalUsageAlwayMoreThanOne() {
+        assertThat(randomUnique(() -> randomAsciiOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 }

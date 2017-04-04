@@ -30,9 +30,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class BooleanTermsIT extends ESIntegTestCase {
 
@@ -78,7 +75,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, singleValue)
-                    .field(MULTI_VALUED_FIELD_NAME, multiValue)
+                    .array(MULTI_VALUED_FIELD_NAME, multiValue)
                     .endObject());
         }
         indexRandom(true, builders);
@@ -156,7 +153,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
-                        .size(randomInt(5))
+                        .size(between(1, 5))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 

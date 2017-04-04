@@ -19,53 +19,50 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
-import java.util.Locale;
-
 /**
- * Factory to get {@link ESLogger}s
+ * Factory to get {@link Logger}s
  */
-public abstract class ESLoggerFactory {
+public final class ESLoggerFactory {
 
-    public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING =
-        new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, Property.NodeScope);
-    public static final Setting<LogLevel> LOG_LEVEL_SETTING =
-        Setting.prefixKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse,
-            Property.Dynamic, Property.NodeScope);
+    private ESLoggerFactory() {
 
-    public static ESLogger getLogger(String prefix, String name) {
-        prefix = prefix == null ? null : prefix.intern();
-        name = name.intern();
-        return new ESLogger(prefix, Logger.getLogger(name));
     }
 
-    public static ESLogger getLogger(String name) {
+    public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
+        new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
+    public static final Setting<Level> LOG_LEVEL_SETTING =
+        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Property.Dynamic,
+            Property.NodeScope));
+
+    public static Logger getLogger(String prefix, String name) {
+        return getLogger(prefix, LogManager.getLogger(name));
+    }
+
+    public static Logger getLogger(String prefix, Class<?> clazz) {
+        return getLogger(prefix, LogManager.getLogger(clazz));
+    }
+
+    public static Logger getLogger(String prefix, Logger logger) {
+        return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
+    }
+
+    public static Logger getLogger(Class<?> clazz) {
+        return getLogger(null, clazz);
+    }
+
+    public static Logger getLogger(String name) {
         return getLogger(null, name);
     }
 
-    public static DeprecationLogger getDeprecationLogger(String name) {
-        return new DeprecationLogger(getLogger(name));
+    public static Logger getRootLogger() {
+        return LogManager.getRootLogger();
     }
 
-    public static DeprecationLogger getDeprecationLogger(String prefix, String name) {
-        return new DeprecationLogger(getLogger(prefix, name));
-    }
-
-    public static ESLogger getRootLogger() {
-        return new ESLogger(null, Logger.getRootLogger());
-    }
-
-    private ESLoggerFactory() {
-        // Utility class can't be built.
-    }
-
-    public enum LogLevel {
-        WARN, TRACE, INFO, DEBUG, ERROR;
-        public static LogLevel parse(String level) {
-            return valueOf(level.toUpperCase(Locale.ROOT));
-        }
-    }
 }

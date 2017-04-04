@@ -57,20 +57,20 @@ public abstract class AbstractWriteableEnumTestCase extends ESTestCase {
     public abstract void testWriteTo() throws IOException;
 
     // a convenience method for testing the write of a writeable enum
-    protected static <T> void assertWriteToStream(final Writeable<T> writeableEnum, final int ordinal) throws IOException {
+    protected static void assertWriteToStream(final Writeable writeableEnum, final int ordinal) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             writeableEnum.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(ordinal));
             }
         }
     }
 
     // a convenience method for testing the read of a writeable enum
-    protected <T extends Writeable<T>> void assertReadFromStream(final int ordinal, final Writeable<T> expected) throws IOException {
+    protected void assertReadFromStream(final int ordinal, final Writeable expected) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(ordinal);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(reader.read(in), equalTo(expected));
             }
         }

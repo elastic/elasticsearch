@@ -3,9 +3,10 @@
 
 The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
-planning optimizations with routing and shard preferences.
+planning optimizations with routing and shard preferences. When filtered aliases
+are used, the filter is returned as part of the `indices` section.
 
-The `index` and `type` parameters may be single values, or comma-separated.
+The `index` may be a single value, or comma-separated.
 
 [float]
 === Usage
@@ -14,19 +15,19 @@ Full example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/_search_shards'
+GET /twitter/_search_shards
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
 
 This will yield the following result:
 
 [source,js]
 --------------------------------------------------
 {
-  "nodes": {
-    "JklnKbD7Tyqi9TP3_Q_tBg": {
-      "name": "Rl'nnd",
-      "transport_address": "inet[/192.168.1.113:9300]"
-    }
+  "nodes": ...,
+  "indices" : {
+    "twitter": { }
   },
   "shards": [
     [
@@ -34,29 +35,10 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "relocating_node": null,
-        "shard": 3,
-        "state": "STARTED"
-      }
-    ],
-    [
-      {
-        "index": "twitter",
-        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
-        "primary": true,
-        "relocating_node": null,
-        "shard": 4,
-        "state": "STARTED"
-      }
-    ],
-    [
-      {
-        "index": "twitter",
-        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
-        "primary": true,
-        "relocating_node": null,
         "shard": 0,
-        "state": "STARTED"
+        "state": "STARTED",
+        "allocation_id": {"id":"0TvkCyF7TAmM1wHP4a42-A"},
+        "relocating_node": null
       }
     ],
     [
@@ -64,42 +46,73 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "relocating_node": null,
-        "shard": 2,
-        "state": "STARTED"
-      }
-    ],
-    [
-      {
-        "index": "twitter",
-        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
-        "primary": true,
-        "relocating_node": null,
         "shard": 1,
-        "state": "STARTED"
+        "state": "STARTED",
+        "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
+        "relocating_node": null
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "shard": 2,
+        "state": "STARTED",
+        "allocation_id": {"id":"Nwl0wbMBTHCWjEEbGYGapg"},
+        "relocating_node": null
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "shard": 3,
+        "state": "STARTED",
+        "allocation_id": {"id":"bU_KLGJISbW0RejwnwDPKw"},
+        "relocating_node": null
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "shard": 4,
+        "state": "STARTED",
+        "allocation_id": {"id":"DMs7_giNSwmdqVukF7UydA"},
+        "relocating_node": null
       }
     ]
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"nodes": ...,/"nodes": $body.nodes,/]
+// TESTRESPONSE[s/JklnKbD7Tyqi9TP3_Q_tBg/$body.shards.0.0.node/]
+// TESTRESPONSE[s/0TvkCyF7TAmM1wHP4a42-A/$body.shards.0.0.allocation_id.id/]
+// TESTRESPONSE[s/fMju3hd1QHWmWrIgFnI4Ww/$body.shards.1.0.allocation_id.id/]
+// TESTRESPONSE[s/Nwl0wbMBTHCWjEEbGYGapg/$body.shards.2.0.allocation_id.id/]
+// TESTRESPONSE[s/bU_KLGJISbW0RejwnwDPKw/$body.shards.3.0.allocation_id.id/]
+// TESTRESPONSE[s/DMs7_giNSwmdqVukF7UydA/$body.shards.4.0.allocation_id.id/]
 
 And specifying the same request, this time with a routing value:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/_search_shards?routing=foo,baz'
+GET /twitter/_search_shards?routing=foo,baz
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
 
 This will yield the following result:
 
 [source,js]
 --------------------------------------------------
 {
-  "nodes": {
-    "JklnKbD7Tyqi9TP3_Q_tBg": {
-      "name": "Rl'nnd",
-      "transport_address": "inet[/192.168.1.113:9300]"
-    }
+  "nodes": ...,
+  "indices" : {
+      "twitter": { }
   },
   "shards": [
     [
@@ -107,9 +120,10 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "relocating_node": null,
-        "shard": 2,
-        "state": "STARTED"
+        "shard": 0,
+        "state": "STARTED",
+        "allocation_id": {"id":"0TvkCyF7TAmM1wHP4a42-A"},
+        "relocating_node": null
       }
     ],
     [
@@ -117,14 +131,19 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "relocating_node": null,
-        "shard": 4,
-        "state": "STARTED"
+        "shard": 1,
+        "state": "STARTED",
+        "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
+        "relocating_node": null
       }
     ]
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"nodes": ...,/"nodes": $body.nodes,/]
+// TESTRESPONSE[s/JklnKbD7Tyqi9TP3_Q_tBg/$body.shards.0.0.node/]
+// TESTRESPONSE[s/0TvkCyF7TAmM1wHP4a42-A/$body.shards.0.0.allocation_id.id/]
+// TESTRESPONSE[s/fMju3hd1QHWmWrIgFnI4Ww/$body.shards.1.0.allocation_id.id/]
 
 This time the search will only be executed against two of the shards, because
 routing values have been specified.

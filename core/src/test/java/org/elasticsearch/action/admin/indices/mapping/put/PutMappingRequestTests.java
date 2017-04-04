@@ -19,9 +19,19 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.Base64;
 
 public class PutMappingRequestTests extends ESTestCase {
 
@@ -41,12 +51,12 @@ public class PutMappingRequestTests extends ESTestCase {
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is missing"));
 
-        r.source("");
+        r.source("", XContentType.JSON);
         ex = r.validate();
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is empty"));
 
-        r.source("somevalidmapping");
+        r.source("somevalidmapping", XContentType.JSON);
         ex = r.validate();
         assertNull("validation should succeed", ex);
 
@@ -56,5 +66,41 @@ public class PutMappingRequestTests extends ESTestCase {
         assertEquals(ex.getMessage(),
             "Validation Failed: 1: either concrete index or unresolved indices can be set," +
                 " concrete index: [[foo/bar]] and indices: [myindex];");
+    }
+
+    public void testBuildFromSimplifiedDef() {
+        // test that method rejects input where input varargs fieldname/properites are not paired correctly
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field"));
+        assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
+    }
+
+    public void testPutMappingRequestSerialization() throws IOException {
+        PutMappingRequest request = new PutMappingRequest("foo");
+        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        request.source(mapping, XContentType.YAML);
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
+
+        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        request.writeTo(bytesStreamOutput);
+        StreamInput in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes);
+        PutMappingRequest serialized = new PutMappingRequest();
+        serialized.readFrom(in);
+
+        String source = serialized.source();
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), source);
+    }
+
+    public void testSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("ADwDAQNmb28MAA8tLS0KZm9vOiAiYmFyIgoAPAMAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            PutMappingRequest request = new PutMappingRequest();
+            request.readFrom(in);
+            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
+        }
     }
 }

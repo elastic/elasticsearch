@@ -24,70 +24,56 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.elasticsearch.common.Strings;
 
 public class ScriptEngineRegistry {
 
-    private final Map<Class<? extends ScriptEngineService>, List<String>> registeredScriptEngineServices;
-    private final Map<String, Class<? extends ScriptEngineService>> registeredLanguages;
+    private final Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices;
+    private final Map<String, ScriptEngineService> registeredLanguages;
+    private final Map<String, Boolean> defaultInlineScriptEnableds;
 
-    public ScriptEngineRegistry(Iterable<ScriptEngineRegistration> registrations) {
+    public ScriptEngineRegistry(Iterable<ScriptEngineService> registrations) {
         Objects.requireNonNull(registrations);
-        Map<Class<? extends ScriptEngineService>, List<String>> registeredScriptEngineServices = new HashMap<>();
-        Map<String, Class<? extends ScriptEngineService>> registeredLanguages = new HashMap<>();
-        for (ScriptEngineRegistration registration : registrations) {
-            List<String> languages =
-                registeredScriptEngineServices.putIfAbsent(registration.getScriptEngineService(), Collections.unmodifiableList(registration.getScriptEngineLanguages()));
-            if (languages != null) {
-                throw new IllegalArgumentException("script engine service [" + registration.getScriptEngineService() + "] already registered for languages [" + String.join(",", languages) + "]");
+        Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices = new HashMap<>();
+        Map<String, ScriptEngineService> registeredLanguages = new HashMap<>();
+        Map<String, Boolean> inlineScriptEnableds = new HashMap<>();
+        for (ScriptEngineService service : registrations) {
+            String oldLanguage = registeredScriptEngineServices.putIfAbsent(service.getClass(),
+                    service.getType());
+            if (oldLanguage != null) {
+                throw new IllegalArgumentException("script engine service [" + service.getClass() +
+                                "] already registered for language [" + oldLanguage + "]");
             }
-
-            for (String language : registration.getScriptEngineLanguages()) {
-                Class<? extends ScriptEngineService> scriptEngineServiceClazz =
-                    registeredLanguages.putIfAbsent(language, registration.getScriptEngineService());
-                if (scriptEngineServiceClazz != null) {
-                    throw new IllegalArgumentException("scripting language [" + language + "] already registered for script engine service [" + scriptEngineServiceClazz.getCanonicalName() + "]");
-                }
+            String language = service.getType();
+            ScriptEngineService scriptEngineService =
+                    registeredLanguages.putIfAbsent(language, service);
+            if (scriptEngineService != null) {
+                throw new IllegalArgumentException("scripting language [" + language + "] already registered for script engine service [" +
+                    scriptEngineService.getClass().getCanonicalName() + "]");
             }
+            inlineScriptEnableds.put(language, service.isInlineScriptEnabled());
         }
 
         this.registeredScriptEngineServices = Collections.unmodifiableMap(registeredScriptEngineServices);
         this.registeredLanguages = Collections.unmodifiableMap(registeredLanguages);
+        this.defaultInlineScriptEnableds = Collections.unmodifiableMap(inlineScriptEnableds);
     }
 
     Iterable<Class<? extends ScriptEngineService>> getRegisteredScriptEngineServices() {
         return registeredScriptEngineServices.keySet();
     }
 
-    List<String> getLanguages(Class<? extends ScriptEngineService> scriptEngineService) {
+    String getLanguage(Class<? extends ScriptEngineService> scriptEngineService) {
         Objects.requireNonNull(scriptEngineService);
         return registeredScriptEngineServices.get(scriptEngineService);
     }
 
-    Map<String, Class<? extends ScriptEngineService>> getRegisteredLanguages() {
+    public Map<String, ScriptEngineService> getRegisteredLanguages() {
         return registeredLanguages;
     }
 
-    public static class ScriptEngineRegistration {
-        private final Class<? extends ScriptEngineService> scriptEngineService;
-        private final List<String> scriptEngineLanguages;
-
-        public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, List<String> scriptEngineLanguages) {
-            Objects.requireNonNull(scriptEngineService);
-            Objects.requireNonNull(scriptEngineLanguages);
-            if (scriptEngineLanguages.isEmpty()) {
-                throw new IllegalArgumentException("languages for script engine service [" + scriptEngineService.getCanonicalName() + "] should be non-empty");
-            }
-            this.scriptEngineService = scriptEngineService;
-            this.scriptEngineLanguages = scriptEngineLanguages;
-        }
-
-        Class<? extends ScriptEngineService> getScriptEngineService() {
-            return scriptEngineService;
-        }
-
-        List<String> getScriptEngineLanguages() {
-            return scriptEngineLanguages;
-        }
+    public Map<String, Boolean> getDefaultInlineScriptEnableds() {
+        return this.defaultInlineScriptEnableds;
     }
 
 }

@@ -19,24 +19,33 @@
 
 package org.elasticsearch.painless;
 
+
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptEngineService;
 
-public final class PainlessPlugin extends Plugin {
+import java.util.Arrays;
+import java.util.List;
 
-    @Override
-    public String name() {
-        return "lang-painless";
+/**
+ * Registers Painless as a plugin.
+ */
+public final class PainlessPlugin extends Plugin implements ScriptPlugin {
+
+    // force to parse our definition at startup (not on the user's first script)
+    static {
+        Definition.VOID_TYPE.hashCode();
     }
 
     @Override
-    public String description() {
-        return "Painless scripting language for Elasticsearch";
+    public ScriptEngineService getScriptEngineService(Settings settings) {
+        return new PainlessScriptEngineService(settings);
     }
 
-    public void onModule(final ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(
-            PainlessScriptEngineService.class, PainlessScriptEngineService.TYPES));
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(CompilerSettings.REGEX_ENABLED);
     }
 }

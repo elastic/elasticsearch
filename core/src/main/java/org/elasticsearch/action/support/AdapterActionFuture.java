@@ -31,9 +31,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-/**
- *
- */
 public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<L> {
 
     @Override
@@ -41,6 +38,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         try {
             return get();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
@@ -69,6 +67,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         } catch (TimeoutException e) {
             throw new ElasticsearchTimeoutException(e);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
@@ -98,9 +97,10 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     }
 
     @Override
-    public void onFailure(Throwable e) {
+    public void onFailure(Exception e) {
         setException(e);
     }
 
     protected abstract T convert(L listenerResponse);
+
 }

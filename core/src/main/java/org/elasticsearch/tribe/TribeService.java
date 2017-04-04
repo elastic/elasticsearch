@@ -19,6 +19,9 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -38,8 +41,13 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -51,12 +59,15 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -65,6 +76,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -86,7 +98,7 @@ import static java.util.Collections.unmodifiableMap;
  * in another cluster, the conflict one will be discarded. This happens because we need to have the correct index name
  * to propagate to the relevant cluster.
  */
-public class TribeService extends AbstractLifecycleComponent<TribeService> {
+public class TribeService extends AbstractLifecycleComponent {
 
     public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false,
             RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
@@ -114,14 +126,40 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
         sb.put(Node.NODE_DATA_SETTING.getKey(), false);
         sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
-        sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
+        if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
+            sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
+        }
+        sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "none"); // a tribe node should not use zen discovery
         // nothing is going to be discovered, since no master will be elected
         sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         if (sb.get("cluster.name") == null) {
-            sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
+            sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
         sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
         return sb.build();
+    }
+
+    /**
+     * Interface to allow merging {@link org.elasticsearch.cluster.metadata.MetaData.Custom} in tribe node
+     * When multiple Mergable Custom metadata of the same type is found (from underlying clusters), the
+     * Custom metadata will be merged using {@link #merge(MetaData.Custom)} and the result will be stored
+     * in the tribe cluster state
+     *
+     * @param <T> type of custom meta data
+     */
+    public interface MergableCustomMetaData<T extends MetaData.Custom> {
+
+        /**
+         * Merges this custom metadata with other, returning either this or <code>other</code> custom metadata
+         * for tribe cluster state. This method should not mutate either <code>this</code> or the
+         * <code>other</code> custom metadata.
+         *
+         * @param other custom meta data
+         * @return the same instance or <code>other</code> custom metadata based on implementation
+         *         if both the instances are considered equal, implementations should return this
+         *         instance to avoid redundant cluster state changes.
+         */
+        T merge(T other);
     }
 
     // internal settings only
@@ -174,16 +212,19 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
-    @Inject
-    public TribeService(Settings settings, ClusterService clusterService) {
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
+                        NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings clientSettings = buildClientSettings(entry.getKey(), settings, entry.getValue());
-            nodes.add(new TribeClientNode(clientSettings));
+            Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
+            nodes.add(clientNodeBuilder.apply(clientSettings));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -207,20 +248,17 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
      * Builds node settings for a tribe client node from the tribe node's global settings,
      * combined with tribe specific settings.
      */
-    static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+    static Settings buildClientSettings(String tribeName, String parentNodeId, Settings globalSettings, Settings tribeSettings) {
         for (String tribeKey : tribeSettings.getAsMap().keySet()) {
             if (tribeKey.startsWith("path.")) {
                 throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
             }
         }
         Settings.Builder sb = Settings.builder().put(tribeSettings);
-        sb.put("node.name", globalSettings.get("node.name") + "/" + tribeName);
+        sb.put(Node.NODE_NAME_SETTING.getKey(), Node.NODE_NAME_SETTING.get(globalSettings) + "/" + tribeName);
         sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
         if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
-        }
-        if (Environment.PATH_PLUGINS_SETTING.exists(globalSettings)) {
-            sb.put(Environment.PATH_PLUGINS_SETTING.getKey(), Environment.PATH_PLUGINS_SETTING.get(globalSettings));
         }
         if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
@@ -240,6 +278,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         sb.put(Node.NODE_DATA_SETTING.getKey(), false);
         sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
         sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+
+        // node id of a tribe client node is determined by node id of parent node and tribe name
+        final BytesRef seedAsString = new BytesRef(parentNodeId + "/" + tribeName);
+        long nodeIdSeed = MurmurHash3.hash128(seedAsString.bytes, seedAsString.offset, seedAsString.length, 0, new MurmurHash3.Hash128()).h1;
+        sb.put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), nodeIdSeed);
+        sb.put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), false);
         return sb.build();
     }
 
@@ -257,15 +301,16 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public void startNodes() {
         for (Node node : nodes) {
             try {
-                node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
+                getClusterService(node).addListener(new TribeClusterStateListener(node));
                 node.start();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 // calling close is safe for non started nodes, we can just iterate over all
                 for (Node otherNode : nodes) {
                     try {
                         otherNode.close();
-                    } catch (Throwable t) {
-                        logger.warn("failed to close node {} on failed start", t, otherNode);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -286,8 +331,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         for (Node node : nodes) {
             try {
                 node.close();
-            } catch (Throwable t) {
-                logger.warn("failed to close node {}", t, node);
+            } catch (Exception e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {}", node), e);
             }
         }
     }
@@ -307,11 +352,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         public void clusterChanged(final ClusterChangedEvent event) {
             logger.debug("[{}] received cluster event, [{}]", tribeName, event.source());
             clusterService.submitStateUpdateTask(
-                    "cluster event from " + tribeName + ", " + event.source(),
+                    "cluster event from " + tribeName,
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
-                    (source, t) -> logger.warn("failed to process [{}]", t, source));
+                    (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to process [{}]", source), e));
         }
     }
 
@@ -322,6 +367,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             this.tribeName = tribeName;
         }
 
+        @Override
+        public String describeTasks(List<ClusterChangedEvent> tasks) {
+            return tasks.stream().map(ClusterChangedEvent::source).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+        }
 
         @Override
         public boolean runOnlyOnMaster() {
@@ -329,52 +378,59 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
 
         @Override
-        public BatchResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
-            ClusterState accumulator = ClusterState.builder(currentState).build();
-            BatchResult.Builder<ClusterChangedEvent> builder = BatchResult.builder();
-
-            try {
-                // we only need to apply the latest cluster state update
-                accumulator = applyUpdate(accumulator, tasks.get(tasks.size() - 1));
-                builder.successes(tasks);
-            } catch (Throwable t) {
-                builder.failures(tasks, t);
-            }
-
-            return builder.build(accumulator);
+        public ClusterTasksResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
+            ClusterTasksResult.Builder<ClusterChangedEvent> builder = ClusterTasksResult.builder();
+            ClusterState.Builder newState = ClusterState.builder(currentState).incrementVersion();
+            boolean clusterStateChanged = updateNodes(currentState, tasks, newState);
+            clusterStateChanged |= updateIndicesAndMetaData(currentState, tasks, newState);
+            builder.successes(tasks);
+            return builder.build(clusterStateChanged ? newState.build() : currentState);
         }
 
-        private ClusterState applyUpdate(ClusterState currentState, ClusterChangedEvent task) {
+        private boolean updateNodes(ClusterState currentState, List<ClusterChangedEvent> tasks, ClusterState.Builder newState) {
             boolean clusterStateChanged = false;
-            ClusterState tribeState = task.state();
+            // we only need to apply the latest cluster state update
+            ClusterChangedEvent latestTask = tasks.get(tasks.size() - 1);
+            ClusterState tribeState = latestTask.state();
             DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(currentState.nodes());
             // -- merge nodes
             // go over existing nodes, and see if they need to be removed
             for (DiscoveryNode discoNode : currentState.nodes()) {
                 String markedTribeName = discoNode.getAttributes().get(TRIBE_NAME_SETTING.getKey());
                 if (markedTribeName != null && markedTribeName.equals(tribeName)) {
-                    if (tribeState.nodes().get(discoNode.id()) == null) {
+                    if (tribeState.nodes().get(discoNode.getId()) == null) {
                         clusterStateChanged = true;
                         logger.info("[{}] removing node [{}]", tribeName, discoNode);
-                        nodes.remove(discoNode.id());
+                        nodes.remove(discoNode.getId());
                     }
                 }
             }
             // go over tribe nodes, and see if they need to be added
             for (DiscoveryNode tribe : tribeState.nodes()) {
-                if (currentState.nodes().get(tribe.id()) == null) {
+                if (currentState.nodes().nodeExists(tribe) == false) {
                     // a new node, add it, but also add the tribe name to the attributes
                     Map<String, String> tribeAttr = new HashMap<>(tribe.getAttributes());
                     tribeAttr.put(TRIBE_NAME_SETTING.getKey(), tribeName);
-                    DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(),
-                            tribe.address(), unmodifiableMap(tribeAttr), tribe.getRoles(), tribe.version());
+                    DiscoveryNode discoNode = new DiscoveryNode(tribe.getName(), tribe.getId(), tribe.getEphemeralId(),
+                            tribe.getHostName(), tribe.getHostAddress(), tribe.getAddress(), unmodifiableMap(tribeAttr), tribe.getRoles(),
+                            tribe.getVersion());
                     clusterStateChanged = true;
                     logger.info("[{}] adding node [{}]", tribeName, discoNode);
-                    nodes.put(discoNode);
+                    nodes.remove(tribe.getId()); // remove any existing node with the same id but different ephemeral id
+                    nodes.add(discoNode);
                 }
             }
+            if (clusterStateChanged) {
+                newState.nodes(nodes);
+            }
+            return clusterStateChanged;
+        }
 
-            // -- merge metadata
+        private boolean updateIndicesAndMetaData(ClusterState currentState, List<ClusterChangedEvent> tasks, ClusterState.Builder newState) {
+            // we only need to apply the latest cluster state update
+            ClusterChangedEvent latestTask = tasks.get(tasks.size() - 1);
+            ClusterState tribeState = latestTask.state();
+            boolean clusterStateChanged = false;
             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             MetaData.Builder metaData = MetaData.builder(currentState.metaData());
             RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
@@ -442,13 +498,49 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     }
                 }
             }
-
-            if (!clusterStateChanged) {
-                return currentState;
-            } else {
-                return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData)
-                        .routingTable(routingTable.build()).build();
+            clusterStateChanged |= updateCustoms(currentState, tasks, metaData);
+            if (clusterStateChanged) {
+                newState.blocks(blocks);
+                newState.metaData(metaData);
+                newState.routingTable(routingTable.build());
             }
+            return clusterStateChanged;
+        }
+
+        private boolean updateCustoms(ClusterState currentState, List<ClusterChangedEvent> tasks, MetaData.Builder metaData) {
+            boolean clusterStateChanged = false;
+            Set<String> changedCustomMetaDataTypeSet = tasks.stream()
+                    .map(ClusterChangedEvent::changedCustomMetaDataSet)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final List<Node> tribeClientNodes = TribeService.this.nodes;
+            Map<String, MetaData.Custom> mergedCustomMetaDataMap = mergeChangedCustomMetaData(changedCustomMetaDataTypeSet,
+                    customMetaDataType -> tribeClientNodes.stream()
+                            .map(TribeService::getClusterService).map(ClusterService::state)
+                            .map(ClusterState::metaData)
+                            .map(clusterMetaData -> ((MetaData.Custom) clusterMetaData.custom(customMetaDataType)))
+                            .filter(custom1 -> custom1 != null && custom1 instanceof MergableCustomMetaData)
+                            .map(custom2 -> (MergableCustomMetaData) marshal(custom2))
+                            .collect(Collectors.toList())
+            );
+            for (String changedCustomMetaDataType : changedCustomMetaDataTypeSet) {
+                MetaData.Custom mergedCustomMetaData = mergedCustomMetaDataMap.get(changedCustomMetaDataType);
+                if (mergedCustomMetaData == null) {
+                    // we ignore merging custom md which doesn't implement MergableCustomMetaData interface
+                    if (currentState.metaData().custom(changedCustomMetaDataType) instanceof MergableCustomMetaData) {
+                        // custom md has been removed
+                        clusterStateChanged = true;
+                        logger.info("[{}] removing custom meta data type [{}]", tribeName, changedCustomMetaDataType);
+                        metaData.removeCustom(changedCustomMetaDataType);
+                    }
+                } else {
+                    // custom md has been changed
+                    clusterStateChanged = true;
+                    logger.info("[{}] updating custom meta data type [{}] data [{}]", tribeName, changedCustomMetaDataType, mergedCustomMetaData);
+                    metaData.putCustom(changedCustomMetaDataType, mergedCustomMetaData);
+                }
+            }
+            return clusterStateChanged;
         }
 
         private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable,
@@ -472,6 +564,42 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.getIndex().getName())) {
                 blocks.addIndexBlock(tribeIndex.getIndex().getName(), IndexMetaData.INDEX_WRITE_BLOCK);
             }
+        }
+    }
+
+    private static ClusterService getClusterService(Node node) {
+        return node.injector().getInstance(ClusterService.class);
+    }
+
+    // pkg-private for testing
+    static Map<String, MetaData.Custom> mergeChangedCustomMetaData(Set<String> changedCustomMetaDataTypeSet,
+                                                                   Function<String, List<MergableCustomMetaData>> customMetaDataByTribeNode) {
+
+        Map<String, MetaData.Custom> changedCustomMetaDataMap = new HashMap<>(changedCustomMetaDataTypeSet.size());
+        for (String customMetaDataType : changedCustomMetaDataTypeSet) {
+            customMetaDataByTribeNode.apply(customMetaDataType).stream()
+                    .reduce((mergableCustomMD, mergableCustomMD2) ->
+                            ((MergableCustomMetaData) mergableCustomMD.merge((MetaData.Custom) mergableCustomMD2)))
+                    .ifPresent(mergedCustomMetaData ->
+                            changedCustomMetaDataMap.put(customMetaDataType, ((MetaData.Custom) mergedCustomMetaData)));
+        }
+        return changedCustomMetaDataMap;
+    }
+
+    /**
+     * Since custom metadata can be loaded by a plugin class loader that resides in a sub-node, we need to
+     * marshal this object into something the tribe node can work with
+     */
+    private MetaData.Custom marshal(MetaData.Custom custom)  {
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()){
+            bytesStreamOutput.writeNamedWriteable(custom);
+            try(StreamInput input = bytesStreamOutput.bytes().streamInput()) {
+                StreamInput namedInput = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
+                MetaData.Custom marshaled = namedInput.readNamedWriteable(MetaData.Custom.class);
+                return marshaled;
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("cannot marshal object with type " + custom.getWriteableName() + " to tribe node");
         }
     }
 }

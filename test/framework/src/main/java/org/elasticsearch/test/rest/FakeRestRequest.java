@@ -20,82 +20,115 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 
+import java.net.SocketAddress;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FakeRestRequest extends RestRequest {
 
-    private final Map<String, String> headers;
-
-    private final Map<String, String> params;
+    private final BytesReference content;
+    private final Method method;
+    private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(new HashMap<>());
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
     }
 
-    public FakeRestRequest(Map<String, String> headers) {
-        this.headers = headers;
-        this.params = new HashMap<>();
+    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers, Map<String, String> params,
+                            BytesReference content, Method method, String path, SocketAddress remoteAddress) {
+        super(xContentRegistry, params, path, headers);
+        this.content = content;
+        this.method = method;
+        this.remoteAddress = remoteAddress;
     }
 
     @Override
     public Method method() {
-        return Method.GET;
+        return method;
     }
 
     @Override
     public String uri() {
-        return "/";
-    }
-
-    @Override
-    public String rawPath() {
-        return "/";
+        return rawPath();
     }
 
     @Override
     public boolean hasContent() {
-        return false;
+        return content != null;
     }
 
     @Override
     public BytesReference content() {
-        return null;
+        return content;
     }
 
     @Override
-    public String header(String name) {
-        return headers.get(name);
+    public SocketAddress getRemoteAddress() {
+        return remoteAddress;
     }
 
-    @Override
-    public Iterable<Map.Entry<String, String>> headers() {
-        return headers.entrySet();
-    }
+    public static class Builder {
+        private final NamedXContentRegistry xContentRegistry;
 
-    @Override
-    public boolean hasParam(String key) {
-        return params.containsKey(key);
-    }
+        private Map<String, List<String>> headers = new HashMap<>();
 
-    @Override
-    public String param(String key) {
-        return params.get(key);
-    }
+        private Map<String, String> params = new HashMap<>();
 
-    @Override
-    public String param(String key, String defaultValue) {
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
+        private BytesReference content;
+
+        private String path = "/";
+
+        private Method method = Method.GET;
+
+        private SocketAddress address = null;
+
+        public Builder(NamedXContentRegistry xContentRegistry) {
+            this.xContentRegistry = xContentRegistry;
         }
-        return value;
+
+        public Builder withHeaders(Map<String, List<String>> headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public Builder withParams(Map<String, String> params) {
+            this.params = params;
+            return this;
+        }
+
+        public Builder withContent(BytesReference content, XContentType xContentType) {
+            this.content = content;
+            if (xContentType != null) {
+                headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
+            }
+            return this;
+        }
+
+        public Builder withPath(String path) {
+            this.path = path;
+            return this;
+        }
+
+        public Builder withMethod(Method method) {
+            this.method = method;
+            return this;
+        }
+
+        public Builder withRemoteAddress(SocketAddress address) {
+            this.address = address;
+            return this;
+        }
+
+        public FakeRestRequest build() {
+            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path, address);
+        }
+
     }
 
-    @Override
-    public Map<String, String> params() {
-        return params;
-    }
 }

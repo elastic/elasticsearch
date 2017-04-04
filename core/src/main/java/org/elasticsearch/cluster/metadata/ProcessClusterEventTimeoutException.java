@@ -26,8 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- */
 public class ProcessClusterEventTimeoutException extends ElasticsearchException {
 
     public ProcessClusterEventTimeoutException(TimeValue timeValue, String source) {

@@ -19,9 +19,10 @@
 
 package org.elasticsearch.cluster.node;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,19 +31,24 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DiscoveryNodesTests extends ESTestCase {
 
     public void testResolveNodeByIdOrName() {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
-        DiscoveryNode[] nodes = discoveryNodes.nodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
         DiscoveryNode node = randomFrom(nodes);
-        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.id() : node.name());
-        assertThat(resolvedNode.id(), equalTo(node.id()));
+        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.getId() : node.getName());
+        assertThat(resolvedNode.getId(), equalTo(node.getId()));
     }
 
     public void testResolveNodeByAttribute() {
@@ -52,8 +58,8 @@ public class DiscoveryNodesTests extends ESTestCase {
         try {
             DiscoveryNode resolvedNode = discoveryNodes.resolveNode(nodeSelector.selector);
             assertThat(matchingNodeIds.size(), equalTo(1));
-            assertThat(resolvedNode.id(), equalTo(matchingNodeIds.iterator().next()));
-        } catch(IllegalArgumentException e) {
+            assertThat(resolvedNode.getId(), equalTo(matchingNodeIds.iterator().next()));
+        } catch (IllegalArgumentException e) {
             if (matchingNodeIds.size() == 0) {
                 assertThat(e.getMessage(), equalTo("failed to resolve [" + nodeSelector.selector + "], no matching nodes"));
             } else if (matchingNodeIds.size() > 1) {
@@ -77,59 +83,131 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = discoveryNodes.nodes().keys().toArray(String.class);
+        String[] nodeIds = discoveryNodes.getNodes().keys().toArray(String.class);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
             expectedNodeIdsSet.add(nodeId);
         }
         int numNodeNames = randomIntBetween(0, 3);
-        DiscoveryNode[] nodes = discoveryNodes.nodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
         for (int i = 0; i < numNodeNames; i++) {
             DiscoveryNode discoveryNode = randomFrom(nodes);
-            nodeSelectors.add(discoveryNode.name());
-            expectedNodeIdsSet.add(discoveryNode.id());
+            nodeSelectors.add(discoveryNode.getName());
+            expectedNodeIdsSet.add(discoveryNode.getId());
         }
 
-        String[] resolvedNodesIds = discoveryNodes.resolveNodesIds(nodeSelectors.toArray(new String[nodeSelectors.size()]));
+        String[] resolvedNodesIds = discoveryNodes.resolveNodes(nodeSelectors.toArray(new String[nodeSelectors.size()]));
         Arrays.sort(resolvedNodesIds);
         String[] expectedNodesIds = expectedNodeIdsSet.toArray(new String[expectedNodeIdsSet.size()]);
         Arrays.sort(expectedNodesIds);
         assertThat(resolvedNodesIds, equalTo(expectedNodesIds));
     }
 
-    private static DiscoveryNodes buildDiscoveryNodes() {
-        int numNodes = randomIntBetween(1, 10);
-        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+    public void testDeltas() {
+        Set<DiscoveryNode> nodesA = new HashSet<>();
+        nodesA.addAll(randomNodes(1 + randomInt(10)));
+        Set<DiscoveryNode> nodesB = new HashSet<>();
+        nodesB.addAll(randomNodes(1 + randomInt(5)));
+        for (DiscoveryNode node : randomSubsetOf(nodesA)) {
+            if (randomBoolean()) {
+                // change an attribute
+                Map<String, String> attrs = new HashMap<>(node.getAttributes());
+                attrs.put("new", "new");
+                node = new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), attrs, node.getRoles(), node.getVersion());
+            }
+            nodesB.add(node);
+        }
+
+        DiscoveryNode masterA = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesA);
+        DiscoveryNode masterB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
+
+        DiscoveryNodes.Builder builderA = DiscoveryNodes.builder();
+        nodesA.stream().forEach(builderA::add);
+        final String masterAId = masterA == null ? null : masterA.getId();
+        builderA.masterNodeId(masterAId);
+        builderA.localNodeId(RandomPicks.randomFrom(random(), nodesA).getId());
+
+        DiscoveryNodes.Builder builderB = DiscoveryNodes.builder();
+        nodesB.stream().forEach(builderB::add);
+        final String masterBId = masterB == null ? null : masterB.getId();
+        builderB.masterNodeId(masterBId);
+        builderB.localNodeId(RandomPicks.randomFrom(random(), nodesB).getId());
+
+        final DiscoveryNodes discoNodesA = builderA.build();
+        final DiscoveryNodes discoNodesB = builderB.build();
+        logger.info("nodes A: {}", discoNodesA);
+        logger.info("nodes B: {}", discoNodesB);
+
+        DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
+
+        if (masterB == null || Objects.equals(masterAId, masterBId)) {
+            assertFalse(delta.masterNodeChanged());
+            assertThat(delta.previousMasterNode(), nullValue());
+            assertThat(delta.newMasterNode(), nullValue());
+        } else {
+            assertTrue(delta.masterNodeChanged());
+            assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
+            assertThat(delta.previousMasterNode() != null ? delta.previousMasterNode().getId() : null,
+                equalTo(masterAId));
+        }
+
+        Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);
+        newNodes.removeAll(nodesA);
+        assertThat(delta.added(), equalTo(newNodes.isEmpty() == false));
+        assertThat(delta.addedNodes(), containsInAnyOrder(newNodes.stream().collect(Collectors.toList()).toArray()));
+        assertThat(delta.addedNodes().size(), equalTo(newNodes.size()));
+
+        Set<DiscoveryNode> removedNodes = new HashSet<>(nodesA);
+        removedNodes.removeAll(nodesB);
+        assertThat(delta.removed(), equalTo(removedNodes.isEmpty() == false));
+        assertThat(delta.removedNodes(), containsInAnyOrder(removedNodes.stream().collect(Collectors.toList()).toArray()));
+        assertThat(delta.removedNodes().size(), equalTo(removedNodes.size()));
+    }
+
+    private static AtomicInteger idGenerator = new AtomicInteger();
+
+    private static List<DiscoveryNode> randomNodes(final int numNodes) {
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
             }
-            final DiscoveryNode node = newNode(i, attributes, new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
-            discoBuilder = discoBuilder.put(node);
+            final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes,
+                new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
             nodesList.add(node);
         }
-        discoBuilder.localNodeId(randomFrom(nodesList).id());
-        discoBuilder.masterNodeId(randomFrom(nodesList).id());
+        return nodesList;
+    }
+
+    private static DiscoveryNodes buildDiscoveryNodes() {
+        int numNodes = randomIntBetween(1, 10);
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<DiscoveryNode> nodesList = randomNodes(numNodes);
+        for (DiscoveryNode node : nodesList) {
+            discoBuilder = discoBuilder.add(node);
+        }
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
         return discoBuilder.build();
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, DummyTransportAddress.INSTANCE, attributes, roles, Version.CURRENT);
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
+            Version.CURRENT);
     }
 
     private enum NodeSelector {
         LOCAL("_local") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return Collections.singleton(nodes.localNodeId());
+                return Collections.singleton(nodes.getLocalNodeId());
             }
         }, ELECTED_MASTER("_master") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return Collections.singleton(nodes.masterNodeId());
+                return Collections.singleton(nodes.getMasterNodeId());
             }
         }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
             @Override
@@ -152,13 +230,13 @@ public class DiscoveryNodesTests extends ESTestCase {
                 nodes.getIngestNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        },CUSTOM_ATTRIBUTE("attr:value") {
+        }, CUSTOM_ATTRIBUTE("attr:value") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getNodes().valuesIt().forEachRemaining(node -> {
                     if ("value".equals(node.getAttributes().get("attr"))) {
-                        ids.add(node.id());
+                        ids.add(node.getId());
                     }
                 });
                 return ids;
@@ -172,5 +250,23 @@ public class DiscoveryNodesTests extends ESTestCase {
         }
 
         abstract Set<String> matchingNodeIds(DiscoveryNodes nodes);
+    }
+
+    public void testMaxMinNodeVersion() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("5.1.0")));
+        discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("6.3.0")));
+        discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("1.1.0")));
+        discoBuilder.localNodeId("name_1");
+        discoBuilder.masterNodeId("name_2");
+        DiscoveryNodes build = discoBuilder.build();
+        assertEquals( Version.fromString("6.3.0"), build.getMaxNodeVersion());
+        assertEquals( Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
 }

@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.LegacyIntField;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexingSlowLog.SlowLogParsedDocumentPrinter;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
-        ParsedDocument pd = new ParsedDocument(new StringField("uid", "test:id", Store.YES), new LegacyIntField("version", 1, Store.YES), "id",
-                "test", null, 0, -1, null, source, null);
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), SeqNoFieldMapper.SequenceID.emptySeqID(), "id",
+                "test", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
@@ -63,7 +63,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testReformatSetting() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), false)
             .build());
@@ -79,7 +79,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
         assertTrue(log.isReformat());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
@@ -89,14 +89,14 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), "NOT A BOOLEAN").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse value [NOT A BOOLEAN] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]");
+            assertEquals(ex.getMessage(), "Failed to parse value [NOT A BOOLEAN] as only [true] or [false] are allowed.");
         }
         assertTrue(log.isReformat());
     }
 
     public void testLevelSetting() {
         SlowLogLevel level = randomFrom(SlowLogLevel.values());
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level)
             .build());
@@ -117,7 +117,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
@@ -133,7 +133,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testSetLevels() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "100ms")
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "200ms")
@@ -158,7 +158,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMillis(320).nanos(), log.getIndexInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(420).nanos(), log.getIndexWarnThreshold());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings.updateIndexMetaData(metaData);
@@ -178,33 +178,33 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
     }
 
     private IndexMetaData newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSettings)

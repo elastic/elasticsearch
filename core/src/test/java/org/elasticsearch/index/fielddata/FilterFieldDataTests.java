@@ -25,9 +25,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
+import java.util.List;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -58,7 +59,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             writer.addDocument(d);
         }
         writer.forceMerge(1, true);
-        LeafReaderContext context = refreshReader();
+        List<LeafReaderContext> contexts = refreshReader();
         final BuilderContext builderCtx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
         {
@@ -68,11 +69,13 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(2L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(2L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            }
         }
         {
             ifdService.clear();
@@ -81,10 +84,12 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(1L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(1L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
+            }
         }
 
         {
@@ -94,11 +99,13 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(2L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(2L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            }
         }
 
         {
@@ -108,11 +115,13 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(2L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(2L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            }
         }
 
     }

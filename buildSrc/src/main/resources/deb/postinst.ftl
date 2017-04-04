@@ -1,2 +1,2 @@
-#!/bin/sh -e
+#!/bin/bash -e
 <% commands.each {command -> %><%= command %><% } %>

@@ -22,9 +22,9 @@ the issue documents as nested documents. The mapping could look like:
 
     "issue" : {
         "properties" : {
-            "tags" : { "type" : "text" }
+            "tags" : { "type" : "text" },
             "comments" : { <1>
-                "type" : "nested"
+                "type" : "nested",
                 "properties" : {
                     "username" : { "type" : "keyword" },
                     "comment" : { "type" : "text" }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,31 +29,30 @@ import java.io.IOException;
 /**
  * An enum representing the methods for calculating percentiles
  */
-public enum PercentilesMethod implements Writeable<PercentilesMethod> {
+public enum PercentilesMethod implements Writeable {
     /**
      * The TDigest method for calculating percentiles
      */
-    TDIGEST("tdigest"),
+    TDIGEST("tdigest", "TDigest", "TDIGEST"),
     /**
      * The HDRHistogram method of calculating percentiles
      */
-    HDR("hdr");
+    HDR("hdr", "HDR");
 
-    private String name;
+    private final ParseField parseField;
 
-    private PercentilesMethod(String name) {
-        this.name = name;
+    PercentilesMethod(String name, String... deprecatedNames) {
+        this.parseField = new ParseField(name, deprecatedNames);
     }
 
     /**
      * @return the name of the method
      */
-    public String getName() {
-        return name;
+    public ParseField getParseField() {
+        return parseField;
     }
 
-    @Override
-    public PercentilesMethod readFrom(StreamInput in) throws IOException {
+    public static PercentilesMethod readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown PercentilesMethod ordinal [" + ordinal + "]");
@@ -65,16 +65,8 @@ public enum PercentilesMethod implements Writeable<PercentilesMethod> {
         out.writeVInt(ordinal());
     }
 
-    /**
-     * Returns the {@link PercentilesMethod} for this method name. returns
-     * <code>null</code> if no {@link PercentilesMethod} exists for the name.
-     */
-    public static PercentilesMethod resolveFromName(String name) {
-        for (PercentilesMethod method : values()) {
-            if (method.name.equalsIgnoreCase(name)) {
-                return method;
-            }
-        }
-        return null;
+    @Override
+    public String toString() {
+        return parseField.getPreferredName();
     }
 }

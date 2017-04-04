@@ -1,0 +1,74 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+            mappings:
+              type_1:
+                properties:
+                  nested_field:
+                    type: nested
+              type_2: {}
+              type_3:
+                _parent:
+                  type: type_2
+
+---
+"Nested inner hits":
+    - do:
+        index:
+          index: test
+          type:  type_1
+          id:    1
+          body:
+            "nested_field" : [ { "foo": "bar" } ]
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : {} } } }
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._index: "test" }
+    - match: { hits.hits.0._type: "type_1" }
+    - match: { hits.hits.0._id: "1" }
+    - is_false: hits.hits.0.inner_hits.nested_field.hits.hits.0._index
+    - is_false: hits.hits.0.inner_hits.nested_field.hits.hits.0._type
+    - is_false: hits.hits.0.inner_hits.nested_field.hits.hits.0._id
+    - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._nested.field: "nested_field" }
+    - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._nested.offset: 0 }
+    - is_false: hits.hits.0.inner_hits.nested_field.hits.hits.0._nested.child
+
+---
+"Parent/child inner hits":
+    - do:
+        index:
+          index: test
+          type:  type_2
+          id:    1
+          body:  {"foo": "bar"}
+
+    - do:
+        index:
+          index: test
+          type:  type_3
+          id:    1
+          parent: 1
+          body:  {"bar": "baz"}
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+          body: { "query" : { "has_child" : { "type" : "type_3", "query" : { "match_all" : {} }, "inner_hits" : {} } } }
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._index: "test" }
+    - match: { hits.hits.0._type: "type_2" }
+    - match: { hits.hits.0._id: "1" }
+    - is_false: hits.hits.0.inner_hits.type_3.hits.hits.0._index
+    - match: { hits.hits.0.inner_hits.type_3.hits.hits.0._type: "type_3" }
+    - match: { hits.hits.0.inner_hits.type_3.hits.hits.0._id: "1" }
+    - is_false: hits.hits.0.inner_hits.type_3.hits.hits.0._nested

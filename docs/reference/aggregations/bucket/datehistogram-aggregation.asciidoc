@@ -12,9 +12,10 @@ Requesting bucket intervals of a month.
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
-        "articles_over_time" : {
+        "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
                 "interval" : "month"
@@ -23,27 +24,31 @@ Requesting bucket intervals of a month.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
 
-
-Fractional values are allowed for seconds, minutes, hours, days and weeks. For example 1.5 hours:
+Time values can also be specified via abbreviations supported by <<time-units,time units>> parsing.
+Note that fractional time values are not supported, but you can address this by shifting to another
+time unit (e.g., `1.5h` could instead be specified as `90m`).
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
-        "articles_over_time" : {
+        "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "1.5h"
+                "interval" : "90m"
             }
         }
     }
 }
 --------------------------------------------------
-
-See <<time-units>> for accepted abbreviations.
+// CONSOLE
+// TEST[setup:sales]
 
 ==== Keys
 
@@ -57,9 +62,10 @@ TIP: If no `format` is specified, then it will use the first date
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
-        "articles_over_time" : {
+        "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
                 "interval" : "1M",
@@ -69,6 +75,8 @@ TIP: If no `format` is specified, then it will use the first date
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 <1> Supports expressive date <<date-format-pattern,format pattern>>
 
@@ -77,25 +85,31 @@ Response:
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
-        "articles_over_time": {
+        "sales_over_time": {
             "buckets": [
                 {
-                    "key_as_string": "2013-02-02",
-                    "key": 1328140800000,
-                    "doc_count": 1
+                    "key_as_string": "2015-01-01",
+                    "key": 1420070400000,
+                    "doc_count": 3
                 },
                 {
-                    "key_as_string": "2013-03-02",
-                    "key": 1330646400000,
+                    "key_as_string": "2015-02-01",
+                    "key": 1422748800000,
                     "doc_count": 2
                 },
-                ...
+                {
+                    "key_as_string": "2015-03-01",
+                    "key": 1425168000000,
+                    "doc_count": 2
+                }
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Time Zone
 
@@ -111,12 +125,12 @@ Consider the following example:
 
 [source,js]
 ---------------------------------
-PUT my_index/log/1
+PUT my_index/log/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/log/2
+PUT my_index/log/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
@@ -133,6 +147,7 @@ GET my_index/_search?size=0
   }
 }
 ---------------------------------
+// CONSOLE
 
 UTC is used if no time zone is specified, which would result in both of these
 documents being placed into the same day bucket, which starts at midnight UTC
@@ -140,18 +155,22 @@ on 1 October 2015:
 
 [source,js]
 ---------------------------------
-"aggregations": {
-  "by_day": {
-    "buckets": [
-      {
-        "key_as_string": "2015-10-01T00:00:00.000Z",
-        "key":           1443657600000,
-        "doc_count":     2
-      }
-    ]
+{
+  ...
+  "aggregations": {
+    "by_day": {
+      "buckets": [
+        {
+          "key_as_string": "2015-10-01T00:00:00.000Z",
+          "key":           1443657600000,
+          "doc_count":     2
+        }
+      ]
+    }
   }
 }
 ---------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before
 midnight UTC:
@@ -171,37 +190,55 @@ GET my_index/_search?size=0
   }
 }
 ---------------------------------
+// CONSOLE
+// TEST[continued]
 
 Now the first document falls into the bucket for 30 September 2015, while the
 second document falls into the bucket for 1 October 2015:
 
 [source,js]
 ---------------------------------
-"aggregations": {
-  "by_day": {
-    "buckets": [
-      {
-        "key_as_string": "2015-09-30T00:00:00.000-01:00", <1>
-        "key": 1443571200000,
-        "doc_count": 1
-      },
-      {
-        "key_as_string": "2015-10-01T00:00:00.000-01:00", <1>
-        "key": 1443657600000,
-        "doc_count": 1
-      }
-    ]
+{
+  ...
+  "aggregations": {
+    "by_day": {
+      "buckets": [
+        {
+          "key_as_string": "2015-09-30T00:00:00.000-01:00", <1>
+          "key": 1443574800000,
+          "doc_count": 1
+        },
+        {
+          "key_as_string": "2015-10-01T00:00:00.000-01:00", <1>
+          "key": 1443661200000,
+          "doc_count": 1
+        }
+      ]
+    }
   }
 }
 ---------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 <1> The `key_as_string` value represents midnight on each day
     in the specified time zone.
+
+WARNING: When using time zones that follow DST (daylight savings time) changes,
+buckets close to the moment when those changes happen can have slightly different
+sizes than would be expected from the used `interval`.
+For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am,
+clocks were turned forward 1 hour to 3am local time. When using `day` as `interval`,
+the bucket covering that day will only hold data for 23 hours instead of the usual
+24 hours for other buckets. The same is true for shorter intervals like e.g. 12h.
+Here, we will have only a 11h bucket on the morning of 27 March when the DST shift
+happens.
+
 
 ==== Offset
 
 The `offset` parameter is used to change the start value of each bucket by the
 specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
-an hour, or `1M` for a month. See <<time-units>> for more possible time
+an hour, or `1d` for a day. See <<time-units>> for more possible time
 duration options.
 
 For instance, when using an interval of `day`, each bucket runs from midnight
@@ -210,12 +247,12 @@ to run from 6am to 6am:
 
 [source,js]
 -----------------------------
-PUT my_index/log/1
+PUT my_index/log/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/log/2
+PUT my_index/log/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
@@ -233,29 +270,34 @@ GET my_index/_search?size=0
   }
 }
 -----------------------------
+// CONSOLE
 
 Instead of a single bucket starting at midnight, the above request groups the
 documents into buckets starting at 6am:
 
 [source,js]
 -----------------------------
-"aggregations": {
-  "by_day": {
-    "buckets": [
-      {
-        "key_as_string": "2015-09-30T06:00:00.000Z",
-        "key": 1443592800000,
-        "doc_count": 1
-      },
-      {
-        "key_as_string": "2015-10-01T06:00:00.000Z",
-        "key": 1443679200000,
-        "doc_count": 1
-      }
-    ]
+{
+  ...
+  "aggregations": {
+    "by_day": {
+      "buckets": [
+        {
+          "key_as_string": "2015-09-30T06:00:00.000Z",
+          "key": 1443592800000,
+          "doc_count": 1
+        },
+        {
+          "key_as_string": "2015-10-01T06:00:00.000Z",
+          "key": 1443679200000,
+          "doc_count": 1
+        }
+      ]
+    }
   }
 }
 -----------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 NOTE: The start `offset` of each bucket is calculated after the `time_zone`
 adjustments have been made.
@@ -277,17 +319,20 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
-        "publish_date" : {
+        "sale_date" : {
              "date_histogram" : {
-                 "field" : "publish_date",
+                 "field" : "date",
                  "interval": "year",
-                 "missing": "2000-01-01" <1>
+                 "missing": "2000/01/01" <1>
              }
          }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 <1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.

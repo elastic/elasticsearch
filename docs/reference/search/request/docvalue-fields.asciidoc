@@ -1,0 +1,23 @@
+[[search-request-docvalue-fields]]
+=== Doc value Fields
+
+Allows to return the <<doc-values,doc value>> representation of a field for each hit, for
+example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match_all": {}
+    },
+    "docvalue_fields" : ["test1", "test2"]
+}
+--------------------------------------------------
+// CONSOLE
+
+Doc value fields can work on fields that are not stored.
+
+Note that if the fields parameter specifies fields without docvalues it will try to load the value from the fielddata cache
+causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
+

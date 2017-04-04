@@ -19,22 +19,26 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.Rectangle;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
-import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -47,12 +51,28 @@ import java.util.Objects;
  * enabled.
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
-    /** Name of the query. */
-    public static final String NAME = "geo_bbox";
+    public static final String NAME = "geo_bounding_box";
+
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
-    /** Needed for serialization. */
-    static final GeoBoundingBoxQueryBuilder PROTOTYPE = new GeoBoundingBoxQueryBuilder("");
+
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
+    private static final ParseField TYPE_FIELD = new ParseField("type");
+    private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
+    private static final ParseField FIELD_FIELD = new ParseField("field");
+    private static final ParseField TOP_FIELD = new ParseField("top");
+    private static final ParseField BOTTOM_FIELD = new ParseField("bottom");
+    private static final ParseField LEFT_FIELD = new ParseField("left");
+    private static final ParseField RIGHT_FIELD = new ParseField("right");
+    private static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
+    private static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
+    private static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
+    private static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     /** Name of field holding geo coordinates to compute the bounding box on.*/
     private final String fieldName;
@@ -65,6 +85,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     /** How the query should be run. */
     private GeoExecType type = DEFAULT_TYPE;
 
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+
     /**
      * Create new bounding box query.
      * @param fieldName name of index field containing geo coordinates to operate on.
@@ -74,6 +96,29 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             throw new IllegalArgumentException("Field name must not be empty.");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoBoundingBoxQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        topLeft = in.readGeoPoint();
+        bottomRight = in.readGeoPoint();
+        type = GeoExecType.readFromStream(in);
+        validationMethod = GeoValidationMethod.readFromStream(in);
+        ignoreUnmapped = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGeoPoint(topLeft);
+        out.writeGeoPoint(bottomRight);
+        type.writeTo(out);
+        validationMethod.writeTo(out);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**
@@ -102,7 +147,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             if (top < bottom) {
                 throw new IllegalArgumentException("top is below bottom corner: " +
                             top + " vs. " + bottom);
-                }
+            } else if (top == bottom) {
+                throw new IllegalArgumentException("top cannot be the same as bottom: " +
+                    top + " == " + bottom);
+            } else if (left == right) {
+                throw new IllegalArgumentException("left cannot be the same as right: " +
+                    left + " == " + right);
+            }
 
                 // we do not check longitudes as the query generation code can deal with flipped left/right values
         }
@@ -119,6 +170,16 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      * */
     public GeoBoundingBoxQueryBuilder setCorners(GeoPoint topLeft, GeoPoint bottomRight) {
         return setCorners(topLeft.getLat(), topLeft.getLon(), bottomRight.getLat(), bottomRight.getLon());
+    }
+
+    /**
+     * Adds points from a single geohash.
+     * @param geohash The geohash for computing the bounding box.
+     */
+    public GeoBoundingBoxQueryBuilder setCorners(final String geohash) {
+        // get the bounding box of the geohash and set topLeft and bottomRight
+        Rectangle ghBBox = GeoHashUtils.bbox(geohash);
+        return setCorners(new GeoPoint(ghBBox.maxLat, ghBBox.minLon), new GeoPoint(ghBBox.minLat, ghBBox.maxLon));
     }
 
     /**
@@ -206,9 +267,28 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return this.fieldName;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public GeoBoundingBoxQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == true || indexCreatedBeforeV2_0) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) || indexCreatedBeforeV2_0) {
             return null;
         }
 
@@ -237,9 +317,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public Query doToQuery(QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            }
         }
-        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+        if (!(fieldType instanceof GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
@@ -266,30 +350,14 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
-            // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
-            // if index created V_2_3 > use prefix encoded postings format
-            final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
-                GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-            return new GeoPointInBBoxQuery(fieldType.name(), encoding, luceneTopLeft.lon(), luceneBottomRight.lat(),
-                    luceneBottomRight.lon(), luceneTopLeft.lat());
+        Query query = LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
+            luceneTopLeft.getLon(), luceneBottomRight.getLon());
+        if (fieldType.hasDocValues()) {
+            Query dvQuery = LatLonDocValuesField.newBoxQuery(fieldType.name(),
+                    luceneBottomRight.getLat(), luceneTopLeft.getLat(),
+                    luceneTopLeft.getLon(), luceneBottomRight.getLon());
+            query = new IndexOrDocValuesQuery(query, dvQuery);
         }
-
-        Query query;
-        switch(type) {
-            case INDEXED:
-                GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
-                query = IndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
-                break;
-            case MEMORY:
-                IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-                query = new InMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
-                break;
-            default:
-                // Someone extended the type enum w/o adjusting this switch statement.
-                throw new IllegalStateException("geo bounding box type [" + type + "] not supported.");
-        }
-
         return query;
     }
 
@@ -298,15 +366,119 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        builder.array(GeoBoundingBoxQueryParser.TOP_LEFT_FIELD.getPreferredName(), topLeft.getLon(), topLeft.getLat());
-        builder.array(GeoBoundingBoxQueryParser.BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.getLon(), bottomRight.getLat());
+        builder.array(TOP_LEFT_FIELD.getPreferredName(), topLeft.getLon(), topLeft.getLat());
+        builder.array(BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.getLon(), bottomRight.getLat());
         builder.endObject();
-        builder.field(GeoBoundingBoxQueryParser.VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
-        builder.field(GeoBoundingBoxQueryParser.TYPE_FIELD.getPreferredName(), type);
+        builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
+        builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
         printBoostAndQueryName(builder);
 
         builder.endObject();
+    }
+
+    public static GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String fieldName = null;
+
+        double top = Double.NaN;
+        double bottom = Double.NaN;
+        double left = Double.NaN;
+        double right = Double.NaN;
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        GeoValidationMethod validationMethod = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+
+        GeoPoint sparse = new GeoPoint();
+
+        String type = "memory";
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                        token = parser.nextToken();
+                        if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                            // skip
+                        } else if (FIELD_FIELD.match(currentFieldName)) {
+                            fieldName = parser.text();
+                        } else if (TOP_FIELD.match(currentFieldName)) {
+                            top = parser.doubleValue();
+                        } else if (BOTTOM_FIELD.match(currentFieldName)) {
+                            bottom = parser.doubleValue();
+                        } else if (LEFT_FIELD.match(currentFieldName)) {
+                            left = parser.doubleValue();
+                        } else if (RIGHT_FIELD.match(currentFieldName)) {
+                            right = parser.doubleValue();
+                        } else {
+                            if (TOP_LEFT_FIELD.match(currentFieldName)) {
+                                GeoUtils.parseGeoPoint(parser, sparse);
+                                top = sparse.getLat();
+                                left = sparse.getLon();
+                            } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName)) {
+                                GeoUtils.parseGeoPoint(parser, sparse);
+                                bottom = sparse.getLat();
+                                right = sparse.getLon();
+                            } else if (TOP_RIGHT_FIELD.match(currentFieldName)) {
+                                GeoUtils.parseGeoPoint(parser, sparse);
+                                top = sparse.getLat();
+                                right = sparse.getLon();
+                            } else if (BOTTOM_LEFT_FIELD.match(currentFieldName)) {
+                                GeoUtils.parseGeoPoint(parser, sparse);
+                                bottom = sparse.getLat();
+                                left = sparse.getLon();
+                            } else {
+                                throw new ElasticsearchParseException("failed to parse [{}] query. unexpected field [{}]",
+                                        NAME, currentFieldName);
+                            }
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse [{}] query. field name expected but [{}] found",
+                                NAME, token);
+                    }
+                }
+            } else if (token.isValue()) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                    queryName = parser.text();
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                    ignoreUnmapped = parser.booleanValue();
+                } else if (TYPE_FIELD.match(currentFieldName)) {
+                    type = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
+                            NAME, currentFieldName);
+                }
+            }
+        }
+
+        final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
+        final GeoPoint bottomRight = new GeoPoint(bottom, right);
+        GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
+        builder.setCorners(topLeft, bottomRight);
+        builder.queryName(queryName);
+        builder.boost(boost);
+        builder.type(GeoExecType.fromString(type));
+        builder.ignoreUnmapped(ignoreUnmapped);
+        if (validationMethod != null) {
+            // ignore deprecated coerce/ignoreMalformed settings if validationMethod is set
+            builder.setValidationMethod(validationMethod);
+        }
+        return builder;
     }
 
     @Override
@@ -315,32 +487,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 Objects.equals(bottomRight, other.bottomRight) &&
                 Objects.equals(type, other.type) &&
                 Objects.equals(validationMethod, other.validationMethod) &&
-                Objects.equals(fieldName, other.fieldName);
+                Objects.equals(fieldName, other.fieldName) &&
+                Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName);
-    }
-
-    @Override
-    protected GeoBoundingBoxQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        GeoBoundingBoxQueryBuilder geo = new GeoBoundingBoxQueryBuilder(fieldName);
-        geo.topLeft = in.readGeoPoint();
-        geo.bottomRight = in.readGeoPoint();
-        geo.type = GeoExecType.readTypeFrom(in);
-        geo.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        return geo;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGeoPoint(topLeft);
-        out.writeGeoPoint(bottomRight);
-        type.writeTo(out);
-        validationMethod.writeTo(out);
+        return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName, ignoreUnmapped);
     }
 
     @Override

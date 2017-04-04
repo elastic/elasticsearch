@@ -19,47 +19,49 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.StringDistance;
+import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
-public final class DirectCandidateGeneratorBuilder
-        implements CandidateGenerator {
+public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";
 
-    static final ParseField DIRECT_GENERATOR_FIELD = new ParseField(TYPE);
-    static final ParseField FIELDNAME_FIELD = new ParseField("field");
-    static final ParseField PREFILTER_FIELD = new ParseField("pre_filter");
-    static final ParseField POSTFILTER_FIELD = new ParseField("post_filter");
-    static final ParseField SUGGESTMODE_FIELD = new ParseField("suggest_mode");
-    static final ParseField MIN_DOC_FREQ_FIELD = new ParseField("min_doc_freq");
-    static final ParseField ACCURACY_FIELD = new ParseField("accuracy");
-    static final ParseField SIZE_FIELD = new ParseField("size");
-    static final ParseField SORT_FIELD = new ParseField("sort");
-    static final ParseField STRING_DISTANCE_FIELD = new ParseField("string_distance");
-    static final ParseField MAX_EDITS_FIELD = new ParseField("max_edits");
-    static final ParseField MAX_INSPECTIONS_FIELD = new ParseField("max_inspections");
-    static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
-    static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-    static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
+    public static final ParseField DIRECT_GENERATOR_FIELD = new ParseField(TYPE);
+    public static final ParseField FIELDNAME_FIELD = new ParseField("field");
+    public static final ParseField PREFILTER_FIELD = new ParseField("pre_filter");
+    public static final ParseField POSTFILTER_FIELD = new ParseField("post_filter");
+    public static final ParseField SUGGESTMODE_FIELD = new ParseField("suggest_mode");
+    public static final ParseField MIN_DOC_FREQ_FIELD = new ParseField("min_doc_freq");
+    public static final ParseField ACCURACY_FIELD = new ParseField("accuracy");
+    public static final ParseField SIZE_FIELD = new ParseField("size");
+    public static final ParseField SORT_FIELD = new ParseField("sort");
+    public static final ParseField STRING_DISTANCE_FIELD = new ParseField("string_distance");
+    public static final ParseField MAX_EDITS_FIELD = new ParseField("max_edits");
+    public static final ParseField MAX_INSPECTIONS_FIELD = new ParseField("max_inspections");
+    public static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    public static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
 
     private final String field;
     private String preFilter;
@@ -81,30 +83,6 @@ public final class DirectCandidateGeneratorBuilder
      */
     public DirectCandidateGeneratorBuilder(String field) {
         this.field = field;
-    }
-
-    /**
-     * Quasi copy-constructor that takes all values from the generator
-     * passed in, but uses different field name. Needed by parser because we
-     * need to buffer the field name but read all other properties to a
-     * temporary object.
-     */
-    private static DirectCandidateGeneratorBuilder replaceField(String field, DirectCandidateGeneratorBuilder other) {
-        DirectCandidateGeneratorBuilder generator = new DirectCandidateGeneratorBuilder(field);
-        generator.preFilter = other.preFilter;
-        generator.postFilter = other.postFilter;
-        generator.suggestMode = other.suggestMode;
-        generator.accuracy = other.accuracy;
-        generator.size = other.size;
-        generator.sort = other.sort;
-        generator.stringDistance = other.stringDistance;
-        generator.maxEdits = other.maxEdits;
-        generator.maxInspections = other.maxInspections;
-        generator.maxTermFreq = other.maxTermFreq;
-        generator.prefixLength = other.prefixLength;
-        generator.minWordLength = other.minWordLength;
-        generator.minDocFreq = other.minDocFreq;
-        return generator;
     }
 
     /**
@@ -145,6 +123,10 @@ public final class DirectCandidateGeneratorBuilder
         out.writeOptionalString(postFilter);
     }
 
+    String field() {
+        return this.field;
+    }
+
     /**
      * The global suggest mode controls what suggested terms are included or
      * controls for what suggest text tokens, terms should be suggested for.
@@ -163,6 +145,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    String suggestMode() {
+        return suggestMode;
+    }
+
     /**
      * Sets how similar the suggested terms at least need to be compared to
      * the original suggest text tokens. A value between 0 and 1 can be
@@ -176,6 +162,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    Float accuracy() {
+        return this.accuracy;
+    }
+
     /**
      * Sets the maximum suggestions to be returned per suggest text term.
      */
@@ -185,6 +175,10 @@ public final class DirectCandidateGeneratorBuilder
         }
         this.size = size;
         return this;
+    }
+
+    Integer size() {
+        return size;
     }
 
     /**
@@ -202,6 +196,10 @@ public final class DirectCandidateGeneratorBuilder
     public DirectCandidateGeneratorBuilder sort(String sort) {
         this.sort = sort;
         return this;
+    }
+
+    String sort() {
+        return sort;
     }
 
     /**
@@ -226,6 +224,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    String stringDistance() {
+        return stringDistance;
+    }
+
     /**
      * Sets the maximum edit distance candidate suggestions can have in
      * order to be considered as a suggestion. Can only be a value between 1
@@ -240,6 +242,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    Integer maxEdits() {
+        return maxEdits;
+    }
+
     /**
      * A factor that is used to multiply with the size in order to inspect
      * more candidate suggestions. Can improve accuracy at the cost of
@@ -248,6 +254,10 @@ public final class DirectCandidateGeneratorBuilder
     public DirectCandidateGeneratorBuilder maxInspections(Integer maxInspections) {
         this.maxInspections = maxInspections;
         return this;
+    }
+
+    Integer maxInspections() {
+        return maxInspections;
     }
 
     /**
@@ -266,6 +276,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    Float maxTermFreq() {
+        return maxTermFreq;
+    }
+
     /**
      * Sets the number of minimal prefix characters that must match in order
      * be a candidate suggestion. Defaults to 1. Increasing this number
@@ -277,6 +291,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    Integer prefixLength() {
+        return prefixLength;
+    }
+
     /**
      * The minimum length a suggest text term must have in order to be
      * corrected. Defaults to <tt>4</tt>.
@@ -284,6 +302,10 @@ public final class DirectCandidateGeneratorBuilder
     public DirectCandidateGeneratorBuilder minWordLength(int minWordLength) {
         this.minWordLength = minWordLength;
         return this;
+    }
+
+    Integer minWordLength() {
+        return minWordLength;
     }
 
     /**
@@ -299,6 +321,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    Float minDocFreq() {
+        return minDocFreq;
+    }
+
     /**
      * Sets a filter (analyzer) that is applied to each of the tokens passed to this candidate generator.
      * This filter is applied to the original token before candidates are generated.
@@ -308,6 +334,10 @@ public final class DirectCandidateGeneratorBuilder
         return this;
     }
 
+    String preFilter() {
+        return preFilter;
+    }
+
     /**
      * Sets a filter (analyzer) that is applied to each of the generated tokens
      * before they are passed to the actual phrase scorer.
@@ -315,6 +345,10 @@ public final class DirectCandidateGeneratorBuilder
     public DirectCandidateGeneratorBuilder postFilter(String postFilter) {
         this.postFilter = postFilter;
         return this;
+    }
+
+    String postFilter() {
+        return postFilter;
     }
 
     /**
@@ -352,61 +386,52 @@ public final class DirectCandidateGeneratorBuilder
         }
     }
 
-    private static ObjectParser<Tuple<Set<String>, DirectCandidateGeneratorBuilder>, QueryParseContext> PARSER = new ObjectParser<>(TYPE);
+    public static final ConstructingObjectParser<DirectCandidateGeneratorBuilder, Void> PARSER = new ConstructingObjectParser<>(
+            TYPE, args -> new DirectCandidateGeneratorBuilder((String) args[0]));
 
     static {
-        PARSER.declareString((tp, s) -> tp.v1().add(s), FIELDNAME_FIELD);
-        PARSER.declareString((tp, s) -> tp.v2().preFilter(s), PREFILTER_FIELD);
-        PARSER.declareString((tp, s) -> tp.v2().postFilter(s), POSTFILTER_FIELD);
-        PARSER.declareString((tp, s) -> tp.v2().suggestMode(s), SUGGESTMODE_FIELD);
-        PARSER.declareFloat((tp, f) -> tp.v2().minDocFreq(f), MIN_DOC_FREQ_FIELD);
-        PARSER.declareFloat((tp, f) -> tp.v2().accuracy(f), ACCURACY_FIELD);
-        PARSER.declareInt((tp, i) -> tp.v2().size(i), SIZE_FIELD);
-        PARSER.declareString((tp, s) -> tp.v2().sort(s), SORT_FIELD);
-        PARSER.declareString((tp, s) -> tp.v2().stringDistance(s), STRING_DISTANCE_FIELD);
-        PARSER.declareInt((tp, i) -> tp.v2().maxInspections(i), MAX_INSPECTIONS_FIELD);
-        PARSER.declareFloat((tp, f) -> tp.v2().maxTermFreq(f), MAX_TERM_FREQ_FIELD);
-        PARSER.declareInt((tp, i) -> tp.v2().maxEdits(i), MAX_EDITS_FIELD);
-        PARSER.declareInt((tp, i) -> tp.v2().minWordLength(i), MIN_WORD_LENGTH_FIELD);
-        PARSER.declareInt((tp, i) -> tp.v2().prefixLength(i), PREFIX_LENGTH_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELDNAME_FIELD);
+        PARSER.declareString(DirectCandidateGeneratorBuilder::preFilter, PREFILTER_FIELD);
+        PARSER.declareString(DirectCandidateGeneratorBuilder::postFilter, POSTFILTER_FIELD);
+        PARSER.declareString(DirectCandidateGeneratorBuilder::suggestMode, SUGGESTMODE_FIELD);
+        PARSER.declareFloat(DirectCandidateGeneratorBuilder::minDocFreq, MIN_DOC_FREQ_FIELD);
+        PARSER.declareFloat(DirectCandidateGeneratorBuilder::accuracy, ACCURACY_FIELD);
+        PARSER.declareInt(DirectCandidateGeneratorBuilder::size, SIZE_FIELD);
+        PARSER.declareString(DirectCandidateGeneratorBuilder::sort, SORT_FIELD);
+        PARSER.declareString(DirectCandidateGeneratorBuilder::stringDistance, STRING_DISTANCE_FIELD);
+        PARSER.declareInt(DirectCandidateGeneratorBuilder::maxInspections, MAX_INSPECTIONS_FIELD);
+        PARSER.declareFloat(DirectCandidateGeneratorBuilder::maxTermFreq, MAX_TERM_FREQ_FIELD);
+        PARSER.declareInt(DirectCandidateGeneratorBuilder::maxEdits, MAX_EDITS_FIELD);
+        PARSER.declareInt(DirectCandidateGeneratorBuilder::minWordLength, MIN_WORD_LENGTH_FIELD);
+        PARSER.declareInt(DirectCandidateGeneratorBuilder::prefixLength, PREFIX_LENGTH_FIELD);
     }
 
-    public static DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        DirectCandidateGeneratorBuilder tempGenerator = new DirectCandidateGeneratorBuilder("_na_");
-        // bucket for the field name, needed as constructor arg later
-        Set<String> tmpFieldName = new HashSet<>(1);
-        PARSER.parse(parseContext.parser(), new Tuple<Set<String>, DirectCandidateGeneratorBuilder>(tmpFieldName, tempGenerator));
-        if (tmpFieldName.size() != 1) {
-            throw new IllegalArgumentException("[" + TYPE + "] expects exactly one field parameter, but found " + tmpFieldName);
-        }
-        return replaceField(tmpFieldName.iterator().next(), tempGenerator);
-    }
-
+    @Override
     public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);
         if (this.preFilter != null) {
-            generator.preFilter(mapperService.analysisService().analyzer(this.preFilter));
+            generator.preFilter(mapperService.getIndexAnalyzers().get(this.preFilter));
             if (generator.preFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.preFilter + "] doesn't exists");
             }
         }
         if (this.postFilter != null) {
-            generator.postFilter(mapperService.analysisService().analyzer(this.postFilter));
+            generator.postFilter(mapperService.getIndexAnalyzers().get(this.postFilter));
             if (generator.postFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.postFilter + "] doesn't exists");
             }
         }
         transferIfNotNull(this.accuracy, generator::accuracy);
         if (this.suggestMode != null) {
-            generator.suggestMode(SuggestUtils.resolveSuggestMode(this.suggestMode));
+            generator.suggestMode(resolveSuggestMode(this.suggestMode));
         }
         if (this.sort != null) {
             generator.sort(SortBy.resolve(this.sort));
         }
         if (this.stringDistance != null) {
-            generator.stringDistance(SuggestUtils.resolveDistance(this.stringDistance));
+            generator.stringDistance(resolveDistance(this.stringDistance));
         }
         transferIfNotNull(this.maxEdits, generator::maxEdits);
         if (generator.maxEdits() < 1 || generator.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
@@ -420,14 +445,46 @@ public final class DirectCandidateGeneratorBuilder
         return generator;
     }
 
-     private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
-         if (value != null) {
-             consumer.accept(value);
-         }
-     }
+    private static SuggestMode resolveSuggestMode(String suggestMode) {
+        suggestMode = suggestMode.toLowerCase(Locale.US);
+        if ("missing".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+        } else if ("popular".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_MORE_POPULAR;
+        } else if ("always".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_ALWAYS;
+        } else {
+            throw new IllegalArgumentException("Illegal suggest mode " + suggestMode);
+        }
+    }
+
+    private static StringDistance resolveDistance(String distanceVal) {
+        distanceVal = distanceVal.toLowerCase(Locale.US);
+        if ("internal".equals(distanceVal)) {
+            return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
+            return new LuceneLevenshteinDistance();
+        } else if ("levenstein".equals(distanceVal)) {
+            return new LevensteinDistance();
+            // TODO Jaro and Winkler are 2 people - so apply same naming logic
+            // as damerau_levenshtein
+        } else if ("jarowinkler".equals(distanceVal)) {
+            return new JaroWinklerDistance();
+        } else if ("ngram".equals(distanceVal)) {
+            return new NGramDistance();
+        } else {
+            throw new IllegalArgumentException("Illegal distance option " + distanceVal);
+        }
+    }
+
+    private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
+        if (value != null) {
+            consumer.accept(value);
+        }
+    }
 
     @Override
-    public final String toString() {
+    public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
@@ -439,14 +496,14 @@ public final class DirectCandidateGeneratorBuilder
     }
 
     @Override
-    public final int hashCode() {
+    public int hashCode() {
         return Objects.hash(field, preFilter, postFilter, suggestMode, accuracy,
                 size, sort, stringDistance, maxEdits, maxInspections,
                 maxTermFreq, prefixLength, minWordLength, minDocFreq);
     }
 
     @Override
-    public final boolean equals(Object obj) {
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }

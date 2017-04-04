@@ -23,17 +23,17 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser.Range;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
-public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregatorBuilder> {
+public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregationBuilder> {
 
     @Override
-    protected GeoDistanceAggregatorBuilder createTestAggregatorBuilder() {
+    protected GeoDistanceAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         GeoPoint origin = RandomShapeGenerator.randomPoint(random());
-        GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder("foo", origin);
+        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder("foo", origin);
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

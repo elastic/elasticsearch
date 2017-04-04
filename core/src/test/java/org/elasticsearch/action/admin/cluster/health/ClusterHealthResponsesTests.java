@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +53,7 @@ public class ClusterHealthResponsesTests extends ESTestCase {
     }
 
     public void testClusterHealth() throws IOException {
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
@@ -70,7 +71,6 @@ public class ClusterHealthResponsesTests extends ESTestCase {
     private void assertClusterHealth(ClusterHealthResponse clusterHealth) {
         ClusterStateHealth clusterStateHealth = clusterHealth.getClusterStateHealth();
 
-        assertThat(clusterHealth.getValidationFailures(), Matchers.equalTo(clusterStateHealth.getValidationFailures()));
         assertThat(clusterHealth.getActiveShards(), Matchers.equalTo(clusterStateHealth.getActiveShards()));
         assertThat(clusterHealth.getRelocatingShards(), Matchers.equalTo(clusterStateHealth.getRelocatingShards()));
         assertThat(clusterHealth.getActivePrimaryShards(), Matchers.equalTo(clusterStateHealth.getActivePrimaryShards()));
@@ -84,7 +84,7 @@ public class ClusterHealthResponsesTests extends ESTestCase {
         if (randomBoolean()) {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterHealth.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             clusterHealth = ClusterHealthResponse.readResponseFrom(in);
         }
         return clusterHealth;

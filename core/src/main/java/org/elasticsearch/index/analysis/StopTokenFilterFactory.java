@@ -19,22 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.Set;
 
-/**
- *
- */
-@SuppressWarnings("deprecation")
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;
@@ -45,8 +40,10 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
+        this.ignoreCase =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        this.removeTrailing = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), "remove_trailing", true, deprecationLogger);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");

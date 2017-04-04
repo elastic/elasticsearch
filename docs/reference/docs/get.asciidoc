@@ -3,12 +3,14 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called tweet, with id valued 1:
+twitter, under a type called tweet, with id valued 0:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1'
+GET twitter/tweet/0
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The result of the above get operation is:
 
@@ -17,16 +19,18 @@ The result of the above get operation is:
 {
     "_index" : "twitter",
     "_type" : "tweet",
-    "_id" : "1",
+    "_id" : "0",
     "_version" : 1,
     "found": true,
     "_source" : {
         "user" : "kimchy",
-        "postDate" : "2009-11-15T14:12:12",
+        "date" : "2009-11-15T14:12:12",
+        "likes": 0,
         "message" : "trying out Elasticsearch"
     }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 The above result includes the `_index`, `_type`, `_id` and `_version`
 of the document we wish to retrieve, including the actual `_source`
@@ -38,28 +42,21 @@ The API also allows to check for the existence of a document using
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1'
+HEAD twitter/tweet/0
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[realtime]]
 === Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search).
-
-In order to disable realtime GET, one can either set `realtime`
-parameter to `false`, or globally default it to by setting the
-`action.get.realtime` to `false` in the node configuration.
-
-When getting a document, one can specify `fields` to fetch from it. They
-will, when possible, be fetched as stored fields (fields mapped as
-stored in the mapping). When using realtime GET, there is no notion of
-stored fields (at least for a period of time, basically, until the next
-flush), so they will be extracted from the source itself (note, even if
-source is not enabled). It is a good practice to assume that the fields
-will be loaded from source when using realtime GET, even if the fields
-are stored.
+rate of the index (when data will become visible for search). If a document
+has been updated but is not yet refreshed, the get API will issue a refresh
+call in-place to make the document visible. This will also make other documents
+changed since the last refresh visible. In order to disable realtime GET,
+one can set the `realtime` parameter to `false`.
 
 [float]
 [[type]]
@@ -74,13 +71,15 @@ to fetch the first document matching the id across all types.
 === Source filtering
 
 By default, the get operation returns the contents of the `_source` field unless
-you have used the `fields` parameter or if the `_source` field is disabled. 
+you have used the `stored_fields` parameter or if the `_source` field is disabled.
 You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=false'
+GET twitter/tweet/0?_source=false
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 If you only need one or two fields from the complete `_source`, you can use the `_source_include`
 & `_source_exclude` parameters to include or filter out that parts you need. This can be especially helpful
@@ -89,37 +88,137 @@ of fields or wildcard expressions. Example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?_source_include=*.id&_source_exclude=entities'
+GET twitter/tweet/0?_source_include=*.id&_source_exclude=entities
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 If you only want to specify includes, you can use a shorter notation:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=*.id,retweeted'
+GET twitter/tweet/0?_source=*.id,retweeted
 --------------------------------------------------
-
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
-[[get-fields]]
-=== Fields
+[[get-stored-fields]]
+=== Stored Fields
 
 The get operation allows specifying a set of stored fields that will be
-returned by passing the `fields` parameter. For example:
+returned by passing the `stored_fields` parameter.
+If the requested fields are not stored, they will be ignored.
+Consider for instance the following mapping:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?fields=title,content'
+PUT twitter
+{
+   "mappings": {
+      "tweet": {
+         "properties": {
+            "counter": {
+               "type": "integer",
+               "store": false
+            },
+            "tags": {
+               "type": "keyword",
+               "store": true
+            }
+         }
+      }
+   }
+}
 --------------------------------------------------
+// CONSOLE
 
-For backward compatibility, if the requested fields are not stored, they will be fetched
-from the `_source` (parsed and extracted). This functionality has been replaced by the
-<<get-source-filtering,source filtering>> parameter.
+Now we can add a document:
 
-Field values fetched from the document it self are always returned as an array. Metadata fields like `_routing` and
-`_parent` fields are never returned as an array.
+[source,js]
+--------------------------------------------------
+PUT twitter/tweet/1
+{
+    "counter" : 1,
+    "tags" : ["red"]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-Also only leaf fields can be returned via the `field` option. So object fields can't be returned and such requests
+... and try to retrieve it:
+
+[source,js]
+--------------------------------------------------
+GET twitter/tweet/1?stored_fields=tags,counter
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The result of the above get operation is:
+
+[source,js]
+--------------------------------------------------
+{
+   "_index": "twitter",
+   "_type": "tweet",
+   "_id": "1",
+   "_version": 1,
+   "found": true,
+   "fields": {
+      "tags": [
+         "red"
+      ]
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+Field values fetched from the document it self are always returned as an array.
+Since the `counter` field is not stored the get request simply ignores it when trying to get the `stored_fields.`
+
+It is also possible to retrieve metadata fields like `_routing` and `_parent` fields:
+
+[source,js]
+--------------------------------------------------
+PUT twitter/tweet/2?routing=user1
+{
+    "counter" : 1,
+    "tags" : ["white"]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+GET twitter/tweet/2?routing=user1&stored_fields=tags,counter
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The result of the above get operation is:
+
+[source,js]
+--------------------------------------------------
+{
+   "_index": "twitter",
+   "_type": "tweet",
+   "_id": "2",
+   "_version": 1,
+   "_routing": "user1",
+   "found": true,
+   "fields": {
+      "tags": [
+         "white"
+      ]
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Also only leaf fields can be returned via the `stored_field` option. So object fields can't be returned and such requests
 will fail.
 
 [float]
@@ -139,23 +238,29 @@ without any additional content around it. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_source'
+GET twitter/tweet/1/_source
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 You can also use the same source filtering parameters to control which parts of the `_source` will be returned:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
+GET twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-Note, there is also a HEAD variant for the _source endpoint to efficiently test for document existence.
-Curl example:
+Note, there is also a HEAD variant for the _source endpoint to efficiently test for document _source existence.
+An existing document will not have a _source if it is disabled in the <<mapping-source-field,mapping>>.
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1/_source'
+HEAD twitter/tweet/1/_source
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[get-routing]]
@@ -166,10 +271,12 @@ a document, the routing value should also be provided. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?routing=kimchy'
+GET twitter/tweet/2?routing=user1
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The above will get a tweet with id 1, but will be routed based on the
+The above will get a tweet with id 2, but will be routed based on the
 user. Note, issuing a get without the correct routing, will cause the
 document not to be fetched.
 
@@ -224,9 +331,9 @@ better GET scaling we will have.
 === Versioning support
 
 You can use the `version` parameter to retrieve the document only if
-it's current version is equal to the specified one. This behavior is the same
+its current version is equal to the specified one. This behavior is the same
 for all version types with the exception of version type `FORCE` which always
-retrieves the document.
+retrieves the document. Note that `FORCE` version type is deprecated.
 
 Internally, Elasticsearch has marked the old document as deleted and added an
 entirely new document. The old version of the document doesn’t disappear

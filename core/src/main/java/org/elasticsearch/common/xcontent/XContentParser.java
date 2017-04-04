@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
@@ -34,7 +33,7 @@ import java.util.Map;
  *
  * <pre>
  *     XContentType xContentType = XContentType.JSON;
- *     XContentParser parser = xContentType.xContent().createParser("{\"key\" : \"value\"}");
+ *     XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, "{\"key\" : \"value\"}");
  * </pre>
  */
 public interface XContentParser extends Releasable {
@@ -132,6 +131,10 @@ public interface XContentParser extends Releasable {
 
     Map<String, Object> mapOrdered() throws IOException;
 
+    Map<String, String> mapStrings() throws IOException;
+
+    Map<String, String> mapStringsOrdered() throws IOException;
+
     List<Object> list() throws IOException;
 
     List<Object> listOrderedMap() throws IOException;
@@ -187,7 +190,7 @@ public interface XContentParser extends Releasable {
     float floatValue(boolean coerce) throws IOException;
 
     double doubleValue(boolean coerce) throws IOException;
-    
+
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -199,15 +202,31 @@ public interface XContentParser extends Releasable {
     double doubleValue() throws IOException;
 
     /**
+     * @return true iff the current value is either boolean (<code>true</code> or <code>false</code>) or one of "false", "true".
+     */
+    boolean isBooleanValue() throws IOException;
+
+    boolean booleanValue() throws IOException;
+
+    // TODO #22298: Remove this method and replace all call sites with #isBooleanValue()
+    /**
      * returns true if the current value is boolean in nature.
      * values that are considered booleans:
      * - boolean value (true/false)
      * - numeric integers (=0 is considered as false, !=0 is true)
      * - one of the following strings: "true","false","on","off","yes","no","1","0"
+     *
+     * @deprecated Just present for providing backwards compatibility. Use {@link #isBooleanValue()} instead.
      */
-    boolean isBooleanValue() throws IOException;
+    @Deprecated
+    boolean isBooleanValueLenient() throws IOException;
 
-    boolean booleanValue() throws IOException;
+    // TODO #22298: Remove this method and replace all call sites with #booleanValue()
+    /**
+     * @deprecated Just present for providing backwards compatibility. Use {@link #booleanValue()} instead.
+     */
+    @Deprecated
+    boolean booleanValueLenient() throws IOException;
 
     /**
      * Reads a plain binary value that was written via one of the following methods:
@@ -219,10 +238,10 @@ public interface XContentParser extends Releasable {
      *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
      * </ul>
      *
-     * as well as via their <code>XContentBuilderString</code> variants of the separated value methods.
+     * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
      * <ul>
-     *     <li>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
      *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
      * </ul>
      *
@@ -241,21 +260,21 @@ public interface XContentParser extends Releasable {
     /**
      * Used for error reporting to highlight where syntax errors occur in
      * content being parsed.
-     * 
+     *
      * @return last token's location or null if cannot be determined
      */
     XContentLocation getTokenLocation();
 
+    // TODO remove context entirely when it isn't needed
+    /**
+     * Parse an object by name.
+     */
+    <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException;
+
+    /**
+     * The registry used to resolve {@link #namedObject(Class, String, Object)}. Use this when building a sub-parser from this parser.
+     */
+    NamedXContentRegistry getXContentRegistry();
+
     boolean isClosed();
-
-    /**
-     * Returns this parsers {@link ParseFieldMatcher}
-     */
-    ParseFieldMatcher getParseFieldMatcher();
-
-
-    /**
-     * Sets this parsers {@link ParseFieldMatcher}
-     */
-    void setParseFieldMatcher(ParseFieldMatcher matcher) ;
 }

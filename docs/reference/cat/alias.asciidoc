@@ -4,19 +4,55 @@
 `aliases` shows information about currently configured aliases to indices
 including filter and routing infos.
 
-[source,sh]
+////
+Hidden setup for example:
+[source,js]
 --------------------------------------------------
-% curl '192.168.56.10:9200/_cat/aliases?v'
-alias  index filter routing.index routing.search
-alias2 test1 *      -            -
-alias4 test1 -      2            1,2
-alias1 test1 -      -            -
-alias3 test1 -      1            1
+PUT test1
+{
+  "aliases": {
+    "alias1": {},
+    "alias2": {
+      "filter": {
+        "match": {
+          "user": "kimchy"
+        }
+      }
+    },
+    "alias3": {
+      "routing": "1"
+    },
+    "alias4": {
+      "index_routing": "2",
+      "search_routing": "1,2"
+    }
+  }
+}
 --------------------------------------------------
+// CONSOLE
+////
 
-The output shows that `alias` has configured a filter, and specific routing
+[source,js]
+--------------------------------------------------
+GET /_cat/aliases?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Might respond with:
+
+[source,txt]
+--------------------------------------------------
+alias  index filter routing.index routing.search
+alias1 test1 -      -            -
+alias2 test1 *      -            -
+alias3 test1 -      1            1
+alias4 test1 -      2            1,2
+--------------------------------------------------
+// TESTRESPONSE[s/[*]/[*]/ _cat]
+
+The output shows that `alias2` has configured a filter, and specific routing
 configurations in `alias3` and `alias4`.
 
 If you only want to get information about a single alias, you can specify
 the alias in the URL, for example `/_cat/aliases/alias1`.
-

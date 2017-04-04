@@ -28,11 +28,12 @@ import java.util.Locale;
  */
 public interface CircuitBreaker {
 
-    public static final String PARENT = "parent";
-    public static final String FIELDDATA = "fielddata";
-    public static final String REQUEST = "request";
+    String PARENT = "parent";
+    String FIELDDATA = "fielddata";
+    String REQUEST = "request";
+    String IN_FLIGHT_REQUESTS = "in_flight_requests";
 
-    public static enum Type {
+    enum Type {
         // A regular or child MemoryCircuitBreaker
         MEMORY,
         // A special parent-type for the hierarchy breaker service
@@ -59,7 +60,7 @@ public interface CircuitBreaker {
      * @param fieldName name of the field responsible for tripping the breaker
      * @param bytesNeeded bytes asked for but unable to be allocated
      */
-    public void circuitBreak(String fieldName, long bytesNeeded);
+    void circuitBreak(String fieldName, long bytesNeeded);
 
     /**
      * add bytes to the breaker and maybe trip
@@ -67,35 +68,35 @@ public interface CircuitBreaker {
      * @param label string label describing the bytes being added
      * @return the number of "used" bytes for the circuit breaker
      */
-    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
+    double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 
     /**
      * Adjust the circuit breaker without tripping
      */
-    public long addWithoutBreaking(long bytes);
+    long addWithoutBreaking(long bytes);
 
     /**
      * @return the currently used bytes the breaker is tracking
      */
-    public long getUsed();
+    long getUsed();
 
     /**
      * @return maximum number of bytes the circuit breaker can track before tripping
      */
-    public long getLimit();
+    long getLimit();
 
     /**
      * @return overhead of circuit breaker
      */
-    public double getOverhead();
+    double getOverhead();
 
     /**
      * @return the number of times the circuit breaker has been tripped
      */
-    public long getTrippedCount();
+    long getTrippedCount();
 
     /**
      * @return the name of the breaker
      */
-    public String getName();
+    String getName();
 }

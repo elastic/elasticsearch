@@ -19,15 +19,11 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.script.Script;
 
+/**
+ * Static method aliases for constructors of known {@link ScoreFunctionBuilder}s.
+ */
 public class ScoreFunctionBuilders {
 
     public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale) {
@@ -38,7 +34,8 @@ public class ScoreFunctionBuilders {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
 
-    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset,
+            double decay) {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
@@ -62,7 +59,8 @@ public class ScoreFunctionBuilders {
         return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
 
-    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
+    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset,
+            double decay) {
         return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 

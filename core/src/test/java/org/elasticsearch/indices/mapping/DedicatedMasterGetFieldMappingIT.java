@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.junit.Before;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 
@@ -32,10 +31,10 @@ public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
 
     @Before
     public void before1() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .build();
-        internalCluster().startNodesAsync(settings, Settings.EMPTY).get();
+        internalCluster().startNodes(settings, Settings.EMPTY);
     }
 
 }

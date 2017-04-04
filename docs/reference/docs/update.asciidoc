@@ -10,18 +10,20 @@ during the "get" and "reindex".
 
 Note, this operation still means full reindex of the document, it just
 removes some network roundtrips and reduces chances of version conflicts
-between the get and the index. The `_source` field need to be enabled
+between the get and the index. The `_source` field needs to be enabled
 for this feature to work.
 
 For example, lets index a simple doc:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/type1/1 -d '{
+PUT test/type1/1
+{
     "counter" : 1,
     "tags" : ["red"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 === Scripted updates
@@ -30,68 +32,86 @@ Now, we can execute a script that would increment the counter:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
     "script" : {
-        "inline": "ctx._source.counter += count",
+        "inline": "ctx._source.counter += params.count",
+        "lang": "painless",
         "params" : {
             "count" : 4
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 We can add a tag to the list of tags (note, if the tag exists, it
 will still add it, since its a list):
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
     "script" : {
-        "inline": "ctx._source.tags += tag",
+        "inline": "ctx._source.tags.add(params.tag)",
+        "lang": "painless",
         "params" : {
             "tag" : "blue"
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In addition to `_source`, the following variables are available through
 the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
-`_parent`, `_timestamp`, `_ttl`.
+`_parent`, and `_now` (the current timestamp).
 
 We can also add a new field to the document:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.name_of_new_field = \"value_of_new_field\""
-}'
+POST test/type1/1/_update
+{
+    "script" : "ctx._source.new_field = \"value_of_new_field\""
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Or remove a field from the document:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.remove(\"name_of_field\")"
-}'
+POST test/type1/1/_update
+{
+    "script" : "ctx._source.remove(\"new_field\")"
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 And, we can even change the operation that is executed.  This example deletes
-the doc if the `tags` field contain `blue`, otherwise it does nothing
+the doc if the `tags` field contain `green`, otherwise it does nothing
 (`noop`):
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
     "script" : {
-        "inline": "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
+        "inline": "if (ctx._source.tags.contains(params.tag)) { ctx.op = \"delete\" } else { ctx.op = \"none\" }",
+        "lang": "painless",
         "params" : {
-            "tag" : "blue"
+            "tag" : "green"
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 === Updates with a partial document
@@ -103,34 +123,72 @@ example:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
     "doc" : {
         "name" : "new_name"
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-If both `doc` and `script` is specified, then `doc` is ignored. Best is
+If both `doc` and `script` are specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
 [float]
 === Detecting noop updates
-If `doc` is specified its value is merged with the existing `_source`. By
-default the document is only reindexed if the new `_source` field differs from
-the old. Setting `detect_noop` to `false` will cause Elasticsearch to always
-update the document even if it hasn't changed. For example:
+
+If `doc` is specified its value is merged with the existing `_source`.
+By default updates that don't change anything detect that they don't change anything and return "result": "noop" like this:
+
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
+    "doc" : {
+        "name" : "new_name"
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If `name` was `new_name` before the request was sent then the entire update
+request is ignored. The `result` element in the response returns `noop` if
+the request was ignored.
+
+[source,js]
+--------------------------------------------------
+{
+   "_shards": {
+        "total": 0,
+        "successful": 0,
+        "failed": 0
+   },
+   "_index": "test",
+   "_type": "type1",
+   "_id": "1",
+   "_version": 6,
+   "result": noop
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+You can disable this behavior by setting "detect_noop": false like this:
+
+[source,js]
+--------------------------------------------------
+POST test/type1/1/_update
+{
     "doc" : {
         "name" : "new_name"
     },
     "detect_noop": false
-}'
+}
 --------------------------------------------------
-
-If `name` was `new_name` before the request was sent then document is still
-reindexed.
+// CONSOLE
+// TEST[continued]
 
 [[upserts]]
 [float]
@@ -142,9 +200,11 @@ will be inserted as a new document.  If the document does exist, then the
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
     "script" : {
-        "inline": "ctx._source.counter += count",
+        "inline": "ctx._source.counter += params.count",
+        "lang": "painless",
         "params" : {
             "count" : 4
         }
@@ -152,8 +212,10 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "upsert" : {
         "counter" : 1
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ==== `scripted_upsert`
@@ -164,7 +226,8 @@ or not -- i.e. the script handles initializing the document instead of the
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
+POST sessions/session/dh3sgudg8gsrgl/_update
+{
     "scripted_upsert":true,
     "script" : {
         "id": "my_web_session_summariser",
@@ -177,7 +240,7 @@ curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
         }
     },
     "upsert" : {}
-}'
+}
 --------------------------------------------------
 
 [float]
@@ -189,13 +252,16 @@ value:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+POST test/type1/1/_update
+{
     "doc" : {
         "name" : "new_name"
     },
     "doc_as_upsert" : true
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 
 [float]
@@ -229,20 +295,22 @@ If an alias index routing is specified then it overrides the parent routing and 
 
 Timeout waiting for a shard to become available.
 
-`consistency`::
+`wait_for_active_shards`::
 
-The write consistency of the index/delete operation.
+The number of shard copies required to be active before proceeding with the update operation.
+See <<index-wait-for-active-shards,here>> for details.
 
 `refresh`::
 
-Refresh the relevant primary and replica shards (not the whole index)
-immediately after the operation occurs, so that the updated document appears
-in search results  immediately.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
-`fields`::
+`_source`::
 
-Return the relevant fields from the updated document. Specify `_source` to
-return the full updated source.
+Allows to control if and how the updated source should be returned in the response.
+By default the updated source is not returned.
+See <<search-request-source-filtering, `source filtering`>> for details.
+
 
 `version` & `version_type`::
 

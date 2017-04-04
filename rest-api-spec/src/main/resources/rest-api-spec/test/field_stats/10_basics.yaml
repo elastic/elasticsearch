@@ -5,17 +5,54 @@ setup:
           body:
             mappings:
               test:
-                  properties:
-                    foo:
-                      type: text
-                    number:
-                      type: long
+                properties:
+                  foo:
+                    type: text
+                  number:
+                    type: long
+                  bar:
+                    type: long
+                  geo:
+                    type: geo_point
+                  geo_shape:
+                    type: geo_shape
+                    tree: quadtree
+                    precision: 1m
+
+  - do:
+      indices.create:
+          index:  test_2
+          body:
+            mappings:
+              test:
+                properties:
+                  foo:
+                    type: text
+                  number:
+                    type: long
+                  bar:
+                    type: text
+                  geo:
+                    type: geo_point
+                    index: no
+                  geo_shape:
+                    type: geo_shape
+                    tree: quadtree
+                    precision: 1m
+
   - do:
       index:
           index:  test_1
           type:   test
           id:     id_1
-          body:   { foo: "bar", number: 123 }
+          body:   { foo: "bar", number: 123, bar: 123, geo: { lat: 48.858093, lon: 2.294694} }
+
+  - do:
+      index:
+          index:  test_2
+          type:   test
+          id:     id_10
+          body: { foo: "babar", number: 456, bar: "123", geo: { lat: 48.858093, lon: 2.294694},  geo_shape:  {type: "linestring", coordinates : [[-77.03653, 38.897676], [-77.009051, 38.889939]] } }
 
   - do:
       indices.refresh: {}
@@ -24,25 +61,63 @@ setup:
 "Basic field stats":
   - do:
       field_stats:
-          index:  test_1
           fields:  [foo, number]
 
-  - match: { indices._all.fields.foo.max_doc: 1 }
-  - match: { indices._all.fields.foo.doc_count: 1 }
-  - match: { indices._all.fields.foo.min_value: "bar" }
+  - match: { indices._all.fields.foo.max_doc: 2 }
+  - match: { indices._all.fields.foo.doc_count: 2 }
+  - match: { indices._all.fields.foo.min_value: "babar" }
   - match: { indices._all.fields.foo.max_value: "bar" }
-  - match: { indices._all.fields.number.max_doc: 1 }
-  - match: { indices._all.fields.number.doc_count: 1 }
+  - match: { indices._all.fields.foo.type: "string" }
+  - is_false: indices._all.fields.foo.min_value_as_string
+  - is_false: indices._all.fields.foo.max_value_as_string
+  - match: { indices._all.fields.foo.searchable: true }
+  - match: { indices._all.fields.foo.aggregatable: false }
+  - match: { indices._all.fields.number.max_doc: 2 }
+  - match: { indices._all.fields.number.doc_count: 2 }
+  - match: { indices._all.fields.number.searchable: true }
+  - match: { indices._all.fields.number.aggregatable: true }
   - match: { indices._all.fields.number.min_value: 123 }
   - match: { indices._all.fields.number.min_value_as_string: "123" }
-  - match: { indices._all.fields.number.max_value: 123 }
-  - match: { indices._all.fields.number.max_value_as_string: "123" }
+  - match: { indices._all.fields.number.max_value: 456 }
+  - match: { indices._all.fields.number.max_value_as_string: "456" }
+  - match: { indices._all.fields.number.type: "integer" }
+
+  - is_false: conflicts
+
+---
+"Geo field stats":
+  - skip:
+      version: " - 5.3.0"
+      reason:  geo_point fields don't return min/max for versions greater than 5.2.0
+
+  - do:
+      field_stats:
+          fields:  [geo, geo_shape]
+
+  - match: { indices._all.fields.geo.type: "geo_point" }
+  - match: { indices._all.fields.geo.max_doc: 2 }
+  - match: { indices._all.fields.geo.doc_count: -1 }
+  - match: { indices._all.fields.geo.searchable: true }
+  - match: { indices._all.fields.geo.aggregatable: true }
+  - is_false: indices._all.fields.geo.min_value
+  - is_false: indices._all.fields.geo.max_value
+  - is_false: indices._all.fields.geo.min_value_as_string
+  - is_false: indices._all.fields.geo.max_value_as_string
+  - match: { indices._all.fields.geo_shape.type: "string" }
+  - match: { indices._all.fields.geo_shape.max_doc: 1 }
+  - match: { indices._all.fields.geo_shape.doc_count: -1 }
+  - match: { indices._all.fields.geo_shape.searchable: true }
+  - match: { indices._all.fields.geo_shape.aggregatable: false }
+  - is_false: indices._all.fields.geo_shape.min_value
+  - is_false: indices._all.fields.geo_shape.max_value
+  - is_false: indices._all.fields.geo_shape.min_value_as_string
+  - is_false: indices._all.fields.geo_shape.max_value_as_string
+  - is_false: conflicts
 
 ---
 "Basic field stats with level set to indices":
   - do:
       field_stats:
-          index:  test_1
           fields:  [foo, number]
           level: indices
 
@@ -50,12 +125,94 @@ setup:
   - match: { indices.test_1.fields.foo.doc_count: 1 }
   - match: { indices.test_1.fields.foo.min_value: "bar" }
   - match: { indices.test_1.fields.foo.max_value: "bar" }
+  - is_false: indices.test_1.fields.foo.min_value_as_string
+  - is_false: indices.test_1.fields.foo.max_value_as_string
+  - match: { indices.test_1.fields.foo.searchable: true }
+  - match: { indices.test_1.fields.foo.aggregatable: false }
+  - match: { indices.test_1.fields.foo.type: "string" }
   - match: { indices.test_1.fields.number.max_doc: 1 }
   - match: { indices.test_1.fields.number.doc_count: 1 }
+  - match: { indices.test_1.fields.number.searchable: true }
+  - match: { indices.test_1.fields.number.aggregatable: true }
   - match: { indices.test_1.fields.number.min_value: 123 }
   - match: { indices.test_1.fields.number.min_value_as_string: "123" }
   - match: { indices.test_1.fields.number.max_value: 123 }
   - match: { indices.test_1.fields.number.max_value_as_string: "123" }
+  - match: { indices.test_1.fields.number.type: "integer" }
+  - match: { indices.test_2.fields.foo.max_doc: 1 }
+  - match: { indices.test_2.fields.foo.doc_count: 1 }
+  - match: { indices.test_2.fields.foo.min_value: "babar" }
+  - match: { indices.test_2.fields.foo.max_value: "babar" }
+  - match: { indices.test_2.fields.foo.type: "string" }
+  - is_false: indices.test_2.fields.foo.min_value_as_string
+  - is_false: indices.test_2.fields.foo.max_value_as_string
+  - match: { indices.test_2.fields.foo.searchable: true }
+  - match: { indices.test_2.fields.foo.aggregatable: false }
+  - match: { indices.test_2.fields.foo.type: "string" }
+  - match: { indices.test_2.fields.number.max_doc: 1 }
+  - match: { indices.test_2.fields.number.doc_count: 1 }
+  - match: { indices.test_2.fields.number.searchable: true }
+  - match: { indices.test_2.fields.number.aggregatable: true }
+  - match: { indices.test_2.fields.number.min_value: 456 }
+  - match: { indices.test_2.fields.number.min_value_as_string: "456" }
+  - match: { indices.test_2.fields.number.max_value: 456 }
+  - match: { indices.test_2.fields.number.max_value_as_string: "456" }
+  - match: { indices.test_2.fields.number.type: "integer" }
+  - is_false: conflicts
+
+
+---
+"Geo field stats with level set to indices":
+  - skip:
+      version: " - 5.3.0"
+      reason:  geo_point fields don't return min/max for versions greater than 5.2.0
+
+  - do:
+      field_stats:
+          fields:  [geo, geo_shape]
+          level: indices
+
+  - match: { indices.test_1.fields.geo.max_doc: 1 }
+  - match: { indices.test_1.fields.geo.doc_count: 1 }
+  - is_true: indices.test_1.fields.geo.min_value
+  - is_true: indices.test_1.fields.geo.max_value
+  - is_true: indices.test_1.fields.geo.min_value_as_string
+  - is_true: indices.test_1.fields.geo.max_value_as_string
+  - match: { indices.test_1.fields.geo.searchable: true }
+  - match: { indices.test_1.fields.geo.aggregatable: true }
+  - match: { indices.test_1.fields.geo.type: "geo_point" }
+  - is_true: indices.test_2.fields.geo
+  - match: { indices.test_2.fields.geo_shape.max_doc: 1 }
+  - match: { indices.test_2.fields.geo_shape.doc_count: -1 }
+  - is_false: indices.test_2.fields.geo_shape.min_value
+  - is_false: indices.test_2.fields.geo_shape.max_value
+  - is_false: indices.test_2.fields.geo_shape.min_value_as_string
+  - is_false: indices.test_2.fields.geo_shape.max_value_as_string
+  - match: { indices.test_2.fields.geo_shape.searchable: true }
+  - match: { indices.test_2.fields.geo_shape.aggregatable: false }
+  - match: { indices.test_2.fields.geo_shape.type: "string" }
+  - is_false: conflicts
+
+---
+"Geopoint field stats":
+  - skip:
+      version: " - 5.3.0"
+      reason:  geo_point type not handled for versions earlier than 6.0.0
+
+  - do:
+      field_stats:
+          fields:  [geo]
+          level: indices
+
+  - match: { indices.test_2.fields.geo.max_doc: 1 }
+  - match: { indices.test_2.fields.geo.doc_count: -1 }
+  - is_false: indices.test_2.fields.geo.min_value
+  - is_false: indices.test_2.fields.geo.max_value
+  - match: { indices.test_2.fields.geo.searchable: false }
+  - match: { indices.test_2.fields.geo.aggregatable: true }
+  - match: { indices.test_2.fields.geo.type: "geo_point" }
+  - is_true: indices.test_2.fields.geo
+  - is_false: conflicts
 
 ---
 "Field stats with filtering":
@@ -68,9 +225,13 @@ setup:
 
   - match: { indices.test_1.fields.foo.max_doc: 1 }
   - match: { indices.test_1.fields.foo.doc_count: 1 }
+  - match: { indices.test_1.fields.foo.searchable: true }
+  - match: { indices.test_1.fields.foo.aggregatable: false }
   - match: { indices.test_1.fields.foo.min_value: "bar" }
   - match: { indices.test_1.fields.foo.max_value: "bar" }
+  - match: { indices.test_1.fields.foo.type: "string" }
   - is_false: indices.test_1.fields.number
+  - is_false: conflicts
 
   - do:
       field_stats:
@@ -86,5 +247,30 @@ setup:
       catch: request
       field_stats:
           index:  test_1
-          fields : ["foo"]
+          fields:  ["foo"]
           body: { fields: ["foo"]}
+
+---
+"Field stats with conflicts":
+  - do:
+      field_stats:
+          fields:  [foo, number, bar]
+
+  - match: { indices._all.fields.foo.max_doc: 2 }
+  - match: { indices._all.fields.foo.doc_count: 2 }
+  - match: { indices._all.fields.foo.min_value: "babar" }
+  - match: { indices._all.fields.foo.max_value: "bar" }
+  - match: { indices._all.fields.foo.searchable: true }
+  - match: { indices._all.fields.foo.aggregatable: false }
+  - match: { indices._all.fields.foo.type: "string" }
+  - match: { indices._all.fields.number.max_doc: 2 }
+  - match: { indices._all.fields.number.doc_count: 2 }
+  - match: { indices._all.fields.number.searchable: true }
+  - match: { indices._all.fields.number.aggregatable: true }
+  - match: { indices._all.fields.number.min_value: 123 }
+  - match: { indices._all.fields.number.min_value_as_string: "123" }
+  - match: { indices._all.fields.number.max_value: 456 }
+  - match: { indices._all.fields.number.max_value_as_string: "456" }
+  - match: { indices._all.fields.number.type: "integer" }
+  - match: { conflicts.bar: "Field [bar] of type [integer] conflicts with existing field of type [string] in other index." }
+  - is_false: indices._all.fields.bar

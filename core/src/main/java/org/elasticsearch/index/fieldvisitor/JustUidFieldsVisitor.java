@@ -19,12 +19,10 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 
-/**
- */
 public class JustUidFieldsVisitor extends FieldsVisitor {
 
     public JustUidFieldsVisitor() {

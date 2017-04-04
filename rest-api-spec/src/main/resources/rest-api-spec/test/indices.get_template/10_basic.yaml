@@ -3,7 +3,7 @@ setup:
       indices.put_template:
         name: test
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -11,32 +11,44 @@ setup:
 ---
 "Get template":
 
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.get_template:
         name: test
 
-  - match: {test.template: "test-*"}
+  - match: {test.index_patterns: ["test-*"]}
   - match: {test.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
 
 ---
 "Get all templates":
 
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test2
         body:
-          template: test2-*
+          index_patterns: test2-*
           settings:
             number_of_shards:   1
 
   - do:
       indices.get_template: {}
 
-  - match: {test.template: "test-*"}
-  - match: {test2.template: "test2-*"}
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test2.index_patterns: ["test2-*"]}
 
 ---
 "Get template with local flag":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
 
   - do:
       indices.get_template:
@@ -47,6 +59,10 @@ setup:
 
 ---
 "Get template with flat settings and master timeout":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
 
   - do:
       indices.get_template:

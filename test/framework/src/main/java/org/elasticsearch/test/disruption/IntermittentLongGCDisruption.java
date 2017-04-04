@@ -39,19 +39,6 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
     final long delayDurationMax;
 
 
-    public IntermittentLongGCDisruption(Random random) {
-        this(null, random);
-    }
-
-    public IntermittentLongGCDisruption(String disruptedNode, Random random) {
-        this(disruptedNode, random, 100, 200, 300, 20000);
-    }
-
-    public IntermittentLongGCDisruption(String disruptedNode, Random random, long intervalBetweenDelaysMin,
-                                        long intervalBetweenDelaysMax, long delayDurationMin, long delayDurationMax) {
-        this(random, disruptedNode, intervalBetweenDelaysMin, intervalBetweenDelaysMax, delayDurationMin, delayDurationMax);
-    }
-
     public IntermittentLongGCDisruption(Random random, String disruptedNode, long intervalBetweenDelaysMin, long intervalBetweenDelaysMax,
                                         long delayDurationMin, long delayDurationMax) {
         super(random, disruptedNode);
@@ -61,7 +48,7 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
         this.delayDurationMax = delayDurationMax;
     }
 
-    final static AtomicInteger thread_ids = new AtomicInteger();
+    static final AtomicInteger thread_ids = new AtomicInteger();
 
     @Override
     public void startDisrupting() {
@@ -88,19 +75,15 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
     }
 
     private void simulateLongGC(final TimeValue duration) throws InterruptedException {
-        final String disruptionNodeCopy = disruptedNode;
-        if (disruptionNodeCopy == null) {
-            return;
-        }
-        logger.info("node [{}] goes into GC for for [{}]", disruptionNodeCopy, duration);
+        logger.info("node [{}] goes into GC for for [{}]", disruptedNode, duration);
         final Set<Thread> nodeThreads = new HashSet<>();
         try {
-            while (stopNodeThreads(disruptionNodeCopy, nodeThreads)) ;
+            while (stopNodeThreads(nodeThreads)) ;
             if (!nodeThreads.isEmpty()) {
                 Thread.sleep(duration.millis());
             }
         } finally {
-            logger.info("node [{}] resumes from GC", disruptionNodeCopy);
+            logger.info("node [{}] resumes from GC", disruptedNode);
             resumeThreads(nodeThreads);
         }
     }
@@ -109,13 +92,13 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
 
         @Override
         public void run() {
-            while (disrupting && disruptedNode != null) {
+            while (disrupting) {
                 try {
                     TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
                     simulateLongGC(duration);
 
                     duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
-                    if (disrupting && disruptedNode != null) {
+                    if (disrupting) {
                         Thread.sleep(duration.millis());
                     }
                 } catch (InterruptedException e) {

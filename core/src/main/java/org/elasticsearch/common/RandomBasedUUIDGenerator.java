@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Random;
 
 class RandomBasedUUIDGenerator implements UUIDGenerator {
@@ -54,14 +55,6 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
          * We set only the MSB of the variant*/
         randomBytes[8] &= 0x3f;  /* clear the 2 most significant bits */
         randomBytes[8] |= 0x80;  /* set the variant (MSB is set)*/
-        try {
-            byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
-            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
-            assert encoded[encoded.length - 1] == '=';
-            assert encoded[encoded.length - 2] == '=';
-            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
-        } catch (IOException e) {
-            throw new IllegalStateException("should not be thrown");
-        }
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 }

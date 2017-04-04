@@ -25,9 +25,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
-/**
- *
- */
 public class InputStreamStreamInput extends StreamInput {
 
     private final InputStream is;
@@ -97,5 +94,10 @@ public class InputStreamStreamInput extends StreamInput {
     @Override
     public long skip(long n) throws IOException {
         return is.skip(n);
+    }
+
+    @Override
+    protected void ensureCanReadBytes(int length) throws EOFException {
+        // TODO what can we do here?
     }
 }

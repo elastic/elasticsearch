@@ -34,9 +34,6 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 
-/**
- *
- */
 public class LeafFieldsLookup implements Map {
 
     private final MapperService mapperService;

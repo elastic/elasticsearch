@@ -44,7 +44,7 @@ public class OriginalIndicesTests extends ESTestCase {
             out.setVersion(randomVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 

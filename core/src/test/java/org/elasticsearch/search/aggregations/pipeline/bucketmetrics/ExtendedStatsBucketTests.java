@@ -19,18 +19,37 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregatorBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
 
-public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<ExtendedStatsBucketPipelineAggregatorBuilder> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<ExtendedStatsBucketPipelineAggregationBuilder> {
 
     @Override
-    protected ExtendedStatsBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        ExtendedStatsBucketPipelineAggregatorBuilder factory = new ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPath);
+    protected ExtendedStatsBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        ExtendedStatsBucketPipelineAggregationBuilder factory = new ExtendedStatsBucketPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.sigma(randomDoubleBetween(0.0, 10.0, false));
         }
         return factory;
     }
 
+    public void testSigmaFromInt() throws Exception {
+        XContentBuilder content = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("name")
+                    .startObject("extended_stats_bucket")
+                        .field("sigma", 5)
+                        .field("buckets_path", "test")
+                    .endObject()
+                .endObject()
+            .endObject();
 
+        ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) parse(
+                createParser(content));
+
+        assertThat(builder.sigma(), equalTo(5.0));
+    }
 }

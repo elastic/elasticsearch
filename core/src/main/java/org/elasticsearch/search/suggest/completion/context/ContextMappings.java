@@ -27,9 +27,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,7 +115,7 @@ public class ContextMappings implements ToXContent {
         private final Map<String, Set<CharSequence>> contexts;
         private final ParseContext.Document document;
 
-        public TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
+        TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
                                  ParseContext.Document document) {
             super(name, value, weight);
             this.contexts = contexts;

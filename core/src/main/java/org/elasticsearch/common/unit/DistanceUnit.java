@@ -33,7 +33,7 @@ import java.io.IOException;
  * the earth ellipsoid defined in {@link GeoUtils}. The default unit used within
  * this project is <code>METERS</code> which is defined by <code>DEFAULT</code>
  */
-public enum DistanceUnit implements Writeable<DistanceUnit> {
+public enum DistanceUnit implements Writeable {
     INCH(0.0254, "in", "inch"),
     YARD(0.9144, "yd", "yards"),
     FEET(0.3048, "ft", "feet"),

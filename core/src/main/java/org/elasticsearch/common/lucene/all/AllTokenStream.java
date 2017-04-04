@@ -22,57 +22,32 @@ package org.elasticsearch.common.lucene.all;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SmallFloat;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class AllTokenStream extends TokenFilter {
-
-    public static TokenStream allTokenStream(String allFieldName, AllEntries allEntries, Analyzer analyzer) throws IOException {
-        return new AllTokenStream(analyzer.tokenStream(allFieldName, allEntries), allEntries);
+    public static TokenStream allTokenStream(String allFieldName, String value, float boost, Analyzer analyzer) throws IOException {
+        return new AllTokenStream(analyzer.tokenStream(allFieldName, value), boost);
     }
-    
+
     private final BytesRef payloadSpare = new BytesRef(new byte[1]);
-
-    private final AllEntries allEntries;
-
-    private final OffsetAttribute offsetAttribute;
     private final PayloadAttribute payloadAttribute;
 
-    AllTokenStream(TokenStream input, AllEntries allEntries) {
+    AllTokenStream(TokenStream input, float boost) {
         super(input);
-        this.allEntries = allEntries;
-        offsetAttribute = addAttribute(OffsetAttribute.class);
         payloadAttribute = addAttribute(PayloadAttribute.class);
-    }
-
-    public AllEntries allEntries() {
-        return allEntries;
+        payloadSpare.bytes[0] = SmallFloat.floatToByte315(boost);
     }
 
     @Override
-    public final boolean incrementToken() throws IOException {
+    public boolean incrementToken() throws IOException {
         if (!input.incrementToken()) {
             return false;
         }
-        final float boost = allEntries.boost(offsetAttribute.startOffset());
-        if (boost != 1.0f) {
-            payloadSpare.bytes[0] = SmallFloat.floatToByte315(boost);
-            payloadAttribute.setPayload(payloadSpare);
-        } else {
-            payloadAttribute.setPayload(null);
-        }
+        payloadAttribute.setPayload(payloadSpare);
         return true;
-    }
-
-    @Override
-    public String toString() {
-        return allEntries.toString();
     }
 }

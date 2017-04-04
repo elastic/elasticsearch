@@ -29,45 +29,75 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
 
-    private static final List<Version> SORTED_VERSIONS;
+    private static final List<Version> RELEASED_VERSIONS;
+    private static final List<Version> UNRELEASED_VERSIONS;
+
     static {
-        Field[] declaredFields = Version.class.getFields();
-        Set<Integer> ids = new HashSet<>();
-        for (Field field : declaredFields) {
+        final Field[] declaredFields = Version.class.getFields();
+        final Set<Integer> releasedIdsSet = new HashSet<>();
+        final Set<Integer> unreleasedIdsSet = new HashSet<>();
+        for (final Field field : declaredFields) {
             final int mod = field.getModifiers();
             if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
                 if (field.getType() == Version.class) {
+                    final int id;
                     try {
-                        Version object = (Version) field.get(null);
-                        ids.add(object.id);
-                    } catch (Throwable e) {
+                        id = ((Version) field.get(null)).id;
+                    } catch (final IllegalAccessException e) {
                         throw new RuntimeException(e);
+                    }
+                    assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?(_UNRELEASED)?|CURRENT)") : field.getName();
+                    // note that below we remove CURRENT and add it to released; we do it this way because there are two constants that
+                    // correspond to CURRENT, CURRENT itself and the actual version that CURRENT points to
+                    if (field.getName().equals("CURRENT") || field.getName().endsWith("UNRELEASED")) {
+                        unreleasedIdsSet.add(id);
+                    } else {
+                        releasedIdsSet.add(id);
                     }
                 }
             }
         }
-        List<Integer> idList = new ArrayList<>(ids);
-        Collections.sort(idList);
-        List<Version> version = new ArrayList<>();
-        for (Integer integer : idList) {
-            version.add(Version.fromId(integer));
-        }
-        SORTED_VERSIONS = Collections.unmodifiableList(version);
+
+        // treat CURRENT as released for BWC testing
+        unreleasedIdsSet.remove(Version.CURRENT.id);
+        releasedIdsSet.add(Version.CURRENT.id);
+
+        // unreleasedIdsSet and releasedIdsSet should be disjoint
+        assert unreleasedIdsSet.stream().filter(releasedIdsSet::contains).collect(Collectors.toSet()).isEmpty();
+
+        RELEASED_VERSIONS =
+            Collections.unmodifiableList(releasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));
+        UNRELEASED_VERSIONS =
+            Collections.unmodifiableList(unreleasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));
     }
 
-    /** Returns immutable list of all known versions. */
-    public static List<Version> allVersions() {
-        return Collections.unmodifiableList(SORTED_VERSIONS);
+    /**
+     * Returns an immutable, sorted list containing all released versions.
+     *
+     * @return all released versions
+     */
+    public static List<Version> allReleasedVersions() {
+        return RELEASED_VERSIONS;
+    }
+
+    /**
+     * Returns an immutable, sorted list containing all unreleased versions.
+     *
+     * @return all unreleased versions
+     */
+    public static List<Version> allUnreleasedVersions() {
+        return UNRELEASED_VERSIONS;
     }
 
     public static Version getPreviousVersion(Version version) {
-        int index = SORTED_VERSIONS.indexOf(version);
+        int index = RELEASED_VERSIONS.indexOf(version);
         assert index > 0;
-        return SORTED_VERSIONS.get(index - 1);
+        return RELEASED_VERSIONS.get(index - 1);
     }
 
     /** Returns the {@link Version} before the {@link Version#CURRENT} */
@@ -79,23 +109,23 @@ public class VersionUtils {
 
     /** Returns the oldest {@link Version} */
     public static Version getFirstVersion() {
-        return SORTED_VERSIONS.get(0);
+        return RELEASED_VERSIONS.get(0);
     }
 
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
-        return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
+        return RELEASED_VERSIONS.get(random.nextInt(RELEASED_VERSIONS.size()));
     }
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
         int minVersionIndex = 0;
         if (minVersion != null) {
-            minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
+            minVersionIndex = RELEASED_VERSIONS.indexOf(minVersion);
         }
-        int maxVersionIndex = SORTED_VERSIONS.size() - 1;
+        int maxVersionIndex = RELEASED_VERSIONS.size() - 1;
         if (maxVersion != null) {
-            maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
+            maxVersionIndex = RELEASED_VERSIONS.indexOf(maxVersion);
         }
         if (minVersionIndex == -1) {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
@@ -106,12 +136,12 @@ public class VersionUtils {
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
-            return SORTED_VERSIONS.get(minVersionIndex + random.nextInt(range));
+            return RELEASED_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
     }
 
     public static boolean isSnapshot(Version version) {
-        if (Version.CURRENT.equals(version) || Version.V_2_3_0.equals(version)) {
+        if (Version.CURRENT.equals(version)) {
             return true;
         }
         return false;

@@ -34,11 +34,11 @@ import java.io.StringReader;
  */
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     public void testDefaultSetting() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
-        CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        CharFilterFactory charFilterFactory = analysis.charFilter.get("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
         Normalizer2 normalizer = Normalizer2.getInstance(null, "nfkc_cf", Normalizer2.Mode.COMPOSE);
@@ -56,13 +56,13 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     }
 
     public void testNameAndModeSetting() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")
             .build();
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
-        CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        CharFilterFactory charFilterFactory = analysis.charFilter.get("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
         Normalizer2 normalizer = Normalizer2.getInstance(null, "nfkc", Normalizer2.Mode.DECOMPOSE);

@@ -26,7 +26,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.IntArray;
@@ -34,18 +33,18 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,13 +70,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected RandomAccessOrds globalOrds;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                                               Terms.Order order, BucketCountThresholds bucketCountThresholds,
- IncludeExclude.OrdinalsFilter includeExclude,
-            AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators,
-                metaData);
+           Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
+           IncludeExclude.OrdinalsFilter includeExclude, SearchContext context, Aggregator parent,
+           SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
+           Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
+                pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
     }
@@ -93,7 +91,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         globalOrds = valuesSource.globalOrdinalsValues(ctx);
 
         if (acceptedGlobalOrdinals == null && includeExclude != null) {
-            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds, valuesSource);
+            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds);
         }
 
         if (acceptedGlobalOrdinals != null) {
@@ -156,7 +154,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         long otherDocCount = 0;
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
+        BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
         for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
@@ -172,7 +170,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = (OrdBucket) ordered.insertWithOverflow(spare);
+                spare = ordered.insertWithOverflow(spare);
                 if (spare == null) {
                     spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
                 }
@@ -180,14 +178,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         // Get the top buckets
-        final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final OrdBucket bucket = (OrdBucket) ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             BytesRef scratch = new BytesRef();
             copy(globalOrds.lookupOrd(bucket.globalOrd), scratch);
-            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0);
+            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
             list[i].bucketOrd = bucket.bucketOrd;
             otherDocCount -= list[i].docCount;
         }
@@ -196,20 +194,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         //Now build the aggs
         for (int i = 0; i < list.length; i++) {
-            Bucket bucket = list[i];
+            StringTerms.Bucket bucket = list[i];
             bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
             bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
-                bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, pipelineAggregators(),
-                metaData());
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                otherDocCount, Arrays.asList(list), 0);
     }
 
     /**
      * This is used internally only, just for compare using global ordinal instead of term bytes in the PQ
      */
-    static class OrdBucket extends InternalTerms.Bucket {
+    static class OrdBucket extends InternalTerms.Bucket<OrdBucket> {
         long globalOrd;
 
         OrdBucket(long globalOrd, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
@@ -233,7 +231,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
+        OrdBucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
             throw new UnsupportedOperationException();
         }
 
@@ -243,17 +241,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        protected void writeTermTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             throw new UnsupportedOperationException();
         }
     }
@@ -266,14 +259,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                        Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext,
-                        Aggregator parent, SubAggCollectionMode collectionMode,
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, Terms.Order order,
+                DocValueFormat format, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
+                SearchContext context, Aggregator parent, SubAggCollectionMode collectionMode,
                 boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            super(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode,
+                        throws IOException {
+            super(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude, context, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
-            bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+            bucketOrds = new LongHash(1, context.bigArrays());
         }
 
         @Override
@@ -340,11 +333,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private RandomAccessOrds segmentOrds;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                Terms.Order order,
-                BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
+                Terms.Order order, DocValueFormat format,
+                BucketCountThresholds bucketCountThresholds, SearchContext context, Aggregator parent,
                 SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode,
+            super(name, factories, valuesSource, order, format, bucketCountThresholds, null, context, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);

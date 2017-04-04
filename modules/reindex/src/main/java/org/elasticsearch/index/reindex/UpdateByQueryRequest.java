@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.TaskId;
 
-import static java.util.Collections.unmodifiableList;
+import java.io.IOException;
 
 /**
  * Request to update some documents. That means you can't change their type, id, index, or anything like that. This implements
@@ -35,7 +34,7 @@ import static java.util.Collections.unmodifiableList;
  * representative set of subrequests. This is best-effort but better than {@linkplain ReindexRequest} because scripts can't change the
  * destination index and things.
  */
-public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest> implements CompositeIndicesRequest {
+public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest> implements IndicesRequest.Replaceable {
     /**
      * Ingest pipeline to set on index requests made by this action.
      */
@@ -45,7 +44,11 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     public UpdateByQueryRequest(SearchRequest search) {
-        super(search);
+        this(search, true);
+    }
+
+    private UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
+        super(search, setDefaults);
     }
 
     /**
@@ -68,6 +71,13 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     @Override
+    protected UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask);
+        request.setPipeline(pipeline);
+        return request;
+    }
+
+    @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("update-by-query ");
@@ -75,25 +85,36 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         return b.toString();
     }
 
-    // CompositeIndicesRequest implementation so plugins can reason about the request. This is really just a best effort thing.
-    /**
-     * Accessor to get the underlying {@link IndicesRequest}s that this request wraps. Note that this method is <strong>not
-     * accurate</strong> since it returns dummy {@link IndexRequest}s and not the actual requests that will be issued as part of the
-     * execution of this request.
-     *
-     * @return a list comprising of the {@link SearchRequest} and dummy {@link IndexRequest}s
-     */
+    //update by query updates all documents that match a query. The indices and indices options that affect how
+    //indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
     @Override
-    public List<? extends IndicesRequest> subRequests() {
+    public IndicesRequest indices(String... indices) {
         assert getSearchRequest() != null;
-        List<IndicesRequest> subRequests = new ArrayList<>();
-        // One dummy IndexRequest per destination index.
-        for (String index : getSearchRequest().indices()) {
-            IndexRequest request = new IndexRequest();
-            request.index(index);
-            subRequests.add(request);
-        }
-        subRequests.add(getSearchRequest());
-        return unmodifiableList(subRequests);
-    };
+        getSearchRequest().indices(indices);
+        return this;
+    }
+
+    @Override
+    public String[] indices() {
+        assert getSearchRequest() != null;
+        return getSearchRequest().indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        assert getSearchRequest() != null;
+        return getSearchRequest().indicesOptions();
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        pipeline = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(pipeline);
+    }
 }

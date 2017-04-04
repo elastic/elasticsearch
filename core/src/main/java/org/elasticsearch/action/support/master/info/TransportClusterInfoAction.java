@@ -31,8 +31,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
-/**
- */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
         extends TransportMasterNodeReadAction<Request, Response> {
 
@@ -54,5 +52,5 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         doMasterOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, final ActionListener<Response> listener);
+    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener);
 }

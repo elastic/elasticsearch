@@ -22,13 +22,11 @@
                                     name_type: ashkenazi
                                     languageset: polish
     - do:
-        cluster.health:
-            wait_for_status: yellow
-    - do:
         indices.analyze:
             index: phonetic_sample
-            analyzer: my_analyzer
-            text: Szwarc
+            body:
+                analyzer: my_analyzer
+                text: Szwarc
 
     - length: { tokens: 1 }
     - match:  { tokens.0.token: Svarts }

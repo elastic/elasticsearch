@@ -28,21 +28,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ClusterScope(scope = Scope.TEST, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0, supportsDedicatedMasters = false)
 public class TransportClientRetryIT extends ESIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
@@ -52,16 +49,14 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             addresses[i++] = instance.boundAddress().publishAddress();
         }
 
-        Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+        Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("node.name", "transport_client_retry_test")
-                .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
-        try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {
-            transportClient.addTransportAddresses(addresses);
-            assertThat(transportClient.connectedNodes().size(), equalTo(internalCluster().size()));
+        try (TransportClient client = new MockTransportClient(builder.build())) {
+            client.addTransportAddresses(addresses);
+            assertEquals(client.connectedNodes().size(), internalCluster().size());
 
             int size = cluster().size();
             //kill all nodes one by one, leaving a single master/data node at the end of the loop
@@ -72,14 +67,14 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 ClusterState clusterState;
                 //use both variants of execute method: with and without listener
                 if (randomBoolean()) {
-                    clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
+                    clusterState = client.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
-                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(transportClient.threadPool());
-                    transportClient.admin().cluster().state(clusterStateRequest, future);
+                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(client.threadPool());
+                    client.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }
-                assertThat(clusterState.nodes().size(), greaterThanOrEqualTo(size - j));
-                assertThat(transportClient.connectedNodes().size(), greaterThanOrEqualTo(size - j));
+                assertThat(clusterState.nodes().getSize(), greaterThanOrEqualTo(size - j));
+                assertThat(client.connectedNodes().size(), greaterThanOrEqualTo(size - j));
             }
         }
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,29 +38,64 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
-/**
- *
- */
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 
-    public static XContentParser createParser(BytesReference bytes) throws IOException {
+    /**
+     * Creates a parser based on the bytes provided
+     * @deprecated use {@link #createParser(NamedXContentRegistry, BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
+    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.streamInput(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
-            XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(compressedInput);
+            final XContentType contentType = XContentFactory.xContentType(compressedInput);
+            return XContentFactory.xContent(contentType).createParser(xContentRegistry, compressedInput);
         } else {
-            return XContentFactory.xContent(bytes).createParser(bytes.streamInput());
+            return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
         }
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticsearchParseException {
+    /**
+     * Creates a parser for the bytes using the supplied content-type
+     */
+    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes,
+                                              XContentType xContentType) throws IOException {
+        Objects.requireNonNull(xContentType);
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            if (compressedInput.markSupported() == false) {
+                compressedInput = new BufferedInputStream(compressedInput);
+            }
+            return XContentFactory.xContent(xContentType).createParser(xContentRegistry, compressedInput);
+        } else {
+            return xContentType.xContent().createParser(xContentRegistry, bytes.streamInput());
+        }
+    }
+
+    /**
+     * Converts the given bytes into a map that is optionally ordered.
+     * @deprecated this method relies on auto-detection of content type. Use {@link #convertToMap(BytesReference, boolean, XContentType)}
+     *             instead with the proper {@link XContentType}
+     */
+    @Deprecated
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
+            throws ElasticsearchParseException {
+        return convertToMap(bytes, ordered, null);
+    }
+
+    /**
+     * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+     */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+        throws ElasticsearchParseException {
         try {
-            XContentType contentType;
+            final XContentType contentType;
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
@@ -70,58 +103,68 @@ public class XContentHelper {
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
-                contentType = XContentFactory.xContentType(compressedStreamInput);
                 input = compressedStreamInput;
             } else {
-                contentType = XContentFactory.xContentType(bytes);
                 input = bytes.streamInput();
             }
-            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(input)) {
-                if (ordered) {
-                    return Tuple.tuple(contentType, parser.mapOrdered());
-                } else {
-                    return Tuple.tuple(contentType, parser.map());
-                }
-            }
+            contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+            return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), input, ordered));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
     }
 
+    /**
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, string)) {
+            return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    /**
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
+            throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
+            return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
         return convertToJson(bytes, reformatJson, false);
     }
 
+    @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        if (bytes.hasArray()) {
-            return convertToJson(bytes.array(), bytes.arrayOffset(), bytes.length(), reformatJson, prettyPrint);
-        }
-        XContentType xContentType = XContentFactory.xContentType(bytes);
-        if (xContentType == XContentType.JSON && !reformatJson) {
-            BytesArray bytesArray = bytes.toBytesArray();
-            return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), StandardCharsets.UTF_8);
-        }
-        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(bytes.streamInput())) {
-            parser.nextToken();
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            if (prettyPrint) {
-                builder.prettyPrint();
-            }
-            builder.copyCurrentStructure(parser);
-            return builder.string();
-        }
+        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes));
     }
 
-    public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {
-        return convertToJson(data, offset, length, reformatJson, false);
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
+        return convertToJson(bytes, reformatJson, false, xContentType);
     }
 
-    public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson, boolean prettyPrint) throws IOException {
-        XContentType xContentType = XContentFactory.xContentType(data, offset, length);
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
+        throws IOException {
+        Objects.requireNonNull(xContentType);
         if (xContentType == XContentType.JSON && !reformatJson) {
-            return new String(data, offset, length, StandardCharsets.UTF_8);
+            return bytes.utf8ToString();
         }
-        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(data, offset, length)) {
+
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                bytes.streamInput())) {
             parser.nextToken();
             XContentBuilder builder = XContentFactory.jsonBuilder();
             if (prettyPrint) {
@@ -178,7 +221,7 @@ public class XContentHelper {
 
     /**
      * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
-     * unless both are Maps, in which case it recuersively updated it.
+     * unless both are Maps, in which case it recursively updated it.
      *
      * @param source                 the original map to be updated
      * @param changes                the changes to update into updated
@@ -220,7 +263,6 @@ public class XContentHelper {
      * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge
      * for inner maps.
      */
-    @SuppressWarnings({"unchecked"})
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
             if (!content.containsKey(defaultEntry.getKey())) {
@@ -284,33 +326,36 @@ public class XContentHelper {
         return true;
     }
 
-    public static void copyCurrentStructure(XContentGenerator generator, XContentParser parser) throws IOException {
+    /**
+     * Low level implementation detail of {@link XContentGenerator#copyCurrentStructure(XContentParser)}.
+     */
+    public static void copyCurrentStructure(XContentGenerator destination, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
 
         // Let's handle field-name separately first
         if (token == XContentParser.Token.FIELD_NAME) {
-            generator.writeFieldName(parser.currentName());
+            destination.writeFieldName(parser.currentName());
             token = parser.nextToken();
             // fall-through to copy the associated value
         }
 
         switch (token) {
             case START_ARRAY:
-                generator.writeStartArray();
+                destination.writeStartArray();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    copyCurrentStructure(generator, parser);
+                    copyCurrentStructure(destination, parser);
                 }
-                generator.writeEndArray();
+                destination.writeEndArray();
                 break;
             case START_OBJECT:
-                generator.writeStartObject();
+                destination.writeStartObject();
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    copyCurrentStructure(generator, parser);
+                    copyCurrentStructure(destination, parser);
                 }
-                generator.writeEndObject();
+                destination.writeEndObject();
                 break;
             default: // others are simple:
-                copyCurrentEvent(generator, parser);
+                copyCurrentEvent(destination, parser);
         }
     }
 
@@ -368,7 +413,10 @@ public class XContentHelper {
     /**
      * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
      * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference)}.
+     * @deprecated use {@link #writeRawField(String, BytesReference, XContentType, XContentBuilder, Params)} to avoid content type
+     * auto-detection
      */
+    @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
@@ -376,6 +424,48 @@ public class XContentHelper {
             builder.rawField(field, compressedStreamInput);
         } else {
             builder.rawField(field, source);
+        }
+    }
+
+    /**
+     * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
+     * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference, XContentType)}.
+     */
+    public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder,
+                                     ToXContent.Params params) throws IOException {
+        Objects.requireNonNull(xContentType);
+        Compressor compressor = CompressorFactory.compressor(source);
+        if (compressor != null) {
+            InputStream compressedStreamInput = compressor.streamInput(source.streamInput());
+            builder.rawField(field, compressedStreamInput, xContentType);
+        } else {
+            builder.rawField(field, source, xContentType);
+        }
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object.
+     */
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
+        return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object.
+     */
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.humanReadable(humanReadable);
+            if (toXContent.isFragment()) {
+                builder.startObject();
+            }
+            toXContent.toXContent(builder, params);
+            if (toXContent.isFragment()) {
+                builder.endObject();
+            }
+            return builder.bytes();
         }
     }
 }

@@ -19,21 +19,24 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-
-import static org.apache.lucene.spatial.util.GeoDistanceUtils.maxRadialDistanceMeters;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
 
-/**
- */
 public class GeoUtils {
 
     /** Maximum valid latitude in degrees. */
@@ -45,9 +48,9 @@ public class GeoUtils {
     /** Minimum valid longitude in degrees. */
     public static final double MIN_LON = -180.0;
 
-    public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
-    public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
-    public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
+    public static final String LATITUDE = "lat";
+    public static final String LONGITUDE = "lon";
+    public static final String GEOHASH = "geohash";
 
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
@@ -67,13 +70,8 @@ public class GeoUtils {
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
 
-    /** Returns the minimum between the provided distance 'initialRadius' and the
-     * maximum distance/radius from the point 'center' before overlapping
-     **/
-    public static double maxRadialDistance(GeoPoint center, double initialRadius) {
-        final double maxRadius = maxRadialDistanceMeters(center.lon(), center.lat());
-        return Math.min(initialRadius, maxRadius);
-    }
+    /** rounding error for quantized latitude and longitude values */
+    public static final double TOLERANCE = 1E-6;
 
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
@@ -89,14 +87,6 @@ public class GeoUtils {
             return false;
         }
         return true;
-    }
-
-    /**
-     * Return an approximate value of the diameter of the earth (in meters) at the given latitude (in radians).
-     */
-    public static double earthDiameter(double latitude) {
-        // SloppyMath impl returns a result in kilometers
-        return SloppyMath.earthDiameter(latitude) * 1000;
     }
 
     /**
@@ -374,6 +364,7 @@ public class GeoUtils {
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;
+        NumberFormatException numberFormatException = null;
 
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
@@ -384,7 +375,11 @@ public class GeoUtils {
                         switch (parser.currentToken()) {
                             case VALUE_NUMBER:
                             case VALUE_STRING:
-                                lat = parser.doubleValue(true);
+                                try {
+                                    lat = parser.doubleValue(true);
+                                } catch (NumberFormatException e) {
+                                    numberFormatException = e;
+                                }
                                 break;
                             default:
                                 throw new ElasticsearchParseException("latitude must be a number");
@@ -394,7 +389,11 @@ public class GeoUtils {
                         switch (parser.currentToken()) {
                             case VALUE_NUMBER:
                             case VALUE_STRING:
-                                lon = parser.doubleValue(true);
+                                try {
+                                    lon = parser.doubleValue(true);
+                                } catch (NumberFormatException e) {
+                                    numberFormatException = e;
+                                }
                                 break;
                             default:
                                 throw new ElasticsearchParseException("longitude must be a number");
@@ -419,6 +418,9 @@ public class GeoUtils {
                 } else {
                     return point.resetFromGeoHash(geohash);
                 }
+            } else if (numberFormatException != null) {
+                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
+                    LONGITUDE);
             } else if (Double.isNaN(lat)) {
                 throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
             } else if (Double.isNaN(lon)) {
@@ -461,6 +463,85 @@ public class GeoUtils {
             return point.reset(lat, lon);
         } else {
             return point.resetFromGeoHash(data);
+        }
+    }
+
+    /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */
+    public static double maxRadialDistanceMeters(final double centerLat, final double centerLon) {
+      if (Math.abs(centerLat) == MAX_LAT) {
+        return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
+      }
+      return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
+    }
+
+    /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */
+    public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
+        return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
+    }
+
+    /**
+     * Return the distance (in meters) between 2 lat,lon geo points using a simple tangential plane
+     * this provides a faster alternative to {@link GeoUtils#arcDistance} but is inaccurate for distances greater than
+     * 4 decimal degrees
+     */
+    public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
+        double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
+        double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
+        return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
+    }
+
+    /** check if point is within a rectangle
+     * todo: move this to lucene Rectangle class
+     */
+    public static boolean rectangleContainsPoint(Rectangle r, double lat, double lon) {
+        if (lat >= r.minLat && lat <= r.maxLat) {
+            // if rectangle crosses the dateline we only check if the lon is >= min or max
+            return r.crossesDateline() ? lon >= r.minLon || lon <= r.maxLon : lon >= r.minLon && lon <= r.maxLon;
+        }
+        return false;
+    }
+
+    /**
+     * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points
+     * for each document.
+     */
+    public static SortedNumericDoubleValues distanceValues(final GeoDistance distance,
+                                                           final DistanceUnit unit,
+                                                           final MultiGeoPointValues geoPointValues,
+                                                           final GeoPoint... fromPoints) {
+        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        if (singleValues != null && fromPoints.length == 1) {
+            final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
+            return FieldData.singleton(new NumericDoubleValues() {
+
+                @Override
+                public double get(int docID) {
+                    if (docsWithField != null && !docsWithField.get(docID)) {
+                        return 0d;
+                    }
+                    final GeoPoint to = singleValues.get(docID);
+                    final GeoPoint from = fromPoints[0];
+                    return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
+                }
+
+            }, docsWithField);
+        } else {
+            return new SortingNumericDoubleValues() {
+                @Override
+                public void setDocument(int doc) {
+                    geoPointValues.setDocument(doc);
+                    resize(geoPointValues.count() * fromPoints.length);
+                    int v = 0;
+                    for (GeoPoint from : fromPoints) {
+                        for (int i = 0; i < geoPointValues.count(); ++i) {
+                            final GeoPoint point = geoPointValues.valueAt(i);
+                            values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
+                            v++;
+                        }
+                    }
+                    sort();
+                }
+            };
         }
     }
 

@@ -31,7 +31,7 @@ import java.util.Locale;
  *
  *
  */
-public enum SortOrder implements Writeable<SortOrder> {
+public enum SortOrder implements Writeable {
     /**
      * Ascending order.
      */

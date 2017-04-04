@@ -18,36 +18,28 @@
  */
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
-    final static RecoveryTargetService.RecoveryListener listener = new RecoveryTargetService.RecoveryListener() {
+public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
+    static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 
@@ -60,115 +52,114 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
     };
 
     public void testLastAccessTimeUpdate() throws Exception {
-        createIndex();
-        final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
-        final long recoveryId = startRecovery(collection);
-        try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
-            final long lastSeenTime = status.status().lastAccessTime();
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
+        try (ReplicationGroup shards = createGroup(0)) {
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
+            try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
+                final long lastSeenTime = status.target().lastAccessTime();
+                assertBusy(() -> {
                     try (RecoveriesCollection.RecoveryRef currentStatus = collection.getRecovery(recoveryId)) {
-                        assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.status().lastAccessTime()));
+                        assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.target().lastAccessTime()));
                     }
-                }
-            });
-        } finally {
-            collection.cancelRecovery(recoveryId, "life");
-        }
-    }
-
-    public void testRecoveryTimeout() throws InterruptedException {
-        createIndex();
-        final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
-        final AtomicBoolean failed = new AtomicBoolean();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final long recoveryId = startRecovery(collection, new RecoveryTargetService.RecoveryListener() {
-            @Override
-            public void onRecoveryDone(RecoveryState state) {
-                latch.countDown();
+                });
+            } finally {
+                collection.cancelRecovery(recoveryId, "life");
             }
+        }
+    }
 
-            @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                failed.set(true);
-                latch.countDown();
+    public void testRecoveryTimeout() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final AtomicBoolean failed = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(),
+                new PeerRecoveryTargetService.RecoveryListener() {
+                    @Override
+                    public void onRecoveryDone(RecoveryState state) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                        failed.set(true);
+                        latch.countDown();
+                    }
+                }, TimeValue.timeValueMillis(100));
+            try {
+                latch.await(30, TimeUnit.SECONDS);
+                assertTrue("recovery failed to timeout", failed.get());
+            } finally {
+                collection.cancelRecovery(recoveryId, "meh");
             }
-        }, TimeValue.timeValueMillis(100));
-        try {
-            latch.await(30, TimeUnit.SECONDS);
-            assertTrue("recovery failed to timeout", failed.get());
-        } finally {
-            collection.cancelRecovery(recoveryId, "meh");
         }
 
     }
 
-    public void testRecoveryCancellationNoPredicate() throws Exception {
-        createIndex();
-        final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
-        final long recoveryId = startRecovery(collection);
-        final long recoveryId2 = startRecovery(collection);
-        try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
-            ShardId shardId = recoveryRef.status().shardId();
-            assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
-            assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
-        } finally {
-            collection.cancelRecovery(recoveryId, "meh");
-            collection.cancelRecovery(recoveryId2, "meh");
-        }
-    }
-
-    public void testRecoveryCancellationPredicate() throws Exception {
-        createIndex();
-        final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
-        final long recoveryId = startRecovery(collection);
-        final long recoveryId2 = startRecovery(collection);
-        final ArrayList<AutoCloseable> toClose = new ArrayList<>();
-        try {
-            RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId);
-            toClose.add(recoveryRef);
-            ShardId shardId = recoveryRef.status().shardId();
-            assertFalse("should not have cancelled recoveries", collection.cancelRecoveriesForShard(shardId, "test", status -> false));
-            final Predicate<RecoveryTarget> shouldCancel = status -> status.recoveryId() == recoveryId;
-            assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test", shouldCancel));
-            assertThat("we should still have on recovery", collection.size(), equalTo(1));
-            recoveryRef = collection.getRecovery(recoveryId);
-            toClose.add(recoveryRef);
-            assertNull("recovery should have been deleted", recoveryRef);
-            recoveryRef = collection.getRecovery(recoveryId2);
-            toClose.add(recoveryRef);
-            assertNotNull("recovery should NOT have been deleted", recoveryRef);
-
-        } finally {
-            // TODO: do we want a lucene IOUtils version of this?
-            for (AutoCloseable closeable : toClose) {
-                if (closeable != null) {
-                    closeable.close();
-                }
+    public void testRecoveryCancellation() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
+            final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
+            try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
+                ShardId shardId = recoveryRef.target().shardId();
+                assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
+                assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
+            } finally {
+                collection.cancelRecovery(recoveryId, "meh");
+                collection.cancelRecovery(recoveryId2, "meh");
             }
-            collection.cancelRecovery(recoveryId, "meh");
-            collection.cancelRecovery(recoveryId2, "meh");
         }
     }
 
-    protected void createIndex() {
-        createIndex("test",
-                Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build());
-        ensureGreen();
+    public void testResetRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startAll();
+            int numDocs = randomIntBetween(1, 15);
+            shards.indexDocs(numDocs);
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            IndexShard shard = shards.addReplica();
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
+            RecoveryTarget recoveryTarget = collection.getRecoveryTarget(recoveryId);
+            final int currentAsTarget = shard.recoveryStats().currentAsTarget();
+            final int referencesToStore = recoveryTarget.store().refCount();
+            IndexShard indexShard = recoveryTarget.indexShard();
+            Store store = recoveryTarget.store();
+            String tempFileName = recoveryTarget.getTempNameForFile("foobar");
+            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            final long resetRecoveryId = resetRecovery.recoveryId();
+            assertNotSame(recoveryTarget, resetRecovery);
+            assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
+            assertSame(indexShard, resetRecovery.indexShard());
+            assertSame(store, resetRecovery.store());
+            assertEquals(referencesToStore, resetRecovery.store().refCount());
+            assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
+            assertEquals(recoveryTarget.refCount(), 0);
+            expectThrows(ElasticsearchException.class, () -> recoveryTarget.store());
+            expectThrows(ElasticsearchException.class, () -> recoveryTarget.indexShard());
+            String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
+            assertNotEquals(tempFileName, resetTempFileName);
+            assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
+            try (RecoveriesCollection.RecoveryRef newRecoveryRef = collection.getRecovery(resetRecoveryId)) {
+                shards.recoverReplica(shard, (s, n) -> {
+                    assertSame(s, newRecoveryRef.target().indexShard());
+                    return newRecoveryRef.target();
+                }, false);
+            }
+            shards.assertAllEqual(numDocs);
+            assertNull("recovery is done", collection.getRecovery(recoveryId));
+        }
     }
 
-
-    long startRecovery(RecoveriesCollection collection) {
-        return startRecovery(collection, listener, TimeValue.timeValueMinutes(60));
+    long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
+        return startRecovery(collection,sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
     }
 
-    long startRecovery(RecoveriesCollection collection, RecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
-        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        IndexShard indexShard = indexServices.indexServiceSafe(resolveIndex("test")).getShardOrNull(0);
-        final DiscoveryNode sourceNode = new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+    long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard indexShard,
+                       PeerRecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
+        final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
+        indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
+        indexShard.prepareForIndexRecovery();
         return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
     }
 }

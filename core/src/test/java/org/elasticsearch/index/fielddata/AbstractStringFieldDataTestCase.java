@@ -67,8 +67,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataImplTestCase {
     private void addField(Document d, String name, String value) {
         d.add(new StringField(name, value, Field.Store.YES));
@@ -266,8 +264,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN, null);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
+        SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
@@ -320,8 +318,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         }
         final IndexFieldData indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN, null);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
+        SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
@@ -559,37 +557,40 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
     public void testTermsEnum() throws Exception {
         fillExtendedMvSet();
-        LeafReaderContext atomicReaderContext = refreshReader();
+        writer.forceMerge(1);
+        List<LeafReaderContext> atomicReaderContexts = refreshReader();
 
         IndexOrdinalsFieldData ifd = getForField("value");
-        AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
+        for (LeafReaderContext atomicReaderContext : atomicReaderContexts) {
+            AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
-        TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
-        int size = 0;
-        while (termsEnum.next() != null) {
-            size++;
+            TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
+            int size = 0;
+            while (termsEnum.next() != null) {
+                size++;
+            }
+            assertThat(size, equalTo(12));
+
+            assertThat(termsEnum.seekExact(new BytesRef("10")), is(true));
+            assertThat(termsEnum.term().utf8ToString(), equalTo("10"));
+            assertThat(termsEnum.next(), nullValue());
+
+            assertThat(termsEnum.seekExact(new BytesRef("08")), is(true));
+            assertThat(termsEnum.term().utf8ToString(), equalTo("08"));
+            size = 0;
+            while (termsEnum.next() != null) {
+                size++;
+            }
+            assertThat(size, equalTo(2));
+
+            termsEnum.seekExact(8);
+            assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
+            size = 0;
+            while (termsEnum.next() != null) {
+                size++;
+            }
+            assertThat(size, equalTo(3));
         }
-        assertThat(size, equalTo(12));
-
-        assertThat(termsEnum.seekExact(new BytesRef("10")), is(true));
-        assertThat(termsEnum.term().utf8ToString(), equalTo("10"));
-        assertThat(termsEnum.next(), nullValue());
-
-        assertThat(termsEnum.seekExact(new BytesRef("08")), is(true));
-        assertThat(termsEnum.term().utf8ToString(), equalTo("08"));
-        size = 0;
-        while (termsEnum.next() != null) {
-            size++;
-        }
-        assertThat(size, equalTo(2));
-
-        termsEnum.seekExact(8);
-        assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
-        size = 0;
-        while (termsEnum.next() != null) {
-            size++;
-        }
-        assertThat(size, equalTo(3));
     }
 
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {

@@ -24,9 +24,8 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
@@ -35,27 +34,150 @@ import java.util.Map;
 
 public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
 
+    public static final class MultiBucketAggregatorWrapper extends Aggregator {
+        private final BigArrays bigArrays;
+        private final Aggregator parent;
+        private final AggregatorFactory<?> factory;
+        private final Aggregator first;
+        ObjectArray<Aggregator> aggregators;
+        ObjectArray<LeafBucketCollector> collectors;
+
+        MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context, Aggregator parent, AggregatorFactory<?> factory,
+                Aggregator first) {
+            this.bigArrays = bigArrays;
+            this.parent = parent;
+            this.factory = factory;
+            this.first = first;
+            context.addReleasable(this, Lifetime.PHASE);
+            aggregators = bigArrays.newObjectArray(1);
+            aggregators.set(0, first);
+            collectors = bigArrays.newObjectArray(1);
+        }
+
+        public Class<?> getWrappedClass() {
+            return first.getClass();
+        }
+
+        @Override
+        public String name() {
+            return first.name();
+        }
+
+        @Override
+        public SearchContext context() {
+            return first.context();
+        }
+
+        @Override
+        public Aggregator parent() {
+            return first.parent();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return first.needsScores();
+        }
+
+        @Override
+        public Aggregator subAggregator(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void preCollection() throws IOException {
+            for (long i = 0; i < aggregators.size(); ++i) {
+                final Aggregator aggregator = aggregators.get(i);
+                if (aggregator != null) {
+                    aggregator.preCollection();
+                }
+            }
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            for (long i = 0; i < aggregators.size(); ++i) {
+                final Aggregator aggregator = aggregators.get(i);
+                if (aggregator != null) {
+                    aggregator.postCollection();
+                }
+            }
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx) {
+            for (long i = 0; i < collectors.size(); ++i) {
+                collectors.set(i, null);
+            }
+            return new LeafBucketCollector() {
+                Scorer scorer;
+
+                @Override
+                public void setScorer(Scorer scorer) throws IOException {
+                    this.scorer = scorer;
+                }
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    collectors = bigArrays.grow(collectors, bucket + 1);
+
+                    LeafBucketCollector collector = collectors.get(bucket);
+                    if (collector == null) {
+                        aggregators = bigArrays.grow(aggregators, bucket + 1);
+                        Aggregator aggregator = aggregators.get(bucket);
+                        if (aggregator == null) {
+                            aggregator = factory.create(parent, true);
+                            aggregator.preCollection();
+                            aggregators.set(bucket, aggregator);
+                        }
+                        collector = aggregator.getLeafCollector(ctx);
+                        collector.setScorer(scorer);
+                        collectors.set(bucket, collector);
+                    }
+                    collector.collect(doc, 0);
+                }
+
+            };
+        }
+
+        @Override
+        public InternalAggregation buildAggregation(long bucket) throws IOException {
+            if (bucket < aggregators.size()) {
+                Aggregator aggregator = aggregators.get(bucket);
+                if (aggregator != null) {
+                    return aggregator.buildAggregation(0);
+                }
+            }
+            return buildEmptyAggregation();
+        }
+
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return first.buildEmptyAggregation();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(aggregators, collectors);
+        }
+    }
+
     protected final String name;
-    protected final Type type;
     protected final AggregatorFactory<?> parent;
     protected final AggregatorFactories factories;
     protected final Map<String, Object> metaData;
-    protected final AggregationContext context;
+    protected final SearchContext context;
 
     /**
      * Constructs a new aggregator factory.
      *
      * @param name
      *            The aggregation name
-     * @param type
-     *            The aggregation type
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, Type type, AggregationContext context, AggregatorFactory<?> parent,
+    public AggregatorFactory(String name, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         this.name = name;
-        this.type = type;
         this.context = context;
         this.parent = parent;
         this.factories = subFactoriesBuilder.build(context, this);
@@ -99,8 +221,8 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         return createInternal(parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
     }
 
-    public String getType() {
-        return type.name();
+    public AggregatorFactory<?> getParent() {
+        return parent;
     }
 
     /**
@@ -108,124 +230,11 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      * {@link Aggregator}s that only know how to collect bucket <tt>0</tt>, this
      * returns an aggregator that can collect any bucket.
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory<?> factory, final AggregationContext context,
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory<?> factory, final SearchContext context,
             final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();
-        return new Aggregator() {
-
-            ObjectArray<Aggregator> aggregators;
-            ObjectArray<LeafBucketCollector> collectors;
-
-            {
-                context.searchContext().addReleasable(this, Lifetime.PHASE);
-                aggregators = bigArrays.newObjectArray(1);
-                aggregators.set(0, first);
-                collectors = bigArrays.newObjectArray(1);
-            }
-
-            @Override
-            public String name() {
-                return first.name();
-            }
-
-            @Override
-            public AggregationContext context() {
-                return first.context();
-            }
-
-            @Override
-            public Aggregator parent() {
-                return first.parent();
-            }
-
-            @Override
-            public boolean needsScores() {
-                return first.needsScores();
-            }
-
-            @Override
-            public Aggregator subAggregator(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void preCollection() throws IOException {
-                for (long i = 0; i < aggregators.size(); ++i) {
-                    final Aggregator aggregator = aggregators.get(i);
-                    if (aggregator != null) {
-                        aggregator.preCollection();
-                    }
-                }
-            }
-
-            @Override
-            public void postCollection() throws IOException {
-                for (long i = 0; i < aggregators.size(); ++i) {
-                    final Aggregator aggregator = aggregators.get(i);
-                    if (aggregator != null) {
-                        aggregator.postCollection();
-                    }
-                }
-            }
-
-            @Override
-            public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx) {
-                for (long i = 0; i < collectors.size(); ++i) {
-                    collectors.set(i, null);
-                }
-                return new LeafBucketCollector() {
-                    Scorer scorer;
-
-                    @Override
-                    public void setScorer(Scorer scorer) throws IOException {
-                        this.scorer = scorer;
-                    }
-
-                    @Override
-                    public void collect(int doc, long bucket) throws IOException {
-                        aggregators = bigArrays.grow(aggregators, bucket + 1);
-                        collectors = bigArrays.grow(collectors, bucket + 1);
-
-                        LeafBucketCollector collector = collectors.get(bucket);
-                        if (collector == null) {
-                            Aggregator aggregator = aggregators.get(bucket);
-                            if (aggregator == null) {
-                                aggregator = factory.create(parent, true);
-                                aggregator.preCollection();
-                                aggregators.set(bucket, aggregator);
-                            }
-                            collector = aggregator.getLeafCollector(ctx);
-                            collector.setScorer(scorer);
-                            collectors.set(bucket, collector);
-                        }
-                        collector.collect(doc, 0);
-                    }
-
-                };
-            }
-
-            @Override
-            public InternalAggregation buildAggregation(long bucket) throws IOException {
-                if (bucket < aggregators.size()) {
-                    Aggregator aggregator = aggregators.get(bucket);
-                    if (aggregator != null) {
-                        return aggregator.buildAggregation(0);
-                    }
-                }
-                return buildEmptyAggregation();
-            }
-
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return first.buildEmptyAggregation();
-            }
-
-            @Override
-            public void close() {
-                Releasables.close(aggregators, collectors);
-            }
-        };
+        return new MultiBucketAggregatorWrapper(bigArrays, context, parent, factory, first);
     }
 
 }

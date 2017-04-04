@@ -26,18 +26,15 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -52,16 +49,16 @@ import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAUL
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_DOC_FREQ;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_WORD_LENGTH;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_PREFIX_LENGTH;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.ACCURACY;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MAX_EDITS;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MAX_INSPECTIONS;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MAX_TERM_FREQ;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MIN_DOC_FREQ;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MIN_WORD_LENGTH;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.PREFIX_LENGTH;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SORT;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.STRING_DISTANCE;
-import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SUGGEST_MODE;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.ACCURACY_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MAX_EDITS_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MAX_INSPECTIONS_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MAX_TERM_FREQ_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MIN_DOC_FREQ_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MIN_WORD_LENGTH_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.PREFIX_LENGTH_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.SORT_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.STRING_DISTANCE_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.SUGGESTMODE_FIELD;
 
 /**
  * Defines the actual suggest command. Each command uses the global options
@@ -106,7 +103,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Read from a stream.
      */
-    TermSuggestionBuilder(StreamInput in) throws IOException {
+    public TermSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         suggestMode = SuggestMode.readFromStream(in);
         accuracy = in.readFloat();
@@ -376,23 +373,21 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(SUGGEST_MODE.getPreferredName(), suggestMode);
-        builder.field(ACCURACY.getPreferredName(), accuracy);
-        builder.field(SORT.getPreferredName(), sort);
-        builder.field(STRING_DISTANCE.getPreferredName(), stringDistance);
-        builder.field(MAX_EDITS.getPreferredName(), maxEdits);
-        builder.field(MAX_INSPECTIONS.getPreferredName(), maxInspections);
-        builder.field(MAX_TERM_FREQ.getPreferredName(), maxTermFreq);
-        builder.field(PREFIX_LENGTH.getPreferredName(), prefixLength);
-        builder.field(MIN_WORD_LENGTH.getPreferredName(), minWordLength);
-        builder.field(MIN_DOC_FREQ.getPreferredName(), minDocFreq);
+        builder.field(SUGGESTMODE_FIELD.getPreferredName(), suggestMode);
+        builder.field(ACCURACY_FIELD.getPreferredName(), accuracy);
+        builder.field(SORT_FIELD.getPreferredName(), sort);
+        builder.field(STRING_DISTANCE_FIELD.getPreferredName(), stringDistance);
+        builder.field(MAX_EDITS_FIELD.getPreferredName(), maxEdits);
+        builder.field(MAX_INSPECTIONS_FIELD.getPreferredName(), maxInspections);
+        builder.field(MAX_TERM_FREQ_FIELD.getPreferredName(), maxTermFreq);
+        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        builder.field(MIN_WORD_LENGTH_FIELD.getPreferredName(), minWordLength);
+        builder.field(MIN_DOC_FREQ_FIELD.getPreferredName(), minDocFreq);
         return builder;
     }
 
-    static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static TermSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;
@@ -400,33 +395,33 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
                     tmpSuggestion.analyzer(parser.text());
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
                     fieldname = parser.text();
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.size(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.shardSize(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SUGGEST_MODE)) {
+                } else if (SUGGESTMODE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.suggestMode(SuggestMode.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(currentFieldName, ACCURACY)) {
+                } else if (ACCURACY_FIELD.match(currentFieldName)) {
                     tmpSuggestion.accuracy(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SORT)) {
+                } else if (SORT_FIELD.match(currentFieldName)) {
                     tmpSuggestion.sort(SortBy.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(currentFieldName, STRING_DISTANCE)) {
+                } else if (STRING_DISTANCE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.stringDistance(StringDistanceImpl.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_EDITS)) {
+                } else if (MAX_EDITS_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxEdits(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_INSPECTIONS)) {
+                } else if (MAX_INSPECTIONS_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxInspections(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_TERM_FREQ)) {
+                } else if (MAX_TERM_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxTermFreq(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PREFIX_LENGTH)) {
+                } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
                     tmpSuggestion.prefixLength(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MIN_WORD_LENGTH)) {
+                } else if (MIN_WORD_LENGTH_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minWordLength(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MIN_DOC_FREQ)) {
+                } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -440,7 +435,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
             throw new ElasticsearchParseException(
-                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new TermSuggestionBuilder(fieldname, tmpSuggestion);
     }
@@ -491,7 +486,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     /** An enum representing the valid suggest modes. */
-    public enum SuggestMode implements Writeable<SuggestMode> {
+    public enum SuggestMode implements Writeable {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
         MISSING {
             @Override
@@ -536,7 +531,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     /** An enum representing the valid string edit distance algorithms for determining suggestions. */
-    public enum StringDistanceImpl implements Writeable<StringDistanceImpl> {
+    public enum StringDistanceImpl implements Writeable {
         /** This is the default and is based on <code>damerau_levenshtein</code>, but highly optimized
          * for comparing string distance for terms inside the index. */
         INTERNAL {

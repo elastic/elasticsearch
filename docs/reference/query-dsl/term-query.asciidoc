@@ -6,10 +6,14 @@ in the inverted index.  For instance:
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
+  "query": {
     "term" : { "user" : "Kimchy" } <1>
+  }
 }
 --------------------------------------------------
+// CONSOLE
 <1> Finds documents which contain the exact term `Kimchy` in the inverted index
     of the `user` field.
 
@@ -18,7 +22,7 @@ relevance score than another query, for instance:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET _search
 {
   "query": {
     "bool": {
@@ -41,6 +45,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> The `urgent` query clause has a boost of `2.0`, meaning it is twice as important
     as the query clause for `normal`.
@@ -102,7 +107,7 @@ PUT my_index/my_type/1
   "exact_value": "Quick Foxes!"  <4>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `full_text` field is of type `text` and will be analyzed.
 <2> The `exact_value` field is of type `keyword` and will NOT be analyzed.
@@ -113,7 +118,6 @@ Now, compare the results for the `term` query and the `match` query:
 
 [source,js]
 --------------------------------------------------
-
 GET my_index/my_type/_search
 {
   "query": {
@@ -150,7 +154,8 @@ GET my_index/my_type/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 <1> This query matches because the `exact_value` field contains the exact
     term `Quick Foxes!`.
@@ -161,5 +166,3 @@ GET my_index/my_type/_search
 <4> This `match` query on the `full_text` field first analyzes the query string,
     then looks for documents containing `quick` or `foxes` or both.
 **************************************************
-
-

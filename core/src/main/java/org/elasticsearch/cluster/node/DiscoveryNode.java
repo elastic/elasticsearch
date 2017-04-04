@@ -20,13 +20,12 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
@@ -35,55 +34,44 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
 
 /**
  * A discovery node represents a node that is part of the cluster.
  */
-public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
-
-    public static boolean localNode(Settings settings) {
-        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
-            return Node.NODE_LOCAL_SETTING.get(settings);
-        }
-        if (Node.NODE_MODE_SETTING.exists(settings)) {
-            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
-            if ("local".equals(nodeMode)) {
-                return true;
-            } else if ("network".equals(nodeMode)) {
-                return false;
-            } else {
-                throw new IllegalArgumentException("unsupported node.mode [" + nodeMode + "]. Should be one of [local, network].");
-            }
-        }
-        return false;
-    }
+public class DiscoveryNode implements Writeable, ToXContent {
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        return Node.NODE_DATA_SETTING.get(settings) || Node.NODE_MASTER_SETTING.get(settings);
+        boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
+        if (localStorageEnable == false &&
+            (Node.NODE_DATA_SETTING.get(settings) ||
+                Node.NODE_MASTER_SETTING.get(settings))
+            ) {
+            // TODO: make this a proper setting validation logic, requiring multi-settings validation
+            throw new IllegalArgumentException("storage can not be disabled for master and data nodes");
+        }
+        return localStorageEnable;
     }
 
-    public static boolean masterNode(Settings settings) {
+    public static boolean isMasterNode(Settings settings) {
         return Node.NODE_MASTER_SETTING.get(settings);
     }
 
-    public static boolean dataNode(Settings settings) {
+    public static boolean isDataNode(Settings settings) {
         return Node.NODE_DATA_SETTING.get(settings);
     }
 
-    public static boolean ingestNode(Settings settings) {
+    public static boolean isIngestNode(Settings settings) {
         return Node.NODE_INGEST_SETTING.get(settings);
     }
 
-    public static final List<DiscoveryNode> EMPTY_LIST = Collections.emptyList();
-
     private final String nodeName;
     private final String nodeId;
+    private final String ephemeralId;
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
@@ -91,32 +79,22 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final Version version;
     private final Set<Role> roles;
 
+
     /**
-     * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
-     * @param in the stream
-     * @throws IOException if there is an error while reading from the stream
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param version          the version of the node
      */
-    public DiscoveryNode(StreamInput in) throws IOException {
-        this.nodeName = in.readString().intern();
-        this.nodeId = in.readString().intern();
-        this.hostName = in.readString().intern();
-        this.hostAddress = in.readString().intern();
-        this.address = TransportAddressSerializers.addressFromStream(in);
-        int size = in.readVInt();
-        this.attributes = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            this.attributes.put(in.readString(), in.readString());
-        }
-        int rolesSize = in.readVInt();
-        this.roles = EnumSet.noneOf(Role.class);
-        for (int i = 0; i < rolesSize; i++) {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= Role.values().length) {
-                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
-            }
-            this.roles.add(Role.values()[ordinal]);
-        }
-        this.version = Version.readVersion(in);
+    public DiscoveryNode(final String id, TransportAddress address, Version version) {
+        this(id, address, Collections.emptyMap(), EnumSet.allOf(Role.class), version);
     }
 
     /**
@@ -128,14 +106,15 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
      * and updated.
      * </p>
      *
-     * @param nodeId     the nodes unique id.
-     * @param address    the nodes transport address
-     * @param attributes node attributes
-     * @param roles      node roles
-     * @param version    the version of the node.
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeId, TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
-        this("", nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+    public DiscoveryNode(String id, TransportAddress address, Map<String, String> attributes, Set<Role> roles,
+                         Version version) {
+        this("", id, address, attributes, roles, version);
     }
 
     /**
@@ -147,16 +126,17 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
      * and updated.
      * </p>
      *
-     * @param nodeName   the nodes name
-     * @param nodeId     the nodes unique id.
-     * @param address    the nodes transport address
-     * @param attributes node attributes
-     * @param roles      node roles
-     * @param version    the version of the node.
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes,
-                         Set<Role> roles, Version version) {
-        this(nodeName, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address,
+                         Map<String, String> attributes, Set<Role> roles, Version version) {
+        this(nodeName, nodeId, UUIDs.randomBase64UUID(), address.address().getHostString(), address.getAddress(), address, attributes,
+            roles, version);
     }
 
     /**
@@ -168,23 +148,24 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
      * and updated.
      * </p>
      *
-     * @param nodeName    the nodes name
-     * @param nodeId      the nodes unique id.
-     * @param hostName    the nodes hostname
-     * @param hostAddress the nodes host address
-     * @param address     the nodes transport address
-     * @param attributes  node attributes
-     * @param roles       node roles
-     * @param version     the version of the node.
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address,
-                         Map<String, String> attributes, Set<Role> roles, Version version) {
+    public DiscoveryNode(String nodeName, String nodeId, String ephemeralId, String hostName, String hostAddress,
+                         TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
         } else {
             this.nodeName = "";
         }
         this.nodeId = nodeId.intern();
+        this.ephemeralId = ephemeralId.intern();
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
         this.address = address;
@@ -207,46 +188,115 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         this.roles = Collections.unmodifiableSet(rolesSet);
     }
 
+    /** Creates a DiscoveryNode representing the local node. */
+    public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
+        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
+        Set<Role> roles = getRolesFromSettings(settings);
+
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
+    }
+
+    /** extract node roles from the given settings */
+    public static Set<Role> getRolesFromSettings(Settings settings) {
+        Set<Role> roles = new HashSet<>();
+        if (Node.NODE_INGEST_SETTING.get(settings)) {
+            roles.add(Role.INGEST);
+        }
+        if (Node.NODE_MASTER_SETTING.get(settings)) {
+            roles.add(Role.MASTER);
+        }
+        if (Node.NODE_DATA_SETTING.get(settings)) {
+            roles.add(Role.DATA);
+        }
+        return roles;
+    }
+
     /**
-     * The address that the node can be communicated with.
+     * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
+     * @param in the stream
+     * @throws IOException if there is an error while reading from the stream
      */
-    public TransportAddress address() {
-        return address;
+    public DiscoveryNode(StreamInput in) throws IOException {
+        this.nodeName = in.readString().intern();
+        this.nodeId = in.readString().intern();
+        this.ephemeralId = in.readString().intern();
+        this.hostName = in.readString().intern();
+        this.hostAddress = in.readString().intern();
+        if (in.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
+            this.address = new TransportAddress(in);
+        } else {
+            // we need to do this to preserve the host information during pinging and joining of a master. Since the version of the
+            // DiscoveryNode is set to Version#minimumCompatibilityVersion(), the host information gets lost as we do not serialize the
+            // hostString for the address
+            this.address = new TransportAddress(in, hostName);
+        }
+        int size = in.readVInt();
+        this.attributes = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            this.attributes.put(in.readString(), in.readString());
+        }
+        int rolesSize = in.readVInt();
+        this.roles = EnumSet.noneOf(Role.class);
+        for (int i = 0; i < rolesSize; i++) {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= Role.values().length) {
+                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
+            }
+            this.roles.add(Role.values()[ordinal]);
+        }
+        this.version = Version.readVersion(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
+        out.writeString(nodeId);
+        out.writeString(ephemeralId);
+        out.writeString(hostName);
+        out.writeString(hostAddress);
+        address.writeTo(out);
+        out.writeVInt(attributes.size());
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
+        }
+        out.writeVInt(roles.size());
+        for (Role role : roles) {
+            out.writeVInt(role.ordinal());
+        }
+        Version.writeVersion(version, out);
     }
 
     /**
      * The address that the node can be communicated with.
      */
     public TransportAddress getAddress() {
-        return address();
-    }
-
-    /**
-     * The unique id of the node.
-     */
-    public String id() {
-        return nodeId;
+        return address;
     }
 
     /**
      * The unique id of the node.
      */
     public String getId() {
-        return id();
+        return nodeId;
     }
 
     /**
-     * The name of the node.
+     * The unique ephemeral id of the node. Ephemeral ids are meant to be attached the the life span
+     * of a node process. When ever a node is restarted, it's ephemeral id is required to change (while it's {@link #getId()}
+     * will be read from the data folder and will remain the same across restarts). Since all node attributes and addresses
+     * are maintained during the life span of a node process, we can (and are) using the ephemeralId in
+     * {@link DiscoveryNode#equals(Object)}.
      */
-    public String name() {
-        return this.nodeName;
+    public String getEphemeralId() {
+        return ephemeralId;
     }
 
     /**
      * The name of the node.
      */
     public String getName() {
-        return name();
+        return this.nodeName;
     }
 
     /**
@@ -259,29 +309,15 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean dataNode() {
-        return roles.contains(Role.DATA);
-    }
-
-    /**
-     * Should this node hold data (shards) or not.
-     */
     public boolean isDataNode() {
-        return dataNode();
-    }
-
-    /**
-     * Can this node become master or not.
-     */
-    public boolean masterNode() {
-        return roles.contains(Role.MASTER);
+        return roles.contains(Role.DATA);
     }
 
     /**
      * Can this node become master or not.
      */
     public boolean isMasterNode() {
-        return masterNode();
+        return roles.contains(Role.MASTER);
     }
 
     /**
@@ -299,7 +335,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return roles;
     }
 
-    public Version version() {
+    public Version getVersion() {
         return this.version;
     }
 
@@ -311,47 +347,26 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return this.hostAddress;
     }
 
-    public Version getVersion() {
-        return this.version;
-    }
-
     @Override
-    public DiscoveryNode readFrom(StreamInput in) throws IOException {
-        return new DiscoveryNode(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(nodeName);
-        out.writeString(nodeId);
-        out.writeString(hostName);
-        out.writeString(hostAddress);
-        addressToStream(out, address);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
         }
-        out.writeVInt(roles.size());
-        for (Role role : roles) {
-            out.writeVInt(role.ordinal());
-        }
-        Version.writeVersion(version, out);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (!(obj instanceof DiscoveryNode)) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
 
-        DiscoveryNode other = (DiscoveryNode) obj;
-        return this.nodeId.equals(other.nodeId);
+        DiscoveryNode that = (DiscoveryNode) o;
+
+        return ephemeralId.equals(that.ephemeralId);
     }
 
     @Override
     public int hashCode() {
-        return nodeId.hashCode();
+        // we only need to hash the id because it's highly unlikely that two nodes
+        // in our system will have the same id but be different
+        // This is done so that this class can be used efficiently as a key in a map
+        return ephemeralId.hashCode();
     }
 
     @Override
@@ -360,15 +375,10 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         if (nodeName.length() > 0) {
             sb.append('{').append(nodeName).append('}');
         }
-        if (nodeId != null) {
-            sb.append('{').append(nodeId).append('}');
-        }
-        if (Strings.hasLength(hostName)) {
-            sb.append('{').append(hostName).append('}');
-        }
-        if (address != null) {
-            sb.append('{').append(address).append('}');
-        }
+        sb.append('{').append(nodeId).append('}');
+        sb.append('{').append(ephemeralId).append('}');
+        sb.append('{').append(hostName).append('}');
+        sb.append('{').append(address).append('}');
         if (!attributes.isEmpty()) {
             sb.append(attributes);
         }
@@ -377,9 +387,10 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(id(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.field("name", name());
-        builder.field("transport_address", address().toString());
+        builder.startObject(getId());
+        builder.field("name", getName());
+        builder.field("ephemeral_id", getEphemeralId());
+        builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");
         for (Map.Entry<String, String> entry : attributes.entrySet()) {

@@ -31,8 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-/**
- */
 public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
     private final PagedBytes.Reader bytes;
@@ -40,6 +38,7 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     protected final Ordinals ordinals;
 
     public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
+        super(DEFAULT_SCRIPT_FUNCTION);
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;

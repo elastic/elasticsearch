@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregatorBuilder>
+public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregationBuilder<PAF>>
         extends BasePipelineAggregationTestCase<PAF> {
 
     @Override

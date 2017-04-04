@@ -29,10 +29,11 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,8 +45,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
-import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a
@@ -206,7 +207,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (field instanceof StringField) {
                         spare.resetFromString(field.stringValue());
                     } else {
-                        spare.resetFromIndexHash(Long.parseLong(field.stringValue()));
+                        // todo return this to .stringValue() once LatLonPoint implements it
+                        spare.resetFromIndexableField(field);
                     }
                     geohashes.add(spare.geohash());
                 }
@@ -223,8 +225,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    protected GeoQueryContext fromXContent(XContentParser parser) throws IOException {
-        return GeoQueryContext.fromXContent(parser);
+    protected GeoQueryContext fromXContent(QueryParseContext context) throws IOException {
+        return GeoQueryContext.fromXContent(context);
     }
 
     /**

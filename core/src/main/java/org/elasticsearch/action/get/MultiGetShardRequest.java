@@ -33,9 +33,8 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
     private int shardId;
     private String preference;
-    Boolean realtime;
+    boolean realtime = true;
     boolean refresh;
-    boolean ignoreErrorsOnGeneratedFields = false;
 
     IntArrayList locations;
     List<MultiGetRequest.Item> items;
@@ -52,7 +51,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         preference = multiGetRequest.preference;
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
-        ignoreErrorsOnGeneratedFields = multiGetRequest.ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -79,16 +77,11 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
-    public MultiGetShardRequest realtime(Boolean realtime) {
+    public MultiGetShardRequest realtime(boolean realtime) {
         this.realtime = realtime;
-        return this;
-    }
-
-    public MultiGetShardRequest ignoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
         return this;
     }
 
@@ -129,13 +122,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
         preference = in.readOptionalString();
         refresh = in.readBoolean();
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
-        ignoreErrorsOnGeneratedFields = in.readBoolean();
+        realtime = in.readBoolean();
     }
 
     @Override
@@ -150,18 +137,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (!realtime) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
-
-    }
-
-    public boolean ignoreErrorsOnGeneratedFields() {
-        return ignoreErrorsOnGeneratedFields;
+        out.writeBoolean(realtime);
     }
 }

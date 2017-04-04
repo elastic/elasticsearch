@@ -1,0 +1,11 @@
+{
+    "query": {
+        "match": {
+            "{{field}}": {
+                "query" : "{{value}}",
+                "operator" : "{{operator}}{{^operator}}or{{/operator}}"
+            }
+        }
+    },
+    "size": {{size}}
+}

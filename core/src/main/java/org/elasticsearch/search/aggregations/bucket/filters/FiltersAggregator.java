@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -39,7 +38,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,22 +46,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class FiltersAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
-    public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
-
-        static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.PROTOTYPE);
+    public static class KeyedFilter implements Writeable, ToXContent {
         private final String key;
-        private final QueryBuilder<?> filter;
+        private final QueryBuilder filter;
 
-        public KeyedFilter(String key, QueryBuilder<?> filter) {
+        public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {
                 throw new IllegalArgumentException("[key] must not be null");
             }
@@ -73,11 +67,25 @@ public class FiltersAggregator extends BucketsAggregator {
             this.filter = filter;
         }
 
+        /**
+         * Read from a stream.
+         */
+        public KeyedFilter(StreamInput in) throws IOException {
+            key = in.readString();
+            filter = in.readNamedWriteable(QueryBuilder.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeNamedWriteable(filter);
+        }
+
         public String key() {
             return key;
         }
 
-        public QueryBuilder<?> filter() {
+        public QueryBuilder filter() {
             return filter;
         }
 
@@ -85,19 +93,6 @@ public class FiltersAggregator extends BucketsAggregator {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(key, filter);
             return builder;
-        }
-
-        @Override
-        public KeyedFilter readFrom(StreamInput in) throws IOException {
-            String key = in.readString();
-            QueryBuilder<?> filter = in.readQuery();
-            return new KeyedFilter(key, filter);
-    }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
-            out.writeQuery(filter);
         }
 
         @Override
@@ -127,10 +122,10 @@ public class FiltersAggregator extends BucketsAggregator {
     private final int totalNumKeys;
 
     public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Weight[] filters, boolean keyed, String otherBucketKey,
-            AggregationContext aggregationContext,
+            SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         this.keyed = keyed;
         this.keys = keys;
         this.filters = filters;

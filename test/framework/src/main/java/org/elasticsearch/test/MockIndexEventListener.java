@@ -24,18 +24,21 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * This is a testing plugin that registers a generic {@link org.elasticsearch.test.MockIndexEventListener.TestEventListener} as a node level service as well as a listener
@@ -52,21 +55,14 @@ public final class MockIndexEventListener {
 
     public static class TestPlugin extends Plugin {
         private final TestEventListener listener = new TestEventListener();
-        @Override
-        public String name() {
-            return "mock-index-listener";
-        }
-        @Override
-        public String description() {
-            return "a mock index listener for testing only";
-        }
 
         /**
          * For tests to pass in to fail on listener invocation
          */
         public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, Property.IndexScope);
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_FAIL);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_FAIL);
         }
 
         @Override
@@ -75,7 +71,7 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public Collection<Module> nodeModules() {
+        public Collection<Module> createGuiceModules() {
             return Collections.singleton(binder -> binder.bind(TestEventListener.class).toInstance(listener));
         }
     }
@@ -138,13 +134,13 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void beforeIndexClosed(IndexService indexService) {
-            delegate.beforeIndexClosed(indexService);
+        public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+            delegate.beforeIndexRemoved(indexService, reason);
         }
 
         @Override
-        public void afterIndexClosed(Index index, Settings indexSettings) {
-            delegate.afterIndexClosed(index, indexSettings);
+        public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
+            delegate.afterIndexRemoved(index, indexSettings, reason);
         }
 
         @Override
@@ -155,16 +151,6 @@ public final class MockIndexEventListener {
         @Override
         public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
             delegate.afterIndexShardDeleted(shardId, indexSettings);
-        }
-
-        @Override
-        public void afterIndexDeleted(Index index, Settings indexSettings) {
-            delegate.afterIndexDeleted(index, indexSettings);
-        }
-
-        @Override
-        public void beforeIndexDeleted(IndexService indexService) {
-            delegate.beforeIndexDeleted(indexService);
         }
 
         @Override

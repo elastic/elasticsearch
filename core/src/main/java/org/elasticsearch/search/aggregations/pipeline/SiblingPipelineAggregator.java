@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,13 +36,15 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
-
-    protected SiblingPipelineAggregator() { // for Serialisation
-        super();
-    }
-
     protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected SiblingPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
     }
 
     @SuppressWarnings("unchecked")
@@ -74,7 +78,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             return singleBucketAgg.create(new InternalAggregations(aggs));
         } else {
             throw new IllegalStateException("Aggregation [" + aggregation.getName() + "] must be a bucket aggregation ["
-                    + aggregation.type().name() + "]");
+                    + aggregation.getWriteableName() + "]");
         }
     }
 

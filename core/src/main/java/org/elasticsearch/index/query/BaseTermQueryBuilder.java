@@ -102,7 +102,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     /**
      * Constructs a new base term query.
      * In case value is assigned to a string, we internally convert it to a {@link BytesRef}
-     * because in {@link TermQueryParser} and {@link SpanTermQueryParser} string values are parsed to {@link BytesRef}
+     * because in {@link TermQueryBuilder} and {@link SpanTermQueryBuilder} string values are parsed to {@link BytesRef}
      * and we want internal representation of query to be equal regardless of whether it was created from XContent or via Java API.
      *
      * @param fieldName  The name of the field
@@ -117,6 +117,21 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         }
         this.fieldName = fieldName;
         this.value = convertToBytesRefIfString(value);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected BaseTermQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(value);
     }
 
     /** Returns the field name used in this query. */
@@ -151,18 +166,5 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     protected final boolean doEquals(BaseTermQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(value, other.value);
-    }
-
-    @Override
-    protected final QB doReadFrom(StreamInput in) throws IOException {
-        return createBuilder(in.readString(), in.readGenericValue());
-    }
-
-    protected abstract QB createBuilder(String fieldName, Object value);
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(value);
     }
 }

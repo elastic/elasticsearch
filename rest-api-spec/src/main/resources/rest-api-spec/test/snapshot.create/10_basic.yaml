@@ -17,10 +17,6 @@ setup:
             number_of_shards:   1
             number_of_replicas: 1
 
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
 ---
 "Create a snapshot":
 
@@ -34,3 +30,10 @@ setup:
   - match: { snapshot.state : SUCCESS }
   - match: { snapshot.shards.successful: 1 }
   - match: { snapshot.shards.failed : 0 }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+
+  - match: { acknowledged: true }

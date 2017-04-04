@@ -19,13 +19,14 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,9 +40,9 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
 
     protected final String blobNameFormat;
 
-    protected final FromXContentBuilder<T> reader;
+    protected final CheckedFunction<XContentParser, T, IOException> reader;
 
-    protected final ParseFieldMatcher parseFieldMatcher;
+    protected final NamedXContentRegistry namedXContentRegistry;
 
     // Serialization parameters to specify correct context for metadata serialization
     protected static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
@@ -51,18 +52,20 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
         // when metadata is serialized certain elements of the metadata shouldn't be included into snapshot
         // exclusion of these elements is done by setting MetaData.CONTEXT_MODE_PARAM to MetaData.CONTEXT_MODE_SNAPSHOT
         snapshotOnlyParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_SNAPSHOT);
+        // serialize SnapshotInfo using the SNAPSHOT mode
+        snapshotOnlyParams.put(SnapshotInfo.CONTEXT_MODE_PARAM, SnapshotInfo.CONTEXT_MODE_SNAPSHOT);
         SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(snapshotOnlyParams);
     }
 
     /**
      * @param blobNameFormat format of the blobname in {@link String#format(Locale, String, Object...)} format
      * @param reader the prototype object that can deserialize objects with type T
-     * @param parseFieldMatcher parse field matcher
      */
-    protected BlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher) {
+    protected BlobStoreFormat(String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
+            NamedXContentRegistry namedXContentRegistry) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
-        this.parseFieldMatcher = parseFieldMatcher;
+        this.namedXContentRegistry = namedXContentRegistry;
     }
 
     /**
@@ -106,10 +109,10 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     }
 
     protected T read(BytesReference bytes) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            T obj = reader.fromXContent(parser, parseFieldMatcher);
+        try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, bytes)) {
+            T obj = reader.apply(parser);
             return obj;
-
         }
     }
+
 }

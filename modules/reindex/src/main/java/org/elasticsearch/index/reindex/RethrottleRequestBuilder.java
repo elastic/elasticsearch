@@ -34,7 +34,9 @@ public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequ
     }
 
     /**
-     * Set the throttle to apply to all matching requests in sub-requests per second. 0 means set no throttle and that is the default.
+     * Set the throttle to apply to all matching requests in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle.
+     * Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure
+     * that it contains any time that we might wait.
      */
     public RethrottleRequestBuilder setRequestsPerSecond(float requestsPerSecond) {
         request.setRequestsPerSecond(requestsPerSecond);

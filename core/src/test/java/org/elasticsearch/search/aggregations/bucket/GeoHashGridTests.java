@@ -20,46 +20,23 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 
-public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregatorBuilder> {
+public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
     @Override
-    protected GeoGridAggregatorBuilder createTestAggregatorBuilder() {
+    protected GeoGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(name);
+        GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name);
         if (randomBoolean()) {
             int precision = randomIntBetween(1, 12);
             factory.precision(precision);
         }
         if (randomBoolean()) {
-            int size = randomInt(5);
-            switch (size) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                size = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            }
-            factory.size(size);
-
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            int shardSize = randomInt(5);
-            switch (shardSize) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                shardSize = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            }
-            factory.shardSize(shardSize);
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         return factory;
     }

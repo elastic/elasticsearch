@@ -22,9 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public NodesInfoRequestBuilder(ElasticsearchClient client, NodesInfoAction action) {
@@ -116,6 +113,14 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      */
     public NodesInfoRequestBuilder setIngest(boolean ingest) {
         request().ingest(ingest);
+        return this;
+    }
+
+    /**
+     * Should the node indices info be returned.
+     */
+    public NodesInfoRequestBuilder setIndices(boolean indices) {
+        request().indices(indices);
         return this;
     }
 }

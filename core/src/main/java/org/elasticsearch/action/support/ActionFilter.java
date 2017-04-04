@@ -40,29 +40,21 @@ public interface ActionFilter {
      * Enables filtering the execution of an action on the request side, either by sending a response through the
      * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
      */
-    <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+    <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
             ActionListener<Response> listener, ActionFilterChain<Request, Response> chain);
-
-    /**
-     * Enables filtering the execution of an action on the response side, either by sending a response through the
-     * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
-     */
-    <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
-            ActionFilterChain<?, Response> chain);
-
     /**
      * A simple base class for injectable action filters that spares the implementation from handling the
      * filter chain. This base class should serve any action filter implementations that doesn't require
      * to apply async filtering logic.
      */
-    public static abstract class Simple extends AbstractComponent implements ActionFilter {
+    abstract class Simple extends AbstractComponent implements ActionFilter {
 
         protected Simple(Settings settings) {
             super(settings);
         }
 
         @Override
-        public final <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+        public final <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             if (apply(action, request, listener)) {
                 chain.proceed(task, action, request, listener);
@@ -73,20 +65,6 @@ public interface ActionFilter {
          * Applies this filter and returns {@code true} if the execution chain should proceed, or {@code false}
          * if it should be aborted since the filter already handled the request and called the given listener.
          */
-        protected abstract boolean apply(String action, ActionRequest<?> request, ActionListener<?> listener);
-
-        @Override
-        public final <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
-                ActionFilterChain<?, Response> chain) {
-            if (apply(action, response, listener)) {
-                chain.proceed(action, response, listener);
-            }
-        }
-
-        /**
-         * Applies this filter and returns {@code true} if the execution chain should proceed, or {@code false}
-         * if it should be aborted since the filter already handled the response by calling the given listener.
-         */
-        protected abstract boolean apply(String action, ActionResponse response, ActionListener<?> listener);
+        protected abstract boolean apply(String action, ActionRequest request, ActionListener<?> listener);
     }
 }

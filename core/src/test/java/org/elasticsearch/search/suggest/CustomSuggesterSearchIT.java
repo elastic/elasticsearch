@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,15 +28,16 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -45,18 +45,33 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- *
+ * Integration test for registering a custom suggester.
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class CustomSuggesterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomSuggesterPlugin.class);
+        return Arrays.asList(CustomSuggesterPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(CustomSuggesterPlugin.class);
+    }
+
+    public static class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<SuggesterSpec<?>> getSuggesters() {
+            return singletonList(new SuggesterSpec<CustomSuggestionBuilder>("custom", CustomSuggestionBuilder::new,
+                    CustomSuggestionBuilder::fromXContent));
+        }
     }
 
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
@@ -65,8 +80,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .startObject()
                 .field("name", "arbitrary content")
                 .endObject())
-                .setRefresh(true).execute().actionGet();
-        ensureYellow();
+                .setRefreshPolicy(IMMEDIATE).get();
 
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);
@@ -91,8 +105,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
     }
 
     public static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
-
-        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
         protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
         private String randomSuffix;
@@ -136,9 +148,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             return Objects.hash(randomSuffix);
         }
 
-        static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+        public static CustomSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;
@@ -150,15 +160,15 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                    if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
                         analyzer = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                    } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
                         fieldname = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                    } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
                         sizeField = parser.intValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                    } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
                         shardSize = parser.intValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, RANDOM_SUFFIX_FIELD)) {
+                    } else if (RANDOM_SUFFIX_FIELD.match(currentFieldName)) {
                         suffix = parser.text();
                     }
                 } else {

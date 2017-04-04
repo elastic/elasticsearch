@@ -38,7 +38,11 @@ specific index module:
 
     The number of primary shards that an index should have.  Defaults to 5.
     This setting can only be set at index creation time.  It cannot be
-    changed on a closed index.
+    changed on a closed index. Note: the number of shards are limited to `1024` per
+    index. This limitation is a safety limit to prevent accidental creation of indices
+    that can destabilize a cluster due to resource allocation. The limit can be modified
+    by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is
+    part of the cluster.
 
 `index.shard.check_on_startup`::
 +
@@ -75,6 +79,13 @@ Checking shards may take a lot of time on large indices.
     which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
 
+[[routing-partition-size]] `index.routing_partition_size`::
+
+    The number of shards a custom <<mapping-routing-field,routing>> value can go to.
+    Defaults to 1 and can only be set at index creation time. This value must be less
+    than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
+    See <<routing-index-partition>> for more details about how this setting is used.
+
 [float]
 [[dynamic-index-settings]]
 === Dynamic index settings
@@ -107,6 +118,13 @@ specific index module:
     <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
     to raising this.
 
+`index.max_rescore_window`::
+
+    The maximum value of `window_size` for `rescore`s in searches of this index.
+    Defaults to `index.max_result_window` which defaults to `10000`. Search
+    requests take heap memory and time proportional to
+    `max(window_size, from + size)` and this limits that memory.
+
 `index.blocks.read_only`::
 
     Set to `true` to make the index and index metadata read only, `false` to
@@ -124,10 +142,10 @@ specific index module:
 
     Set to `true` to disable index metadata reads and writes.
 
-`index.ttl.disable_purge`::
+`index.max_refresh_listeners`::
 
-    experimental[] Disables the purge of <<mapping-ttl-field,expired docs>> on
-    the current index.
+    Maximum number of refresh listeners available on each shard of the index.
+    These listeners are used to implement <<docs-refresh,`refresh=wait_for`>>.
 
 
 [float]

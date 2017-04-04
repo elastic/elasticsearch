@@ -29,9 +29,6 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class FilteredCollector implements Collector {
 
     private final Collector collector;

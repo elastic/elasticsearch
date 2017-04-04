@@ -1,9 +1,9 @@
 {
-    person:{
-        properties:{
+    "person":{
+        "properties":{
             "name":{
                 "type": "text",
-                store:true
+                "store":true
             }
         }
     }

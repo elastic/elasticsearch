@@ -21,15 +21,15 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.CompoundProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.ingest.processor.TrackingResultProcessor.decorate;
+import static org.elasticsearch.action.ingest.TrackingResultProcessor.decorate;
 
 class SimulateExecutionService {
 

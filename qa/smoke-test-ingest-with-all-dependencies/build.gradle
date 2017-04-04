@@ -17,16 +17,19 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':modules:ingest-grok', configuration: 'runtime')
+    testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
     testCompile project(path: ':plugins:ingest-geoip', configuration: 'runtime')
     testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
+    testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
+    testCompile project(path: ':modules:reindex', configuration: 'runtime')
 }
 
-integTest {
-    cluster {
-        plugin 'ingest-geoip', project(':plugins:ingest-geoip')
-    }
+integTestCluster {
+    plugin ':plugins:ingest-geoip'
+    setting 'script.inline', 'true'
+    setting 'path.scripts', "${project.buildDir}/resources/test/scripts"
 }

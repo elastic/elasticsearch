@@ -32,10 +32,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,9 +49,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     protected static final Settings HEADER_SETTINGS = Settings.builder()
@@ -60,7 +58,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     private static final GenericAction[] ACTIONS = new GenericAction[] {
                 // client actions
-                GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteIndexedScriptAction.INSTANCE,
+                GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteStoredScriptAction.INSTANCE,
                 IndexAction.INSTANCE,
 
                 // cluster admin actions
@@ -73,8 +71,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     protected ThreadPool threadPool;
     private Client client;
 
-    @Before
-    public void initClient() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         Settings settings = Settings.builder()
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
@@ -85,8 +84,10 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client = buildClient(settings, ACTIONS);
     }
 
-    @After
-    public void cleanupClient() throws Exception {
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
         client.close();
         terminate(threadPool);
     }
@@ -105,8 +106,8 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "type", "id").execute().addListener(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute().addListener(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute().addListener(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
-        client.prepareDeleteIndexedScript("lang", "id").execute().addListener(new AssertingActionListener<>(DeleteIndexedScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx", "type", "id").setSource("source").execute().addListener(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
+        client.admin().cluster().prepareDeleteStoredScript("lang", "id").execute().addListener(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
+        client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON).execute().addListener(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute().addListener(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
@@ -179,7 +180,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Exception t) {
             Throwable e = unwrap(t, InternalException.class);
             assertThat("expected action [" + action + "] to throw an internal exception", e, notNullValue());
             assertThat(action, equalTo(((InternalException) e).action));

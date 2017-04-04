@@ -24,14 +24,15 @@ import org.elasticsearch.plugin.store.smb.SMBStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-abstract public class AbstractAzureFsTestCase extends ESIntegTestCase {
+public abstract  class AbstractAzureFsTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(SMBStorePlugin.class);
+        return Arrays.asList(SMBStorePlugin.class);
     }
 
     public void testAzureFs() {
@@ -43,6 +44,6 @@ abstract public class AbstractAzureFsTestCase extends ESIntegTestCase {
         }
         refresh();
         SearchResponse response = client().prepareSearch("test").get();
-        assertThat(response.getHits().totalHits(), is(nbDocs));
+        assertThat(response.getHits().getTotalHits(), is(nbDocs));
     }
 }

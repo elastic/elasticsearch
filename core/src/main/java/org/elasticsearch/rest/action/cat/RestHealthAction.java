@@ -21,29 +21,21 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestHealthAction extends AbstractCatAction {
-
-    @Inject
-    public RestHealthAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestHealthAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/health", this);
     }
 
@@ -53,10 +45,10 @@ public class RestHealthAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
 
-        client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
+        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
             @Override
             public RestResponse buildResponse(final ClusterHealthResponse health) throws Exception {
                 return RestTable.buildResponse(buildTable(health, request), channel);
@@ -67,9 +59,7 @@ public class RestHealthAction extends AbstractCatAction {
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
-        t.startHeaders();
-        t.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00");
-        t.addCell("timestamp", "alias:ts,hms,hhmmss;desc:time in HH:MM:SS");
+        t.startHeadersWithTimestamp();
         t.addCell("cluster", "alias:cl;desc:cluster name");
         t.addCell("status", "alias:st;desc:health status");
         t.addCell("node.total", "alias:nt,nodeTotal;text-align:right;desc:total number of nodes");
@@ -87,14 +77,9 @@ public class RestHealthAction extends AbstractCatAction {
         return t;
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
-
     private Table buildTable(final ClusterHealthResponse health, final RestRequest request) {
-        long time = System.currentTimeMillis();
         Table t = getTableWithHeader(request);
         t.startRow();
-        t.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
-        t.addCell(dateFormat.print(time));
         t.addCell(health.getClusterName());
         t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
         t.addCell(health.getNumberOfNodes());

@@ -23,14 +23,16 @@ dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
-  compile 'org.hamcrest:hamcrest-all:1.3'
+  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   compile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
   compile "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  compile "org.elasticsearch.client:rest:${version}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'org.elasticsearch:securemock:1.2'
+  compile "org.elasticsearch:securemock:${versions.securemock}"
+  compile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
@@ -47,17 +49,17 @@ dependencyLicenses.enabled = false
 
 thirdPartyAudit.excludes = [
   // classes are missing
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger', 
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
    // we intentionally exclude the ant tasks because people were depending on them from their tests!!!!!!!
-  'org.apache.tools.ant.BuildException', 
-  'org.apache.tools.ant.DirectoryScanner', 
-  'org.apache.tools.ant.Task', 
-  'org.apache.tools.ant.types.FileSet', 
-  'org.easymock.EasyMock', 
-  'org.easymock.IArgumentMatcher', 
+  'org.apache.tools.ant.BuildException',
+  'org.apache.tools.ant.DirectoryScanner',
+  'org.apache.tools.ant.Task',
+  'org.apache.tools.ant.types.FileSet',
+  'org.easymock.EasyMock',
+  'org.easymock.IArgumentMatcher',
   'org.jmock.core.Constraint',
 ]

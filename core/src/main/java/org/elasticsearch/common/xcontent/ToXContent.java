@@ -26,10 +26,12 @@ import java.util.Map;
 
 /**
  * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
+ * The output may or may not be a value object. Objects implementing {@link ToXContentObject} output a valid value
+ * but those that don't may or may not require emitting a startObject and an endObject.
  */
 public interface ToXContent {
 
-    public static interface Params {
+    interface Params {
         String param(String key);
 
         String param(String key, String defaultValue);
@@ -39,7 +41,7 @@ public interface ToXContent {
         Boolean paramAsBoolean(String key, Boolean defaultValue);
     }
 
-    public static final Params EMPTY_PARAMS = new Params() {
+    Params EMPTY_PARAMS = new Params() {
         @Override
         public String param(String key) {
             return null;
@@ -62,7 +64,7 @@ public interface ToXContent {
 
     };
 
-    public static class MapParams implements Params {
+    class MapParams implements Params {
 
         private final Map<String, String> params;
 
@@ -95,7 +97,7 @@ public interface ToXContent {
         }
     }
 
-    public static class DelegatingMapParams extends MapParams {
+    class DelegatingMapParams extends MapParams {
 
         private final Params delegate;
 
@@ -126,4 +128,8 @@ public interface ToXContent {
     }
 
     XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+
+    default boolean isFragment() {
+        return true;
+    }
 }

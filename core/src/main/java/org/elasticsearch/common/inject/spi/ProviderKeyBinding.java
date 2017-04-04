@@ -30,9 +30,7 @@ import org.elasticsearch.common.inject.Provider;
 public interface ProviderKeyBinding<T> extends Binding<T> {
 
     /**
-     * Returns the key used to resolve the provider's binding. That binding can be retrieved from an
-     * injector using {@link org.elasticsearch.common.inject.Injector#getBinding(Key)
-     * Injector.getBinding(providerKey)}
+     * Returns the key used to resolve the provider's binding.
      */
     Key<? extends Provider<? extends T>> getProviderKey();
 

@@ -29,20 +29,16 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class SimplePhoneticAnalysisTests extends ESTestCase {
     public void testPhoneticTokenFilterFactory() throws IOException {
         String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";
-        Settings settings = settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+        Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings,
-            new AnalysisPhoneticPlugin()::onModule);
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("phonetic");
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("phonetic");
         MatcherAssert.assertThat(filterFactory, instanceOf(PhoneticTokenFilterFactory.class));
     }
 }

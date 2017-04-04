@@ -1,6 +1,7 @@
 [[java-api]]
 = Java API
-:ref: http://www.elastic.co/guide/en/elasticsearch/reference/master
+
+include::../Versions.asciidoc[]
 
 [preface]
 == Preface
@@ -25,14 +26,78 @@ Central].
 
 For example, you can define the latest version in your `pom.xml` file:
 
-[source,xml]
+["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
-    <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch</artifactId>
-    <version>${es.version}</version>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>transport</artifactId>
+    <version>{version}</version>
 </dependency>
 --------------------------------------------------
+
+=== Log4j 2 Logger
+
+You need to also include Log4j 2 dependencies:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.apache.logging.log4j</groupId>
+    <artifactId>log4j-api</artifactId>
+    <version>2.7</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.logging.log4j</groupId>
+    <artifactId>log4j-core</artifactId>
+    <version>2.7</version>
+</dependency>
+--------------------------------------------------
+
+And also provide a Log4j 2 configuration file in your classpath.
+For example, you can add in your `src/main/resources` project dir a `log4j2.properties` file like:
+
+
+["source","properties",subs="attributes"]
+--------------------------------------------------
+appender.console.type = Console
+appender.console.name = console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %marker%m%n
+
+rootLogger.level = info
+rootLogger.appenderRef.console.ref = console
+--------------------------------------------------
+
+=== Using another Logger
+
+If you want to use another logger than Log4j 2, you can use http://www.slf4j.org/[SLF4J] bridge to do that:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.apache.logging.log4j</groupId>
+    <artifactId>log4j-to-slf4j</artifactId>
+    <version>2.7</version>
+</dependency>
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <version>1.7.21</version>
+</dependency>
+--------------------------------------------------
+
+http://www.slf4j.org/manual.html[This page] lists implementations you can use. Pick your favorite logger
+and add it as a dependency. As an example, we will use the `slf4j-simple` logger:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-simple</artifactId>
+    <version>1.7.21</version>
+</dependency>
+--------------------------------------------------
+
 
 == Dealing with JAR dependency conflicts
 

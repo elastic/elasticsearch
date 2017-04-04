@@ -127,11 +127,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setPercolate(boolean percolate) {
-        request.percolate(percolate);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setSegments(boolean segments) {
         request.segments(segments);
         return this;

@@ -32,10 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
-public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest<Request>
+public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest
         implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
@@ -121,7 +118,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         } else {
             shardId = null;
         }
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         concreteIndex = in.readOptionalString();
     }
 

@@ -19,13 +19,12 @@
 
 package org.elasticsearch.test.store;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -35,12 +34,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MockFSIndexStore extends IndexStore {
@@ -50,26 +50,18 @@ public class MockFSIndexStore extends IndexStore {
 
     public static class TestPlugin extends Plugin {
         @Override
-        public String name() {
-            return "mock-index-store";
-        }
-        @Override
-        public String description() {
-            return "a mock index store for testing";
-        }
-        @Override
         public Settings additionalSettings() {
             return Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mock").build();
         }
 
-        public void onModule(SettingsModule module) {
-
-            module.registerSetting(INDEX_CHECK_INDEX_ON_CLOSE_SETTING);
-            module.registerSetting(MockFSDirectoryService.CRASH_INDEX_SETTING);
-            module.registerSetting(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING);
-            module.registerSetting(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING);
-            module.registerSetting(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING);
-            module.registerSetting(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_CHECK_INDEX_ON_CLOSE_SETTING,
+            MockFSDirectoryService.CRASH_INDEX_SETTING,
+            MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING,
+            MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING,
+            MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING,
+            MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING);
         }
 
         @Override
@@ -84,9 +76,8 @@ public class MockFSIndexStore extends IndexStore {
         }
     }
 
-    MockFSIndexStore(IndexSettings indexSettings,
-                     IndexStoreConfig config) {
-        super(indexSettings, config);
+    MockFSIndexStore(IndexSettings indexSettings) {
+        super(indexSettings);
     }
 
     public DirectoryService newDirectoryService(ShardPath path) {
@@ -104,7 +95,7 @@ public class MockFSIndexStore extends IndexStore {
             if (indexShard != null) {
                 Boolean remove = shardSet.remove(indexShard);
                 if (remove == Boolean.TRUE) {
-                    ESLogger logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+                    Logger logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
                     MockFSDirectoryService.checkIndex(logger, indexShard.store(), indexShard.shardId());
                 }
             }

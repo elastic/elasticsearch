@@ -47,6 +47,7 @@ PUT /my_index
     }
 }
 ------------------------------------
+// CONSOLE
 
 or a predefined language-specific list:
 
@@ -66,6 +67,7 @@ PUT /my_index
     }
 }
 ------------------------------------
+// CONSOLE
 
 Elasticsearch provides the following predefined list of languages:
 
@@ -76,4 +78,4 @@ Elasticsearch provides the following predefined list of languages:
 `_portuguese_`, `_romanian_`, `_russian_`, `_sorani_`, `_spanish_`,
 `_swedish_`, `_thai_`, `_turkish_`.
 
-For the empty stopwords list (to disable stopwords) use: `_none_`.
+For the empty stopwords list (to disable stopwords) use: `\_none_`.

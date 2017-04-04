@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.replication;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -94,7 +93,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
                     int totalNumCopies = clusterState.getMetaData().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
@@ -120,7 +119,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        taskManager.registerChildTask(task, clusterService.localNode().getId());
         replicatedBroadcastShardAction.execute(shardRequest, shardActionListener);
     }
 

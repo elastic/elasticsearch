@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -32,17 +33,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.tasks.Task;
+import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -57,13 +50,24 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
+ *
+ * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+ * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+ * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamInput}. Finally
+ * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
+ * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+ * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+ * on {@link StreamInput}.
  */
 public abstract class StreamOutput extends OutputStream {
 
@@ -206,12 +210,22 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a non-negative long in a variable-length format.
-     * Writes between one and nine bytes. Smaller values take fewer bytes.
-     * Negative numbers are not supported.
+     * Writes a non-negative long in a variable-length format. Writes between one and ten bytes. Smaller values take fewer bytes. Negative
+     * numbers use ten bytes and trip assertions (if running in tests) so prefer {@link #writeLong(long)} or {@link #writeZLong(long)} for
+     * negative numbers.
      */
     public void writeVLong(long i) throws IOException {
-        assert i >= 0;
+        if (i < 0) {
+            throw new IllegalStateException("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + i + "]");
+        }
+        writeVLongNoCheck(i);
+    }
+
+    /**
+     * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
+     * {@link #writeVLong(long)} instead.
+     */
+    void writeVLongNoCheck(long i) throws IOException {
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
@@ -234,6 +248,15 @@ public abstract class StreamOutput extends OutputStream {
             value >>>= 7;
         }
         writeByte((byte) (value & 0x7F));
+    }
+
+    public void writeOptionalLong(@Nullable Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeLong(l);
+        }
     }
 
     public void writeOptionalString(@Nullable String str) throws IOException {
@@ -286,23 +309,41 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    // we use a small buffer to convert strings to bytes since we want to prevent calling writeByte
+    // for every byte in the string (see #21660 for details).
+    // This buffer will never be the oversized limit of 1024 bytes and will not be shared across streams
+    private byte[] convertStringBuffer = BytesRef.EMPTY_BYTES; // TODO should we reduce it to 0 bytes once the stream is closed?
+
     public void writeString(String str) throws IOException {
-        int charCount = str.length();
+        final int charCount = str.length();
+        final int bufferSize = Math.min(3 * charCount, 1024); // at most 3 bytes per character is needed here
+        if (convertStringBuffer.length < bufferSize) { // we don't use ArrayUtils.grow since copying the bytes is unnecessary
+            convertStringBuffer = new byte[ArrayUtil.oversize(bufferSize, Byte.BYTES)];
+        }
+        byte[] buffer = convertStringBuffer;
+        int offset = 0;
         writeVInt(charCount);
-        int c;
         for (int i = 0; i < charCount; i++) {
-            c = str.charAt(i);
+            final int c = str.charAt(i);
             if (c <= 0x007F) {
-                writeByte((byte) c);
+                buffer[offset++] = ((byte) c);
             } else if (c > 0x07FF) {
-                writeByte((byte) (0xE0 | c >> 12 & 0x0F));
-                writeByte((byte) (0x80 | c >> 6 & 0x3F));
-                writeByte((byte) (0x80 | c >> 0 & 0x3F));
+                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
             } else {
-                writeByte((byte) (0xC0 | c >> 6 & 0x1F));
-                writeByte((byte) (0x80 | c >> 0 & 0x3F));
+                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
+            }
+            // make sure any possible char can fit into the buffer in any possible iteration
+            // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
+            // left before we start another iteration
+            if (offset > buffer.length - 3) {
+                writeBytes(buffer, offset);
+                offset = 0;
             }
         }
+        writeBytes(buffer, offset);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -313,6 +354,14 @@ public abstract class StreamOutput extends OutputStream {
         writeLong(Double.doubleToLongBits(v));
     }
 
+    public void writeOptionalDouble(@Nullable Double v) throws IOException {
+        if (v == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeDouble(v);
+        }
+    }
 
     private static byte ZERO = 0;
     private static byte ONE = 1;
@@ -329,7 +378,7 @@ public abstract class StreamOutput extends OutputStream {
         if (b == null) {
             writeByte(TWO);
         } else {
-            writeByte(b ? ONE : ZERO);
+            writeBoolean(b);
         }
     }
 
@@ -394,100 +443,216 @@ public abstract class StreamOutput extends OutputStream {
         writeGenericValue(map);
     }
 
+    /**
+     * write map to stream with consistent order
+     * to make sure every map generated bytes order are same.
+     * This method is compatible with {@code StreamInput.readMap} and {@code StreamInput.readGenericValue}
+     * This method only will handle the map keys order, not maps contained within the map
+     */
+    public void writeMapWithConsistentOrder(@Nullable Map<String, ? extends Object> map)
+        throws IOException {
+        if (map == null) {
+            writeByte((byte) -1);
+            return;
+        }
+        assert false == (map instanceof LinkedHashMap);
+        this.writeByte((byte) 10);
+        this.writeVInt(map.size());
+        Iterator<? extends Map.Entry<String, ?>> iterator =
+            map.entrySet().stream().sorted((a, b) -> a.getKey().compareTo(b.getKey())).iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, ?> next = iterator.next();
+            this.writeString(next.getKey());
+            this.writeGenericValue(next.getValue());
+        }
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+     * <pre><code>
+     * Map&lt;String, List&lt;String&gt;&gt; map = ...;
+     * out.writeMapOfLists(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+            throws IOException {
+        writeMap(map, keyWriter, (stream, list) -> {
+            writeVInt(list.size());
+            for (final V value : list) {
+                valueWriter.write(this, value);
+            }
+        });
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+     * <pre><code>
+     * Map&lt;String, String&gt; map = ...;
+     * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+        throws IOException {
+        writeVInt(map.size());
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
+            valueWriter.write(this, entry.getValue());
+        }
+    }
+
+    private static final Map<Class<?>, Writer> WRITERS;
+
+    static {
+        Map<Class<?>, Writer> writers = new HashMap<>();
+        writers.put(String.class, (o, v) -> {
+            o.writeByte((byte) 0);
+            o.writeString((String) v);
+        });
+        writers.put(Integer.class, (o, v) -> {
+            o.writeByte((byte) 1);
+            o.writeInt((Integer) v);
+        });
+        writers.put(Long.class, (o, v) -> {
+            o.writeByte((byte) 2);
+            o.writeLong((Long) v);
+        });
+        writers.put(Float.class, (o, v) -> {
+            o.writeByte((byte) 3);
+            o.writeFloat((float) v);
+        });
+        writers.put(Double.class, (o, v) -> {
+            o.writeByte((byte) 4);
+            o.writeDouble((double) v);
+        });
+        writers.put(Boolean.class, (o, v) -> {
+            o.writeByte((byte) 5);
+            o.writeBoolean((boolean) v);
+        });
+        writers.put(byte[].class, (o, v) -> {
+            o.writeByte((byte) 6);
+            final byte[] bytes = (byte[]) v;
+            o.writeVInt(bytes.length);
+            o.writeBytes(bytes);
+        });
+        writers.put(List.class, (o, v) -> {
+            o.writeByte((byte) 7);
+            final List list = (List) v;
+            o.writeVInt(list.size());
+            for (Object item : list) {
+                o.writeGenericValue(item);
+            }
+        });
+        writers.put(Object[].class, (o, v) -> {
+            o.writeByte((byte) 8);
+            final Object[] list = (Object[]) v;
+            o.writeVInt(list.length);
+            for (Object item : list) {
+                o.writeGenericValue(item);
+            }
+        });
+        writers.put(Map.class, (o, v) -> {
+            if (v instanceof LinkedHashMap) {
+                o.writeByte((byte) 9);
+            } else {
+                o.writeByte((byte) 10);
+            }
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> map = (Map<String, Object>) v;
+            o.writeVInt(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                o.writeString(entry.getKey());
+                o.writeGenericValue(entry.getValue());
+            }
+        });
+        writers.put(Byte.class, (o, v) -> {
+            o.writeByte((byte) 11);
+            o.writeByte((Byte) v);
+        });
+        writers.put(Date.class, (o, v) -> {
+            o.writeByte((byte) 12);
+            o.writeLong(((Date) v).getTime());
+        });
+        writers.put(ReadableInstant.class, (o, v) -> {
+            o.writeByte((byte) 13);
+            final ReadableInstant instant = (ReadableInstant) v;
+            o.writeString(instant.getZone().getID());
+            o.writeLong(instant.getMillis());
+        });
+        writers.put(BytesReference.class, (o, v) -> {
+            o.writeByte((byte) 14);
+            o.writeBytesReference((BytesReference) v);
+        });
+        writers.put(Text.class, (o, v) -> {
+            o.writeByte((byte) 15);
+            o.writeText((Text) v);
+        });
+        writers.put(Short.class, (o, v) -> {
+            o.writeByte((byte) 16);
+            o.writeShort((Short) v);
+        });
+        writers.put(int[].class, (o, v) -> {
+            o.writeByte((byte) 17);
+            o.writeIntArray((int[]) v);
+        });
+        writers.put(long[].class, (o, v) -> {
+            o.writeByte((byte) 18);
+            o.writeLongArray((long[]) v);
+        });
+        writers.put(float[].class, (o, v) -> {
+            o.writeByte((byte) 19);
+            o.writeFloatArray((float[]) v);
+        });
+        writers.put(double[].class, (o, v) -> {
+            o.writeByte((byte) 20);
+            o.writeDoubleArray((double[]) v);
+        });
+        writers.put(BytesRef.class, (o, v) -> {
+            o.writeByte((byte) 21);
+            o.writeBytesRef((BytesRef) v);
+        });
+        writers.put(GeoPoint.class, (o, v) -> {
+            o.writeByte((byte) 22);
+            o.writeGeoPoint((GeoPoint) v);
+        });
+        WRITERS = Collections.unmodifiableMap(writers);
+    }
+
+    /**
+     * Notice: when serialization a map, the stream out map with the stream in map maybe have the
+     * different key-value orders, they will maybe have different stream order.
+     * If want to keep stream out map and stream in map have the same stream order when stream,
+     * can use {@code writeMapWithConsistentOrder}
+     */
     public void writeGenericValue(@Nullable Object value) throws IOException {
         if (value == null) {
             writeByte((byte) -1);
             return;
         }
-        Class type = value.getClass();
-        if (type == String.class) {
-            writeByte((byte) 0);
-            writeString((String) value);
-        } else if (type == Integer.class) {
-            writeByte((byte) 1);
-            writeInt((Integer) value);
-        } else if (type == Long.class) {
-            writeByte((byte) 2);
-            writeLong((Long) value);
-        } else if (type == Float.class) {
-            writeByte((byte) 3);
-            writeFloat((Float) value);
-        } else if (type == Double.class) {
-            writeByte((byte) 4);
-            writeDouble((Double) value);
-        } else if (type == Boolean.class) {
-            writeByte((byte) 5);
-            writeBoolean((Boolean) value);
-        } else if (type == byte[].class) {
-            writeByte((byte) 6);
-            writeVInt(((byte[]) value).length);
-            writeBytes(((byte[]) value));
-        } else if (value instanceof List) {
-            writeByte((byte) 7);
-            List list = (List) value;
-            writeVInt(list.size());
-            for (Object o : list) {
-                writeGenericValue(o);
-            }
+        final Class type;
+        if (value instanceof List) {
+            type = List.class;
         } else if (value instanceof Object[]) {
-            writeByte((byte) 8);
-            Object[] list = (Object[]) value;
-            writeVInt(list.length);
-            for (Object o : list) {
-                writeGenericValue(o);
-            }
+            type = Object[].class;
         } else if (value instanceof Map) {
-            if (value instanceof LinkedHashMap) {
-                writeByte((byte) 9);
-            } else {
-                writeByte((byte) 10);
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) value;
-            writeVInt(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeString(entry.getKey());
-                writeGenericValue(entry.getValue());
-            }
-        } else if (type == Byte.class) {
-            writeByte((byte) 11);
-            writeByte((Byte) value);
-        } else if (type == Date.class) {
-            writeByte((byte) 12);
-            writeLong(((Date) value).getTime());
+            type = Map.class;
         } else if (value instanceof ReadableInstant) {
-            writeByte((byte) 13);
-            writeString(((ReadableInstant) value).getZone().getID());
-            writeLong(((ReadableInstant) value).getMillis());
+            type = ReadableInstant.class;
         } else if (value instanceof BytesReference) {
-            writeByte((byte) 14);
-            writeBytesReference((BytesReference) value);
-        } else if (value instanceof Text) {
-            writeByte((byte) 15);
-            writeText((Text) value);
-        } else if (type == Short.class) {
-            writeByte((byte) 16);
-            writeShort((Short) value);
-        } else if (type == int[].class) {
-            writeByte((byte) 17);
-            writeIntArray((int[]) value);
-        } else if (type == long[].class) {
-            writeByte((byte) 18);
-            writeLongArray((long[]) value);
-        } else if (type == float[].class) {
-            writeByte((byte) 19);
-            writeFloatArray((float[]) value);
-        } else if (type == double[].class) {
-            writeByte((byte) 20);
-            writeDoubleArray((double[]) value);
-        } else if (value instanceof BytesRef) {
-            writeByte((byte) 21);
-            writeBytesRef((BytesRef) value);
-        } else if (type == GeoPoint.class) {
-            writeByte((byte) 22);
-            writeGeoPoint((GeoPoint) value);
+            type = BytesReference.class;
         } else {
-            throw new IOException("Can't write type [" + type + "]");
+            type = value.getClass();
+        }
+        final Writer writer = WRITERS.get(type);
+        if (writer != null) {
+            writer.write(this, value);
+        } else {
+            throw new IOException("can not write type [" + type + "]");
         }
     }
 
@@ -533,6 +698,22 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+        writeVInt(array.length);
+        for (T value: array) {
+            value.writeTo(this);
+        }
+    }
+
+    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeArray(array);
+        }
+    }
+
     /**
      * Serializes a potential null value.
      */
@@ -545,7 +726,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalWriteable(@Nullable Writeable<?> writeable) throws IOException {
+    public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
@@ -554,7 +735,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeThrowable(Throwable throwable) throws IOException {
+    public void writeException(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
         } else {
@@ -610,13 +791,11 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
                 writeVInt(11);
                 writeCause = false;
-            } else if (throwable instanceof AssertionError) {
-                writeVInt(12);
             } else if (throwable instanceof FileNotFoundException) {
-                writeVInt(13);
+                writeVInt(12);
                 writeCause = false;
             } else if (throwable instanceof FileSystemException) {
-                writeVInt(14);
+                writeVInt(13);
                 if (throwable instanceof NoSuchFileException) {
                     writeVInt(0);
                 } else if (throwable instanceof NotDirectoryException) {
@@ -638,21 +817,18 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(((FileSystemException) throwable).getOtherFile());
                 writeOptionalString(((FileSystemException) throwable).getReason());
                 writeCause = false;
-            } else if (throwable instanceof OutOfMemoryError) {
-                writeVInt(15);
-                writeCause = false;
             } else if (throwable instanceof IllegalStateException) {
-                writeVInt(16);
+                writeVInt(14);
             } else if (throwable instanceof LockObtainFailedException) {
-                writeVInt(17);
+                writeVInt(15);
             } else if (throwable instanceof InterruptedException) {
-                writeVInt(18);
+                writeVInt(16);
                 writeCause = false;
             } else if (throwable instanceof IOException) {
-                writeVInt(19);
+                writeVInt(17);
             } else {
                 ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
+                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
                     ex = (ElasticsearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);
@@ -667,7 +843,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeThrowable(throwable.getCause());
+                writeException(throwable.getCause());
             }
             ElasticsearchException.writeStackTraces(throwable, this);
         }
@@ -676,70 +852,21 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
 
     /**
-     * Writes a {@link AggregatorBuilder} to the current stream
+     * Write an optional {@link NamedWriteable} to the stream.
      */
-    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
-        writeNamedWriteable(builder);
-    }
-
-    /**
-     * Writes a {@link PipelineAggregatorBuilder} to the current stream
-     */
-    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
-        writeNamedWriteable(builder);
-    }
-
-    /**
-     * Writes a {@link QueryBuilder} to the current stream
-     */
-    public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
-        writeNamedWriteable(queryBuilder);
-    }
-
-    /**
-     * Write an optional {@link QueryBuilder} to the stream.
-     */
-    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
-        if (queryBuilder == null) {
+    public void writeOptionalNamedWriteable(@Nullable NamedWriteable namedWriteable) throws IOException {
+        if (namedWriteable == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            writeQuery(queryBuilder);
+            writeNamedWriteable(namedWriteable);
         }
-    }
-
-    /**
-     * Writes a {@link ShapeBuilder} to the current stream
-     */
-    public void writeShape(ShapeBuilder shapeBuilder) throws IOException {
-        writeNamedWriteable(shapeBuilder);
-    }
-
-    /**
-     * Writes a {@link ScoreFunctionBuilder} to the current stream
-     */
-    public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
-        writeNamedWriteable(scoreFunctionBuilder);
-    }
-
-    /**
-     * Writes the given {@link SmoothingModel} to the stream
-     */
-    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
-        writeNamedWriteable(smoothinModel);
-    }
-
-    /**
-     * Writes a {@link Task.Status} to the current stream.
-     */
-    public void writeTaskStatus(Task.Status status) throws IOException {
-        writeNamedWriteable(status);
     }
 
     /**
@@ -751,34 +878,62 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a list of {@link Writeable} objects
+     * Write a {@linkplain DateTimeZone} to the stream.
      */
-    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
+        writeString(timeZone.getID());
+    }
+
+    /**
+     * Write an optional {@linkplain DateTimeZone} to the stream.
+     */
+    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
+        if (timeZone == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeTimeZone(timeZone);
+        }
+    }
+
+    /**
+     * Writes a list of {@link Streamable} objects
+     */
+    public void writeStreamableList(List<? extends Streamable> list) throws IOException {
         writeVInt(list.size());
-        for (T obj: list) {
+        for (Streamable obj: list) {
             obj.writeTo(this);
         }
-     }
-
-     /**
-     * Writes a {@link RescoreBuilder} to the current stream
-     */
-    public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
-        writeNamedWriteable(rescorer);
     }
 
     /**
-     * Writes a {@link SuggestionBuilder} to the current stream
+     * Writes a list of {@link Writeable} objects
      */
-    public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
-        writeNamedWriteable(suggestion);
+    public void writeList(List<? extends Writeable> list) throws IOException {
+        writeVInt(list.size());
+        for (Writeable obj: list) {
+            obj.writeTo(this);
+        }
     }
 
     /**
-     * Writes a {@link SortBuilder} to the current stream
+     * Writes a list of strings
      */
-    public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
-        writeNamedWriteable(sort);
+    public void writeStringList(List<String> list) throws IOException {
+        writeVInt(list.size());
+        for (String string: list) {
+            this.writeString(string);
+        }
+    }
+
+    /**
+     * Writes a list of {@link NamedWriteable} objects.
+     */
+    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
+        writeVInt(list.size());
+        for (NamedWriteable obj: list) {
+            writeNamedWriteable(obj);
+        }
     }
 
 }

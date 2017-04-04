@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,32 +51,24 @@ public class RerouteExplanation implements ToXContent {
     }
 
     public static RerouteExplanation readFrom(StreamInput in) throws IOException {
-        String commandName = in.readString();
-        AllocationCommand command = AllocationCommands.lookupFactorySafe(commandName).readFrom(in);
+        AllocationCommand command = in.readNamedWriteable(AllocationCommand.class);
         Decision decisions = Decision.readFrom(in);
         return new RerouteExplanation(command, decisions);
     }
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
-        out.writeString(explanation.command.name());
-        AllocationCommands.lookupFactorySafe(explanation.command.name()).writeTo(explanation.command, out);
-        Decision.writeTo(explanation.decisions, out);
+        out.writeNamedWriteable(explanation.command);
+        explanation.decisions.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("command", command.name());
-        AllocationCommands.lookupFactorySafe(command.name()).toXContent(command, builder, params, "parameters");
-        // The Decision could be a Multi or Single decision, and they should
-        // both be encoded the same, so check and wrap in an array if necessary
-        if (decisions instanceof Decision.Multi) {
-            decisions.toXContent(builder, params);
-        } else {
-            builder.startArray("decisions");
-            decisions.toXContent(builder, params);
-            builder.endArray();
-        }
+        builder.field("parameters", command);
+        builder.startArray("decisions");
+        decisions.toXContent(builder, params);
+        builder.endArray();
         builder.endObject();
         return builder;
     }

@@ -24,6 +24,14 @@
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
   - is_false: task
+  - is_false: deleted
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
 
 ---
 "Response format for updated":
@@ -57,6 +65,14 @@
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
   - is_false: task
+  - is_false: deleted
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
 
 ---
 "wait_for_completion=false":
@@ -88,12 +104,32 @@
   - is_false: took
   - is_false: throttled_millis
   - is_false: created
+  - is_false: deleted
 
   - do:
-      tasks.list:
+      tasks.get:
         wait_for_completion: true
         task_id: $task
   - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - match: {response.created: 1}
+  - match: {response.updated: 0}
+  - match: {response.version_conflicts: 0}
+  - match: {response.batches: 1}
+  - match: {response.failures: []}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  - is_false: response.task
+  - is_false: response.deleted
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
 
 ---
 "Response format for version conflict":
@@ -136,6 +172,13 @@
   - match: {failures.0.cause.index:  dest}
   - gte: { took: 0 }
 
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
+
 ---
 "Response format for version conflict with conflicts=proceed":
   - do:
@@ -170,207 +213,89 @@
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
 
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
+
 ---
-"Simplest example in docs":
+"Source document without any fields works":
   - do:
       index:
-        index:   twitter
-        type:    tweet
+        index:   source
+        type:    foo
         id:      1
-        body:    { "user": "kimchy" }
+        body:    {}
   - do:
       indices.refresh: {}
+
+  - do:
+      reindex:
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: {created: 1}
+
+  - do:
+      get:
+        index:   dest
+        type:    foo
+        id:      1
+  - match: { _source: {} }
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
+
+---
+"Reindex with source filtering":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test", "filtered": "removed" }
+        refresh: true
 
   - do:
       reindex:
         refresh: true
         body:
           source:
-            index: twitter
+            index: source
+            _source:
+              excludes:
+                - filtered
           dest:
-            index: new_twitter
+            index: dest
+  - match: {created: 1}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
 
   - do:
-      search:
-        index: new_twitter
-  - match: { hits.total: 1 }
+      get:
+        index: dest
+        type: foo
+        id: 1
+  - match: { _source.text: "test" }
+  - is_false: _source.filtered
 
----
-"Limit by type example in docs":
+  # Make sure reindex closed all the scroll contexts
   - do:
-      index:
-        index:   twitter
-        type:    tweet
-        id:      1
-        body:    { "user": "kimchy" }
-  - do:
-      index:
-        index:   twitter
-        type:    junk
-        id:      1
-        body:    { "user": "kimchy" }
-  - do:
-      indices.refresh: {}
-
-  - do:
-      reindex:
-        refresh: true
-        body:
-          source:
-            index: twitter
-            type:  tweet
-          dest:
-            index: new_twitter
-
-  - do:
-      search:
-        index: new_twitter
-  - match: { hits.total: 1 }
-
----
-"Limit by query example in docs":
-  - do:
-      index:
-        index:   twitter
-        type:    tweet
-        id:      1
-        body:    { "user": "kimchy" }
-  - do:
-      index:
-        index:   twitter
-        type:    tweet
-        id:      2
-        body:    { "user": "junk" }
-  - do:
-      indices.refresh: {}
-
-  - do:
-      reindex:
-        refresh: true
-        body:
-          source:
-            index: twitter
-            query:
-              match:
-                user: kimchy
-          dest:
-            index: new_twitter
-
-  - do:
-      search:
-        index: new_twitter
-  - match: { hits.total: 1 }
-
----
-"Override type example in docs":
-  - do:
-      index:
-        index:   twitter
-        type:    tweet
-        id:      1
-        body:    { "user": "kimchy" }
-  - do:
-      index:
-        index:   twitter
-        type:    junk
-        id:      1
-        body:    { "user": "kimchy" }
-  - do:
-      indices.refresh: {}
-
-  - do:
-      reindex:
-        refresh: true
-        body:
-          source:
-            index: twitter
-            type:  tweet
-          dest:
-            index: new_twitter
-            type:  chirp
-
-  - do:
-      search:
-        index: new_twitter
-        type:  chirp
-  - match: { hits.total: 1 }
-
----
-"Multi index, multi type example from docs":
-  - do:
-      index:
-        index:  twitter
-        type:   tweet
-        id:     1
-        body:   { "user": "kimchy" }
-  - do:
-      index:
-        index:  blog
-        type:   post
-        id:     1
-        body:   { "user": "kimchy" }
-  - do:
-      indices.refresh: {}
-
-  - do:
-      reindex:
-        refresh: true
-        body:
-          source:
-            index: [twitter, blog]
-            type:  [tweet, post]
-          dest:
-            index: all_together
-
-  - do:
-      search:
-        index: all_together
-        type: tweet
-        body:
-          query:
-            match:
-              user: kimchy
-  - match: { hits.total: 1 }
-
-  - do:
-      search:
-        index: all_together
-        type: post
-        body:
-          query:
-            match:
-              user: kimchy
-  - match: { hits.total: 1 }
-
----
-"Limit by size example from docs":
-  - do:
-      index:
-        index:  twitter
-        type:   tweet
-        id:     1
-        body:   { "user": "kimchy" }
-  - do:
-      index:
-        index:  twitter
-        type:   tweet
-        id:     2
-        body:   { "user": "kimchy" }
-  - do:
-      indices.refresh: {}
-
-  - do:
-      reindex:
-        refresh: true
-        body:
-          size: 1
-          source:
-            index: twitter
-          dest:
-            index: new_twitter
-
-  - do:
-      search:
-        index: new_twitter
-        type: tweet
-  - match: { hits.total: 1 }
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}

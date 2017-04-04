@@ -22,8 +22,8 @@ package org.elasticsearch.bootstrap;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Structure;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.util.Arrays;
@@ -34,7 +34,7 @@ import java.util.List;
  */
 final class JNACLibrary {
 
-    private static final ESLogger logger = Loggers.getLogger(JNACLibrary.class);
+    private static final Logger logger = Loggers.getLogger(JNACLibrary.class);
 
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;
@@ -61,7 +61,7 @@ final class JNACLibrary {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[] { "rlim_cur", "rlim_max" });
+            return Arrays.asList("rlim_cur", "rlim_max");
         }
     }
 

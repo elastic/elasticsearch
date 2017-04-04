@@ -46,12 +46,12 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
 
     private void testToken(String source, String expected) throws IOException {
         Index index = new Index("test", "_na_");
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
-        AnalysisService analysisService = createAnalysisService(index, settings, new AnalysisStempelPlugin()::onModule);
+        TestAnalysis analysis = createTestAnalysis(index, settings, new AnalysisStempelPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myStemmer");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myStemmer");
 
         Tokenizer tokenizer = new KeywordTokenizer();
         tokenizer.setReader(new StringReader(source));
@@ -65,10 +65,9 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY,
-            new AnalysisStempelPlugin()::onModule);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisStempelPlugin());
 
-        Analyzer analyzer = analysisService.analyzer("polish").analyzer();
+        Analyzer analyzer = analysis.indexAnalyzers.get("polish").analyzer();
 
         TokenStream ts = analyzer.tokenStream("test", source);
 

@@ -62,7 +62,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The fast vector highlighter will be used by default for the `text` field
     because term vectors are enabled.
 

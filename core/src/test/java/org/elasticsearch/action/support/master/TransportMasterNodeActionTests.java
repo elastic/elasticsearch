@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -45,6 +45,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -59,8 +60,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -76,7 +77,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("TransportMasterNodeActionTests");
+        threadPool = new TestThreadPool("TransportMasterNodeActionTests");
     }
 
     @Override
@@ -85,12 +86,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool);
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode("local_node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
-        remoteNode = new DiscoveryNode("remote_node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        remoteNode = new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
         allNodes = new DiscoveryNode[]{localNode, remoteNode};
     }
@@ -135,7 +137,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener));
+            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
 
         @Override
@@ -166,7 +168,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        final Throwable exception = new Throwable();
+        final Exception exception = new Exception();
         final Response response = new Response();
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
@@ -243,7 +245,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(null, localNode, remoteNode), allNodes));
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(localNode, remoteNode, null), allNodes));
 
         new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
             @Override
@@ -316,14 +318,19 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertTrue(listener.isDone());
             listener.get();
         } else {
-            Throwable t = new Throwable();
+            ElasticsearchException t = new ElasticsearchException("test");
+            t.addHeader("header", "is here");
             transport.handleRemoteError(capturedRequest.requestId, t);
             assertTrue(listener.isDone());
             try {
                 listener.get();
                 fail("Expected exception but returned proper result");
             } catch (ExecutionException ex) {
-                assertThat(ex.getCause().getCause(), equalTo(t));
+                final Throwable cause = ex.getCause().getCause();
+                assertThat(cause, instanceOf(ElasticsearchException.class));
+                final ElasticsearchException es = (ElasticsearchException) cause;
+                assertThat(es.getMessage(), equalTo(t.getMessage()));
+                assertThat(es.getHeader("header"), equalTo(t.getHeader("header")));
             }
         }
     }
@@ -341,7 +348,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
-                Throwable failure = randomBoolean()
+                Exception failure = randomBoolean()
                         ? new Discovery.FailedToCommitClusterStateException("Fake error")
                         : new NotMasterException("Fake error");
                 listener.onFailure(failure);

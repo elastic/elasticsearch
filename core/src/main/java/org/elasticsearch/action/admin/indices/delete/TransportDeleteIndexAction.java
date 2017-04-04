@@ -19,11 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -85,15 +88,21 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
             listener.onResponse(new DeleteIndexResponse(true));
             return;
         }
-        deleteIndexService.deleteIndices(new MetaDataDeleteIndexService.Request(concreteIndices).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
+
+        DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest()
+            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+            .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
+
+        deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
-            public void onResponse(MetaDataDeleteIndexService.Response response) {
-                listener.onResponse(new DeleteIndexResponse(response.acknowledged()));
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new DeleteIndexResponse(response.isAcknowledged()));
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), t);
                 listener.onFailure(t);
             }
         });

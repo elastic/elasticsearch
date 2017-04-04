@@ -19,18 +19,16 @@
 
 package org.elasticsearch.repositories.fs;
 
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -50,16 +48,16 @@ import java.util.function.Function;
  */
 public class FsRepository extends BlobStoreRepository {
 
-    public final static String TYPE = "fs";
+    public static final String TYPE = "fs";
 
     public static final Setting<String> LOCATION_SETTING =
         new Setting<>("location", "", Function.identity(), Property.NodeScope);
     public static final Setting<String> REPOSITORIES_LOCATION_SETTING =
         new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("chunk_size", "-1", Property.NodeScope);
+        Setting.byteSizeSetting("chunk_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("repositories.fs.chunk_size", "-1", Property.NodeScope);
+        Setting.byteSizeSetting("repositories.fs.chunk_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
         Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
@@ -73,63 +71,49 @@ public class FsRepository extends BlobStoreRepository {
     private boolean compress;
 
     /**
-     * Constructs new shared file system repository
-     *
-     * @param name                 repository name
-     * @param repositorySettings   repository settings
-     * @param indexShardRepository index shard repository
+     * Constructs a shared file system repository.
      */
-    @Inject
-    public FsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
-        Path locationFile;
-        String location = REPOSITORIES_LOCATION_SETTING.get(repositorySettings.settings());
+    public FsRepository(RepositoryMetaData metadata, Environment environment,
+                        NamedXContentRegistry namedXContentRegistry) throws IOException {
+        super(metadata, environment.settings(), namedXContentRegistry);
+        String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
             logger.warn("the repository location is missing, it should point to a shared file system location that is available on all master and data nodes");
-            throw new RepositoryException(name.name(), "missing location");
+            throw new RepositoryException(metadata.name(), "missing location");
         }
-        locationFile = environment.resolveRepoFile(location);
+        Path locationFile = environment.resolveRepoFile(location);
         if (locationFile == null) {
             if (environment.repoFiles().length > 0) {
                 logger.warn("The specified location [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] ", location, environment.repoFiles());
-                throw new RepositoryException(name.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo");
+                throw new RepositoryException(metadata.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo");
             } else {
                 logger.warn("The specified location [{}] should start with a repository path specified by the path.repo setting, but the path.repo setting was not set on this node", location);
-                throw new RepositoryException(name.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo because this setting is empty");
+                throw new RepositoryException(metadata.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo because this setting is empty");
             }
         }
 
         blobStore = new FsBlobStore(settings, locationFile);
-        if (CHUNK_SIZE_SETTING.exists(repositorySettings.settings())) {
-            this.chunkSize = CHUNK_SIZE_SETTING.get(repositorySettings.settings());
+        if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
+            this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         } else if (REPOSITORIES_CHUNK_SIZE_SETTING.exists(settings)) {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
         } else {
             this.chunkSize = null;
         }
-        this.compress = COMPRESS_SETTING.exists(repositorySettings.settings()) ? COMPRESS_SETTING.get(repositorySettings.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
+        this.compress = COMPRESS_SETTING.exists(metadata.settings()) ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
         this.basePath = BlobPath.cleanPath();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected BlobStore blobStore() {
         return blobStore;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected boolean isCompress() {
         return compress;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;

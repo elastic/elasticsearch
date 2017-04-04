@@ -21,15 +21,21 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
-public abstract class TestCustomMetaData extends AbstractDiffable<MetaData.Custom> implements MetaData.Custom {
+public abstract class TestCustomMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
     private final String data;
 
     protected TestCustomMetaData(String data) {
@@ -57,11 +63,12 @@ public abstract class TestCustomMetaData extends AbstractDiffable<MetaData.Custo
         return data.hashCode();
     }
 
-    protected abstract TestCustomMetaData newTestCustomMetaData(String data);
+    protected static <T extends TestCustomMetaData> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
+        return supplier.apply(in.readString());
+    }
 
-    @Override
-    public MetaData.Custom readFrom(StreamInput in) throws IOException {
-        return newTestCustomMetaData(in.readString());
+    public static NamedDiff<MetaData.Custom> readDiffFrom(String name, StreamInput in)  throws IOException {
+        return readDiffFrom(MetaData.Custom.class, name, in);
     }
 
     @Override
@@ -69,8 +76,9 @@ public abstract class TestCustomMetaData extends AbstractDiffable<MetaData.Custo
         out.writeString(getData());
     }
 
-    @Override
-    public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
+    @SuppressWarnings("unchecked")
+    public static <T extends MetaData.Custom> T fromXContent(Function<String, MetaData.Custom> supplier, XContentParser parser)
+        throws IOException {
         XContentParser.Token token;
         String data = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -91,12 +99,17 @@ public abstract class TestCustomMetaData extends AbstractDiffable<MetaData.Custo
         if (data == null) {
             throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
         }
-        return newTestCustomMetaData(data);
+        return (T) supplier.apply(data);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("data", getData());
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return "[" + getWriteableName() + "][" + data +"]";
     }
 }

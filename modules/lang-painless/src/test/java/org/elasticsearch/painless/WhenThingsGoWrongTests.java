@@ -19,131 +19,268 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.Constants;
+
+import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
-        try {
-            exec("int x = (int) ((Map) input).get(\"missing\"); return x;");
-            fail("should have hit npe");
-        } catch (NullPointerException expected) {}
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("int x = params['missing']; return x;");
+        });
+    }
+
+    /** test "line numbers" in the bytecode, which are really 1-based offsets */
+    public void testLineNumbers() {
+        // trigger NPE at line 1 of the script
+        NullPointerException exception = expectScriptThrows(NullPointerException.class, () -> {
+            exec("String x = null; boolean y = x.isEmpty();\n" +
+                 "return y;");
+        });
+        // null deref at x.isEmpty(), the '.' is offset 30 (+1)
+        assertEquals(30 + 1, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 2 of the script
+        exception = expectScriptThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "return x.isEmpty();");
+        });
+        // null deref at x.isEmpty(), the '.' is offset 25 (+1)
+        assertEquals(25 + 1, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 3 of the script
+        exception = expectScriptThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "String y = x;\n" +
+                 "return y.isEmpty();");
+        });
+        // null deref at y.isEmpty(), the '.' is offset 39 (+1)
+        assertEquals(39 + 1, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 4 in script (inside conditional)
+        exception = expectScriptThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "boolean y = false;\n" +
+                 "if (!y) {\n" +
+                 "  y = x.isEmpty();\n" +
+                 "}\n" +
+                 "return y;");
+        });
+        // null deref at x.isEmpty(), the '.' is offset 53 (+1)
+        assertEquals(53 + 1, exception.getStackTrace()[0].getLineNumber());
     }
 
     public void testInvalidShift() {
-        try {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("float x = 15F; x <<= 2; return x;");
-            fail("should have hit cce");
-        } catch (ClassCastException expected) {}
+        });
 
-        try {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("double x = 15F; x <<= 2; return x;");
-            fail("should have hit cce");
-        } catch (ClassCastException expected) {}
+        });
     }
 
     public void testBogusParameter() {
-        try {
-            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"));
-            fail("should have hit IAE");
-        } catch (IllegalArgumentException expected) {
-            assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
-        }
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), null, true);
+        });
+        assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
 
     public void testInfiniteLoops() {
-        try {
+        PainlessError expected = expectScriptThrows(PainlessError.class, () -> {
             exec("boolean x = true; while (x) {}");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
-            exec("while (true) {int y = 5}");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        expected = expectScriptThrows(PainlessError.class, () -> {
+            exec("while (true) {int y = 5;}");
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectScriptThrows(PainlessError.class, () -> {
             exec("while (true) { boolean x = true; while (x) {} }");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectScriptThrows(PainlessError.class, () -> {
             exec("while (true) { boolean x = false; while (x) {} }");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectScriptThrows(PainlessError.class, () -> {
             exec("boolean x = true; for (;x;) {}");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
-            exec("for (;;) {int x = 5}");
+        expected = expectScriptThrows(PainlessError.class, () -> {
+            exec("for (;;) {int x = 5;}");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectScriptThrows(PainlessError.class, () -> {
             exec("def x = true; do {int y = 5;} while (x)");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
-            exec("try { int x } catch (PainlessError error) {}");
+        RuntimeException parseException = expectScriptThrows(RuntimeException.class, () -> {
+            exec("try { int x; } catch (PainlessError error) {}", false);
             fail("should have hit ParseException");
-        } catch (RuntimeException expected) {
-            assertTrue(expected.getMessage().contains(
-                "Invalid type [PainlessError]."));
-        }
-
+        });
+        assertTrue(parseException.getMessage().contains("unexpected token ['PainlessError']"));
     }
 
     public void testLoopLimits() {
-        exec("for (int x = 0; x < 9999; ++x) {}");
+        // right below limit: ok
+        exec("for (int x = 0; x < 999999; ++x) {}");
 
-        try {
-            exec("for (int x = 0; x < 10000; ++x) {}");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        PainlessError expected = expectScriptThrows(PainlessError.class, () -> {
+            exec("for (int x = 0; x < 1000000; ++x) {}");
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
     }
 
     public void testSourceLimits() {
-        char[] chars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
-        Arrays.fill(chars, '0');
+        final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
+        Arrays.fill(tooManyChars, '0');
 
-        try {
-            exec(new String(chars));
-            fail("should have hit IllegalArgumentException");
-        } catch (IllegalArgumentException expected) {
-            assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
-        }
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec(new String(tooManyChars));
+        });
+        assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
 
-        chars = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
-        Arrays.fill(chars, '0');
-
-        assertEquals(0, exec(new String(chars)));
+        final char[] exactlyAtLimit = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
+        Arrays.fill(exactlyAtLimit, '0');
+        // ok
+        assertEquals(0, exec(new String(exactlyAtLimit)));
     }
+
+    public void testIllegalDynamicMethod() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def x = 'test'; return x.getClass().toString()");
+        });
+        assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
+    }
+
+    public void testDynamicNPE() {
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; return x.toString()");
+        });
+    }
+
+    public void testDynamicWrongArgs() {
+        expectScriptThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new ArrayList(); return x.get('bogus');");
+        });
+    }
+
+    public void testDynamicArrayWrongIndex() {
+        expectScriptThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new long[1]; x[0]=1; return x['bogus'];");
+        });
+    }
+
+    public void testDynamicListWrongIndex() {
+        expectScriptThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new ArrayList(); x.add('foo'); return x['bogus'];");
+        });
+    }
+
+    /**
+     * Makes sure that we present a useful error message with a misplaced right-curly. This is important because we do some funky things in
+     * the parser with right-curly brackets to allow statements to be delimited by them at the end of blocks.
+     */
+    public void testRCurlyNotDelim() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            // We don't want PICKY here so we get the normal error message
+            exec("def i = 1} return 1", emptyMap(), emptyMap(), null, false);
+        });
+        assertEquals("unexpected token ['}'] was expecting one of [<EOF>].", e.getMessage());
+    }
+
+    public void testBadBoxingCast() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("BitSet bs = new BitSet(); bs.and(2);");
+        });
+    }
+
+    public void testOutOfMemoryError() {
+        assumeTrue("test only happens to work for sure on oracle jre", Constants.JAVA_VENDOR.startsWith("Oracle"));
+        expectScriptThrows(OutOfMemoryError.class, () -> {
+            exec("int[] x = new int[Integer.MAX_VALUE - 1];");
+        });
+    }
+
+    public void testStackOverflowError() {
+        expectScriptThrows(StackOverflowError.class, () -> {
+            exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);");
+        });
+    }
+
+    public void testRegexDisabledByDefault() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> exec("return 'foo' ==~ /foo/"));
+        assertEquals("Regexes are disabled. Set [script.painless.regex.enabled] to [true] in elasticsearch.yaml to allow them. "
+                + "Be careful though, regexes break out of Painless's protection against deep recursion and long loops.", e.getMessage());
+    }
+
+    public void testCanNotOverrideRegexEnabled() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
+        assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
+    }
+
+    public void testInvalidIntConstantSuggestsLong() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 864000000000"));
+        assertEquals("Invalid int constant [864000000000]. If you want a long constant then change it to [864000000000L].", e.getMessage());
+        assertEquals(864000000000L, exec("return 864000000000L"));
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -864000000000"));
+        assertEquals("Invalid int constant [-864000000000]. If you want a long constant then change it to [-864000000000L].",
+                e.getMessage());
+        assertEquals(-864000000000L, exec("return -864000000000L"));
+
+        // If it isn't a valid long we don't give any suggestions
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 92233720368547758070"));
+        assertEquals("Invalid int constant [92233720368547758070].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -92233720368547758070"));
+        assertEquals("Invalid int constant [-92233720368547758070].", e.getMessage());
+    }
+
+    public void testQuestionSpaceDotIsNotNullSafeDereference() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a? .b", false));
+        assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
+    }
+
+    public void testBadStringEscape() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\a'", false));
+        assertEquals("unexpected character ['\\a]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+                e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\a\"", false));
+        assertEquals("unexpected character [\"\\a]. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+                e.getMessage());
+    }
+
+    public void testRegularUnexpectedCharacter() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'", false));
+        assertEquals("unexpected character ['].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'cat", false));
+        assertEquals("unexpected character ['cat].", e.getMessage());
+    }
+
 }

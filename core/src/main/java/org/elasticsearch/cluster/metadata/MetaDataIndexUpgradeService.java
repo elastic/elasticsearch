@@ -19,22 +19,27 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
+import java.util.AbstractMap;
 import java.util.Collections;
-
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -46,12 +51,15 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
+    private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings, MapperRegistry mapperRegistry, IndexScopedSettings indexScopedSettings) {
+    public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+            IndexScopedSettings indexScopedSettings) {
         super(settings);
+        this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -63,13 +71,13 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
+    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
             assert indexMetaData == archiveBrokenIndexSettings(indexMetaData) : "all settings must have been upgraded before";
             return indexMetaData;
         }
-        checkSupportedVersion(indexMetaData);
+        checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);
         IndexMetaData newMetaData = indexMetaData;
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
@@ -88,32 +96,26 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     }
 
     /**
-     * Elasticsearch 3.0 no longer supports indices with pre Lucene v5.0 (Elasticsearch v2.0.0.beta1) segments. All indices
-     * that were created before Elasticsearch v2.0.0.beta1 should be upgraded using upgrade API before they can
-     * be open by this version of elasticsearch.
+     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
+     * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
+     * before they can be opened by this version of elasticsearch.
      */
-    private void checkSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v2.0.0.beta1 and wasn't upgraded."
-                    + " This index should be open using a version before " + Version.CURRENT.minimumCompatibilityVersion()
-                    + " and upgraded using the upgrade API.");
+    private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+        if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData,
+            minimumIndexCompatibilityVersion) == false) {
+            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created with version ["
+                + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
+
+                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
+                + ".x before upgrading to " + Version.CURRENT + ".");
         }
     }
 
     /*
      * Returns true if this index can be supported by the current version of elasticsearch
      */
-    private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-            // The index was created with elasticsearch that was using Lucene 5.2.1
-            return true;
-        }
-        if (indexMetaData.getMinimumCompatibleVersion() != null &&
-                indexMetaData.getMinimumCompatibleVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_5_0_0)) {
-            //The index was upgraded we can work with it
-            return true;
-        }
-        return false;
+    private static boolean isSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+        return indexMetaData.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
     }
 
     /**
@@ -125,14 +127,31 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-
-            try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
-                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null)) {
-                    for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-                        MappingMetaData mappingMetaData = cursor.value;
-                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
-                    }
+            final NamedAnalyzer fakeDefault = new NamedAnalyzer("fake_default", AnalyzerScope.INDEX, new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    throw new UnsupportedOperationException("shouldn't be here");
                 }
+            });
+            // this is just a fake map that always returns the same value for any possible string key
+            // also the entrySet impl isn't fully correct but we implement it since internally
+            // IndexAnalyzers will iterate over all analyzers to close them.
+            final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
+                @Override
+                public NamedAnalyzer get(Object key) {
+                    assert key instanceof String : "key must be a string but was: " + key.getClass();
+                    return new NamedAnalyzer((String)key, AnalyzerScope.INDEX, fakeDefault.analyzer());
+                }
+
+                @Override
+                public Set<Entry<String, NamedAnalyzer>> entrySet() {
+                    return Collections.emptySet();
+                }
+            };
+            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap)) {
+                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
+                        mapperRegistry, () -> null);
+                mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, false);
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
@@ -148,37 +167,12 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         return IndexMetaData.builder(indexMetaData).settings(settings).build();
     }
 
-    /**
-     * A fake analysis server that returns the same keyword analyzer for all requests
-     */
-    private static class FakeAnalysisService extends AnalysisService {
-
-        private Analyzer fakeAnalyzer = new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                throw new UnsupportedOperationException("shouldn't be here");
-            }
-        };
-
-        public FakeAnalysisService(IndexSettings indexSettings) {
-            super(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
-        }
-
-        @Override
-        public NamedAnalyzer analyzer(String name) {
-            return new NamedAnalyzer(name, fakeAnalyzer);
-        }
-
-        @Override
-        public void close() {
-            fakeAnalyzer.close();
-            super.close();
-        }
-    }
-
     IndexMetaData archiveBrokenIndexSettings(IndexMetaData indexMetaData) {
         final Settings settings = indexMetaData.getSettings();
-        final Settings upgrade = indexScopedSettings.archiveUnknownOrBrokenSettings(settings);
+        final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(
+            settings,
+            e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()),
+            (e, ex) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
         if (upgrade != settings) {
             return IndexMetaData.builder(indexMetaData).settings(upgrade).build();
         } else {

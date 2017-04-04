@@ -32,7 +32,7 @@ import org.elasticsearch.index.IndexSettings;
  *
  *
  */
-public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory {
+public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final String name;
 
@@ -44,5 +44,10 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, Normalizer2.getInstance(null, name, Normalizer2.Mode.COMPOSE));
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

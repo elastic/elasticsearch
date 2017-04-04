@@ -21,26 +21,21 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestMasterAction extends AbstractCatAction {
-
-    @Inject
-    public RestMasterAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestMasterAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/master", this);
     }
 
@@ -50,13 +45,13 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, clusterStateResponse), channel);
@@ -81,7 +76,7 @@ public class RestMasterAction extends AbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-        DiscoveryNode master = nodes.get(nodes.masterNodeId());
+        DiscoveryNode master = nodes.get(nodes.getMasterNodeId());
         if (master == null) {
             table.addCell("-");
             table.addCell("-");

@@ -25,14 +25,14 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,13 +46,13 @@ public abstract class AbstractTDigestPercentilesAggregator extends NumericMetric
 
     protected final double[] keys;
     protected final ValuesSource.Numeric valuesSource;
-    protected final ValueFormatter formatter;
+    protected final DocValueFormat formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
     protected final boolean keyed;
 
-    public AbstractTDigestPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent,
-            double[] keys, double compression, boolean keyed, ValueFormatter formatter,
+    public AbstractTDigestPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, SearchContext context, Aggregator parent,
+            double[] keys, double compression, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;

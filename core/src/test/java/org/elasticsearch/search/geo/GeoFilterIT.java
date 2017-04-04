@@ -19,19 +19,13 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.locationtech.spatial4j.context.SpatialContext;
-import org.locationtech.spatial4j.distance.DistanceUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
-
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-import org.apache.lucene.spatial.util.GeoHashUtils;
-import org.apache.lucene.spatial.util.GeoProjectionUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -39,19 +33,21 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -59,29 +55,28 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
+import org.locationtech.spatial4j.context.SpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
@@ -89,14 +84,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
     private static boolean intersectSupport;
@@ -223,7 +215,8 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").addMapping("polygon", mapping);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
+            .addMapping("polygon", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -239,7 +232,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
         BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
 
-        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // Point in polygon
@@ -301,7 +294,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
         data = jsonBuilder().startObject().field("area", inverse).endObject().bytes();
-        client().prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // re-check point on polygon hole
@@ -335,7 +328,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
-        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -344,7 +337,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
-        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         result = client().prepareSearch()
@@ -375,16 +368,13 @@ public class GeoFilterIT extends ESIntegTestCase {
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("country")
                 .startObject("properties")
                 .startObject("pin")
                 .field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
         xContentBuilder.field("store", true)
                 .endObject()
                 .startObject("location")
@@ -395,8 +385,8 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder.string()).execute().actionGet();
-        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null).execute().actionGet();
+                .addMapping("country", xContentBuilder).execute().actionGet();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());
@@ -415,13 +405,13 @@ public class GeoFilterIT extends ESIntegTestCase {
             assertThat(hit.getId(), equalTo(key));
         }
 
-        SearchResponse world = client().prepareSearch().addField("pin").setQuery(
+        SearchResponse world = client().prepareSearch().addStoredField("pin").setQuery(
                 geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)
         ).execute().actionGet();
 
         assertHitCount(world, 53);
 
-        SearchResponse distance = client().prepareSearch().addField("pin").setQuery(
+        SearchResponse distance = client().prepareSearch().addStoredField("pin").setQuery(
                 geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
                 ).execute().actionGet();
 
@@ -429,90 +419,13 @@ public class GeoFilterIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint();
         for (SearchHit hit : distance.getHits()) {
             String name = hit.getId();
-            if (version.before(Version.V_2_2_0)) {
-                point.resetFromString(hit.fields().get("pin").getValue().toString());
-            } else {
-                point.resetFromIndexHash(hit.fields().get("pin").getValue());
-            }
+            point.resetFromString(hit.getFields().get("pin").getValue());
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
             assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
             assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
             if (key.equals(name)) {
                 assertThat(dist, closeTo(0d, 0.1d));
-            }
-        }
-    }
-
-    public void testGeohashCellFilter() throws IOException {
-        String geohash = randomhash(10);
-        logger.info("Testing geohash_cell filter for [{}]", geohash);
-
-        Collection<? extends CharSequence> neighbors = GeoHashUtils.neighbors(geohash);
-        Collection<? extends CharSequence> parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length() - 1));
-
-        logger.info("Neighbors {}", neighbors);
-        logger.info("Parent Neighbors {}", parentNeighbors);
-
-        ensureYellow();
-
-        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
-
-        // Index a pin
-        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
-
-        // index neighbors
-        Iterator<? extends CharSequence> iterator = neighbors.iterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("pin", iterator.next()).execute().actionGet();
-        }
-
-        // Index parent cell
-        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("pin", geohash.substring(0, geohash.length() - 1)).execute().actionGet();
-
-        // index neighbors
-        iterator = parentNeighbors.iterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("pin", iterator.next()).execute().actionGet();
-        }
-
-        client().admin().indices().prepareRefresh("locations").execute().actionGet();
-
-        Map<GeohashCellQuery.Builder, Long> expectedCounts = new HashMap<>();
-        Map<GeohashCellQuery.Builder, String[]> expectedResults = new HashMap<>();
-
-        expectedCounts.put(geoHashCellQuery("pin", geohash, false), 1L);
-
-        expectedCounts.put(geoHashCellQuery("pin", geohash.substring(0, geohash.length() - 1), true), 2L + neighbors.size() + parentNeighbors.size());
-
-        // Testing point formats and precision
-        GeoPoint point = GeoPoint.fromGeohash(geohash);
-        int precision = geohash.length();
-
-        expectedCounts.put(geoHashCellQuery("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
-
-
-        List<GeohashCellQuery.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
-        for (GeohashCellQuery.Builder builder : filterBuilders) {
-            try {
-                long expectedCount = expectedCounts.get(builder);
-                SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
-                        .setPostFilter(builder).setSize((int) expectedCount).get();
-                assertHitCount(response, expectedCount);
-                String[] expectedIds = expectedResults.get(builder);
-                if (expectedIds == null) {
-                    ArrayList<String> ids = new ArrayList<>();
-                    for (SearchHit hit : response.getHits()) {
-                        ids.add(hit.id());
-                    }
-                    expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
-                    continue;
-                }
-
-                assertSearchHits(response, expectedIds);
-
-            } catch (AssertionError error) {
-                throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
             }
         }
     }
@@ -540,7 +453,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {
-        return GeoProjectionUtils.SEMIMAJOR_AXIS * DistanceUtils.distHaversineRAD(
+        return GeoUtils.EARTH_SEMI_MAJOR_AXIS * DistanceUtils.distHaversineRAD(
                 DistanceUtils.toRadians(lat1),
                 DistanceUtils.toRadians(lon1),
                 DistanceUtils.toRadians(lat2),
@@ -561,7 +474,10 @@ public class GeoFilterIT extends ESIntegTestCase {
             strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
-            ESLoggerFactory.getLogger(GeoFilterIT.class.getName()).info("Unsupported spatial operation {}", e, relation);
+            final SpatialOperation finalRelation = relation;
+            ESLoggerFactory
+                .getLogger(GeoFilterIT.class.getName())
+                .info((Supplier<?>) () -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
             return false;
         }
     }

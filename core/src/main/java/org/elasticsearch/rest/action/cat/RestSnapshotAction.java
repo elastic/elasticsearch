@@ -22,17 +22,14 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.joda.time.format.DateTimeFormat;
@@ -46,14 +43,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Cat API class to display information about snapshots
  */
 public class RestSnapshotAction extends AbstractCatAction {
-    @Inject
-    public RestSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestSnapshotAction(Settings settings, RestController controller) {
+        super(settings);
+        controller.registerHandler(GET, "/_cat/snapshots", this);
         controller.registerHandler(GET, "/_cat/snapshots/{repository}", this);
     }
 
     @Override
-    protected void doRequest(final RestRequest request, RestChannel channel, Client client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
                 .repository(request.param("repository"))
                 .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
@@ -62,12 +59,13 @@ public class RestSnapshotAction extends AbstractCatAction {
 
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
-        client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
-            }
-        });
+        return channel ->
+            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
+                    return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
+                }
+            });
     }
 
     @Override
@@ -79,7 +77,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     protected Table getTableWithHeader(RestRequest request) {
         return new Table()
                 .startHeaders()
-                .addCell("id", "alias:id,snapshotId;desc:unique snapshot id")
+                .addCell("id", "alias:id,snapshot;desc:unique snapshot")
                 .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
                 .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
@@ -101,7 +99,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
             table.startRow();
 
-            table.addCell(snapshotStatus.name());
+            table.addCell(snapshotStatus.snapshotId().getName());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
             table.addCell(dateFormat.print(snapshotStatus.startTime()));

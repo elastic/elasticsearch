@@ -37,28 +37,39 @@ import static org.elasticsearch.ExceptionsHelper.detailedMessage;
  *
  * The class is final due to serialization limitations
  */
-public final class TaskOperationFailure implements Writeable<TaskOperationFailure>, ToXContent {
+public final class TaskOperationFailure implements Writeable, ToXContent {
 
     private final String nodeId;
 
     private final long taskId;
 
-    private final Throwable reason;
+    private final Exception reason;
 
     private final RestStatus status;
 
+    public TaskOperationFailure(String nodeId, long taskId, Exception e) {
+        this.nodeId = nodeId;
+        this.taskId = taskId;
+        this.reason = e;
+        status = ExceptionsHelper.status(e);
+    }
+
+    /**
+     * Read from a stream.
+     */
     public TaskOperationFailure(StreamInput in) throws IOException {
         nodeId = in.readString();
         taskId = in.readLong();
-        reason = in.readThrowable();
+        reason = in.readException();
         status = RestStatus.readFrom(in);
     }
 
-    public TaskOperationFailure(String nodeId, long taskId, Throwable t) {
-        this.nodeId = nodeId;
-        this.taskId = taskId;
-        this.reason = t;
-        status = ExceptionsHelper.status(t);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(nodeId);
+        out.writeLong(taskId);
+        out.writeException(reason);
+        RestStatus.writeTo(out, status);
     }
 
     public String getNodeId() {
@@ -77,21 +88,8 @@ public final class TaskOperationFailure implements Writeable<TaskOperationFailur
         return status;
     }
 
-    public Throwable getCause() {
+    public Exception getCause() {
         return reason;
-    }
-
-    @Override
-    public TaskOperationFailure readFrom(StreamInput in) throws IOException {
-        return new TaskOperationFailure(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(nodeId);
-        out.writeLong(taskId);
-        out.writeThrowable(reason);
-        RestStatus.writeTo(out, status);
     }
 
     @Override
@@ -107,7 +105,7 @@ public final class TaskOperationFailure implements Writeable<TaskOperationFailur
         if (reason != null) {
             builder.field("reason");
             builder.startObject();
-            ElasticsearchException.toXContent(builder, params, reason);
+            ElasticsearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;

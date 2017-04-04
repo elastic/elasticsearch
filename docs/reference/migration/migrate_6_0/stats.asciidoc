@@ -1,0 +1,7 @@
+[[breaking_60_stats_changes]]
+=== Stats and info changes
+
+==== Removal of `throttle_time` in the `store` stats
+
+Given that store throttling has been removed, the `store` stats do not report
+`throttle_time` anymore.

@@ -19,61 +19,61 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.Objects;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
-public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration>
-        implements Writeable<PipelineConfiguration>, ToXContent {
+public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContent {
 
-    final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
-
-    public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-    private final static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
             XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setConfig(contentBuilder.bytes());
+            builder.setConfig(contentBuilder.bytes(), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
+
     }
 
-    public static BiFunction<XContentParser, Void,PipelineConfiguration> getParser() {
-        return (p, c) -> PARSER.apply(p ,c).build();
+    public static ContextParser<Void, PipelineConfiguration> getParser() {
+        return (parser, context) -> PARSER.apply(parser, null).build();
     }
     private static class Builder {
 
         private String id;
         private BytesReference config;
+        private XContentType xContentType;
 
         void setId(String id) {
             this.id = id;
         }
 
-        void setConfig(BytesReference config) {
+        void setConfig(BytesReference config, XContentType xContentType) {
             this.config = config;
+            this.xContentType = xContentType;
         }
 
         PipelineConfiguration build() {
-            return new PipelineConfiguration(id, config);
+            return new PipelineConfiguration(id, config, xContentType);
         }
     }
 
@@ -82,10 +82,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     // and the way the map of maps config is read requires a deep copy (it removes instead of gets entries to check for unused options)
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
+    private final XContentType xContentType;
 
-    public PipelineConfiguration(String id, BytesReference config) {
-        this.id = id;
-        this.config = config;
+    public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
+        this.id = Objects.requireNonNull(id);
+        this.config = Objects.requireNonNull(config);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     public String getId() {
@@ -93,7 +95,17 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return XContentHelper.convertToMap(config, true).v2();
+        return XContentHelper.convertToMap(config, true, xContentType).v2();
+    }
+
+    // pkg-private for tests
+    XContentType getXContentType() {
+        return xContentType;
+    }
+
+    // pkg-private for tests
+    BytesReference getConfig() {
+        return config;
     }
 
     @Override
@@ -105,14 +117,27 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return builder;
     }
 
-    @Override
-    public PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference());
+    public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            return new PipelineConfiguration(in.readString(), in.readBytesReference(), XContentType.readFrom(in));
+        } else {
+            final String id = in.readString();
+            final BytesReference config = in.readBytesReference();
+            return new PipelineConfiguration(id, config, XContentFactory.xContentType(config));
+        }
     }
 
+    public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(PipelineConfiguration::readFrom, in);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType.writeTo(out);
+        }
     }
 
     @Override

@@ -31,8 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-/**
- */
 public class SingleOrdinalsTests extends ESTestCase {
     public void testSvValues() throws IOException {
         int numDocs = 1000000;

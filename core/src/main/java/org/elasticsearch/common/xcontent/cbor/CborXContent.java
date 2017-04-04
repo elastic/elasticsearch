@@ -20,10 +20,13 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -34,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.util.Set;
 
 /**
  * A CBOR based content implementation using Jackson.
@@ -44,12 +48,15 @@ public class CborXContent implements XContent {
         return XContentBuilder.builder(cborXContent);
     }
 
-    final static CBORFactory cborFactory;
-    public final static CborXContent cborXContent;
+    static final CBORFactory cborFactory;
+    public static final CborXContent cborXContent;
 
     static {
         cborFactory = new CBORFactory();
         cborFactory.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
+        cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
+        cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
         cborXContent = new CborXContent();
     }
 
@@ -67,41 +74,38 @@ public class CborXContent implements XContent {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
-        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
+    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
+        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override
-    public XContentParser createParser(String content) throws IOException {
-        return new CborXContentParser(cborFactory.createParser(new FastStringReader(content)));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException {
+        return new CborXContentParser(xContentRegistry, cborFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
-    public XContentParser createParser(InputStream is) throws IOException {
-        return new CborXContentParser(cborFactory.createParser(is));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException {
+        return new CborXContentParser(xContentRegistry, cborFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(byte[] data) throws IOException {
-        return new CborXContentParser(cborFactory.createParser(data));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException {
+        return new CborXContentParser(xContentRegistry, cborFactory.createParser(data));
     }
 
     @Override
-    public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new CborXContentParser(cborFactory.createParser(data, offset, length));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException {
+        return new CborXContentParser(xContentRegistry, cborFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
-        return createParser(bytes.streamInput());
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
+        return createParser(xContentRegistry, bytes.streamInput());
     }
 
     @Override
-    public XContentParser createParser(Reader reader) throws IOException {
-        return new CborXContentParser(cborFactory.createParser(reader));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException {
+        return new CborXContentParser(xContentRegistry, cborFactory.createParser(reader));
     }
 
 }

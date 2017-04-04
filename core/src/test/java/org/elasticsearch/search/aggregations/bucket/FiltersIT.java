@@ -33,7 +33,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -49,9 +51,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class FiltersIT extends ESIntegTestCase {
 
@@ -111,7 +110,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx").addAggregation(
-                filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2"))))
+                filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2")))))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -134,9 +134,10 @@ public class FiltersIT extends ESIntegTestCase {
     // See NullPointer issue when filters are empty:
     // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
-        QueryBuilder<?> emptyFilter = new BoolQueryBuilder();
+        QueryBuilder emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", new KeyedFilter("all", emptyFilter), new KeyedFilter("tag1", termQuery("tag", "tag1"))))
+                .addAggregation(filters("tags", randomOrder(new KeyedFilter("all", emptyFilter),
+                        new KeyedFilter("tag1", termQuery("tag", "tag1")))))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -153,8 +154,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2"))).subAggregation(avg("avg_value").field("value")))
+                .addAggregation(filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -164,6 +165,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(filters.getName(), equalTo("tags"));
 
         assertThat(filters.getBuckets().size(), equalTo(2));
+        assertThat(filters.getProperty("_bucket_count"), equalTo(2));
         Object[] propertiesKeys = (Object[]) filters.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) filters.getProperty("_count");
         Object[] propertiesCounts = (Object[]) filters.getProperty("avg_value.value");
@@ -196,9 +198,9 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag2Docs));
-        assertThat((String) propertiesKeys[1], equalTo("tag2"));
-        assertThat((long) propertiesDocCounts[1], equalTo((long) numTag2Docs));
-        assertThat((double) propertiesCounts[1], equalTo((double) sum / numTag2Docs));
+        assertThat(propertiesKeys[1], equalTo("tag2"));
+        assertThat(propertiesDocCounts[1], equalTo((long) numTag2Docs));
+        assertThat(propertiesCounts[1], equalTo((double) sum / numTag2Docs));
     }
 
     public void testAsSubAggregation() {
@@ -227,9 +229,9 @@ public class FiltersIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                     .addAggregation(
-                    filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
-                                    .subAggregation(avg("avg_value"))
-                    )
+                            filters("tags",
+                            randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                                    new KeyedFilter("tag2", termQuery("tag", "tag2")))).subAggregation(avg("avg_value")))
                     .execute().actionGet();
 
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
@@ -287,8 +289,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testOtherBucket() throws Exception {
         SearchResponse response = client().prepareSearch("idx").addAggregation(
-                filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
-                        .otherBucket(true))
+                filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).otherBucket(true))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -314,8 +316,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testOtherNamedBucket() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2"))).otherBucket(true).otherBucketKey("foobar"))
+                .addAggregation(filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).otherBucket(true).otherBucketKey("foobar"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -370,8 +372,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testOtherWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2"))).otherBucket(true)
+                .addAggregation(filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).otherBucket(true)
                                 .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
@@ -382,6 +384,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(filters.getName(), equalTo("tags"));
 
         assertThat(filters.getBuckets().size(), equalTo(3));
+        assertThat(filters.getProperty("_bucket_count"), equalTo(3));
         Object[] propertiesKeys = (Object[]) filters.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) filters.getProperty("_count");
         Object[] propertiesCounts = (Object[]) filters.getProperty("avg_value.value");
@@ -398,9 +401,9 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag1Docs));
-        assertThat((String) propertiesKeys[0], equalTo("tag1"));
-        assertThat((long) propertiesDocCounts[0], equalTo((long) numTag1Docs));
-        assertThat((double) propertiesCounts[0], equalTo((double) sum / numTag1Docs));
+        assertThat(propertiesKeys[0], equalTo("tag1"));
+        assertThat(propertiesDocCounts[0], equalTo((long) numTag1Docs));
+        assertThat(propertiesCounts[0], equalTo((double) sum / numTag1Docs));
 
         bucket = filters.getBucketByKey("tag2");
         assertThat(bucket, Matchers.notNullValue());
@@ -414,9 +417,9 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag2Docs));
-        assertThat((String) propertiesKeys[1], equalTo("tag2"));
-        assertThat((long) propertiesDocCounts[1], equalTo((long) numTag2Docs));
-        assertThat((double) propertiesCounts[1], equalTo((double) sum / numTag2Docs));
+        assertThat(propertiesKeys[1], equalTo("tag2"));
+        assertThat(propertiesDocCounts[1], equalTo((long) numTag2Docs));
+        assertThat(propertiesCounts[1], equalTo((double) sum / numTag2Docs));
 
         bucket = filters.getBucketByKey("_other_");
         assertThat(bucket, Matchers.notNullValue());
@@ -430,9 +433,9 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numOtherDocs));
-        assertThat((String) propertiesKeys[2], equalTo("_other_"));
-        assertThat((long) propertiesDocCounts[2], equalTo((long) numOtherDocs));
-        assertThat((double) propertiesCounts[2], equalTo((double) sum / numOtherDocs));
+        assertThat(propertiesKeys[2], equalTo("_other_"));
+        assertThat(propertiesDocCounts[2], equalTo((long) numOtherDocs));
+        assertThat(propertiesCounts[2], equalTo((double) sum / numOtherDocs));
     }
 
     public void testEmptyAggregationWithOtherBucket() throws Exception {
@@ -458,4 +461,8 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(other.getDocCount(), is(0L));
     }
 
+    private static KeyedFilter[] randomOrder(KeyedFilter... filters) {
+        Collections.shuffle(Arrays.asList(filters), random());
+        return filters;
+    }
 }

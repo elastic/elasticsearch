@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.aws;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.ec2.AmazonEC2;
 import org.elasticsearch.common.settings.Setting;
@@ -42,43 +43,49 @@ public interface AwsEc2Service {
      * cloud.aws.access_key: AWS Access key. Shared with repository-s3 plugin
      */
     Setting<String> KEY_SETTING =
-        Setting.simpleString("cloud.aws.access_key", Property.NodeScope, Property.Filtered);
+        Setting.simpleString("cloud.aws.access_key", Property.NodeScope, Property.Filtered, Property.Shared);
     /**
      * cloud.aws.secret_key: AWS Secret key. Shared with repository-s3 plugin
      */
     Setting<String> SECRET_SETTING =
-        Setting.simpleString("cloud.aws.secret_key", Property.NodeScope, Property.Filtered);
+        Setting.simpleString("cloud.aws.secret_key", Property.NodeScope, Property.Filtered, Property.Shared);
     /**
      * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with repository-s3 plugin
      */
     Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
-        Property.NodeScope);
+        Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.proxy.host: In case of proxy, define its hostname/IP. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", Property.NodeScope);
+    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.proxy.port: In case of proxy, define its port. Defaults to 80. Shared with repository-s3 plugin
      */
-    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, Property.NodeScope);
+    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, Property.NodeScope,
+        Property.Shared);
     /**
      * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", Property.NodeScope);
+    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with repository-s3 plugin
      */
     Setting<String> PROXY_PASSWORD_SETTING =
-        Setting.simpleString("cloud.aws.proxy.password", Property.NodeScope, Property.Filtered);
+        Setting.simpleString("cloud.aws.proxy.password", Property.NodeScope, Property.Filtered, Property.Shared);
     /**
      * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
      */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope);
+    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.region: Region. Shared with repository-s3 plugin
      */
     Setting<String> REGION_SETTING =
-        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
+        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Shared);
+    /**
+     * cloud.aws.read_timeout: Socket read timeout. Shared with repository-s3 plugin
+     */
+    Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
+        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope, Property.Shared);
 
     /**
      * Defines specific ec2 settings starting with cloud.aws.ec2.
@@ -145,26 +152,34 @@ public interface AwsEc2Service {
          * cloud.aws.ec2.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.ec2.endpoint", Property.NodeScope);
+        /**
+         * cloud.aws.ec2.read_timeout: Socket read timeout. Defaults to cloud.aws.read_timeout
+         * @see AwsEc2Service#READ_TIMEOUT
+         */
+        Setting<TimeValue> READ_TIMEOUT =
+            Setting.timeSetting("cloud.aws.ec2.read_timeout", AwsEc2Service.READ_TIMEOUT, Property.NodeScope);
     }
 
     /**
      * Defines discovery settings for ec2. Starting with discovery.ec2.
      */
     interface DISCOVERY_EC2 {
-        enum HostType {
-            PRIVATE_IP,
-            PUBLIC_IP,
-            PRIVATE_DNS,
-            PUBLIC_DNS
+        class HostType {
+            public static final String PRIVATE_IP = "private_ip";
+            public static final String PUBLIC_IP = "public_ip";
+            public static final String PRIVATE_DNS = "private_dns";
+            public static final String PUBLIC_DNS = "public_dns";
+            public static final String TAG_PREFIX = "tag:";
         }
 
         /**
          * discovery.ec2.host_type: The type of host type to use to communicate with other instances.
-         * Can be one of private_ip, public_ip, private_dns, public_dns. Defaults to private_ip.
+         * Can be one of private_ip, public_ip, private_dns, public_dns or tag:XXXX where
+         * XXXX refers to a name of a tag configured for all EC2 instances. Instances which don't
+         * have this tag set will be ignored by the discovery process. Defaults to private_ip.
          */
-        Setting<HostType> HOST_TYPE_SETTING =
-            new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP.name(), s -> HostType.valueOf(s.toUpperCase(Locale.ROOT)),
-                Property.NodeScope);
+        Setting<String> HOST_TYPE_SETTING =
+            new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP, Function.identity(), Property.NodeScope);
         /**
          * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
          * discovery. Defaults to true.

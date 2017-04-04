@@ -19,17 +19,10 @@
 
 package org.elasticsearch.test.geo;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
-import org.locationtech.spatial4j.distance.DistanceUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Point;
-import org.locationtech.spatial4j.shape.Rectangle;
-import org.locationtech.spatial4j.shape.impl.Range;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.vividsolutions.jts.algorithm.ConvexHull;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.builders.CoordinateCollection;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -42,6 +35,12 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.impl.Range;
 
 import java.util.Random;
 
@@ -57,12 +56,12 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     protected static final double xDIVISIBLE = 2;
     protected static boolean ST_VALIDATE = true;
 
-    public static enum ShapeType {
+    public enum ShapeType {
         POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON;
         private static final ShapeType[] types = values();
 
         public static ShapeType randomType(Random r) {
-            return types[RandomInts.randomIntBetween(r, 0, types.length - 1)];
+            return types[RandomNumbers.randomIntBetween(r, 0, types.length - 1)];
         }
     }
 
@@ -116,7 +115,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
             throws InvalidShapeException {
         if (numGeometries <= 0) {
             // cap geometry collection at 4 shapes (to save test time)
-            numGeometries = RandomInts.randomIntBetween(r, 2, 4);
+            numGeometries = RandomNumbers.randomIntBetween(r, 2, 4);
         }
 
         if (nearPoint == null) {
@@ -188,7 +187,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 // for random testing having a maximum number of 10 points for a line string is more than sufficient
                 // if this number gets out of hand, the number of self intersections for a linestring can become
                 // (n^2-n)/2 and computing the relation intersection matrix will become NP-Hard
-                int numPoints = RandomInts.randomIntBetween(r, 3, 10);
+                int numPoints = RandomNumbers.randomIntBetween(r, 3, 10);
                 CoordinatesBuilder coordinatesBuilder = new CoordinatesBuilder();
                 for (int i=0; i<numPoints; ++i) {
                     p = xRandomPointIn(r, within);
@@ -198,12 +197,12 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
-                for (int i=0; i<RandomInts.randomIntBetween(r, 1, 10); ++i) {
+                for (int i=0; i<RandomNumbers.randomIntBetween(r, 1, 10); ++i) {
                     mlsb.linestring((LineStringBuilder) createShape(r, nearPoint, within, ShapeType.LINESTRING, false));
                 }
                 return mlsb;
             case POLYGON:
-                numPoints = RandomInts.randomIntBetween(r, 5, 25);
+                numPoints = RandomNumbers.randomIntBetween(r, 5, 25);
                 Coordinate[] coordinates = new Coordinate[numPoints];
                 for (int i=0; i<numPoints; ++i) {
                     p = (Point) createShape(r, nearPoint, within, ShapeType.POINT, false).build();
@@ -230,14 +229,10 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     // The validate flag will check for these possibilities and bail if an incorrect geometry is created
                     try {
                         pgb.build();
-                    } catch (Throwable e) {
+                    } catch (AssertionError | InvalidShapeException e) {
                         // jts bug may occasionally misinterpret coordinate order causing an unhelpful ('geom' assertion)
                         // or InvalidShapeException
-                        if (e instanceof InvalidShapeException || e instanceof AssertionError) {
-                            return null;
-                        }
-                        // throw any other exception
-                        throw e;
+                        return null;
                     }
                 }
                 return pgb;
@@ -262,7 +257,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         if (nearP == null)
             nearP = xRandomPointIn(r, bounds);
 
-        if (small == true) {
+        if (small) {
             // between 3 and 6 degrees
             final double latRange = 3 * r.nextDouble() + 3;
             final double lonRange = 3 * r.nextDouble() + 3;
@@ -303,7 +298,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     }
 
     private static boolean rarely(Random r) {
-        return RandomInts.randomInt(r, 100) >= 90;
+        return r.nextInt(100) >= 90;
     }
 
     private static Range xRandomRange(Random r, double near, Range bounds) {

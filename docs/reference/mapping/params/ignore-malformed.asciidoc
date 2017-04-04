@@ -20,11 +20,11 @@ PUT my_index
     "my_type": {
       "properties": {
         "number_one": {
-          "type": "integer"
-        },
-        "number_two": {
           "type": "integer",
           "ignore_malformed": true
+        },
+        "number_two": {
+          "type": "integer"
         }
       }
     }
@@ -43,9 +43,10 @@ PUT my_index/my_type/2
   "number_two": "foo" <2>
 }
 --------------------------------------------------
-// AUTOSENSE
-<1> This document will be rejected because `number_one` does not allow malformed values.
-<2> This document will have the `text` field indexed, but not the `number_two` field.
+// CONSOLE
+// TEST[catch:request]
+<1> This document will have the `text` field indexed, but not the `number_one` field.
+<2> This document will be rejected because `number_two` does not allow malformed values.
 
 TIP: The `ignore_malformed` setting is allowed to have different settings for
 fields of the same name in the same index.  Its value can be updated on
@@ -80,8 +81,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `number_one` field inherits the index-level setting.
 <2> The `number_two` field overrides the index-level setting to turn off `ignore_malformed`.
-

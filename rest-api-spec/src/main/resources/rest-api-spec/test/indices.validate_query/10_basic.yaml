@@ -5,16 +5,24 @@ setup:
         body:
           settings:
             number_of_replicas: 0
+          aliases:
+            alias_1:
+              "filter" : { "match_all" : {} }
 
-  - do:
-      cluster.health:
-        wait_for_status: yellow
 
 ---
 "Validate query api":
   - do:
       indices.validate_query:
         q: query string
+        index: testing
+
+  - is_true: valid
+
+  - do:
+      indices.validate_query:
+        q: query string
+        index: alias_1
 
   - is_true: valid
 
@@ -35,7 +43,7 @@ setup:
             invalid_query: {}
 
   - is_false: valid
-  - match: {error: 'org.elasticsearch.common.ParsingException: No query registered for [invalid_query]'}
+  - match: {error: 'org.elasticsearch.common.ParsingException: no [query] registered for [invalid_query]'}
 
   - do:
       indices.validate_query:

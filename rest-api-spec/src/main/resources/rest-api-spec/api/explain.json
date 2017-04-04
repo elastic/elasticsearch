@@ -41,17 +41,13 @@
           "type" : "string",
           "description" : "The default field for query string query (default: _all)"
         },
-        "fields": {
+        "stored_fields": {
           "type": "list",
-          "description" : "A comma-separated list of fields to return in the response"
+          "description" : "A comma-separated list of stored fields to return in the response"
         },
         "lenient": {
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
-        },
-        "lowercase_expanded_terms": {
-          "type" : "boolean",
-          "description" : "Specify whether query terms should be lowercased"
         },
         "parent": {
           "type" : "string",

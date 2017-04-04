@@ -19,26 +19,26 @@
 
 package org.elasticsearch.aliases;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -50,21 +50,19 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.cluster.metadata.AliasAction.Type.ADD;
-import static org.elasticsearch.cluster.metadata.AliasAction.Type.REMOVE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -93,7 +91,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
 
         logger.info("--> indexing against [alias1], should work now");
-        IndexResponse indexResponse = client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
+        IndexResponse indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
+            .source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
         logger.info("--> creating index [test_x]");
@@ -105,7 +104,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
-        indexResponse = client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
+        indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
+            .source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test_x"));
     }
 
@@ -113,25 +113,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> creating index [test]");
         createIndex("test");
 
-        ensureGreen();
-
         //invalid filter, invalid json
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = admin().indices().prepareAliases().addAlias("test", "alias1", "abcde");
-        try {
-            indicesAliasesRequestBuilder.get();
-            fail("put alias should have been failed due to invalid filter");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class,
+                () -> admin().indices().prepareAliases().addAlias("test", "alias1", "abcde").get());
+        assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
 
-        //valid json , invalid filter
-        indicesAliasesRequestBuilder = admin().indices().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }");
-        try {
-            indicesAliasesRequestBuilder.get();
-            fail("put alias should have been failed due to invalid filter");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
-        }
+        // valid json , invalid filter
+        e = expectThrows(IllegalArgumentException.class,
+                () -> admin().indices().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }").get());
+        assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
     }
 
     public void testFilteringAliases() throws Exception {
@@ -158,7 +148,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and empty filter");
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", "{}"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> admin().indices().prepareAliases().addAlias("test", "alias1", "{}").get());
+        assertEquals("failed to parse filter for alias [alias1]", iae.getMessage());
     }
 
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
@@ -175,10 +167,14 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test", "tests", termQuery("name", "test")));
 
         logger.info("--> indexing against [test]");
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
+        client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)).actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(source("2", "bar test"), XContentType.JSON)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)).actionGet();
+        client().index(indexRequest("test").type("type1").id("3").source(source("3", "baz test"), XContentType.JSON)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)).actionGet();
+        client().index(indexRequest("test").type("type1").id("4").source(source("4", "something else"), XContentType.JSON)
+                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE)).actionGet();
 
         logger.info("--> checking single filtering alias search");
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
@@ -260,48 +256,48 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo")));
 
         logger.info("--> indexing against [test1]");
-        client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"))).get();
-        client().index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test"))).get();
-        client().index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test"))).get();
-        client().index(indexRequest("test1").type("type1").id("4").source(source("4", "something else"))).get();
+        client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
 
         logger.info("--> indexing against [test2]");
-        client().index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test"))).get();
-        client().index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test"))).get();
-        client().index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test"))).get();
-        client().index(indexRequest("test2").type("type1").id("8").source(source("8", "something else"))).get();
+        client().index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("8").source(source("8", "something else"), XContentType.JSON)).get();
 
         refresh();
 
         logger.info("--> checking filtering alias for two indices");
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "5");
-        assertThat(client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(2L));
+        assertThat(client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(2L));
 
         logger.info("--> checking filtering alias for one index");
         searchResponse = client().prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2");
-        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
+        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(1L));
 
         logger.info("--> checking filtering alias for two indices and one complete index");
         searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(5L));
+        assertThat(client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
         searchResponse = client().prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(5L));
+        assertThat(client().prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(8L));
-        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(8L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(8L));
+        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(8L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get();
         assertHits(searchResponse.getHits(), "4", "8");
-        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")).get().getHits().totalHits(), equalTo(2L));
+        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")).get().getHits().getTotalHits(), equalTo(2L));
     }
 
     public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
@@ -328,44 +324,44 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test3", "filter13", termQuery("name", "baz")));
 
         logger.info("--> indexing against [test1]");
-        client().index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1"))).get();
-        client().index(indexRequest("test1").type("type1").id("12").source(source("12", "bar test1"))).get();
-        client().index(indexRequest("test1").type("type1").id("13").source(source("13", "baz test1"))).get();
+        client().index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("12").source(source("12", "bar test1"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("13").source(source("13", "baz test1"), XContentType.JSON)).get();
 
-        client().index(indexRequest("test2").type("type1").id("21").source(source("21", "foo test2"))).get();
-        client().index(indexRequest("test2").type("type1").id("22").source(source("22", "bar test2"))).get();
-        client().index(indexRequest("test2").type("type1").id("23").source(source("23", "baz test2"))).get();
+        client().index(indexRequest("test2").type("type1").id("21").source(source("21", "foo test2"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("22").source(source("22", "bar test2"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("23").source(source("23", "baz test2"), XContentType.JSON)).get();
 
-        client().index(indexRequest("test3").type("type1").id("31").source(source("31", "foo test3"))).get();
-        client().index(indexRequest("test3").type("type1").id("32").source(source("32", "bar test3"))).get();
-        client().index(indexRequest("test3").type("type1").id("33").source(source("33", "baz test3"))).get();
+        client().index(indexRequest("test3").type("type1").id("31").source(source("31", "foo test3"), XContentType.JSON)).get();
+        client().index(indexRequest("test3").type("type1").id("32").source(source("32", "bar test3"), XContentType.JSON)).get();
+        client().index(indexRequest("test3").type("type1").id("33").source(source("33", "baz test3"), XContentType.JSON)).get();
 
         refresh();
 
         logger.info("--> checking filtering alias for multiple indices");
         SearchResponse searchResponse = client().prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "13", "33");
-        assertThat(client().prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(4L));
+        assertThat(client().prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(4L));
 
         searchResponse = client().prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13");
-        assertThat(client().prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(5L));
+        assertThat(client().prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(5L));
 
         searchResponse = client().prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "33");
-        assertThat(client().prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(4L));
+        assertThat(client().prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(4L));
 
         searchResponse = client().prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33");
-        assertThat(client().prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(6L));
+        assertThat(client().prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(6L));
 
         searchResponse = client().prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33");
-        assertThat(client().prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(6L));
+        assertThat(client().prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(6L));
 
         searchResponse = client().prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33");
-        assertThat(client().prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(8L));
+        assertThat(client().prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(8L));
     }
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
@@ -388,21 +384,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test2", "tests", termQuery("name", "test")));
 
         logger.info("--> indexing against [test1]");
-        client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"))).get();
-        client().index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test"))).get();
-        client().index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test"))).get();
-        client().index(indexRequest("test1").type("type1").id("4").source(source("4", "something else"))).get();
+        client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").type("type1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
 
         logger.info("--> indexing against [test2]");
-        client().index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test"))).get();
-        client().index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test"))).get();
-        client().index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test"))).get();
-        client().index(indexRequest("test2").type("type1").id("8").source(source("8", "something else"))).get();
+        client().index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").type("type1").id("8").source(source("8", "something else"), XContentType.JSON)).get();
 
         refresh();
 
         logger.info("--> checking counts before delete");
-        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
+        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(1L));
     }
 
     public void testDeleteAliases() throws Exception {
@@ -441,19 +437,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             assertAcked(admin().indices().prepareAliases().addAlias("test", "alias" + i));
-            client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test"))).get();
+            client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
 
     public void testWaitForAliasCreationSingleShard() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1))).get());
+        assertAcked(admin().indices().create(createIndexRequest("test").settings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1))).get());
 
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             assertAcked(admin().indices().prepareAliases().addAlias("test", "alias" + i));
-            client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test"))).get();
+            client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
 
@@ -472,7 +468,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 @Override
                 public void run() {
                     assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName));
-                    client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"))).actionGet();
+                    client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"), XContentType.JSON))
+                        .actionGet();
                 }
             });
         }
@@ -592,7 +589,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAlias("foobar", "foo"));
 
         assertAcked(admin().indices().prepareAliases()
-                .addAliasAction(new AliasAction(ADD, "foobar", "bac").routing("bla")));
+                .addAliasAction(AliasActions.add().index("foobar").alias("bac").routing("bla")));
 
         logger.info("--> getting bar and baz for index bazbar");
         getResponse = admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").get();
@@ -723,229 +720,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(existsResponse.exists(), equalTo(false));
     }
 
-    public void testAddAliasNullWithoutExistingIndices() {
-        try {
-            assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
-            fail("create alias should have failed due to null index");
-        } catch (IllegalArgumentException e) {
-            assertThat("Exception text does not contain \"Alias action [add]: [index/indices] may not be empty string\"",
-                    e.getMessage(), containsString("Alias action [add]: [index/indices] may not be empty string"));
-        }
-    }
-
-    public void testAddAliasNullWithExistingIndices() throws Exception {
-        logger.info("--> creating index [test]");
-        createIndex("test");
-        ensureGreen();
-
-        logger.info("--> aliasing index [null] with [empty-alias]");
-
-        try {
-            assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
-            fail("create alias should have failed due to null index");
-        } catch (IllegalArgumentException e) {
-            assertThat("Exception text does not contain \"Alias action [add]: [index/indices] may not be empty string\"",
-                    e.getMessage(), containsString("Alias action [add]: [index/indices] may not be empty string"));
-        }
-    }
-
-    public void testAddAliasEmptyIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "", "alias1")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
-        }
-    }
-
-    public void testAddAliasNullAlias() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null)).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "index1", (String)null)).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "index1", (String[])null)).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] is either missing or null"));
-        }
-    }
-
-    public void testAddAliasEmptyAlias() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", "")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "index1", "")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-    }
-
-    public void testAddAliasNullAliasNullIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null)).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, null, (String)null)).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-    }
-
-    public void testAddAliasEmptyAliasEmptyIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "")).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "", "")).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-    }
-
-    public void testRemoveAliasNullIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, null, "alias1")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
-        }
-    }
-
-    public void testRemoveAliasEmptyIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "", "alias1")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
-        }
-    }
-
-    public void testRemoveAliasNullAlias() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null)).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "index1", (String)null)).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "index1", (String[])null)).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] is either missing or null"));
-        }
-    }
-
-    public void testRemoveAliasEmptyAlias() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", "")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "index1", "")).get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
-        }
-    }
-
-    public void testRemoveAliasNullAliasNullIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, null)).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, null, (String)null)).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, (String[])null, (String[])null)).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-    }
-
-    public void testRemoveAliasEmptyAliasEmptyIndex() {
-        try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "")).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-        try {
-            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "", "")).get();
-            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
-        }
-    }
-
     public void testGetAllAliasesWorks() {
         createIndex("index1");
         createIndex("index2");
-
-        ensureYellow();
 
         assertAcked(admin().indices().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2"));
 
@@ -971,7 +748,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n" +
                 "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
                 "    }\n" +
-                "}"));
+                "}", XContentType.JSON));
 
         checkAliases();
     }
@@ -1029,13 +806,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
-        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeQuery("_timestamp").from("now-1d").to("now")));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", rangeQuery("_timestamp").from("now-1d").to("now")));
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "timestamp", "type=date"));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeQuery("timestamp").from("2016-12-01").to("2016-12-31")));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", rangeQuery("timestamp").from("2016-01-01").to("2016-12-31")));
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
-            client().prepareIndex("my-index", "my-type").setCreate(true).setSource("{}").get();
+            client().prepareIndex("my-index", "my-type").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
                 SearchResponse response = client().prepareSearch("filter1").get();
@@ -1052,19 +829,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
                         .addMapping("parent")
                         .addMapping("child", "_parent", "type=parent")
         );
-        client().prepareIndex("my-index", "parent", "1").setSource("{}").get();
-        client().prepareIndex("my-index", "child", "2").setSource("{}").setParent("1").get();
+        client().prepareIndex("my-index", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("my-index", "child", "2").setSource("{}", XContentType.JSON).setParent("1").get();
         refresh();
 
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery())));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery())));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None)));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
 
         SearchResponse response = client().prepareSearch("filter1").get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         response = client().prepareSearch("filter2").get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
     }
 
     public void testAliasesWithBlocks() {
@@ -1109,6 +886,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
+    public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
+        assertAcked(client().admin().indices().prepareCreate("test"));
+        indexRandom(true, client().prepareIndex("test_2", "test", "test").setSource("test", "test"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test_2", "test").removeIndex("test"));
+        assertHitCount(client().prepareSearch("test").get(), 1);
+    }
+
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
@@ -1136,10 +920,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.totalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
-            hitIds.add(hit.id());
+            hitIds.add(hit.getId());
         }
         assertThat(hitIds, containsInAnyOrder(ids));
     }

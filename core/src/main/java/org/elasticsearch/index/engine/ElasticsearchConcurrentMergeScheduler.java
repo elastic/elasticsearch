@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.OneMergeHelper;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -34,9 +34,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ import java.util.Set;
  */
 class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     private final Settings indexSettings;
     private final ShardId shardId;
 
@@ -67,7 +67,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
 
-    public ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
@@ -110,10 +110,15 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(tookMS);
-
-            long stoppedMS = TimeValue.nsecToMSec(merge.rateLimiter.getTotalStoppedNS());
-            long throttledMS = TimeValue.nsecToMSec(merge.rateLimiter.getTotalPausedNS());
-
+            long stoppedMS = TimeValue.nsecToMSec(
+                merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.STOPPED)
+            );
+            long throttledMS = TimeValue.nsecToMSec(
+                merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.PAUSED)
+            );
+            final Thread thread = Thread.currentThread();
+            long totalBytesWritten = OneMergeHelper.getTotalBytesWritten(thread, merge);
+            double mbPerSec = OneMergeHelper.getMbPerSec(thread, merge);
             totalMergeStoppedTime.inc(stoppedMS);
             totalMergeThrottledTime.inc(throttledMS);
 
@@ -125,8 +130,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                                            totalNumDocs,
                                            TimeValue.timeValueMillis(stoppedMS),
                                            TimeValue.timeValueMillis(throttledMS),
-                                           merge.rateLimiter.getTotalBytesWritten()/1024f/1024f,
-                                           merge.rateLimiter.getMBPerSec());
+                                           totalBytesWritten/1024f/1024f,
+                                           mbPerSec);
 
             if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug("{}", message);

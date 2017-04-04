@@ -29,9 +29,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,18 +45,16 @@ import java.util.Map;
 public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource valuesSource;
-    final ValueFormatter formatter;
 
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, ValuesSource valuesSource, ValueFormatter formatter,
-            AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+    public ValueCountAggregator(String name, ValuesSource valuesSource,
+            SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
         super(name, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
-        this.formatter = formatter;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
         }
@@ -93,12 +90,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalValueCount(name, counts.get(bucket), formatter, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, counts.get(bucket), pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, formatter, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, 0L, pipelineAggregators(), metaData());
     }
 
     @Override

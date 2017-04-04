@@ -67,13 +67,13 @@ import java.util.function.ToLongBiFunction;
  */
 public class Cache<K, V> {
     // positive if entries have an expiration
-    private long expireAfterAccess = -1;
+    private long expireAfterAccessNanos = -1;
 
     // true if entries can expire after access
     private boolean entriesExpireAfterAccess;
 
     // positive if entries have an expiration after write
-    private long expireAfterWrite = -1;
+    private long expireAfterWriteNanos = -1;
 
     // true if entries can expire after initial insertion
     private boolean entriesExpireAfterWrite;
@@ -98,20 +98,30 @@ public class Cache<K, V> {
     Cache() {
     }
 
-    void setExpireAfterAccess(long expireAfterAccess) {
-        if (expireAfterAccess <= 0) {
-            throw new IllegalArgumentException("expireAfterAccess <= 0");
+    void setExpireAfterAccessNanos(long expireAfterAccessNanos) {
+        if (expireAfterAccessNanos <= 0) {
+            throw new IllegalArgumentException("expireAfterAccessNanos <= 0");
         }
-        this.expireAfterAccess = expireAfterAccess;
+        this.expireAfterAccessNanos = expireAfterAccessNanos;
         this.entriesExpireAfterAccess = true;
     }
 
-    void setExpireAfterWrite(long expireAfterWrite) {
-        if (expireAfterWrite <= 0) {
-            throw new IllegalArgumentException("expireAfterWrite <= 0");
+    // pkg-private for testing
+    long getExpireAfterAccessNanos() {
+        return this.expireAfterAccessNanos;
+    }
+
+    void setExpireAfterWriteNanos(long expireAfterWriteNanos) {
+        if (expireAfterWriteNanos <= 0) {
+            throw new IllegalArgumentException("expireAfterWriteNanos <= 0");
         }
-        this.expireAfterWrite = expireAfterWrite;
+        this.expireAfterWriteNanos = expireAfterWriteNanos;
         this.entriesExpireAfterWrite = true;
+    }
+
+    // pkg-private for testing
+    long getExpireAfterWriteNanos() {
+        return this.expireAfterWriteNanos;
     }
 
     void setMaximumWeight(long maximumWeight) {
@@ -156,7 +166,7 @@ public class Cache<K, V> {
         Entry<K, V> after;
         State state = State.NEW;
 
-        public Entry(K key, V value, long writeTime) {
+        Entry(K key, V value, long writeTime) {
             this.key = key;
             this.value = value;
             this.writeTime = this.accessTime = writeTime;
@@ -336,11 +346,14 @@ public class Cache<K, V> {
      * value using the given mapping function and enters it into this map unless null. The load method for a given key
      * will be invoked at most once.
      *
+     * Use of different {@link CacheLoader} implementations on the same key concurrently may result in only the first
+     * loader function being called and the second will be returned the result provided by the first including any exceptions
+     * thrown during the execution of the first.
+     *
      * @param key    the key whose associated value is to be returned or computed for if non-existent
      * @param loader the function to compute a value given a key
-     * @return the current (existing or computed) value associated with the specified key, or null if the computed
-     * value is null
-     * @throws ExecutionException thrown if loader throws an exception
+     * @return the current (existing or computed) non-null value associated with the specified key
+     * @throws ExecutionException thrown if loader throws an exception or returns a null value
      */
     public V computeIfAbsent(K key, CacheLoader<K, V> loader) throws ExecutionException {
         long now = now();
@@ -400,6 +413,11 @@ public class Cache<K, V> {
 
             try {
                 value = completableValue.get();
+                // check to ensure the future hasn't been completed with an exception
+                if (future.isCompletedExceptionally()) {
+                    future.get(); // call get to force the exception to be thrown for other concurrent callers
+                    throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
+                }
             } catch (InterruptedException e) {
                 throw new IllegalStateException(e);
             }
@@ -696,8 +714,8 @@ public class Cache<K, V> {
     }
 
     private boolean isExpired(Entry<K, V> entry, long now) {
-        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccess) ||
-                (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWrite);
+        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccessNanos) ||
+                (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWriteNanos);
     }
 
     private boolean unlink(Entry<K, V> entry) {

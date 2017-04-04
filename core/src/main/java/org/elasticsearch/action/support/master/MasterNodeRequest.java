@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.ChildTaskActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -30,7 +29,7 @@ import java.io.IOException;
 /**
  * A based request for master based operation.
  */
-public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ChildTaskActionRequest<Request> {
+public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
 
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
@@ -62,7 +61,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        masterNodeTimeout = TimeValue.readTimeValue(in);
+        masterNodeTimeout = new TimeValue(in);
     }
 
     @Override

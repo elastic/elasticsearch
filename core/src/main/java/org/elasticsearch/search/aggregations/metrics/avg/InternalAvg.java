@@ -21,48 +21,43 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-/**
-*
-*/
 public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue implements Avg {
+    private final double sum;
+    private final long count;
 
-    public final static Type TYPE = new Type("avg");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalAvg readResult(StreamInput in) throws IOException {
-            InternalAvg result = new InternalAvg();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private double sum;
-    private long count;
-
-    InternalAvg() {} // for serialization
-
-    public InternalAvg(String name, double sum, long count, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    public InternalAvg(String name, double sum, long count, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.count = count;
-        this.valueFormatter = formatter;
+        this.format = format;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalAvg(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        sum = in.readDouble();
+        count = in.readVLong();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(sum);
+        out.writeVLong(count);
     }
 
     @Override
@@ -75,9 +70,17 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         return sum / count;
     }
 
+    double getSum() {
+        return sum;
+    }
+
+    long getCount() {
+        return count;
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return AvgAggregationBuilder.NAME;
     }
 
     @Override
@@ -88,30 +91,28 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             count += ((InternalAvg) aggregation).count;
             sum += ((InternalAvg) aggregation).sum;
         }
-        return new InternalAvg(getName(), sum, count, valueFormatter, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        sum = in.readDouble();
-        count = in.readVLong();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeDouble(sum);
-        out.writeVLong(count);
+        return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE, count != 0 ? getValue() : null);
-        if (count != 0 && !(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(getValue()));
+        builder.field(CommonFields.VALUE.getPreferredName(), count != 0 ? getValue() : null);
+        if (count != 0 && format != DocValueFormat.RAW) {
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(getValue()));
         }
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(sum, count, format.getWriteableName());
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalAvg other = (InternalAvg) obj;
+        return Objects.equals(sum, other.sum) &&
+                Objects.equals(count, other.count) &&
+                Objects.equals(format.getWriteableName(), other.format.getWriteableName());
+    }
 }

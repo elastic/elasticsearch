@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class DeleteIndexAction extends Action<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder> {
 
     public static final DeleteIndexAction INSTANCE = new DeleteIndexAction();

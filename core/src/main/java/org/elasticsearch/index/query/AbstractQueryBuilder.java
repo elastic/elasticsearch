@@ -26,23 +26,27 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> extends ToXContentToBytes implements QueryBuilder<QB> {
+public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> extends ToXContentToBytes implements QueryBuilder {
 
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
     public static final float DEFAULT_BOOST = 1.0f;
@@ -55,6 +59,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected AbstractQueryBuilder() {
         super(XContentType.JSON);
     }
+
+    protected AbstractQueryBuilder(StreamInput in) throws IOException {
+        boost = in.readFloat();
+        queryName = in.readOptionalString();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeFloat(boost);
+        out.writeOptionalString(queryName);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -94,12 +112,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @Override
     public final Query toFilter(QueryShardContext context) throws IOException {
         Query result = null;
-            final boolean originalIsFilter = context.isFilter;
+            final boolean originalIsFilter = context.isFilter();
             try {
-                context.isFilter = true;
+                context.setIsFilter(true);
                 result = toQuery(context);
             } finally {
-                context.isFilter = originalIsFilter;
+                context.setIsFilter(originalIsFilter);
             }
         return result;
     }
@@ -142,25 +160,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         this.boost = boost;
         return (QB) this;
     }
-
-    @Override
-    public final QB readFrom(StreamInput in) throws IOException {
-        QB queryBuilder = doReadFrom(in);
-        queryBuilder.boost = in.readFloat();
-        queryBuilder.queryName = in.readOptionalString();
-        return queryBuilder;
-    }
-
-    protected abstract QB doReadFrom(StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        doWriteTo(out);
-        out.writeFloat(boost);
-        out.writeOptionalString(queryName);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
         return QueryValidationException.addValidationError(getName(), validationError, validationException);
@@ -225,10 +224,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
      * resulting collection.
      */
-    protected static Collection<Query> toQueries(Collection<QueryBuilder<?>> queryBuilders, QueryShardContext context) throws QueryShardException,
+    protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryShardContext context) throws QueryShardException,
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
-        for (QueryBuilder<?> queryBuilder : queryBuilders) {
+        for (QueryBuilder queryBuilder : queryBuilders) {
             Query query = queryBuilder.toQuery(context);
             if (query != null) {
                 queries.add(query);
@@ -243,24 +242,24 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return getWriteableName();
     }
 
-    protected final void writeQueries(StreamOutput out, List<? extends QueryBuilder<?>> queries) throws IOException {
+    protected static final void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
-        for (QueryBuilder<?> query : queries) {
-            out.writeQuery(query);
+        for (QueryBuilder query : queries) {
+            out.writeNamedWriteable(query);
         }
     }
 
-    protected final List<QueryBuilder<?>> readQueries(StreamInput in) throws IOException {
-        List<QueryBuilder<?>> queries = new ArrayList<>();
+    protected static final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+        List<QueryBuilder> queries = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            queries.add(in.readQuery());
+            queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
         return queries;
     }
 
     @Override
-    public final QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+    public final QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder rewritten = doRewrite(queryShardContext);
         if (rewritten == this) {
             return rewritten;
@@ -274,7 +273,43 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return rewritten;
     }
 
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
+    }
+
+    /**
+     * For internal usage only!
+     *
+     * Extracts the inner hits from the query tree.
+     * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
+     */
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    }
+
+    // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException
+    protected static <T> T requireValue(T value, String message) {
+        if (value == null) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
+    }
+
+    protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
+                                                                String processedFieldName, String currentFieldName) {
+        if (processedFieldName != null) {
+            throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
+                    + processedFieldName + "] and [" + currentFieldName + "]");
+        }
+    }
+
+    /**
+     * Adds {@code boost} and {@code query_name} parsing to the
+     * {@link AbstractObjectParser} passed in. All query builders except
+     * {@link MatchAllQueryBuilder} and {@link MatchNoneQueryBuilder} support these fields so they
+     * should use this method.
+     */
+    protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ?> parser) {
+        parser.declareFloat((builder, value) -> builder.boost(value), AbstractQueryBuilder.BOOST_FIELD);
+        parser.declareString((builder, value) -> builder.queryName(value), AbstractQueryBuilder.NAME_FIELD);
     }
 }

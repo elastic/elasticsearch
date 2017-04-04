@@ -65,16 +65,15 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 
 [source,js]
 --------------------------------------------------
-# return indices and os
-curl -XGET 'http://localhost:9200/_nodes/stats/os'
+# return just indices
+curl -XGET 'http://localhost:9200/_nodes/stats/indices'
 # return just os and process
 curl -XGET 'http://localhost:9200/_nodes/stats/os,process'
-# specific type endpoint
-curl -XGET 'http://localhost:9200/_nodes/stats/process'
+# return just process for node with IP address 10.0.0.1
 curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
 --------------------------------------------------
 
-The `all` flag can be set to return all the stats.
+All stats can be explicitly requested via `/_nodes/stats/_all` or `/_nodes/stats?metric=_all`.
 
 [float]
 [[fs-info]]
@@ -120,6 +119,55 @@ information that concern the file system:
 	Indicates if the file store is backed by spinning storage.
 	`null` means we could not determine it, `true` means the device possibly spins
 	 and `false` means it does not (ex: solid-state disks).
+
+`fs.io_stats.devices` (Linux only)::
+    Array of disk metrics for each device that is backing an
+    Elasticsearch data path. These disk metrics are probed periodically
+    and averages between the last probe and the current probe are
+    computed.
+
+`fs.io_stats.devices.device_name` (Linux only)::
+    The Linux device name.
+
+`fs.io_stats.devices.operations` (Linux only)::
+    The total number of read and write operations for the device
+    completed since starting Elasticsearch.
+
+`fs.io_stats.devices.read_operations` (Linux only)::
+    The total number of read operations for the device completed since
+    starting Elasticsearch.
+
+`fs.io_stats.devices.write_operations` (Linux only)::
+    The total number of write operations for the device completed since
+    starting Elasticsearch.
+
+`fs.io_stats.devices.read_kilobytes` (Linux only)::
+    The total number of kilobytes read for the device since starting
+    Elasticsearch.
+
+`fs.io_stats.devices.write_kilobytes` (Linux only)::
+    The total number of kilobytes written for the device since
+    starting Elasticsearch.
+
+`fs.io_stats.operations` (Linux only)::
+    The total number of read and write operations across all devices
+    used by Elasticsearch completed since starting Elasticsearch.
+
+`fs.io_stats.read_operations` (Linux only)::
+    The total number of read operations for across all devices used by
+    Elasticsearch completed since starting Elasticsearch.
+
+`fs.io_stats.write_operations` (Linux only)::
+    The total number of write operations across all devices used by
+    Elasticsearch completed since starting Elasticsearch.
+
+`fs.io_stats.read_kilobytes` (Linux only)::
+    The total number of kilobytes read across all devices used by
+    Elasticsearch since starting Elasticsearch.
+
+`fs.io_stats.write_kilobytes` (Linux only)::
+    The total number of kilobytes written across all devices used by
+    Elasticsearch since starting Elasticsearch.
 
 [float]
 [[os-stats]]
@@ -168,6 +216,43 @@ the operating system:
 `os.swap.used_in_bytes`::
 	Amount of used swap space in bytes
 
+`os.cgroup.cpuacct.control_group` (Linux only)::
+    The `cpuacct` control group to which the Elasticsearch process
+    belongs
+
+`os.cgroup.cpuacct.usage_nanos` (Linux only)::
+    The total CPU time (in nanoseconds) consumed by all tasks in the
+    same cgroup as the Elasticsearch process
+
+`os.cgroup.cpu.control_group` (Linux only)::
+    The `cpu` control group to which the Elasticsearch process belongs
+
+`os.cgroup.cpu.cfs_period_micros` (Linux only)::
+    The period of time (in microseconds) for how regularly all tasks in
+    the same cgroup as the Elasticsearch process should have their
+    access to CPU resources reallocated.
+
+`os.cgroup.cpu.cfs_quota_micros` (Linux only)::
+    The total amount of time (in microseconds) for which all tasks in
+    the same cgroup as the Elasticsearch process can run during one
+    period `os.cgroup.cpu.cfs_period_micros`
+
+`os.cgroup.cpu.stat.number_of_elapsed_periods` (Linux only)::
+    The number of reporting periods (as specified by
+    `os.cgroup.cpu.cfs_period_micros`) that have elapsed
+
+`os.cgroup.cpu.stat.number_of_times_throttled` (Linux only)::
+    The number of times all tasks in the same cgroup as the
+    Elasticsearch process have been throttled.
+
+`os.cgroup.cpu.stat.time_throttled_nanos` (Linux only)::
+    The total amount of time (in nanoseconds) for which all tasks in
+    the same cgroup as the Elasticsearch process have been throttled.
+
+NOTE: For the cgroup stats to be visible, cgroups must be compiled into
+the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
+configured and stats must be readable from `/sys/fs/cgroup/cpu`
+and `/sys/fs/cgroup/cpuacct`.
 
 [float]
 [[process-stats]]
@@ -194,26 +279,44 @@ the current running process:
 `process.mem.total_virtual_in_bytes`::
 	Size in bytes of virtual memory that is guaranteed to be available to the running process
 
-
 [float]
-[[field-data]]
-=== Field data statistics
+[[node-indices-stats]]
+=== Indices statistics
 
-You can get information about field data memory usage on node
-level or on index level.
+You can get information about indices stats on node level or on index level.
 
 [source,js]
 --------------------------------------------------
-# Node Stats
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty'
+# Node level
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/fielddata?fields=field1,field2&pretty'
 
-# Indices Stat
+# Index level
 curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field1,field2&pretty'
 
 # You can use wildcards for field names
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/fielddata?fields=field*&pretty'
 curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field*&pretty'
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field*&pretty'
 --------------------------------------------------
+
+Supported metrics are:
+
+* `completion`
+* `docs`
+* `fielddata`
+* `flush`
+* `get`
+* `indexing`
+* `merge`
+* `query_cache`
+* `recovery`
+* `refresh`
+* `request_cache`
+* `search`
+* `segments`
+* `store`
+* `suggest`
+* `translog`
+* `warmer`
 
 [float]
 [[search-groups]]

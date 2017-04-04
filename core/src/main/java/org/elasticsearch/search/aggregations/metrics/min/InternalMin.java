@@ -21,47 +21,44 @@ package org.elasticsearch.search.aggregations.metrics.min;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-/**
-*
-*/
 public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
+    private final double min;
 
-    public final static Type TYPE = new Type("min");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalMin readResult(StreamInput in) throws IOException {
-            InternalMin result = new InternalMin();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-
-    private double min;
-
-    InternalMin() {} // for serialization
-
-    public InternalMin(String name, double min, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    public InternalMin(String name, double min, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.min = min;
-        this.valueFormatter = formatter;
+        this.format = formatter;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalMin(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        min = in.readDouble();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(min);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return MinAggregationBuilder.NAME;
     }
 
     @Override
@@ -75,39 +72,33 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
     public InternalMin doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double min = Double.POSITIVE_INFINITY;
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min, this.valueFormatter, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        min = in.readDouble();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeDouble(min);
+        return new InternalMin(getName(), min, this.format, pipelineAggregators(), getMetaData());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(min);
-        builder.field(CommonFields.VALUE, hasValue ? min : null);
-        if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(min));
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? min : null);
+        if (hasValue && format != DocValueFormat.RAW) {
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(min));
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(min);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMin other = (InternalMin) obj;
+        return Objects.equals(min, other.min);
     }
 
 }

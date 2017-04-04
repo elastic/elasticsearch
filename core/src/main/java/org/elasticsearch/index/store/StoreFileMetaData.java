@@ -21,19 +21,14 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class StoreFileMetaData implements Writeable {
 
     public static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_5_0_0;
@@ -49,16 +44,6 @@ public class StoreFileMetaData implements Writeable {
 
     private final BytesRef hash;
 
-    public StoreFileMetaData(StreamInput in) throws IOException {
-        name = in.readString();
-        length = in.readVLong();
-        checksum = in.readString();
-        String versionString = in.readString();
-        assert versionString != null;
-        writtenBy = Lucene.parseVersionLenient(versionString, FIRST_LUCENE_CHECKSUM_VERSION);
-        hash = in.readBytesRef();
-    }
-
     public StoreFileMetaData(String name, long length, String checksum) {
         this(name, length, checksum, FIRST_LUCENE_CHECKSUM_VERSION);
     }
@@ -68,17 +53,38 @@ public class StoreFileMetaData implements Writeable {
     }
 
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
-        assert writtenBy != null && writtenBy.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION) : "index version less that "
-            + FIRST_LUCENE_CHECKSUM_VERSION + " are not supported but got: " + writtenBy;
-        Objects.requireNonNull(writtenBy, "writtenBy must not be null");
-        Objects.requireNonNull(checksum, "checksum must not be null");
-        this.name = name;
+        // its possible here to have a _na_ checksum or an unsupported writtenBy version, if the
+        // file is a segments_N file, but that is fine in the case of a segments_N file because
+        // we handle that case upstream
+        assert name.startsWith("segments_") || (writtenBy != null && writtenBy.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) :
+            "index version less that " + FIRST_LUCENE_CHECKSUM_VERSION + " are not supported but got: " + writtenBy;
+        this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
-        this.checksum = checksum;
-        this.writtenBy = writtenBy;
+        this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
+        this.writtenBy = Objects.requireNonNull(writtenBy, "writtenBy must not be null");
         this.hash = hash == null ? new BytesRef() : hash;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public StoreFileMetaData(StreamInput in) throws IOException {
+        name = in.readString();
+        length = in.readVLong();
+        checksum = in.readString();
+        // TODO Why not Version.parse?
+        writtenBy = Lucene.parseVersionLenient(in.readString(), FIRST_LUCENE_CHECKSUM_VERSION);
+        hash = in.readBytesRef();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeVLong(length);
+        out.writeString(checksum);
+        out.writeString(writtenBy.toString());
+        out.writeBytesRef(hash);
+    }
 
     /**
      * Returns the name of this file
@@ -116,20 +122,6 @@ public class StoreFileMetaData implements Writeable {
     @Override
     public String toString() {
         return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]" ;
-    }
-
-    @Override
-    public StoreFileMetaData readFrom(StreamInput in) throws IOException {
-        return new StoreFileMetaData(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeVLong(length);
-        out.writeString(checksum);
-        out.writeString(writtenBy.toString());
-        out.writeBytesRef(hash);
     }
 
     /**

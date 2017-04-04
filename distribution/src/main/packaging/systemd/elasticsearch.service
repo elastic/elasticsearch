@@ -21,18 +21,25 @@ ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
 
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
                                                 -p ${PID_DIR}/elasticsearch.pid \
-                                                -Ees.default.path.logs=${LOG_DIR} \
-                                                -Ees.default.path.data=${DATA_DIR} \
-                                                -Ees.default.path.conf=${CONF_DIR}
+                                                --quiet \
+                                                -Edefault.path.logs=${LOG_DIR} \
+                                                -Edefault.path.data=${DATA_DIR} \
+                                                -Edefault.path.conf=${CONF_DIR}
 
+# StandardOutput is configured to redirect to journalctl since
+# some error messages may be logged in standard output before
+# elasticsearch logging system is initialized. Elasticsearch
+# stores its logs in /var/log/elasticsearch and does not use
+# journalctl by default. If you also want to enable journalctl
+# logging, you can simply remove the "quiet" option from ExecStart.
 StandardOutput=journal
 StandardError=inherit
 
 # Specifies the maximum file descriptor number that can be opened by this process
-LimitNOFILE=65535
+LimitNOFILE=65536
 
 # Specifies the maximum number of bytes of memory that may be locked into RAM
-# Set to "infinity" if you use the 'bootstrap.mlockall: true' option
+# Set to "infinity" if you use the 'bootstrap.memory_lock: true' option
 # in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${path.env}
 #LimitMEMLOCK=infinity
 

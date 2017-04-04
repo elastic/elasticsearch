@@ -7,41 +7,49 @@ example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+GET /twitter/tweet/_search
+{
     "query" : {
         "term" : { "user" : "kimchy" }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 And here is a sample response:
 
 [source,js]
 --------------------------------------------------
 {
+    "took": 1,
+    "timed_out": false,
     "_shards":{
-        "total" : 5,
-        "successful" : 5,
+        "total" : 1,
+        "successful" : 1,
         "failed" : 0
     },
     "hits":{
         "total" : 1,
+        "max_score": 1.3862944,
         "hits" : [
             {
                 "_index" : "twitter",
                 "_type" : "tweet",
-                "_id" : "1",
+                "_id" : "0",
+                "_score": 1.3862944,
                 "_source" : {
                     "user" : "kimchy",
-                    "postDate" : "2009-11-15T14:12:12",
-                    "message" : "trying out Elasticsearch"
+                    "message": "trying out Elasticsearch",
+                    "date" : "2009-11-15T14:12:12",
+                    "likes" : 0
                 }
             }
         ]
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 1/"took": $body.took/]
 
 [float]
 === Parameters
@@ -55,7 +63,7 @@ And here is a sample response:
 
 `from`::
 
-    The starting from index of the hits to return. Defaults to `0`.
+    To retrieve hits from a certain offset. Defaults to `0`.
 
 `size`::
 
@@ -105,8 +113,10 @@ matching document was found (per shard).
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_search?q=tag:wow&size=0&terminate_after=1'
+GET /_search?q=message:elasticsearch&size=0&terminate_after=1
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The response will not contain any hits as the `size` was set to `0`. The
 `hits.total` will be either equal to `0`, indicating that there were no
@@ -128,12 +138,12 @@ be set to `true` in the response.
   },
   "hits": {
     "total": 1,
-    "max_score": 0,
+    "max_score": 0.0,
     "hits": []
   }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
 
 include::request/query.asciidoc[]
 
@@ -143,11 +153,11 @@ include::request/sort.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
 
-include::request/fields.asciidoc[]
+include::request/stored-fields.asciidoc[]
 
 include::request/script-fields.asciidoc[]
 
-include::request/fielddata-fields.asciidoc[]
+include::request/docvalue-fields.asciidoc[]
 
 include::request/post-filter.asciidoc[]
 
@@ -172,5 +182,7 @@ include::request/min-score.asciidoc[]
 include::request/named-queries-and-filters.asciidoc[]
 
 include::request/inner-hits.asciidoc[]
+
+include::request/collapse.asciidoc[]
 
 include::request/search-after.asciidoc[]

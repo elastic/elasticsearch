@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
+
 //// additional test framework permissions.
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!
@@ -24,6 +24,8 @@
 grant codeBase "${codebase.securemock-1.2.jar}" {
   // needed to access ReflectionFactory (see below)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  // needed for reflection in ibm jdk
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
   // needed for spy interception, etc
@@ -31,12 +33,16 @@ grant codeBase "${codebase.securemock-1.2.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-6.0.0-snapshot-f0aa4fc.jar}" {
+grant codeBase "${codebase.lucene-test-framework-6.5.0.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
+  permission java.nio.file.LinkPermission "hard";
+  // needed for RAMUsageTester
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner-2.3.2.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.5.0.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads
@@ -55,4 +61,25 @@ grant codeBase "${codebase.junit4-ant-2.3.2.jar}" {
 grant codeBase "${codebase.junit-4.11.jar}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.mocksocket-1.1.jar}" {
+  // mocksocket makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};
+
+
+grant codeBase "${codebase.rest-6.0.0-alpha1-SNAPSHOT.jar}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
+grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
+  // httpcore makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
+grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
+  // httpasyncclient makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
 };

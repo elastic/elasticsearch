@@ -62,18 +62,18 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
      * A callback interface that allows to throw certain exceptions for
      * methods called on the IndexReader that is wrapped by {@link ThrowingLeafReaderWrapper}
      */
-    public static interface Thrower {
+    public interface Thrower {
         /**
          * Maybe throws an exception ;)
          */
-        public void maybeThrow(Flags flag) throws IOException;
+        void maybeThrow(Flags flag) throws IOException;
 
         /**
          * If this method returns true the {@link Terms} instance for the given field
          * is wrapped with Thrower support otherwise no exception will be thrown for
          * the current {@link Terms} instance or any other instance obtained from it.
          */
-        public boolean wrapTerms(String field);
+        boolean wrapTerms(String field);
     }
 
     public ThrowingLeafReaderWrapper(LeafReader in, Thrower thrower) {
@@ -147,7 +147,7 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     static class ThrowingTermsEnum extends FilterTermsEnum {
         private final Thrower thrower;
 
-        public ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
+        ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
             super(in);
             this.thrower = thrower;
 

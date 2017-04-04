@@ -22,7 +22,7 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -32,12 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractXContentParser implements XContentParser {
-
-    private ParseFieldMatcher matcher = ParseFieldMatcher.STRICT;
 
     // Currently this is not a setting that can be changed and is a policy
     // that relates to how parsing of things like "boost" are done across
@@ -55,7 +50,11 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    private final NamedXContentRegistry xContentRegistry;
 
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry) {
+        this.xContentRegistry = xContentRegistry;
+    }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
     //   http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
@@ -78,9 +77,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         switch (currentToken()) {
             case VALUE_BOOLEAN:
                 return true;
-            case VALUE_NUMBER:
-                NumberType numberType = numberType();
-                return numberType == NumberType.LONG || numberType == NumberType.INT;
             case VALUE_STRING:
                 return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
             default:
@@ -91,10 +87,36 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+        }
+        return doBooleanValue();
+    }
+
+    @Override
+    @Deprecated
+    public boolean isBooleanValueLenient() throws IOException {
+        switch (currentToken()) {
+            case VALUE_BOOLEAN:
+                return true;
+            case VALUE_NUMBER:
+                NumberType numberType = numberType();
+                return numberType == NumberType.LONG || numberType == NumberType.INT;
+            case VALUE_STRING:
+                return Booleans.isBooleanLenient(textCharacters(), textOffset(), textLength());
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    @Deprecated
+    public boolean booleanValueLenient() throws IOException {
+        Token token = currentToken();
         if (token == Token.VALUE_NUMBER) {
             return intValue() != 0;
         } else if (token == Token.VALUE_STRING) {
-            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            return Booleans.parseBooleanLenient(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
         }
         return doBooleanValue();
     }
@@ -222,6 +244,16 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
+    public Map<String, String> mapStrings() throws IOException {
+        return readMapStrings(this);
+    }
+
+    @Override
+    public Map<String, String> mapStringsOrdered() throws IOException {
+        return readOrderedMapStrings(this);
+    }
+
+    @Override
     public List<Object> list() throws IOException {
         return readList(this);
     }
@@ -231,23 +263,21 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readListOrderedMap(this);
     }
 
-    static interface MapFactory {
+    interface MapFactory {
         Map<String, Object> newMap();
     }
 
-    static final MapFactory SIMPLE_MAP_FACTORY = new MapFactory() {
-        @Override
-        public Map<String, Object> newMap() {
-            return new HashMap<>();
-        }
-    };
+    interface MapStringsFactory {
+        Map<String, String> newMap();
+    }
 
-    static final MapFactory ORDERED_MAP_FACTORY = new MapFactory() {
-        @Override
-        public Map<String, Object> newMap() {
-            return new LinkedHashMap<>();
-        }
-    };
+    static final MapFactory SIMPLE_MAP_FACTORY = HashMap::new;
+
+    static final MapFactory ORDERED_MAP_FACTORY = LinkedHashMap::new;
+
+    static final MapStringsFactory SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
+
+    static final MapStringsFactory ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
 
     static Map<String, Object> readMap(XContentParser parser) throws IOException {
         return readMap(parser, SIMPLE_MAP_FACTORY);
@@ -255,6 +285,14 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Map<String, Object> readOrderedMap(XContentParser parser) throws IOException {
         return readMap(parser, ORDERED_MAP_FACTORY);
+    }
+
+    static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
+        return readMapStrings(parser, SIMPLE_MAP_STRINGS_FACTORY);
+    }
+
+    static Map<String, String> readOrderedMapStrings(XContentParser parser) throws IOException {
+        return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
     }
 
     static List<Object> readList(XContentParser parser) throws IOException {
@@ -280,6 +318,26 @@ public abstract class AbstractXContentParser implements XContentParser {
             // And then the value...
             token = parser.nextToken();
             Object value = readValue(parser, mapFactory, token);
+            map.put(fieldName, value);
+        }
+        return map;
+    }
+
+    static Map<String, String> readMapStrings(XContentParser parser, MapStringsFactory mapStringsFactory) throws IOException {
+        Map<String, String> map = mapStringsFactory.newMap();
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = parser.nextToken();
+        }
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
+            // Must point to field name
+            String fieldName = parser.currentName();
+            // And then the value...
+            parser.nextToken();
+            String value = parser.text();
             map.put(fieldName, value);
         }
         return map;
@@ -313,16 +371,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         } else if (token == XContentParser.Token.VALUE_STRING) {
             return parser.text();
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            XContentParser.NumberType numberType = parser.numberType();
-            if (numberType == XContentParser.NumberType.INT) {
-                return parser.intValue();
-            } else if (numberType == XContentParser.NumberType.LONG) {
-                return parser.longValue();
-            } else if (numberType == XContentParser.NumberType.FLOAT) {
-                return parser.floatValue();
-            } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                return parser.doubleValue();
-            }
+            return parser.numberValue();
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue();
         } else if (token == XContentParser.Token.START_OBJECT) {
@@ -336,13 +385,15 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
+    public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+        return xContentRegistry.parseNamedObject(categoryClass, name, this, context);
+    }
+
+    @Override
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
+    }
+
+    @Override
     public abstract boolean isClosed();
-
-    public ParseFieldMatcher getParseFieldMatcher() {
-        return matcher;
-    }
-
-    public void setParseFieldMatcher(ParseFieldMatcher matcher) {
-        this.matcher = matcher;
-    }
 }

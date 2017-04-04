@@ -19,23 +19,42 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestCustomMetaData;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TribeServiceTests extends ESTestCase {
     public void testMinimalSettings() {
         Settings globalSettings = Settings.builder()
             .put("node.name", "nodename")
             .put("path.home", "some/path").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("nodename/tribe1", clientSettings.get("node.name"));
         assertEquals("tribe1", clientSettings.get("tribe.name"));
-        assertEquals("false", clientSettings.get("http.enabled"));
+        assertFalse(NetworkModule.HTTP_ENABLED.get(clientSettings));
         assertEquals("false", clientSettings.get("node.master"));
         assertEquals("false", clientSettings.get("node.data"));
         assertEquals("false", clientSettings.get("node.ingest"));
-        assertEquals(7, clientSettings.getAsMap().size());
+        assertEquals("false", clientSettings.get("node.local_storage"));
+        assertEquals("3707202549613653169", clientSettings.get("node.id.seed")); // should be fixed by the parent id and tribe name
+        assertEquals(9, clientSettings.size());
     }
 
     public void testEnvironmentSettings() {
@@ -43,20 +62,18 @@ public class TribeServiceTests extends ESTestCase {
             .put("node.name", "nodename")
             .put("path.home", "some/path")
             .put("path.conf", "conf/path")
-            .put("path.plugins", "plugins/path")
             .put("path.scripts", "scripts/path")
             .put("path.logs", "logs/path").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("conf/path", clientSettings.get("path.conf"));
-        assertEquals("plugins/path", clientSettings.get("path.plugins"));
         assertEquals("scripts/path", clientSettings.get("path.scripts"));
         assertEquals("logs/path", clientSettings.get("path.logs"));
 
         Settings tribeSettings = Settings.builder()
             .put("path.home", "alternate/path").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+            TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, tribeSettings);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Setting [path.home] not allowed in tribe client"));
     }
@@ -71,7 +88,7 @@ public class TribeServiceTests extends ESTestCase {
             .put("transport.host", "3.3.3.3")
             .put("transport.bind_host", "4.4.4.4")
             .put("transport.publish_host", "5.5.5.5").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("0.0.0.0", clientSettings.get("network.host"));
         assertEquals("1.1.1.1", clientSettings.get("network.bind_host"));
         assertEquals("2.2.2.2", clientSettings.get("network.publish_host"));
@@ -87,12 +104,143 @@ public class TribeServiceTests extends ESTestCase {
             .put("transport.host", "6.6.6.6")
             .put("transport.bind_host", "7.7.7.7")
             .put("transport.publish_host", "8.8.8.8").build();
-        clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+        clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, tribeSettings);
         assertEquals("3.3.3.3", clientSettings.get("network.host"));
         assertEquals("4.4.4.4", clientSettings.get("network.bind_host"));
         assertEquals("5.5.5.5", clientSettings.get("network.publish_host"));
         assertEquals("6.6.6.6", clientSettings.get("transport.host"));
         assertEquals("7.7.7.7", clientSettings.get("transport.bind_host"));
         assertEquals("8.8.8.8", clientSettings.get("transport.publish_host"));
+    }
+
+    public void testMergeCustomMetaDataSimple() {
+        Map<String, MetaData.Custom> mergedCustoms =
+                TribeService.mergeChangedCustomMetaData(Collections.singleton(MergableCustomMetaData1.TYPE),
+                        s -> Collections.singletonList(new MergableCustomMetaData1("data1")));
+        TestCustomMetaData mergedCustom = (TestCustomMetaData) mergedCustoms.get(MergableCustomMetaData1.TYPE);
+        assertThat(mergedCustom, instanceOf(MergableCustomMetaData1.class));
+        assertNotNull(mergedCustom);
+        assertEquals(mergedCustom.getData(), "data1");
+    }
+
+    public void testMergeCustomMetaData() {
+        Map<String, MetaData.Custom> mergedCustoms =
+                TribeService.mergeChangedCustomMetaData(Collections.singleton(MergableCustomMetaData1.TYPE),
+                        s -> Arrays.asList(new MergableCustomMetaData1("data1"), new MergableCustomMetaData1("data2")));
+        TestCustomMetaData mergedCustom = (TestCustomMetaData) mergedCustoms.get(MergableCustomMetaData1.TYPE);
+        assertThat(mergedCustom, instanceOf(MergableCustomMetaData1.class));
+        assertNotNull(mergedCustom);
+        assertEquals(mergedCustom.getData(), "data2");
+    }
+
+    public void testMergeMultipleCustomMetaData() {
+        Map<String, List<TribeService.MergableCustomMetaData>> inputMap = new HashMap<>();
+        inputMap.put(MergableCustomMetaData1.TYPE,
+                Arrays.asList(new MergableCustomMetaData1("data10"), new MergableCustomMetaData1("data11")));
+        inputMap.put(MergableCustomMetaData2.TYPE,
+                Arrays.asList(new MergableCustomMetaData2("data21"), new MergableCustomMetaData2("data20")));
+        Map<String, MetaData.Custom> mergedCustoms = TribeService.mergeChangedCustomMetaData(
+                        Sets.newHashSet(MergableCustomMetaData1.TYPE, MergableCustomMetaData2.TYPE), inputMap::get);
+        TestCustomMetaData mergedCustom = (TestCustomMetaData) mergedCustoms.get(MergableCustomMetaData1.TYPE);
+        assertNotNull(mergedCustom);
+        assertThat(mergedCustom, instanceOf(MergableCustomMetaData1.class));
+        assertEquals(mergedCustom.getData(), "data11");
+        mergedCustom = (TestCustomMetaData) mergedCustoms.get(MergableCustomMetaData2.TYPE);
+        assertNotNull(mergedCustom);
+        assertThat(mergedCustom, instanceOf(MergableCustomMetaData2.class));
+        assertEquals(mergedCustom.getData(), "data21");
+    }
+
+    public void testMergeCustomMetaDataFromMany() {
+        Map<String, List<TribeService.MergableCustomMetaData>> inputMap = new HashMap<>();
+        int n = randomIntBetween(3, 5);
+        List<TribeService.MergableCustomMetaData> customList1 = new ArrayList<>();
+        for (int i = 0; i <= n; i++) {
+            customList1.add(new MergableCustomMetaData1("data1"+String.valueOf(i)));
+        }
+        Collections.shuffle(customList1, random());
+        inputMap.put(MergableCustomMetaData1.TYPE, customList1);
+        List<TribeService.MergableCustomMetaData> customList2 = new ArrayList<>();
+        for (int i = 0; i <= n; i++) {
+            customList2.add(new MergableCustomMetaData2("data2"+String.valueOf(i)));
+        }
+        Collections.shuffle(customList2, random());
+        inputMap.put(MergableCustomMetaData2.TYPE, customList2);
+
+        Map<String, MetaData.Custom> mergedCustoms = TribeService.mergeChangedCustomMetaData(
+                        Sets.newHashSet(MergableCustomMetaData1.TYPE, MergableCustomMetaData2.TYPE), inputMap::get);
+        TestCustomMetaData mergedCustom = (TestCustomMetaData) mergedCustoms.get(MergableCustomMetaData1.TYPE);
+        assertNotNull(mergedCustom);
+        assertThat(mergedCustom, instanceOf(MergableCustomMetaData1.class));
+        assertEquals(mergedCustom.getData(), "data1"+String.valueOf(n));
+        mergedCustom = (TestCustomMetaData) mergedCustoms.get(MergableCustomMetaData2.TYPE);
+        assertNotNull(mergedCustom);
+        assertThat(mergedCustom, instanceOf(MergableCustomMetaData2.class));
+        assertEquals(mergedCustom.getData(), "data2"+String.valueOf(n));
+    }
+
+    static class MergableCustomMetaData1 extends TestCustomMetaData
+            implements TribeService.MergableCustomMetaData<MergableCustomMetaData1> {
+        public static final String TYPE = "custom_md_1";
+
+        protected MergableCustomMetaData1(String data) {
+            super(data);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        public static MergableCustomMetaData1 readFrom(StreamInput in) throws IOException {
+            return readFrom(MergableCustomMetaData1::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY);
+        }
+
+        @Override
+        public MergableCustomMetaData1 merge(MergableCustomMetaData1 other) {
+            return (getData().compareTo(other.getData()) >= 0) ? this : other;
+        }
+    }
+
+    static class MergableCustomMetaData2 extends TestCustomMetaData
+            implements TribeService.MergableCustomMetaData<MergableCustomMetaData2> {
+        public static final String TYPE = "custom_md_2";
+
+        protected MergableCustomMetaData2(String data) {
+            super(data);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        public static MergableCustomMetaData2 readFrom(StreamInput in) throws IOException {
+            return readFrom(MergableCustomMetaData2::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY);
+        }
+
+        @Override
+        public MergableCustomMetaData2 merge(MergableCustomMetaData2 other) {
+            return (getData().compareTo(other.getData()) >= 0) ? this : other;
+        }
     }
 }

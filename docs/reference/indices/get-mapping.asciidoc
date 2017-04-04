@@ -6,8 +6,10 @@ index/type.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/_mapping/tweet'
+GET /twitter/_mapping/tweet
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 === Multiple Indices and Types
@@ -21,17 +23,21 @@ following are some examples:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_mapping/twitter,kimchy'
+GET /_mapping/tweet,kimchy
 
-curl -XGET 'http://localhost:9200/_all/_mapping/tweet,book'
+GET /_all/_mapping/tweet,book
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 If you want to get mappings of all indices and types then the following
 two examples are equivalent:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_all/_mapping'
+GET /_all/_mapping
 
-curl -XGET 'http://localhost:9200/_mapping'
+GET /_mapping
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

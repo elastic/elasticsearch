@@ -21,18 +21,18 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,18 +40,16 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class PrimaryTermsTests extends ESAllocationTestCase {
 
     private static final String TEST_INDEX_1 = "test1";
     private static final String TEST_INDEX_2 = "test2";
-    private RoutingTable testRoutingTable;
     private int numberOfShards;
     private int numberOfReplicas;
-    private final static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
     private AllocationService allocationService;
     private ClusterState clusterState;
 
@@ -60,43 +58,42 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        this.allocationService = createAllocationService(settingsBuilder()
+        this.allocationService = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
                 .build());
         this.numberOfShards = randomIntBetween(1, 5);
-        this.numberOfReplicas = randomIntBetween(1, 5);
-        logger.info("Setup test with " + this.numberOfShards + " shards and " + this.numberOfReplicas + " replicas.");
+        this.numberOfReplicas = randomIntBetween(0, 5);
+        logger.info("Setup test with {} shards and {} replicas.", this.numberOfShards, this.numberOfReplicas);
         this.primaryTermsPerIndex.clear();
         MetaData metaData = MetaData.builder()
                 .put(createIndexMetaData(TEST_INDEX_1))
                 .put(createIndexMetaData(TEST_INDEX_2))
                 .build();
 
-        this.testRoutingTable = new RoutingTable.Builder()
+        RoutingTable routingTable = new RoutingTable.Builder()
                 .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_1).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_1))
                         .build())
                 .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_2).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_2))
                         .build())
                 .build();
 
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData)
-                .routingTable(testRoutingTable).build();
+        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(routingTable).build();
     }
 
     /**
      * puts primary shard routings into initializing state
      */
     private void initPrimaries() {
-        logger.info("adding " + (this.numberOfReplicas + 1) + " nodes and performing rerouting");
+        logger.info("adding {} nodes and performing rerouting", this.numberOfReplicas + 1);
         Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < this.numberOfReplicas + 1; i++) {
-            discoBuilder = discoBuilder.put(newNode("node" + i));
+            discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        RoutingAllocation.Result rerouteResult = allocationService.reroute(clusterState, "reroute");
-        this.testRoutingTable = rerouteResult.routingTable();
-        assertThat(rerouteResult.changed(), is(true));
+        ClusterState rerouteResult = allocationService.reroute(clusterState, "reroute");
+        assertThat(rerouteResult, not(equalTo(this.clusterState)));
         applyRerouteResult(rerouteResult);
         primaryTermsPerIndex.keySet().forEach(this::incrementPrimaryTerm);
     }
@@ -113,17 +110,16 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     }
 
     private boolean startInitializingShards(String index) {
-        this.clusterState = ClusterState.builder(clusterState).routingTable(this.testRoutingTable).build();
         final List<ShardRouting> startedShards = this.clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING);
         logger.info("start primary shards for index [{}]: {} ", index, startedShards);
-        RoutingAllocation.Result rerouteResult = allocationService.applyStartedShards(this.clusterState, startedShards);
+        ClusterState rerouteResult = allocationService.applyStartedShards(this.clusterState, startedShards);
+        boolean changed = rerouteResult.equals(this.clusterState) == false;
         applyRerouteResult(rerouteResult);
-        return rerouteResult.changed();
+        return changed;
     }
 
-    private void applyRerouteResult(RoutingAllocation.Result rerouteResult) {
+    private void applyRerouteResult(ClusterState newClusterState) {
         ClusterState previousClusterState = this.clusterState;
-        ClusterState newClusterState = ClusterState.builder(previousClusterState).routingResult(rerouteResult).build();
         ClusterState.Builder builder = ClusterState.builder(newClusterState).incrementVersion();
         if (previousClusterState.routingTable() != newClusterState.routingTable()) {
             builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1)
@@ -133,7 +129,6 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
         }
         this.clusterState = builder.build();
-        this.testRoutingTable = rerouteResult.routingTable();
         final ClusterStateHealth clusterHealth = new ClusterStateHealth(clusterState);
         logger.info("applied reroute. active shards: p [{}], t [{}], init shards: [{}], relocating: [{}]",
                 clusterHealth.getActivePrimaryShards(), clusterHealth.getActiveShards(),
@@ -141,20 +136,18 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     }
 
     private void failSomePrimaries(String index) {
-        this.clusterState = ClusterState.builder(clusterState).routingTable(this.testRoutingTable).build();
-        final IndexRoutingTable indexShardRoutingTable = testRoutingTable.index(index);
+        final IndexRoutingTable indexShardRoutingTable = clusterState.routingTable().index(index);
         Set<Integer> shardIdsToFail = new HashSet<>();
         for (int i = 1 + randomInt(numberOfShards - 1); i > 0; i--) {
             shardIdsToFail.add(randomInt(numberOfShards - 1));
         }
         logger.info("failing primary shards {} for index [{}]", shardIdsToFail, index);
-        List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>();
+        List<FailedShard> failedShards = new ArrayList<>();
         for (int shard : shardIdsToFail) {
-            failedShards.add(new FailedRerouteAllocation.FailedShard(indexShardRoutingTable.shard(shard).primaryShard(), "test", null));
+            failedShards.add(new FailedShard(indexShardRoutingTable.shard(shard).primaryShard(), "test", null));
             incrementPrimaryTerm(index, shard); // the primary failure should increment the primary term;
         }
-        RoutingAllocation.Result rerouteResult = allocationService.applyFailedShards(this.clusterState, failedShards);
-        applyRerouteResult(rerouteResult);
+        applyRerouteResult(allocationService.applyFailedShards(this.clusterState, failedShards,Collections.emptyList()));
     }
 
     private void addNodes() {
@@ -162,11 +155,10 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         final int newNodes = randomInt(10);
         logger.info("adding [{}] nodes", newNodes);
         for (int i = 0; i < newNodes; i++) {
-            nodesBuilder.put(newNode("extra_" + i));
+            nodesBuilder.add(newNode("extra_" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
-        RoutingAllocation.Result rerouteResult = allocationService.reroute(this.clusterState, "nodes added");
-        applyRerouteResult(rerouteResult);
+        applyRerouteResult(allocationService.reroute(this.clusterState, "nodes added"));
 
     }
 
@@ -190,7 +182,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private void assertPrimaryTerm(String index) {
         final long[] terms = primaryTermsPerIndex.get(index);
         final IndexMetaData indexMetaData = clusterState.metaData().index(index);
-        for (IndexShardRoutingTable shardRoutingTable : this.testRoutingTable.index(index)) {
+        for (IndexShardRoutingTable shardRoutingTable : this.clusterState.routingTable().index(index)) {
             final int shard = shardRoutingTable.shardId().id();
             assertThat("primary term mismatch between indexMetaData of [" + index + "] and shard [" + shard + "]'s routing",
                     indexMetaData.primaryTerm(shard), equalTo(terms[shard]));

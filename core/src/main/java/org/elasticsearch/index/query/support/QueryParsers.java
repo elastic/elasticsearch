@@ -22,11 +22,7 @@ package org.elasticsearch.index.query.support;
 import org.apache.lucene.search.MultiTermQuery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 
-/**
- *
- */
 public final class QueryParsers {
 
     public static final ParseField CONSTANT_SCORE = new ParseField("constant_score", "constant_score_auto", "constant_score_filter");
@@ -47,28 +43,22 @@ public final class QueryParsers {
         query.setRewriteMethod(rewriteMethod);
     }
 
-    public static void setRewriteMethod(MultiTermQuery query, ParseFieldMatcher matcher, @Nullable String rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(parseRewriteMethod(matcher, rewriteMethod));
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod) {
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE);
     }
 
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(ParseFieldMatcher matcher, @Nullable String rewriteMethod) {
-        return parseRewriteMethod(matcher, rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE);
-    }
-
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(ParseFieldMatcher matcher, @Nullable String rewriteMethod, @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
+                                                                  @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }
-        if (matcher.match(rewriteMethod, CONSTANT_SCORE)) {
+        if (CONSTANT_SCORE.match(rewriteMethod)) {
             return MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
-        if (matcher.match(rewriteMethod, SCORING_BOOLEAN)) {
+        if (SCORING_BOOLEAN.match(rewriteMethod)) {
             return MultiTermQuery.SCORING_BOOLEAN_REWRITE;
         }
-        if (matcher.match(rewriteMethod, CONSTANT_SCORE_BOOLEAN)) {
+        if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod)) {
             return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
         }
 
@@ -84,18 +74,17 @@ public final class QueryParsers {
             final int size = Integer.parseInt(rewriteMethod.substring(firstDigit));
             String rewriteMethodName = rewriteMethod.substring(0, firstDigit);
 
-            if (matcher.match(rewriteMethodName, TOP_TERMS)) {
+            if (TOP_TERMS.match(rewriteMethodName)) {
                 return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
             }
-            if (matcher.match(rewriteMethodName, TOP_TERMS_BOOST)) {
+            if (TOP_TERMS_BOOST.match(rewriteMethodName)) {
                 return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
             }
-            if (matcher.match(rewriteMethodName, TOP_TERMS_BLENDED_FREQS)) {
+            if (TOP_TERMS_BLENDED_FREQS.match(rewriteMethodName)) {
                 return new MultiTermQuery.TopTermsBlendedFreqScoringRewrite(size);
             }
         }
 
         throw new IllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
-
 }

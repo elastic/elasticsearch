@@ -38,14 +38,15 @@ This setting can be updated on a live index (or on all indices):
 
 [source,js]
 ------------------------------
-PUT /_all/_settings
+PUT _all/_settings
 {
   "settings": {
     "index.unassigned.node_left.delayed_timeout": "5m"
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 With delayed allocation enabled, the above scenario changes to look like this:
 
@@ -82,6 +83,7 @@ can be viewed with the <<cluster-health,cluster health API>>:
 ------------------------------
 GET _cluster/health <1>
 ------------------------------
+// CONSOLE
 <1> This request will return a `delayed_unassigned_shards` value.
 
 ==== Removing a node permanently
@@ -92,13 +94,14 @@ the missing shards immediately, just update the timeout to zero:
 
 [source,js]
 ------------------------------
-PUT /_all/_settings
+PUT _all/_settings
 {
   "settings": {
     "index.unassigned.node_left.delayed_timeout": "0"
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 You can reset the timeout as soon as the missing shards have started to recover.

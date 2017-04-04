@@ -20,11 +20,13 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.EnumSet;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -53,7 +55,7 @@ public class ClusterBlockTests extends ESTestCase {
             out.setVersion(version);
             clusterBlock.writeTo(out);
 
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             in.setVersion(version);
             ClusterBlock result = ClusterBlock.readClusterBlock(in);
 
@@ -75,5 +77,19 @@ public class ClusterBlockTests extends ESTestCase {
         ClusterBlock clusterBlock = new ClusterBlock(randomInt(), "cluster block #" + randomInt(), randomBoolean(),
                 randomBoolean(), randomFrom(RestStatus.values()), levels);
         assertThat(clusterBlock.toString(), not(endsWith(",")));
+    }
+
+    public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
+        EnumSet<ClusterBlockLevel> levels = EnumSet.noneOf(ClusterBlockLevel.class);
+        int nbLevels = randomIntBetween(1, ClusterBlockLevel.values().length);
+        for (int j = 0; j < nbLevels; j++) {
+            levels.add(randomFrom(ClusterBlockLevel.values()));
+        }
+        ClusterBlock globalBlock = new ClusterBlock(randomInt(), "cluster block #" + randomInt(), randomBoolean(),
+            randomBoolean(), randomFrom(RestStatus.values()), levels);
+        ClusterBlocks clusterBlocks = new ClusterBlocks(Collections.singleton(globalBlock), ImmutableOpenMap.of());
+        ClusterBlockException exception = clusterBlocks.indicesBlockedException(randomFrom(globalBlock.levels()), new String[0]);
+        assertNotNull(exception);
+        assertEquals(exception.blocks(), Collections.singleton(globalBlock));
     }
 }

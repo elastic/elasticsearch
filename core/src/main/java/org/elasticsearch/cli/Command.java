@@ -19,19 +19,26 @@
 
 package org.elasticsearch.cli;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Arrays;
 
 /**
  * An action to execute within a cli.
  */
-public abstract class Command {
+public abstract class Command implements Closeable {
 
     /** A description of the command, used in the help output. */
     protected final String description;
@@ -41,21 +48,52 @@ public abstract class Command {
 
     private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "show help").forHelp();
     private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "show minimal output");
-    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "show verbose output");
+    private final OptionSpec<Void> verboseOption =
+        parser.acceptsAll(Arrays.asList("v", "verbose"), "show verbose output").availableUnless(silentOption);
 
     public Command(String description) {
         this.description = description;
     }
 
+    final SetOnce<Thread> shutdownHookThread = new SetOnce<>();
+
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {
+        if (addShutdownHook()) {
+            shutdownHookThread.set(new Thread(() -> {
+                try {
+                    this.close();
+                } catch (final IOException e) {
+                    try (
+                        StringWriter sw = new StringWriter();
+                        PrintWriter pw = new PrintWriter(sw)) {
+                        e.printStackTrace(pw);
+                        terminal.println(sw.toString());
+                    } catch (final IOException impossible) {
+                        // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter
+                        // say that an exception here is impossible
+                        throw new AssertionError(impossible);
+                    }
+                }
+            }));
+            Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
+        }
+
+        // initialize default for es.logger.level because we will not read the log4j2.properties
+        final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
+        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
+
         try {
             mainWithoutErrorHandling(args, terminal);
         } catch (OptionException e) {
             printHelp(terminal);
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
-        } catch (UserError e) {
+        } catch (UserException e) {
+            if (e.exitCode == ExitCodes.USAGE) {
+                printHelp(terminal);
+            }
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return e.exitCode;
         }
@@ -74,10 +112,6 @@ public abstract class Command {
         }
 
         if (options.has(silentOption)) {
-            if (options.has(verboseOption)) {
-                // mutually exclusive, we can remove this with jopt-simple 5.0, which natively supports it
-                throw new UserError(ExitCodes.USAGE, "Cannot specify -s and -v together");
-            }
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
         } else if (options.has(verboseOption)) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
@@ -107,6 +141,22 @@ public abstract class Command {
     /**
      * Executes this command.
      *
-     * Any runtime user errors (like an input file that does not exist), should throw a {@link UserError}. */
+     * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
+
+    /**
+     * Return whether or not to install the shutdown hook to cleanup resources on exit. This method should only be overridden in test
+     * classes.
+     *
+     * @return whether or not to install the shutdown hook
+     */
+    protected boolean addShutdownHook() {
+        return true;
+    }
+
+    @Override
+    public void close() throws IOException {
+
+    }
+
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,27 +72,15 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.updateAllTypes())
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.index(), request.updateAllTypes())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
-                .aliases(request.aliases()).customs(request.customs());
+                .aliases(request.aliases()).customs(request.customs())
+                .waitForActiveShards(request.waitForActiveShards());
 
-        createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new CreateIndexResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                if (t instanceof IndexAlreadyExistsException) {
-                    logger.trace("[{}] failed to create", t, request.index());
-                } else {
-                    logger.debug("[{}] failed to create", t, request.index());
-                }
-                listener.onFailure(t);
-            }
-        });
+        createIndexService.createIndex(updateRequest, ActionListener.wrap(response ->
+            listener.onResponse(new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcked())),
+            listener::onFailure));
     }
+
 }

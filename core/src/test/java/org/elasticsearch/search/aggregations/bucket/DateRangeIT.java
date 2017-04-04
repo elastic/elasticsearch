@@ -20,14 +20,15 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -53,9 +54,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class DateRangeIT extends ESIntegTestCase {
 
@@ -117,11 +115,11 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testDateMath() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
-        DateRangeAggregatorBuilder rangeBuilder = dateRange("range");
+        DateRangeAggregationBuilder rangeBuilder = dateRange("range");
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
-            rangeBuilder.script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params));
+            rangeBuilder.script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, params));
         }
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -137,7 +135,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getBuckets().size(), equalTo(3));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(range.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
 
         Range.Bucket bucket = buckets.get(0);
         assertThat((String) bucket.getKey(), equalTo("a long time ago"));
@@ -295,8 +293,7 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueFieldWithDateMath() throws Exception {
-        String[] ids = DateTimeZone.getAvailableIDs().toArray(new String[DateTimeZone.getAvailableIDs().size()]);
-        DateTimeZone timezone = DateTimeZone.forID(randomFrom(ids));
+        DateTimeZone timezone = randomDateTimeZone();
         int timeZoneOffset = timezone.getOffset(date(2, 15));
         // if time zone is UTC (or equivalent), time zone suffix is "Z", else something like "+03:00", which we get with the "ZZ" format
         String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).toString("ZZ");
@@ -422,6 +419,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(buckets.size(), equalTo(3));
+        assertThat(range.getProperty("_bucket_count"), equalTo(3));
         Object[] propertiesKeys = (Object[]) range.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
         Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
@@ -543,7 +541,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                                .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                                 .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
                 .actionGet();
 
@@ -599,7 +597,7 @@ public class DateRangeIT extends ESIntegTestCase {
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, params))
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
@@ -661,7 +659,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateRange("range").script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params))
+                        dateRange("range").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, params))
                         .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15))).execute().actionGet();
 
@@ -856,7 +854,7 @@ public class DateRangeIT extends ESIntegTestCase {
 
         Range dateRange = bucket.getAggregations().get("date_range");
         // TODO: use diamond once JI-9019884 is fixed
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(dateRange.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
         assertThat(dateRange, Matchers.notNullValue());
         assertThat(dateRange.getName(), equalTo("date_range"));
         assertThat(buckets.size(), is(1));
@@ -865,5 +863,52 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(((DateTime) buckets.get(0).getTo()).getMillis(), equalTo(1L));
         assertThat(buckets.get(0).getDocCount(), equalTo(0L));
         assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "date", "type=date")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true,
+                client().prepareIndex("cache_test_idx", "type", "1")
+                        .setSource(jsonBuilder().startObject().field("date", date(1, 1)).endObject()),
+                client().prepareIndex("cache_test_idx", "type", "2")
+                        .setSource(jsonBuilder().startObject().field("date", date(2, 1)).endObject()));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "date");
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
+                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
+                .addRange(new DateTime(2012, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), new DateTime(2013, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC)))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
+                .addRange(new DateTime(2012, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), new DateTime(2013, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC)))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 }

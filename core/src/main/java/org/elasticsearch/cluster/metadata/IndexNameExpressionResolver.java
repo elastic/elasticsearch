@@ -27,7 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
@@ -49,7 +48,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
@@ -57,7 +55,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
-    @Inject
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
         expressionResolvers = Arrays.asList(
@@ -133,9 +130,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
+    public Index[] concreteIndices(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
         Context context = new Context(state, options, startTime);
-        return concreteIndexNames(context, indexExpressions);
+        return concreteIndices(context, indexExpressions);
     }
 
     String[] concreteIndexNames(Context context, String... indexExpressions) {
@@ -490,7 +487,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return false;
     }
 
-    final static class Context {
+    static final class Context {
 
         private final ClusterState state;
         private final IndicesOptions options;
@@ -505,11 +502,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             this(state, options, System.currentTimeMillis(), preserveAliases);
         }
 
-        public Context(ClusterState state, IndicesOptions options, long startTime) {
+        Context(ClusterState state, IndicesOptions options, long startTime) {
            this(state, options, startTime, false);
         }
 
-        public Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
+        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
@@ -553,7 +550,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Resolves alias/index name expressions with wildcards into the corresponding concrete indices/aliases
      */
-    final static class WildcardExpressionResolver implements ExpressionResolver {
+    static final class WildcardExpressionResolver implements ExpressionResolver {
 
         @Override
         public List<String> resolve(Context context, List<String> expressions) {
@@ -582,6 +579,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
+            boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (aliasOrIndexExists(metaData, expression)) {
@@ -601,30 +599,29 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     }
                     expression = expression.substring(1);
                 } else if (expression.charAt(0) == '-') {
-                    // if its the first, fill it with all the indices...
-                    if (i == 0) {
-                        List<String> concreteIndices = resolveEmptyOrTrivialWildcard(options, metaData, false);
-                        result = new HashSet<>(concreteIndices);
+                    // if there is a negation without a wildcard being previously seen, add it verbatim,
+                    // otherwise return the expression
+                    if (wildcardSeen) {
+                        add = false;
+                        expression = expression.substring(1);
+                    } else {
+                        add = true;
                     }
-                    add = false;
-                    expression = expression.substring(1);
+                }
+                if (result == null) {
+                    // add all the previous ones...
+                    result = new HashSet<>(expressions.subList(0, i));
                 }
                 if (!Regex.isSimpleMatchPattern(expression)) {
                     if (!unavailableIgnoredOrExists(options, metaData, expression)) {
                         throw infe(expression);
                     }
-                    if (result != null) {
-                        if (add) {
-                            result.add(expression);
-                        } else {
-                            result.remove(expression);
-                        }
+                    if (add) {
+                        result.add(expression);
+                    } else {
+                        result.remove(expression);
                     }
                     continue;
-                }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
                 }
 
                 final IndexMetaData.State excludeState = excludeState(options);
@@ -638,6 +635,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
                 if (!noIndicesAllowedOrMatches(options, matches)) {
                     throw infe(expression);
+                }
+
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
                 }
             }
             return result;
@@ -740,7 +741,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         }
     }
 
-    final static class DateMathExpressionResolver implements ExpressionResolver {
+    static final class DateMathExpressionResolver implements ExpressionResolver {
 
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";
@@ -753,7 +754,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final String defaultDateFormatterPattern;
         private final DateTimeFormatter defaultDateFormatter;
 
-        public DateMathExpressionResolver(Settings settings) {
+        DateMathExpressionResolver(Settings settings) {
             String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
             this.defaultTimeZone = DateTimeZone.forID(defaultTimeZoneId);
             defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "YYYY.MM.dd");
@@ -852,12 +853,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 DateTimeFormatter parser = dateFormatter.withZone(timeZone);
                                 FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
                                 DateMathParser dateMathParser = new DateMathParser(formatter);
-                                long millis = dateMathParser.parse(mathExpression, new Callable<Long>() {
-                                    @Override
-                                    public Long call() throws Exception {
-                                        return context.getStartTime();
-                                    }
-                                }, false, timeZone);
+                            long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
 
                                 String time = formatter.printer().print(millis);
                                 beforePlaceHolderSb.append(time);

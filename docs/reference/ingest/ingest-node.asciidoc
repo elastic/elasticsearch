@@ -41,15 +41,15 @@ PUT _ingest/pipeline/my-pipeline-id
   "description" : "describe pipeline",
   "processors" : [
     {
-      "simple" : {
-        // settings
+      "set" : {
+        "field": "foo",
+        "value": "bar"
       }
-    },
-    // other processors
+    }
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 NOTE: The put pipeline API also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
       pipeline changes take effect immediately.
@@ -63,44 +63,124 @@ The get pipeline API returns pipelines based on ID. This API always returns a lo
 --------------------------------------------------
 GET _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 Example response:
 
 [source,js]
 --------------------------------------------------
 {
-   "my-pipeline-id": {
-      "_source" : {
-        "description": "describe pipeline",
-        "processors": [
-          {
-            "simple" : {
-              // settings
-            }
-          },
-          // other processors
-        ]
-      },
-      "_version" : 0
-   }
+  "my-pipeline-id" : {
+    "description" : "describe pipeline",
+    "processors" : [
+      {
+        "set" : {
+          "field" : "foo",
+          "value" : "bar"
+        }
+      }
+    ]
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 For each returned pipeline, the source and the version are returned.
 The version is useful for knowing which version of the pipeline the node has.
 You can specify multiple IDs to return more than one pipeline. Wildcards are also supported.
 
+[float]
+[[versioning-pipelines]]
+==== Pipeline Versioning
+
+Pipelines can optionally add a `version` number, which can be any integer value,
+in order to simplify pipeline management by external systems. The `version`
+field is completely optional and it is meant solely for external management of
+pipelines. To unset a `version`, simply replace the pipeline without specifying
+one.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "version" : 123,
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+To check for the `version`, you can
+<<common-options-response-filtering, filter responses>>
+using `filter_path` to limit the response to just the `version`:
+
+[source,js]
+--------------------------------------------------
+GET /_ingest/pipeline/my-pipeline-id?filter_path=*.version
+--------------------------------------------------
+// TEST[continued]
+
+This should give a small response that makes it both easy and inexpensive to parse:
+
+[source,js]
+--------------------------------------------------
+{
+  "my-pipeline-id" : {
+    "version" : 123
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
 [[delete-pipeline-api]]
 === Delete Pipeline API
 
-The delete pipeline API deletes pipelines by ID.
+The delete pipeline API deletes pipelines by ID or wildcard match (`my-*`, `*`).
 
 [source,js]
 --------------------------------------------------
 DELETE _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
+
+////
+Hidden setup for wildcard test:
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/wild-one
+{
+  "description" : "first pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+PUT _ingest/pipeline/wild-two
+{
+  "description" : "second pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+DELETE _ingest/pipeline/*
+--------------------------------------------------
+// CONSOLE
+
+Hidden expected response:
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
 
 [[simulate-pipeline-api]]
 === Simulate Pipeline API
@@ -184,7 +264,7 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Response:
 
@@ -283,7 +363,7 @@ POST _ingest/pipeline/_simulate?verbose
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Response:
 
@@ -434,8 +514,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 }
 --------------------------------------------------
 
-The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
-`_timestamp`, and `_ttl`.
+The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`.
 
 [float]
 [[accessing-ingest-metadata]]
@@ -527,7 +606,7 @@ Elasticsearch.
     {
       "rename" : {
         "field" : "foo",
-        "to" : "bar",
+        "target_field" : "bar",
         "on_failure" : [
           {
             "set" : {
@@ -560,6 +639,30 @@ the index to which failed documents get sent.
   ]
 }
 --------------------------------------------------
+
+Alternatively instead of defining behaviour in case of processor failure, it is also possible
+to ignore a failure and continue with the next processor by specifying the `ignore_failure` setting.
+
+In case in the example below the field `foo` doesn't exist the failure will be caught and the pipeline
+continues to execute, which in this case means that the pipeline does nothing.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "target_field" : "bar",
+        "ignore_failure" : true
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The `ignore_failure` can be set on any processor and defaults to `false`.
 
 [float]
 [[accessing-error-metadata]]
@@ -637,7 +740,7 @@ A node will not start if either of these plugins are not available.
 The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
-[[append-procesesor]]
+[[append-processor]]
 === Append Processor
 Appends one or more values to an existing array if the field already exists and it is an array.
 Converts a scalar to an array and appends one or more values to it if the field exists and it is a scalar.
@@ -674,26 +777,27 @@ Specifying `boolean` will set the field to true if its string value is equal to 
 false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string type.
-For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. And 
-a value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot 
-be appropriately converted, the Convert Processor will still process successfully and leave the field value as-is. In 
+For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. And
+a value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot
+be appropriately converted, the Convert Processor will still process successfully and leave the field value as-is. In
 such a case, `target_field` will still be updated with the unconverted field value.
 
 [[convert-options]]
 .Convert Options
 [options="header"]
 |======
-| Name           | Required  | Default  | Description
-| `field`        | yes       | -        | The field whose value is to be converted
-| `target_field` | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
-| `type`         | yes       | -        | The type to convert the existing value to
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field whose value is to be converted
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `type`           | yes       | -        | The type to convert the existing value to
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "convert": {
-    "field" : "foo"
+    "field" : "foo",
     "type": "integer"
   }
 }
@@ -713,9 +817,9 @@ in the same order they were defined as part of the processor definition.
 [options="header"]
 |======
 | Name                   | Required  | Default             | Description
-| `match_field`          | yes       | -                   | The field to get the date from.
+| `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
-| `match_formats`        | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
 | `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
 |======
@@ -729,15 +833,160 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
   "processors" : [
     {
       "date" : {
-        "match_field" : "initial_date",
+        "field" : "initial_date",
         "target_field" : "timestamp",
-        "match_formats" : ["dd/MM/yyyy hh:mm:ss"],
+        "formats" : ["dd/MM/yyyy hh:mm:ss"],
         "timezone" : "Europe/Amsterdam"
       }
     }
   ]
 }
 --------------------------------------------------
+
+[[date-index-name-processor]]
+=== Date Index Name Processor
+
+The purpose of this processor is to point documents to the right time based index based
+on a date or timestamp field in a document by using the <<date-math-index-names, date math index name support>>.
+
+The processor sets the `_index` meta field with a date math index name expression based on the provided index name
+prefix, a date or timestamp field in the documents being processed and the provided date rounding.
+
+First, this processor fetches the date or timestamp from a field in the document being processed. Optionally,
+date formatting can be configured on how the field's value should be parsed into a date. Then this date,
+the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
+Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
+expression.
+
+An example pipeline that points documents to a monthly index that starts with a `myindex-` prefix based on a
+date in the `date1` field:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/monthlyindex
+{
+  "description": "monthly date-time index naming",
+  "processors" : [
+    {
+      "date_index_name" : {
+        "field" : "date1",
+        "index_name_prefix" : "myindex-",
+        "date_rounding" : "M"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+
+Using that pipeline for an index request:
+
+[source,js]
+--------------------------------------------------
+PUT /myindex/type/1?pipeline=monthlyindex
+{
+  "date1" : "2016-04-25T12:02:01.789Z"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "myindex-2016-04-01",
+  "_type" : "type",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "created" : true,
+  "_seq_no" : 0
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because
+it was rounded by month. This is because the date-index-name-processor overrides the `_index` property of the document.
+
+To see the date-math value of the index supplied in the actual index request which resulted in the above document being
+indexed into `myindex-2016-04-01` we can inspect the effects of the processor using a simulate request.
+
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline" :
+  {
+    "description": "monthly date-time index naming",
+    "processors" : [
+      {
+        "date_index_name" : {
+          "field" : "date1",
+          "index_name_prefix" : "myindex-",
+          "date_rounding" : "M"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "date1": "2016-04-25T12:02:01.789Z"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+and the result:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs" : [
+    {
+      "doc" : {
+        "_id" : "_id",
+        "_index" : "<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+        "_type" : "_type",
+        "_source" : {
+          "date1" : "2016-04-25T12:02:01.789Z"
+        },
+        "_ingest" : {
+          "timestamp" : "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
+understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
+
+[[date-index-name-options]]
+.Date index name options
+[options="header"]
+|======
+| Name                   | Required  | Default                      | Description
+| `field`                | yes       | -                            | The field to get the date or timestamp from.
+| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
+| `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here.
+|======
 
 [[fail-processor]]
 === Fail Processor
@@ -764,16 +1013,30 @@ to the requester.
 
 [[foreach-processor]]
 === Foreach Processor
+
+experimental[This processor may change or be replaced by something else that provides similar functionality. This
+processor executes in its own context, which makes it different compared to all other processors and for features like
+verbose simulation the subprocessor isn't visible. The reason we still expose this processor, is that it is the only
+processor that can operate on an array]
+
 Processes elements in an array of unknown length.
 
 All processors can operate on elements inside an array, but if all elements of an array need to
 be processed in the same way, defining a processor for each element becomes cumbersome and tricky
 because it is likely that the number of elements in an array is unknown. For this reason the `foreach`
-processor exists. By specifying the field holding array elements and a list of processors that
-define what should happen to each element, array fields can easily be preprocessed.
+processor exists. By specifying the field holding array elements and a processor that
+defines what should happen to each element, array fields can easily be preprocessed.
 
-Processors inside the foreach processor work in a different context, and the only valid top-level
-field is `_value`, which holds the array element value. Under this field other fields may exist.
+A processor inside the foreach processor works in the array element context and puts that in the ingest metadata
+under the `_ingest._value` key. If the array element is a json object it holds all immediate fields of that json object.
+and if the nested object is a value is `_ingest._value` just holds that value. Note that if a processor prior to the
+`foreach` processor used `_ingest._value` key then the specified value will not be available to the processor inside
+the `foreach` processor. The `foreach` processor does restore the original value, so that value is available to processors
+after the `foreach` processor.
+
+Note that any other field from the document are accessible and modifiable like with all other processors. This processor
+just puts the current array element being read into `_ingest._value` ingest metadata attribute, so that it may be
+pre-processed.
 
 If the `foreach` processor fails to process an element inside the array, and no `on_failure` processor has been specified,
 then it aborts the execution and leaves the array unmodified.
@@ -784,7 +1047,7 @@ then it aborts the execution and leaves the array unmodified.
 |======
 | Name          | Required  | Default  | Description
 | `field`       | yes       | -        | The array field
-| `processors`  | yes       | -        | The processors
+| `processor`   | yes       | -        | The processor to execute against each field
 |======
 
 Assume the following document:
@@ -792,7 +1055,7 @@ Assume the following document:
 [source,js]
 --------------------------------------------------
 {
-  "value" : ["foo", "bar", "baz"]
+  "values" : ["foo", "bar", "baz"]
 }
 --------------------------------------------------
 
@@ -803,13 +1066,11 @@ When this `foreach` processor operates on this sample document:
 {
   "foreach" : {
     "field" : "values",
-    "processors" : [
-      {
-        "uppercase" : {
-          "field" : "_value"
-        }
+    "processor" : {
+      "uppercase" : {
+        "field" : "_ingest._value"
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -819,7 +1080,7 @@ Then the document will look like this after preprocessing:
 [source,js]
 --------------------------------------------------
 {
-  "value" : ["FOO", "BAR", "BAZ"]
+  "values" : ["FOO", "BAR", "BAZ"]
 }
 --------------------------------------------------
 
@@ -849,13 +1110,11 @@ so the following `foreach` processor is used:
 {
   "foreach" : {
     "field" : "persons",
-    "processors" : [
-      {
-        "remove" : {
-          "field" : "_value.id"
-        }
+    "processor" : {
+      "remove" : {
+        "field" : "_ingest._value.id"
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -876,9 +1135,7 @@ After preprocessing the result is:
 }
 --------------------------------------------------
 
-As for any processor, you can define `on_failure` processors
-in processors that are wrapped inside the `foreach` processor.
-
+The wrapped processor can have a `on_failure` definition.
 For example, the `id` field may not exist on all person objects.
 Instead of failing the index request, you can use an `on_failure`
 block to send the document to the 'failure_index' index for later inspection:
@@ -888,21 +1145,19 @@ block to send the document to the 'failure_index' index for later inspection:
 {
   "foreach" : {
     "field" : "persons",
-    "processors" : [
-      {
-        "remove" : {
-          "field" : "_value.id",
-          "on_failure" : [
-            {
-              "set" : {
-                "field", "_index",
-                "value", "failure_index"
-              }
+    "processor" : {
+      "remove" : {
+        "field" : "_value.id",
+        "on_failure" : [
+          {
+            "set" : {
+              "field", "_index",
+              "value", "failure_index"
             }
-          ]
-        }
+          }
+        ]
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -910,6 +1165,10 @@ block to send the document to the 'failure_index' index for later inspection:
 In this example, if the `remove` processor does fail, then
 the array elements that have been processed thus far will
 be updated.
+
+Another advanced example can be found in the {plugins}/ingest-attachment-with-arrays.html[attachment processor documentation].
+
+
 
 [[grok-processor]]
 === Grok Processor
@@ -920,9 +1179,8 @@ expression that supports aliased expressions that can be reused.
 
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
-
-The processor comes packaged with over 120 reusable patterns that are located at `$ES_HOME/config/ingest/grok/patterns`.
-Here, you can add your own custom grok pattern files with custom grok expressions to be used by the processor.
+This processor comes packaged with over
+https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
 
 If you need help building patterns to match your logs, you will find the <http://grokdebug.herokuapp.com> and
 <http://grokconstructor.appspot.com/> applications quite useful!
@@ -964,33 +1222,6 @@ Grok expression.
 %{NUMBER:duration} %{IP:client}
 --------------------------------------------------
 
-[[custom-patterns]]
-==== Custom Patterns and Pattern Files
-
-The Grok processor comes pre-packaged with a base set of pattern files. These patterns may not always have
-what you are looking for. These pattern files have a very basic format. Each line describes a named pattern with
-the following format:
-
-[source,js]
---------------------------------------------------
-NAME ' '+ PATTERN '\n'
---------------------------------------------------
-
-You can add new patterns to an existing file, or add your own file in the patterns directory here: `$ES_HOME/config/ingest/grok/patterns`.
-Ingest node picks up files in this directory and loads the patterns into the grok processor's known patterns.
-These patterns are loaded at startup, so you need to restart your ingest node if you want to update these files.
-
-Here is an example snippet of pattern definitions found in the `grok-patterns` patterns file:
-
-[source,js]
---------------------------------------------------
-YEAR (?>\d\d){1,2}
-HOUR (?:2[0123]|[01]?[0-9])
-MINUTE (?:[0-5][0-9])
-SECOND (?:(?:[0-5]?[0-9]|60)(?:[:.,][0-9]+)?)
-TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
---------------------------------------------------
-
 [[using-grok]]
 ==== Using the Grok Processor in a Pipeline
 
@@ -1000,8 +1231,10 @@ TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
 |======
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to use for grok expression parsing
-| `pattern`              | yes       | -                   | The grok expression to match and extract named captures with
+| `patterns`             | yes       | -                   | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches.
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
+| `trace_match`          | no        | false               | when true, `_ingest._grok_match_index` will be inserted into your matched document's metadata with the index into the pattern found in `patterns` that matched.
+| `ignore_missing`       | no        | false               | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Here is an example of using the provided patterns to extract out and name structured fields from a string field in
@@ -1031,7 +1264,7 @@ Here is an example pipeline for processing the above document by using Grok:
     {
       "grok": {
         "field": "message",
-        "pattern": "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"
+        "patterns": ["%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"]
       }
     }
   ]
@@ -1052,6 +1285,13 @@ This pipeline will insert these named captures as new fields within the document
 }
 --------------------------------------------------
 
+[[custom-patterns]]
+==== Custom Patterns and Pattern Files
+
+The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
+what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.
+
+You can add your own patterns to a processor definition under the `pattern_definitions` option.
 Here is an example of a pipeline specifying custom pattern definitions:
 
 [source,js]
@@ -1062,7 +1302,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "pattern": "my %{FAVORITE_DOG:dog} is colored %{RGB:color}"
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"
@@ -1072,6 +1312,139 @@ Here is an example of a pipeline specifying custom pattern definitions:
   ]
 }
 --------------------------------------------------
+
+[[trace-match]]
+==== Providing Multiple Match Patterns
+
+Sometimes one pattern is not enough to capture the potential structure of a field. Let's assume we
+want to match all messages that contain your favorite pet breeds of either cats or dogs. One way to accomplish
+this is to provide two distinct patterns that can be matched, instead of one really complicated expression capturing
+the same `or` behavior.
+
+Here is an example of such a configuration executed against the simulate API:
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+  "description" : "parse multiple patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{FAVORITE_DOG:pet}", "%{FAVORITE_CAT:pet}"],
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "FAVORITE_CAT" : "burmese"
+        }
+      }
+    }
+  ]
+},
+"docs":[
+  {
+    "_source": {
+      "message": "I love burmese cats!"
+    }
+  }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+response:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_type": "_type",
+        "_index": "_index",
+        "_id": "_id",
+        "_source": {
+          "message": "I love burmese cats!",
+          "pet": "burmese"
+        },
+        "_ingest": {
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+Both patterns will set the field `pet` with the appropriate match, but what if we want to trace which of our
+patterns matched and populated our fields? We can do this with the `trace_match` parameter. Here is the output of
+that same pipeline, but with `"trace_match": true` configured:
+
+////
+Hidden setup for example:
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+  "description" : "parse multiple patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{FAVORITE_DOG:pet}", "%{FAVORITE_CAT:pet}"],
+        "trace_match": true,
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "FAVORITE_CAT" : "burmese"
+        }
+      }
+    }
+  ]
+},
+"docs":[
+  {
+    "_source": {
+      "message": "I love burmese cats!"
+    }
+  }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+////
+
+[source,js]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_type": "_type",
+        "_index": "_index",
+        "_id": "_id",
+        "_source": {
+          "message": "I love burmese cats!",
+          "pet": "burmese"
+        },
+        "_ingest": {
+          "_grok_match_index": "1",
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the
+second (index starts at zero) pattern in `patterns` to match.
+
+This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest
+metadata and will not be indexed.
 
 [[gsub-processor]]
 === Gsub Processor
@@ -1123,6 +1496,61 @@ Throws an error when the field is not an array.
 }
 --------------------------------------------------
 
+[[json-processor]]
+=== JSON Processor
+Converts a JSON string into a structured JSON object.
+
+[[json-options]]
+.Json Options
+[options="header"]
+|======
+| Name           | Required  | Default  | Description
+| `field`        | yes       | -        | The field to be parsed
+| `target_field` | no        | `field`  | The field to insert the converted structured object into
+| `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "json": {
+    "field": "{\"foo\": 2000}"
+  }
+}
+--------------------------------------------------
+
+[[kv-processor]]
+=== KV Processor
+This processor helps automatically parse messages (or specific event fields) which are of the foo=bar variety.
+
+For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those automatically by configuring:
+
+
+[source,js]
+--------------------------------------------------
+{
+  "kv": {
+    "field": "message",
+    "field_split": " ",
+    "value_split": "="
+  }
+}
+--------------------------------------------------
+
+[[kv-options]]
+.Kv Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to be parsed
+| `field_split`    | yes       | -        | Regex pattern to use for splitting key-value pairs
+| `value_split`    | yes       | -        | Regex pattern to use for splitting the key from the value within a key-value pair
+| `target_field`   | no        | `null`   | The field to insert the extracted keys into. Defaults to the root of the document
+| `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+
 [[lowercase-processor]]
 === Lowercase Processor
 Converts a string to its lowercase equivalent.
@@ -1131,8 +1559,9 @@ Converts a string to its lowercase equivalent.
 .Lowercase Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to make lowercase
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to make lowercase
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1173,9 +1602,10 @@ Renames an existing field. If the field doesn't exist or the new name is already
 .Rename Options
 [options="header"]
 |======
-| Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to be renamed
-| `to`      | yes       | -        | The new name of the field
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to be renamed
+| `target_field`   | yes       | -        | The new name of the field
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1183,10 +1613,54 @@ Renames an existing field. If the field doesn't exist or the new name is already
 {
   "rename": {
     "field": "foo",
-    "to": "foobar"
+    "target_field": "foobar"
   }
 }
 --------------------------------------------------
+
+[[script-processor]]
+=== Script Processor
+
+Allows inline, stored, and file scripts to be executed within ingest pipelines.
+
+See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
+leverages caching of compiled scripts for improved performance. Since the
+script specified within the processor is potentially re-compiled per document, it is important
+to understand how script caching works. To learn more about
+caching see <<modules-scripting-using-caching, Script Caching>>.
+
+[[script-options]]
+.Script Options
+[options="header"]
+|======
+| Name                   | Required  | Default    | Description
+| `lang`                 | no        | "painless" | The scripting language
+| `file`                 | no        | -          | The script file to refer to
+| `id`                   | no        | -          | The stored script id to refer to
+| `inline`               | no        | -          | An inline script to be executed
+| `params`               | no        | -          | Script Parameters
+|======
+
+One of `file`, `id`, `inline` options must be provided in order to properly reference a script to execute.
+
+You can access the current ingest document from within the script context by using the `ctx` variable.
+
+The following example sets a new field called `field_a_plus_b_times_c` to be the sum of two existing
+numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
+
+[source,js]
+--------------------------------------------------
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "params": {
+      "param_c": 10
+    }
+  }
+}
+--------------------------------------------------
+
 
 [[set-processor]]
 === Set Processor
@@ -1200,6 +1674,7 @@ its value will be replaced with the provided one.
 | Name      | Required  | Default  | Description
 | `field`   | yes       | -        | The field to insert, upsert, or update
 | `value`   | yes       | -        | The value to be set for the field
+| `override`| no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 |======
 
 [source,js]
@@ -1220,15 +1695,44 @@ Splits a field into an array using a separator character. Only works on string f
 .Split Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to split
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to split
+| `separator`       | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "split": {
-    "field": ","
+    "field": "my_field",
+    "separator": "\\s+" <1>
+  }
+}
+--------------------------------------------------
+<1> Treat all consecutive whitespace characters as a single separator
+
+[[sort-processor]]
+=== Sort Processor
+Sorts the elements of an array ascending or descending.  Homogeneous arrays of numbers will be sorted
+numerically, while arrays of strings or heterogeneous arrays of strings + numbers will be sorted lexicographically.
+Throws an error when the field is not an array.
+
+[[sort-options]]
+.Sort Options
+[options="header"]
+|======
+| Name    | Required  | Default  | Description
+| `field` | yes       | -        | The field to be sorted
+| `order` | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "sort": {
+    "field": "field_to_sort",
+    "order": "desc"
   }
 }
 --------------------------------------------------
@@ -1243,8 +1747,9 @@ NOTE: This only works on leading and trailing whitespace.
 .Trim Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The string-valued field to trim whitespace from
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The string-valued field to trim whitespace from
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1264,8 +1769,9 @@ Converts a string to its uppercase equivalent.
 .Uppercase Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to make uppercase
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to make uppercase
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1277,4 +1783,114 @@ Converts a string to its uppercase equivalent.
 }
 --------------------------------------------------
 
+[[dot-expand-processor]]
+=== Dot Expander Processor
 
+Expands a field with dots into an object field. This processor allows fields
+with dots in the name to be accessible by other processors in the pipeline.
+Otherwise these <<accessing-data-in-pipelines,fields>> can't be accessed by any processor.
+
+[[dot-expender-options]]
+.Dot Expand Options
+[options="header"]
+|======
+| Name     | Required  | Default  | Description
+| `field`  | yes       | -        | The field to expand into an object field
+| `path`   | no        | -        | The field that contains the field to expand. Only required if the field to expand is part another object field, because the `field` option can only understand leaf fields.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "dot_expander": {
+    "field": "foo.bar"
+  }
+}
+--------------------------------------------------
+
+For example the dot expand processor would turn this document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo.bar" : "value"
+}
+--------------------------------------------------
+
+into:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+     "bar" : "value"
+  }
+}
+--------------------------------------------------
+
+If there is already a `bar` field nested under `foo` then
+this processor merges the the `foo.bar` field into it. If the field is
+a scalar value then it will turn that field into an array field.
+
+For example, the following document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo.bar" : "value2",
+  "foo" : {
+    "bar" : "value1"
+  }
+}
+--------------------------------------------------
+
+is transformed by the `dot_expander` processor into:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+    "bar" : ["value1", "value2"]
+  }
+}
+--------------------------------------------------
+
+If any field outside of the leaf field conflicts with a pre-existing field of the same name,
+then that field needs to be renamed first.
+
+Consider the following document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo": "value1",
+  "foo.bar": "value2"
+}
+--------------------------------------------------
+
+Then the the `foo` needs to be renamed first before the `dot_expander`
+processor is applied. So in order for the `foo.bar` field to properly
+be expanded into the `bar` field under the `foo` field the following
+pipeline should be used:
+
+[source,js]
+--------------------------------------------------
+{
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "target_field" : "foo.bar""
+      }
+    },
+    {
+      "dot_expander": {
+        "field": "foo.bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The reason for this is that Ingest doesn't know how to automatically cast
+a scalar field to an object field.

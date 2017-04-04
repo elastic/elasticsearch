@@ -22,11 +22,11 @@ package org.elasticsearch.action;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 /**
- * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Throwable)} in case an uncaught
+ * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Exception)} in case an uncaught
  * exception or error is thrown while the actual action is run.
  */
 public abstract class ActionRunnable<Response> extends AbstractRunnable {
-    
+
     protected final ActionListener<Response> listener;
 
     public ActionRunnable(ActionListener<Response> listener) {
@@ -34,11 +34,11 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
     }
 
     /**
-     * Calls the action listeners {@link ActionListener#onFailure(Throwable)} method with the given exception.
+     * Calls the action listeners {@link ActionListener#onFailure(Exception)} method with the given exception.
      * This method is invoked for all exception thrown by {@link #doRun()}
      */
     @Override
-    public void onFailure(Throwable t) {
-        listener.onFailure(t);
+    public void onFailure(Exception e) {
+        listener.onFailure(e);
     }
 }

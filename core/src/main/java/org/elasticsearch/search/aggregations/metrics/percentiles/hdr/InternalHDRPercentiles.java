@@ -20,44 +20,35 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/**
-*
-*/
 public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles implements Percentiles {
+    public static final String NAME = "hdr_percentiles";
 
-    public final static Type TYPE = new Type(Percentiles.TYPE_NAME, "hdr_percentiles");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalHDRPercentiles readResult(StreamInput in) throws IOException {
-            InternalHDRPercentiles result = new InternalHDRPercentiles();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    InternalHDRPercentiles() {
-    } // for serialization
-
-    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
+    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalHDRPercentiles(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
@@ -86,12 +77,7 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentiles(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
+        return new InternalHDRPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);
     }
 
     public static class Iter implements Iterator<Percentile> {

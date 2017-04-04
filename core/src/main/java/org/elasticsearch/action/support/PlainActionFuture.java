@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.support;
 
-/**
- *
- */
 public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
 
     public static <T> PlainActionFuture<T> newFuture() {

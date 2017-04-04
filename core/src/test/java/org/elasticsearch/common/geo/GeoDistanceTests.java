@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.Rectangle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -38,16 +39,14 @@ public class GeoDistanceTests extends ESTestCase {
     public void testGeoDistanceSerialization() throws IOException  {
         // make sure that ordinals don't change, because we rely on then in serialization
         assertThat(GeoDistance.PLANE.ordinal(), equalTo(0));
-        assertThat(GeoDistance.FACTOR.ordinal(), equalTo(1));
-        assertThat(GeoDistance.ARC.ordinal(), equalTo(2));
-        assertThat(GeoDistance.SLOPPY_ARC.ordinal(), equalTo(3));
-        assertThat(GeoDistance.values().length, equalTo(4));
+        assertThat(GeoDistance.ARC.ordinal(), equalTo(1));
+        assertThat(GeoDistance.values().length, equalTo(2));
 
-        GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.FACTOR, GeoDistance.ARC, GeoDistance.SLOPPY_ARC);
+        GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             geoDistance.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {;
-                GeoDistance copy = GeoDistance.readGeoDistanceFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {;
+                GeoDistance copy = GeoDistance.readFromStream(in);
                 assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
             }
         }
@@ -60,8 +59,8 @@ public class GeoDistanceTests extends ESTestCase {
             } else {
                 out.writeVInt(randomIntBetween(Integer.MIN_VALUE, -1));
             }
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                GeoDistance.readGeoDistanceFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {
+                GeoDistance.readFromStream(in);
             } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
             }
@@ -70,16 +69,24 @@ public class GeoDistanceTests extends ESTestCase {
 
     public void testDistanceCheck() {
         // Note, is within is an approximation, so, even though 0.52 is outside 50mi, we still get "true"
-        GeoDistance.DistanceBoundingCheck check = GeoDistance.distanceBoundingCheck(0, 0, 50, DistanceUnit.MILES);
-        assertThat(check.isWithin(0.5, 0.5), equalTo(true));
-        assertThat(check.isWithin(0.52, 0.52), equalTo(true));
-        assertThat(check.isWithin(1, 1), equalTo(false));
+        double radius = DistanceUnit.convert(50, DistanceUnit.MILES, DistanceUnit.METERS);
+        Rectangle box = Rectangle.fromPointDistance(0, 0, radius);
+        assertThat(GeoUtils.rectangleContainsPoint(box, 0.5, 0.5), equalTo(true));
+        assertThat(GeoUtils.rectangleContainsPoint(box, 0.52, 0.52), equalTo(true));
+        assertThat(GeoUtils.rectangleContainsPoint(box, 1, 1), equalTo(false));
 
-        check = GeoDistance.distanceBoundingCheck(0, 179, 200, DistanceUnit.MILES);
-        assertThat(check.isWithin(0, -179), equalTo(true));
-        assertThat(check.isWithin(0, -178), equalTo(false));
+        radius = DistanceUnit.convert(200, DistanceUnit.MILES, DistanceUnit.METERS);
+        box = Rectangle.fromPointDistance(0, 179, radius);
+        assertThat(GeoUtils.rectangleContainsPoint(box, 0, -179), equalTo(true));
+        assertThat(GeoUtils.rectangleContainsPoint(box, 0, -178), equalTo(false));
     }
 
+    /**
+     * The old plane calculation in 1.x/2.x incorrectly computed the plane distance in decimal degrees. This test is
+     * well intended but bogus. todo: fix w/ new plane distance calculation
+     * note: plane distance error varies by latitude so the test will need to correctly estimate expected error
+     */
+    @AwaitsFix(bugUrl = "old plane calculation incorrectly computed everything in degrees. fix this bogus test")
     public void testArcDistanceVsPlaneInEllipsis() {
         GeoPoint centre = new GeoPoint(48.8534100, 2.3488000);
         GeoPoint northernPoint = new GeoPoint(48.8801108681, 2.35152032666);

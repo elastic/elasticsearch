@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.OutputFile
 
 /**
  * Creates a plugin descriptor.
@@ -29,20 +30,22 @@ import org.gradle.api.tasks.Copy
 class PluginPropertiesTask extends Copy {
 
     PluginPropertiesExtension extension
-    File generatedResourcesDir = new File(project.buildDir, 'generated-resources')
+
+    @OutputFile
+    File descriptorOutput = new File(project.buildDir, 'generated-resources/plugin-descriptor.properties')
 
     PluginPropertiesTask() {
-        File templateFile = new File(project.buildDir, 'templates/plugin-descriptor.properties')
+        File templateFile = new File(project.buildDir, "templates/${descriptorOutput.name}")
         Task copyPluginPropertiesTemplate = project.tasks.create('copyPluginPropertiesTemplate') {
             doLast {
-                InputStream resourceTemplate = PluginPropertiesTask.getResourceAsStream('/plugin-descriptor.properties')
+                InputStream resourceTemplate = PluginPropertiesTask.getResourceAsStream("/${descriptorOutput.name}")
                 templateFile.parentFile.mkdirs()
                 templateFile.setText(resourceTemplate.getText('UTF-8'), 'UTF-8')
             }
         }
+
         dependsOn(copyPluginPropertiesTemplate)
         extension = project.extensions.create('esplugin', PluginPropertiesExtension, project)
-        project.clean.delete(generatedResourcesDir)
         project.afterEvaluate {
             // check require properties are set
             if (extension.name == null) {
@@ -55,13 +58,15 @@ class PluginPropertiesTask extends Copy {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
             // configure property substitution
-            from(templateFile)
-            into(generatedResourcesDir)
-            expand(generateSubstitutions())
+            from(templateFile.parentFile).include(descriptorOutput.name)
+            into(descriptorOutput.parentFile)
+            Map<String, String> properties = generateSubstitutions()
+            expand(properties)
+            inputs.properties(properties)
         }
     }
 
-    Map generateSubstitutions() {
+    Map<String, String> generateSubstitutions() {
         def stringSnap = { version ->
             if (version.endsWith("-SNAPSHOT")) {
                return version.substring(0, version.length() - 9)
@@ -74,7 +79,8 @@ class PluginPropertiesTask extends Copy {
             'version': stringSnap(extension.version),
             'elasticsearchVersion': stringSnap(VersionProperties.elasticsearch),
             'javaVersion': project.targetCompatibility as String,
-            'classname': extension.classname
+            'classname': extension.classname,
+            'hasNativeController': extension.hasNativeController
         ]
     }
 }

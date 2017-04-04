@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,12 +60,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@TestLogging("_root:DEBUG,action.admin.indices.shards:TRACE,cluster.service:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList( MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList( MockFSIndexStore.TestPlugin.class);
     }
 
     public void testEmpty() {
@@ -192,11 +193,9 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
-                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
-                    assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
+                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
                     assertThat(status.getStoreException(), notNullValue());
                 } else {
-                    assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
                     assertNull(status.getStoreException());
                 }
             }
@@ -212,13 +211,13 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
         }
         indexRandom(true, builders);
-        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setForce(true).execute().actionGet();
     }
 
-    private final static class IndexNodePredicate implements Predicate<Settings> {
+    private static final class IndexNodePredicate implements Predicate<Settings> {
         private final Set<String> nodesWithShard;
 
-        public IndexNodePredicate(String index) {
+        IndexNodePredicate(String index) {
             this.nodesWithShard = findNodesWithShard(index);
         }
 

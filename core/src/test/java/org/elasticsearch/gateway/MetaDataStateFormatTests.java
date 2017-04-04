@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -29,15 +30,18 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -86,7 +90,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         assertThat(resource, notNullValue());
         Path dst = tmp.resolve("global-3.st");
         Files.copy(resource, dst);
-        MetaData read = format.read(dst);
+        MetaData read = format.read(xContentRegistry(), dst);
         assertThat(read, notNullValue());
         assertThat(read.clusterUUID(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
         // indices are empty since they are serialized separately
@@ -101,7 +105,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -111,12 +115,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
             list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
-            DummyState read = format.read(list[0]);
+            DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
         }
         final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        format.write(state2, version2, dirs);
+        format.write(state2, dirs);
 
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -127,7 +131,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             list = content("foo-*", stateDir);
             assertEquals(list.length,1);
             assertThat(list[0].getFileName().toString(), equalTo("foo-"+ (id+1) + ".st"));
-            DummyState read = format.read(list[0]);
+            DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state2));
 
         }
@@ -143,7 +147,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -153,7 +157,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
-            DummyState read = format.read(list[0]);
+            DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
         }
     }
@@ -167,7 +171,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -177,12 +181,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
             list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
-            DummyState read = format.read(list[0]);
+            DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
             // now corrupt it
             corruptFile(list[0], logger);
             try {
-                format.read(list[0]);
+                format.read(NamedXContentRegistry.EMPTY, list[0]);
                 fail("corrupted file");
             } catch (CorruptStateException ex) {
                 // expected
@@ -190,9 +194,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public static void corruptFile(Path file, ESLogger logger) throws IOException {
+    public static void corruptFile(Path file, Logger logger) throws IOException {
         Path fileToCorrupt = file;
-        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
+        try (SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -258,7 +262,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 }
             }
             for (int j = numLegacy; j < numStates; j++) {
-                format.write(meta.get(j), j, dirs[i]);
+                format.write(meta.get(j), dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);
@@ -269,7 +273,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         List<Path> dirList = Arrays.asList(dirs);
         Collections.shuffle(dirList, random());
-        MetaData loadedMetaData = format.loadLatestState(logger, dirList.toArray(new Path[0]));
+        MetaData loadedMetaData = format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
@@ -283,6 +287,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
 
+        // make sure the index tombstones are the same too
+        assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
+
         // now corrupt all the latest ones and make sure we fail to load the state
         if (numStates > numLegacy) {
             for (int i = 0; i < dirs.length; i++) {
@@ -293,7 +300,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 MetaDataStateFormatTests.corruptFile(file, logger);
             }
             try {
-                format.loadLatestState(logger, dirList.toArray(new Path[0]));
+                format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
                 assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
@@ -322,6 +329,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             mdBuilder.put(indexBuilder(randomAsciiOfLength(10) + "idx-"+i));
         }
+        int numDelIndices = randomIntBetween(0, 5);
+        final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
+        for (int i = 0; i < numDelIndices; i++) {
+            graveyard.addTombstone(new Index(randomAsciiOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
+        }
+        mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
     }
 
@@ -373,7 +386,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     '}';
         }
 
-        public DummyState(String string, int aInt, long aLong, double aDouble, boolean aBoolean) {
+        DummyState(String string, int aInt, long aLong, double aDouble, boolean aBoolean) {
             this.string = string;
             this.aInt = aInt;
             this.aLong = aLong;
@@ -381,7 +394,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             this.aBoolean = aBoolean;
         }
 
-        public DummyState() {
+        DummyState() {
 
         }
 

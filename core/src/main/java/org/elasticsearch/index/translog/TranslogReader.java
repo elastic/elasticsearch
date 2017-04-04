@@ -41,28 +41,42 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * an immutable translog filereader
  */
 public class TranslogReader extends BaseTranslogReader implements Closeable {
+
     private static final byte LUCENE_CODEC_HEADER_BYTE = 0x3f;
     private static final byte UNVERSIONED_TRANSLOG_HEADER_BYTE = 0x00;
 
-
-    private final int totalOperations;
     protected final long length;
+    private final int totalOperations;
+    private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
-     * Create a reader of translog file channel. The length parameter should be consistent with totalOperations and point
-     * at the end of the last operation in this snapshot.
+     * Create a translog writer against the specified translog file channel.
+     *
+     * @param checkpoint           the translog checkpoint
+     * @param channel              the translog file channel to open a translog reader against
+     * @param path                 the path to the translog
+     * @param firstOperationOffset the offset to the first operation
      */
-    public TranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
-        super(generation, channel, path, firstOperationOffset);
-        this.length = length;
-        this.totalOperations = totalOperations;
+    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final long firstOperationOffset) {
+        super(checkpoint.generation, channel, path, firstOperationOffset);
+        this.length = checkpoint.offset;
+        this.totalOperations = checkpoint.numOps;
+        this.checkpoint = checkpoint;
     }
 
     /**
-     * Given a file, opens an {@link TranslogReader}, taking of checking and validating the file header.
+     * Given a file channel, opens a {@link TranslogReader}, taking care of checking and validating the file header.
+     *
+     * @param channel the translog file channel
+     * @param path the path to the translog
+     * @param checkpoint the translog checkpoint
+     * @param translogUUID the tranlog UUID
+     * @return a new TranslogReader
+     * @throws IOException if any of the file operations resulted in an I/O exception
      */
-    public static TranslogReader open(FileChannel channel, Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
+    public static TranslogReader open(
+            final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
 
         try {
             InputStreamStreamInput headerStream = new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel)); // don't close
@@ -113,9 +127,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                         headerStream.read(ref.bytes, ref.offset, ref.length);
                         BytesRef uuidBytes = new BytesRef(translogUUID);
                         if (uuidBytes.bytesEquals(ref) == false) {
-                            throw new TranslogCorruptedException("expected shard UUID [" + uuidBytes + "] but got: [" + ref + "] this translog file belongs to a different translog. path:" + path);
+                            throw new TranslogCorruptedException("expected shard UUID " + uuidBytes + " but got: " + ref +
+                                            " this translog file belongs to a different translog. path:" + path);
                         }
-                        return new TranslogReader(checkpoint.generation, channel, path, ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES, checkpoint.offset, checkpoint.numOps);
+                        final long firstOperationOffset =
+                                ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES;
+                        return new TranslogReader(checkpoint, channel, path, firstOperationOffset);
+
                     default:
                         throw new TranslogCorruptedException("No known translog stream version: " + version + " path:" + path);
                 }
@@ -137,6 +155,11 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         return totalOperations;
     }
 
+    @Override
+    final Checkpoint getCheckpoint() {
+        return checkpoint;
+    }
+
     /**
      * reads an operation at the given position into the given buffer.
      */
@@ -148,10 +171,6 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + firstOperationOffset + "]");
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
-    }
-
-    public Checkpoint getInfo() {
-        return new Checkpoint(length, totalOperations, getGeneration());
     }
 
     @Override

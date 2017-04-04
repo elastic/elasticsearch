@@ -24,10 +24,12 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,8 +41,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.function.Function;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -64,9 +64,11 @@ public final class EngineConfig {
     private final Similarity similarity;
     private final CodecService codecService;
     private final Engine.EventListener eventListener;
-    private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
+    private final long maxUnsafeAutoIdTimestamp;
+    @Nullable
+    private final ReferenceManager.RefreshListener refreshListeners;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -89,23 +91,33 @@ public final class EngineConfig {
         }
     }, Property.IndexScope, Property.NodeScope);
 
-    /** if set to true the engine will start even if the translog id in the commit point can not be found */
-    public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
+    /**
+     * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from <code>false</code>
+     * to <code>true</code> might not take effect immediately. In other words, disabling the optimization will be immediately applied while
+     * re-enabling it might not be applied until the engine is in a safe state to do so. Depending on the engine implementation a change to
+     * this setting won't be reflected re-enabled optimization until the engine is restarted or the index is closed and reopened.
+     * The default is <code>true</code>
+     */
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
+        Property.IndexScope, Property.Dynamic);
 
-    private TranslogConfig translogConfig;
-    private boolean create = false;
+    private final TranslogConfig translogConfig;
+    private final OpenMode openMode;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool,
+    public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
-                        MergePolicy mergePolicy,Analyzer analyzer,
+                        MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter) {
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
+                        long maxUnsafeAutoIdTimestamp) {
+        if (openMode == null) {
+            throw new IllegalArgumentException("openMode must not be null");
+        }
         this.shardId = shardId;
-        final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
@@ -122,16 +134,15 @@ public final class EngineConfig {
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
         indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
         this.translogRecoveryPerformer = translogRecoveryPerformer;
-        this.forceNewTranslog = settings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
-    }
-
-    /** if true the engine will start even if the translog id in the commit point can not be found */
-    public boolean forceNewTranslog() {
-        return forceNewTranslog;
+        this.openMode = openMode;
+        this.refreshListeners = refreshListeners;
+        assert maxUnsafeAutoIdTimestamp >= IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP :
+            "maxUnsafeAutoIdTimestamp must be >= -1 but was " + maxUnsafeAutoIdTimestamp;
+        this.maxUnsafeAutoIdTimestamp = maxUnsafeAutoIdTimestamp;
     }
 
     /**
@@ -177,7 +188,7 @@ public final class EngineConfig {
 
     /**
      * Returns a thread-pool mainly used to get estimated time stamps from
-     * {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
+     * {@link org.elasticsearch.threadpool.ThreadPool#relativeTimeInMillis()} and to schedule
      * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
      */
     public ThreadPool getThreadPool() {
@@ -283,26 +294,45 @@ public final class EngineConfig {
     }
 
     /**
-     * Iff set to <code>true</code> the engine will create a new lucene index when opening the engine.
-     * Otherwise the lucene index writer is opened in append mode. The default is <code>false</code>
-     */
-    public void setCreate(boolean create) {
-        this.create = create;
-    }
-
-    /**
-     * Iff <code>true</code> the engine should create a new lucene index when opening the engine.
-     * Otherwise the lucene index writer should be opened in append mode. The default is <code>false</code>
-     */
-    public boolean isCreate() {
-        return create;
-    }
-
-    /**
      * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
 
+    /**
+     * Returns the {@link OpenMode} for this engine config.
+     */
+    public OpenMode getOpenMode() {
+        return openMode;
+    }
+
+    /**
+     * Engine open mode defines how the engine should be opened or in other words what the engine should expect
+     * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
+     * If the index exists we also have the ability open only the index and create a new transaction log which happens
+     * during remote recovery since we have already transferred the index files but the translog is replayed from remote. The last
+     * and safest option opens the lucene index as well as it's referenced transaction log for a translog recovery.
+     * See also {@link Engine#recoverFromTranslog()}
+     */
+    public enum OpenMode {
+        CREATE_INDEX_AND_TRANSLOG,
+        OPEN_INDEX_CREATE_TRANSLOG,
+        OPEN_INDEX_AND_TRANSLOG;
+    }
+
+    /**
+     * {@linkplain ReferenceManager.RefreshListener} instance to configure.
+     */
+    public ReferenceManager.RefreshListener getRefreshListeners() {
+        return refreshListeners;
+    }
+
+    /**
+     * Returns the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
+     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
+     */
+    public long getMaxUnsafeAutoIdTimestamp() {
+        return indexSettings.getValue(INDEX_OPTIMIZE_AUTO_GENERATED_IDS) ? maxUnsafeAutoIdTimestamp : Long.MAX_VALUE;
+    }
 }

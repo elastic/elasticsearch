@@ -29,9 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public abstract class RestResponse {
 
     protected Map<String, List<String>> customHeaders;

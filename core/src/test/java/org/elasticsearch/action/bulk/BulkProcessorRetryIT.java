@@ -50,14 +50,12 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         //Have very low pool and queue sizes to overwhelm internal pools easily
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.generic.size", 1)
-                .put("threadpool.generic.queue_size", 1)
                 // don't mess with this one! It's quite sensitive to a low queue size
                 // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
-                //.put("threadpool.listener.queue_size", 1)
-                .put("threadpool.get.queue_size", 1)
+                //.put("thread_pool.listener.queue_size", 1)
+                .put("thread_pool.get.queue_size", 1)
                 // default is 50
-                .put("threadpool.bulk.queue_size", 30)
+                .put("thread_pool.bulk.queue_size", 30)
                 .build();
     }
 
@@ -154,7 +152,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(0)
                 .get();
-        assertThat(results.getHits().totalHits(), searchResultCount);
+        assertThat(results.getHits().getTotalHits(), searchResultCount);
     }
 
     private static void indexDocs(BulkProcessor processor, int numDocs) {

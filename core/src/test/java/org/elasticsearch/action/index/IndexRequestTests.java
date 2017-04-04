@@ -18,12 +18,26 @@
  */
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -33,8 +47,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";
@@ -42,18 +54,24 @@ public class IndexRequestTests extends ESTestCase {
         String createUpper = "CREATE";
         String indexUpper = "INDEX";
 
-        assertThat(IndexRequest.OpType.fromString(create), equalTo(IndexRequest.OpType.CREATE));
-        assertThat(IndexRequest.OpType.fromString(index), equalTo(IndexRequest.OpType.INDEX));
-        assertThat(IndexRequest.OpType.fromString(createUpper), equalTo(IndexRequest.OpType.CREATE));
-        assertThat(IndexRequest.OpType.fromString(indexUpper), equalTo(IndexRequest.OpType.INDEX));
+        IndexRequest indexRequest = new IndexRequest("");
+        indexRequest.opType(create);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        indexRequest.opType(createUpper);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        indexRequest.opType(index);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
+        indexRequest.opType(indexUpper);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
     }
 
     public void testReadBogusString() {
         try {
-            IndexRequest.OpType.fromString("foobar");
+            IndexRequest indexRequest = new IndexRequest("");
+            indexRequest.opType("foobar");
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("opType [foobar] not allowed"));
+            assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
         }
     }
 
@@ -74,61 +92,130 @@ public class IndexRequestTests extends ESTestCase {
     public void testIndexingRejectsLongIds() {
         String id = randomAsciiOfLength(511);
         IndexRequest request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAsciiOfLength(512);
         request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAsciiOfLength(513);
         request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
                 containsString("id is too long, must be no longer than 512 bytes but was: 513"));
-}
-
-    public void testSetTTLAsTimeValue() {
-        IndexRequest indexRequest = new IndexRequest();
-        TimeValue ttl = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
-        indexRequest.ttl(ttl);
-        assertThat(indexRequest.ttl(), equalTo(ttl));
     }
 
-    public void testSetTTLAsString() {
-        IndexRequest indexRequest = new IndexRequest();
-        String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttlAsString);
-        assertThat(indexRequest.ttl(), equalTo(ttl));
+    public void testWaitForActiveShards() {
+        IndexRequest request = new IndexRequest("index", "type");
+        final int count = randomIntBetween(0, 10);
+        request.waitForActiveShards(ActiveShardCount.from(count));
+        assertEquals(request.waitForActiveShards(), ActiveShardCount.from(count));
+        // test negative shard count value not allowed
+        expectThrows(IllegalArgumentException.class, () -> request.waitForActiveShards(ActiveShardCount.from(randomIntBetween(-10, -1))));
     }
 
-    public void testSetTTLAsLong() {
-        IndexRequest indexRequest = new IndexRequest();
-        String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttl.millis());
-        assertThat(indexRequest.ttl(), equalTo(ttl));
+    public void testAutoGenIdTimestampIsSet() {
+        IndexRequest request = new IndexRequest("index", "type");
+        request.process(null, "index");
+        assertTrue("expected > 0 but got: " + request.getAutoGeneratedTimestamp(), request.getAutoGeneratedTimestamp() > 0);
+        request = new IndexRequest("index", "type", "1");
+        request.process(null, "index");
+        assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, request.getAutoGeneratedTimestamp());
     }
 
-    public void testValidateTTL() {
-        IndexRequest indexRequest = new IndexRequest("index", "type");
+    public void testIndexResponse() {
+        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10), randomIntBetween(0, 1000));
+        String type = randomAsciiOfLengthBetween(3, 10);
+        String id = randomAsciiOfLengthBetween(3, 10);
+        long version = randomLong();
+        boolean created = randomBoolean();
+        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, created);
+        int total = randomIntBetween(1, 10);
+        int successful = randomIntBetween(1, 10);
+        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
+        indexResponse.setShardInfo(shardInfo);
+        boolean forcedRefresh = false;
         if (randomBoolean()) {
-            indexRequest.ttl(randomIntBetween(Integer.MIN_VALUE, -1));
-        } else {
-            if (randomBoolean()) {
-                indexRequest.ttl(new TimeValue(randomIntBetween(Integer.MIN_VALUE, -1)));
-            } else {
-                indexRequest.ttl(randomIntBetween(Integer.MIN_VALUE, -1) + "ms");
+            forcedRefresh = randomBoolean();
+            indexResponse.setForcedRefresh(forcedRefresh);
+        }
+        assertEquals(type, indexResponse.getType());
+        assertEquals(id, indexResponse.getId());
+        assertEquals(version, indexResponse.getVersion());
+        assertEquals(shardId, indexResponse.getShardId());
+        assertEquals(created ? RestStatus.CREATED : RestStatus.OK, indexResponse.status());
+        assertEquals(total, indexResponse.getShardInfo().getTotal());
+        assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
+        assertEquals(forcedRefresh, indexResponse.forcedRefresh());
+        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
+                ",version=" + version + ",result=" + (created ? "created" : "updated") +
+                ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
+                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
+                indexResponse.toString());
+    }
+
+    public void testIndexRequestXContentSerialization() throws IOException {
+        IndexRequest indexRequest = new IndexRequest("foo", "bar", "1");
+        indexRequest.source("{}", XContentType.JSON);
+        assertEquals(XContentType.JSON, indexRequest.getContentType());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        indexRequest.writeTo(out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        IndexRequest serialized = new IndexRequest();
+        serialized.readFrom(in);
+        assertEquals(XContentType.JSON, serialized.getContentType());
+        assertEquals(new BytesArray("{}"), serialized.source());
+    }
+
+    public void testIndexRequestXContentSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AAD////+AgQDZm9vAAAAAQNiYXIBATEAAAAAAnt9AP/////////9AAAA//////////8AAAAAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            IndexRequest serialized = new IndexRequest();
+            serialized.readFrom(in);
+            assertEquals(XContentType.JSON, serialized.getContentType());
+            assertEquals("{}", serialized.source().utf8ToString());
+            // don't test writing to earlier versions since output differs due to no timestamp
+        }
+    }
+
+    // reindex makes use of index requests without a source so this needs to be handled
+    public void testSerializationOfEmptyRequestWorks() throws IOException {
+        IndexRequest request = new IndexRequest("index", "type");
+        assertNull(request.getContentType());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                IndexRequest serialized = new IndexRequest();
+                serialized.readFrom(in);
+                assertNull(request.getContentType());
+                assertEquals("index", request.index());
+                assertEquals("type", request.type());
             }
         }
-        ActionRequestValidationException validate = indexRequest.validate();
-        assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(), containsString("ttl must not be negative"));
+    }
+
+    public void testToStringSizeLimit() throws UnsupportedEncodingException {
+        IndexRequest request = new IndexRequest("index", "type");
+
+        String source = "{\"name\":\"value\"}";
+        request.source(source, XContentType.JSON);
+        assertEquals("index {[index][type][null], source[" + source + "]}", request.toString());
+
+        source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
+        request.source(source, XContentType.JSON);
+        int actualBytes = source.getBytes("UTF-8").length;
+        assertEquals("index {[index][type][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
+                "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
     }
 }

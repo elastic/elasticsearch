@@ -22,7 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -34,30 +36,25 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     }
 
     @Override
-    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
+    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
-            assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
+            assertEquals(new TypeFieldMapper.TypesQuery(new BytesRef(queryBuilder.type())), query);
         }
     }
 
     public void testIllegalArgument() {
-        try {
-            new TypeQueryBuilder((String) null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new TypeQueryBuilder((String) null));
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"type\" : {\n" + 
-                "    \"value\" : \"my_type\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"type\" : {\n" +
+                "    \"value\" : \"my_type\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         TypeQueryBuilder parsed = (TypeQueryBuilder) parseQuery(json);

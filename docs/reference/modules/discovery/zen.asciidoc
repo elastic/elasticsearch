@@ -22,21 +22,30 @@ other nodes.
 [[unicast]]
 ===== Unicast
 
-The unicast discovery requires a list of hosts to use that will act
-as gossip routers. It provides the following settings with the
-`discovery.zen.ping.unicast` prefix:
+Unicast discovery requires a list of hosts to use that will act as gossip routers. These hosts can be specified as
+hostnames or IP addresses; hosts specified as hostnames are resolved to IP addresses during each round of pinging. Note
+that with the Java security manager in place, the JVM defaults to caching positive hostname resolutions indefinitely.
+This can be modified by adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`] to your
+http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java security policy]. Any hosts that
+fail to resolve will be logged. Note also that with the Java security manager in place, the JVM defaults to caching
+negative hostname resolutions for ten seconds. This can be modified by adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+to your http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java security policy].
+
+Unicast discovery provides the following settings with the `discovery.zen.ping.unicast` prefix:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
-value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be bracketed. Defaults to
-`127.0.0.1, [::1]`
+          value should be in the form of `host:port` or `host` (where `port` defaults to the setting `transport.profiles.default.port`
+          falling back to `transport.tcp.port` if not set). Note that IPv6 hosts must be bracketed. Defaults to `127.0.0.1, [::1]`
+|`hosts.resolve_timeout` |The amount of time to wait for DNS lookups on each round of pinging. Specified as
+<<time-units, time units>>. Defaults to 5s.
 |=======================================================================
 
-The unicast discovery uses the
-<<modules-transport,transport>> module to
-perform the discovery.
+The unicast discovery uses the <<modules-transport,transport>> module to perform the discovery.
 
 [float]
 [[master-election]]
@@ -52,7 +61,7 @@ with a timeout defaulting at 20 times the ping timeout.
 
 When the master node stops or has encountered a problem, the cluster nodes
 start pinging again and will elect a new master. This pinging round also
-serves as a protection against (partial) network failures where node may unjustly
+serves as a protection against (partial) network failures where a node may unjustly
 think that the master has failed. In this case the node will simply hear from
 other nodes about the currently active master.
 
@@ -64,13 +73,13 @@ Nodes can be excluded from becoming a master by setting `node.master` to `false`
 
 The `discovery.zen.minimum_master_nodes` sets the minimum
 number of master eligible nodes that need to join a newly elected master in order for an election to
-complete and for the elected node to accept it's mastership. The same setting controls the minimum number of
+complete and for the elected node to accept its mastership. The same setting controls the minimum number of
 active master eligible nodes that should be a part of any active cluster. If this requirement is not met the
 active master node will step down and a new master election will be begin.
 
 This setting must be set to a quorum of your master eligible nodes. It is recommended to avoid
 having only two master eligible nodes, since a quorum of two is two. Therefore, a loss
-of either master node will result in an inoperable cluster.
+of either master eligible node will result in an inoperable cluster.
 
 [float]
 [[fault-detection]]
@@ -133,5 +142,5 @@ read or write operations, like the get index settings, put mapping and cluster s
 `write`:: (default) Write operations will be rejected. Read operations will succeed, based on the last known cluster configuration.
 This may result in partial reads of stale data as this node may be isolated from the rest of the cluster. 
 
-The `discovery.zen.no_master_block` setting doesn't apply to nodes based apis (for example cluster stats, node info and
-node stats apis) which will not be blocked and try to execute on any node possible.
+The `discovery.zen.no_master_block` setting doesn't apply to nodes-based apis (for example cluster stats, node info and
+node stats apis).  Requests to these apis will not be blocked and can run on any available node.

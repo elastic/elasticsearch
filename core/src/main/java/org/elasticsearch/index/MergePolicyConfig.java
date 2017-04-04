@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -117,7 +117,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 public final class MergePolicyConfig {
     private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
-    private final ESLogger logger;
+    private final Logger logger;
     private final boolean mergesEnabled;
 
     public static final double          DEFAULT_EXPUNGE_DELETES_ALLOWED     = 10d;
@@ -155,9 +155,8 @@ public final class MergePolicyConfig {
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled"; // don't convert to Setting<> and register... we only set this in tests and register via a plugin
 
 
-    MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
+    MergePolicyConfig(Logger logger, IndexSettings indexSettings) {
         this.logger = logger;
-        IndexScopedSettings scopedSettings = indexSettings.getScopedSettings();
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
@@ -166,17 +165,18 @@ public final class MergePolicyConfig {
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
         double reclaimDeletesWeight = indexSettings.getValue(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
-        this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
+        this.mergesEnabled = indexSettings.getSettings()
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), INDEX_MERGE_ENABLED, true, new DeprecationLogger(logger));
         if (mergesEnabled == false) {
             logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", INDEX_MERGE_ENABLED);
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
         mergePolicy.setNoCFSRatio(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
-        mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
+        mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
-        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
+        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
         if (logger.isTraceEnabled()) {
@@ -194,7 +194,7 @@ public final class MergePolicyConfig {
     }
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
-        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
+        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
     }
 
     void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
@@ -206,7 +206,7 @@ public final class MergePolicyConfig {
     }
 
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
-        mergePolicy.setFloorSegmentMB(floorSegementSetting.mbFrac());
+        mergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
     }
 
     void setExpungeDeletesAllowed(Double value) {

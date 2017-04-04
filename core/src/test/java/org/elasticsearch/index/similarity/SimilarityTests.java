@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.similarity;
 
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.AfterEffectL;
@@ -64,6 +65,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         SimilarityService similarityService = createIndex("foo").similarityService();
         assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
+        assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
     }
 
@@ -74,7 +76,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "classic")
             .put("index.similarity.my_similarity.discount_overlaps", false)
             .build();
@@ -93,7 +95,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "BM25")
             .put("index.similarity.my_similarity.k1", 2.0f)
             .put("index.similarity.my_similarity.b", 0.5f)
@@ -109,6 +111,21 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
+    public void testResolveSimilaritiesFromMapping_boolean() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field1").field("type", "text").field("similarity", "boolean").endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        IndexService indexService = createIndex("foo", Settings.EMPTY);
+        DocumentMapper documentMapper = indexService.mapperService()
+            .documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(),
+            instanceOf(BooleanSimilarityProvider.class));
+    }
+
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
@@ -116,7 +133,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFR")
             .put("index.similarity.my_similarity.basic_model", "g")
             .put("index.similarity.my_similarity.after_effect", "l")
@@ -141,7 +158,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "IB")
             .put("index.similarity.my_similarity.distribution", "spl")
             .put("index.similarity.my_similarity.lambda", "ttf")
@@ -166,7 +183,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFI")
             .put("index.similarity.my_similarity.independence_measure", "chisquared")
             .build();
@@ -185,7 +202,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMDirichlet")
             .put("index.similarity.my_similarity.mu", 3000f)
             .build();
@@ -204,7 +221,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMJelinekMercer")
             .put("index.similarity.my_similarity.lambda", 0.7f)
             .build();
@@ -238,6 +255,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .startObject("field1")
             .field("similarity", "default")
             .field("type", "text")
+            .endObject()
             .endObject()
             .endObject()
             .endObject().string();

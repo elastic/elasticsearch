@@ -46,7 +46,6 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
 
-    @SuppressWarnings("deprecation") // Intentionally sets deprecated options for backwards compatibility
     public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
@@ -132,7 +131,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean caseLevel = settings.getAsBoolean("caseLevel", null);
+        Boolean caseLevel = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "caseLevel", null, deprecationLogger);
         if (caseLevel != null) {
             rbc.setCaseLevel(caseLevel);
         }
@@ -148,7 +147,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean numeric = settings.getAsBoolean("numeric", null);
+        Boolean numeric = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "numeric", null, deprecationLogger);
         if (numeric != null) {
             rbc.setNumericCollation(numeric);
         }
@@ -158,7 +157,8 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             rbc.setVariableTop(variableTop);
         }
 
-        Boolean hiraganaQuaternaryMode = settings.getAsBoolean("hiraganaQuaternaryMode", null);
+        Boolean hiraganaQuaternaryMode = settings
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "hiraganaQuaternaryMode", null, deprecationLogger);
         if (hiraganaQuaternaryMode != null) {
             rbc.setHiraganaQuaternary(hiraganaQuaternaryMode);
         }
@@ -167,7 +167,6 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    @SuppressWarnings("deprecation") // Constructs a deprecated filter for backwards compatibility
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);
     }

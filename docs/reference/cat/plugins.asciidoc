@@ -3,17 +3,35 @@
 
 The `plugins` command provides a view per node of running plugins. This information *spans nodes*.
 
-[source,sh]
+[source,js]
 ------------------------------------------------------------------------------
-% curl 'localhost:9200/_cat/plugins?v'
-name    component       version        type isolation url
-Abraxas discovery-azure 2.1.0-SNAPSHOT j    x
-Abraxas lang-javascript 2.0.0-SNAPSHOT j    x
-Abraxas marvel          NA             j/s  x         /_plugin/marvel/
-Abraxas lang-python     2.0.0-SNAPSHOT j    x
-Abraxas inquisitor      NA             s              /_plugin/inquisitor/
-Abraxas kopf            0.5.2          s              /_plugin/kopf/
-Abraxas segmentspy      NA             s              /_plugin/segmentspy/
+GET /_cat/plugins?v&s=component&h=name,component,version,description
+------------------------------------------------------------------------------
+// CONSOLE
+
+Might look like:
+
+["source","txt",subs="attributes,callouts"]
+------------------------------------------------------------------------------
+name    component               version   description
+U7321H6 analysis-icu            {version} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
+U7321H6 analysis-kuromoji       {version} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
+U7321H6 analysis-phonetic       {version} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
+U7321H6 analysis-smartcn        {version} Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.
+U7321H6 analysis-stempel        {version} The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.
+U7321H6 analysis-ukrainian        {version} The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.
+U7321H6 discovery-azure-classic {version} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
+U7321H6 discovery-ec2           {version} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
+U7321H6 discovery-file          {version} Discovery file plugin enables unicast discovery from hosts stored in a file.
+U7321H6 discovery-gce           {version} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
+U7321H6 ingest-attachment       {version} Ingest processor that uses Apache Tika to extract contents
+U7321H6 ingest-geoip            {version} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database
+U7321H6 ingest-user-agent       {version} Ingest processor that extracts information from a user agent
+U7321H6 jvm-example             {version} Demonstrates all the pluggable Java entry points in Elasticsearch
+U7321H6 mapper-murmur3          {version} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
+U7321H6 mapper-size             {version} The Mapper Size plugin allows document to record their uncompressed size at index time.
+U7321H6 store-smb               {version} The Store SMB plugin adds support for SMB stores.
 -------------------------------------------------------------------------------
+// TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ _cat]
 
 We can tell quickly how many plugins per node we have and which versions.

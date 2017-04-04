@@ -27,5 +27,5 @@ import org.elasticsearch.common.xcontent.ToXContent;
  */
 public interface MovAvgModelBuilder extends ToXContent {
 
-    public MovAvgModel build();
+    MovAvgModel build();
 }

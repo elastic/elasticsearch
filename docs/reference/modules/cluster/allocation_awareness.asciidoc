@@ -21,7 +21,7 @@ attribute called `rack_id` -- we could use any attribute name.  For example:
 
 [source,sh]
 ----------------------
-./bin/elasticsearch -Ees.node.attr.rack_id=rack_one <1>
+./bin/elasticsearch -Enode.attr.rack_id=rack_one <1>
 ----------------------
 <1> This setting could also be specified in the `elasticsearch.yml` config file.
 
@@ -104,7 +104,7 @@ cluster.routing.allocation.awareness.attributes: zone
 
 Now, if we start 2 nodes with `node.attr.zone` set to `zone1` and create an index
 with 5 shards and 1 replica. The index will be created, but only the 5 primary
-shards will be allocated (with no replicas). Only when we start more shards
+shards will be allocated (with no replicas). Only when we start more nodes
 with `node.attr.zone` set to `zone2` will the replicas be allocated.
 
 The `cluster.routing.allocation.awareness.*` settings can all be updated

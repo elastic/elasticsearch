@@ -23,8 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -39,7 +37,7 @@ public interface Rescorer {
     /**
      * Returns the name of this rescorer
      */
-    public String name();
+    String name();
 
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})
@@ -50,7 +48,7 @@ public interface Rescorer {
      * @param rescoreContext the {@link RescoreSearchContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
      */
-    public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
+    TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
 
     /**
      * Executes an {@link Explanation} phase on the rescorer.
@@ -62,26 +60,15 @@ public interface Rescorer {
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
-            Explanation sourceExplanation) throws IOException;
-
-    /**
-     * Parses the {@link RescoreSearchContext} for this implementation
-     *
-     * @param parser  the parser to read the context from
-     * @param context the current shard context
-     * @return the parsed {@link RescoreSearchContext}
-     * @throws IOException if an {@link IOException} occurs while parsing the context
-     */
-    public RescoreSearchContext parse(XContentParser parser, QueryShardContext context) throws IOException;
+    Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+                        Explanation sourceExplanation) throws IOException;
 
     /**
      * Extracts all terms needed to execute this {@link Rescorer}. This method
      * is executed in a distributed frequency collection roundtrip for
-     * {@link SearchType#DFS_QUERY_AND_FETCH} and
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
-    public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
+    void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
 
     /*
      * TODO: At this point we only have one implementation which modifies the

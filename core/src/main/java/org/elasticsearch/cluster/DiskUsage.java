@@ -20,12 +20,20 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
  */
-public class DiskUsage {
+public class DiskUsage implements ToXContent, Writeable {
     final String nodeId;
     final String nodeName;
     final String path;
@@ -42,6 +50,44 @@ public class DiskUsage {
         this.freeBytes = freeBytes;
         this.totalBytes = totalBytes;
         this.path = path;
+    }
+
+    public DiskUsage(StreamInput in) throws IOException {
+        this.nodeId = in.readString();
+        this.nodeName = in.readString();
+        this.path = in.readString();
+        this.totalBytes = in.readVLong();
+        this.freeBytes = in.readVLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(this.nodeId);
+        out.writeString(this.nodeName);
+        out.writeString(this.path);
+        out.writeVLong(this.totalBytes);
+        out.writeVLong(this.freeBytes);
+    }
+
+    private static double truncatePercent(double pct) {
+        return Math.round(pct * 10.0) / 10.0;
+    }
+
+    public XContentBuilder toShortXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("path", this.path);
+        builder.byteSizeField("total_bytes", "total", this.totalBytes);
+        builder.byteSizeField("used_bytes", "used", this.getUsedBytes());
+        builder.byteSizeField("free_bytes", "free", this.freeBytes);
+        builder.field("free_disk_percent", truncatePercent(this.getFreeDiskAsPercentage()));
+        builder.field("used_disk_percent", truncatePercent(this.getUsedDiskAsPercentage()));
+        return builder;
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("node_id", this.nodeId);
+        builder.field("node_name", this.nodeName);
+        builder = toShortXContent(builder, params);
+        return builder;
     }
 
     public String getNodeId() {
@@ -79,6 +125,24 @@ public class DiskUsage {
 
     public long getUsedBytes() {
         return getTotalBytes() - getFreeBytes();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        DiskUsage other = (DiskUsage) o;
+        return Objects.equals(nodeId, other.nodeId) &&
+                Objects.equals(nodeName, other.nodeName) &&
+                Objects.equals(totalBytes, other.totalBytes) &&
+                Objects.equals(freeBytes, other.freeBytes);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, nodeName, path, totalBytes, freeBytes);
     }
 
     @Override

@@ -63,8 +63,9 @@
 
 [[glossary-index]] index ::
 
-  An index is like a _database_ in a relational database. It has a
-  <<glossary-mapping,mapping>> which defines multiple <<glossary-type,types>>.
+  An index is like a _table_ in a relational database. It has a
+  <<glossary-mapping,mapping>> which defines the <<glossary-field,fields>> in the index,
+  which are grouped by multiple <<glossary-type,type>>.
   +
   An index is a logical namespace which maps to one or more
   <<glossary-primary-shard,primary shards>> and can have zero or more
@@ -155,10 +156,6 @@
   This allows you access to the original object directly from search
   results, rather than requiring a second step to retrieve the object
   from an ID.
-  +
-  Note: the exact JSON string that you indexed will be returned to you,
-  even if it contains invalid JSON. The contents of this field do not
-  indicate anything about how the data in the object has been indexed.
 
 [[glossary-term]] term ::
 
@@ -182,8 +179,11 @@
 
 [[glossary-type]] type ::
 
-  A type is like a _table_ in a relational database. Each type has a
+  A type represents the _type_ of document, e.g. an `email`, a `user`, or a `tweet`.
+  The search API can filter documents by type.
+  An <<glossary-index,index>> can contain multiple types, and each type has a
   list of <<glossary-field,fields>> that can be specified for
-  <<glossary-document,documents>> of that type. The <<glossary-mapping,mapping>>
-  defines how each field in the document is analyzed.
+  <<glossary-document,documents>> of that type.  Fields with the same
+  name in different types in the same index must have the same <<glossary-mapping,mapping>>
+  (which defines how each field in the document is indexed and made searchable).
 

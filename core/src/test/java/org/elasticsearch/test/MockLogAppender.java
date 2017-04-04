@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.spi.LoggingEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -32,13 +33,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender extends AppenderSkeleton {
+public class MockLogAppender extends AbstractAppender {
 
-    private final static String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
+    private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     private List<LoggingExpectation> expectations;
 
-    public MockLogAppender() {
+    public MockLogAppender() throws IllegalAccessException {
+        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         expectations = new ArrayList<>();
     }
 
@@ -47,20 +49,10 @@ public class MockLogAppender extends AppenderSkeleton {
     }
 
     @Override
-    protected void append(LoggingEvent loggingEvent) {
+    public void append(LogEvent event) {
         for (LoggingExpectation expectation : expectations) {
-            expectation.match(loggingEvent);
+            expectation.match(event);
         }
-    }
-
-    @Override
-    public void close() {
-
-    }
-
-    @Override
-    public boolean requiresLayout() {
-        return false;
     }
 
     public void assertAllExpectationsMatched() {
@@ -70,12 +62,12 @@ public class MockLogAppender extends AppenderSkeleton {
     }
 
     public interface LoggingExpectation {
-        void match(LoggingEvent loggingEvent);
+        void match(LogEvent event);
 
         void assertMatched();
     }
 
-    public static abstract class AbstractEventExpectation implements LoggingExpectation {
+    public abstract static class AbstractEventExpectation implements LoggingExpectation {
         protected final String name;
         protected final String logger;
         protected final Level level;
@@ -91,10 +83,10 @@ public class MockLogAppender extends AppenderSkeleton {
         }
 
         @Override
-        public void match(LoggingEvent event) {
-            if (event.getLevel() == level && event.getLoggerName().equals(logger)) {
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
                 if (Regex.isSimpleMatchPattern(message)) {
-                    if (Regex.simpleMatch(message, event.getMessage().toString())) {
+                    if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
                         saw = true;
                     }
                 } else {

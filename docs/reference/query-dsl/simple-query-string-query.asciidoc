@@ -8,15 +8,19 @@ an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
+  "query": {
     "simple_query_string" : {
         "query": "\"fried eggs\" +(eggplant | potato) -frittata",
         "analyzer": "snowball",
         "fields": ["body^5","_all"],
         "default_operator": "and"
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `simple_query_string` top level parameters include:
 
@@ -40,17 +44,10 @@ creating composite queries.
 |`flags` |Flags specifying which features of the `simple_query_string` to
 enable. Defaults to `ALL`.
 
-|`lowercase_expanded_terms` | Whether terms of prefix and fuzzy queries should
-be automatically lower-cased or not (since they are not analyzed). Defaults to
-`true`.
-
 |`analyze_wildcard` | Whether terms of prefix queries should be automatically
 analyzed or not. If `true` a best effort will be made to analyze the prefix. However,
 some analyzers will be not able to provide a meaningful results
 based just on the prefix of a term. Defaults to `false`.
-
-|`locale` | Locale that should be used for string conversions.
-Defaults to `ROOT`.
 
 |`lenient` | If set to `true` will cause format based failures
 (like providing text to a numeric field) to be ignored.
@@ -59,6 +56,15 @@ Defaults to `ROOT`.
  document to be returned. See the
  <<query-dsl-minimum-should-match,`minimum_should_match`>> documentation for the
  full list of options.
+
+|`quote_field_suffix` | A suffix to append to fields for quoted parts of
+the query string. This allows to use a field that has a different analysis chain
+for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
+comprehensive example.
+
+|`all_fields` | Perform the query on all fields detected in the mapping that can
+be queried. Will be used by default when the `_all` field is disabled and no
+`default_field` is specified index settings, and no `fields` are specified.
 |=======================================================================
 
 [float]
@@ -77,14 +83,40 @@ The `simple_query_string` supports the following special characters:
 In order to search for any of these special characters, they will need to
 be escaped with `\`.
 
+Be aware that this syntax may have a different behavior depending on the
+`default_operator` value. For example, consider the following query:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "simple_query_string" : {
+            "fields" : ["content"],
+            "query" : "foo bar -baz"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+You may expect that documents containing only "foo" or "bar" will be returned,
+as long as they do not contain "baz", however, due to the `default_operator`
+being OR, this really means "match documents that contain "foo" or documents
+that contain "bar", or documents that don't contain "baz". If this is unintended
+then the query can be switched to `"foo bar +-baz"` which will not return
+documents that contain "baz".
+
 [float]
 ==== Default Field
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. It defaults to `_all` field.
 
-So, if `_all` field is disabled, it might make sense to change it to set
-a different default field.
+If the `_all` field is disabled and no `fields` are specified in the request`,
+the `simple_query_string` query will automatically attempt to determine the
+existing fields in the index's mapping that are queryable, and perform the
+search on those fields.
 
 [float]
 ==== Multi Field
@@ -94,13 +126,17 @@ introduced fields included). For example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "simple_query_string" : {
-        "fields" : ["content", "name.*^5"],
-        "query" : "foo bar baz"
+    "query": {
+        "simple_query_string" : {
+            "fields" : ["content", "name.*^5"],
+            "query" : "foo bar baz"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Flags
@@ -110,13 +146,17 @@ should be enabled. It is specified as a `|`-delimited string with the
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "simple_query_string" : {
-        "query" : "foo | bar + baz*",
-        "flags" : "OR|AND|PREFIX"
+    "query": {
+        "simple_query_string" : {
+            "query" : "foo | bar + baz*",
+            "flags" : "OR|AND|PREFIX"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
 `PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.

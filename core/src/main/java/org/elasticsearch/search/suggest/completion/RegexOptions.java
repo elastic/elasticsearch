@@ -37,7 +37,7 @@ import java.io.IOException;
 /**
  * Regular expression options for completion suggester
  */
-public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
+public class RegexOptions implements ToXContent, Writeable {
     static final ParseField REGEX_OPTIONS = new ParseField("regex");
     private static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
     private static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
@@ -48,7 +48,8 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
      *     "max_determinized_states" : INT
      * }
      */
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(),
+            Builder::new);
     static {
         PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -62,6 +63,14 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
             }
         }, FLAGS_VALUE, ObjectParser.ValueType.VALUE);
         PARSER.declareStringOrNull(Builder::setFlags, FLAGS_VALUE);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    static RegexOptions parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null).build();
     }
 
     private int flagsValue;
@@ -99,14 +108,6 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
      */
     public int getMaxDeterminizedStates() {
         return maxDeterminizedStates;
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    static RegexOptions parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser).build();
     }
 
     @Override

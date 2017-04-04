@@ -18,7 +18,7 @@ to extract those fields from a large `_source` field:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT my_index
 {
   "mappings": {
     "my_type": {
@@ -39,7 +39,7 @@ PUT /my_index
   }
 }
 
-PUT /my_index/my_type/1
+PUT my_index/my_type/1
 {
   "title":   "Some short title",
   "date":    "2015-01-01",
@@ -48,10 +48,10 @@ PUT /my_index/my_type/1
 
 GET my_index/_search
 {
-  "fields": [ "title", "date" ] <2>
+  "stored_fields": [ "title", "date" ] <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `title` and `date` fields are stored.
 <2> This request will retrieve the values of the `title` and `date` fields.
 
@@ -70,4 +70,3 @@ field instead.
 
 Another situation where it can make sense to make a field stored is for those
 that don't appear in the `_source` field (such as <<copy-to,`copy_to` fields>>).
-

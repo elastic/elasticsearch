@@ -6,7 +6,7 @@ codes, zip codes or tags.
 
 They are typically used for filtering (_Find me all blog posts where
 ++status++ is ++published++_), for sorting, and for aggregations. Keyword
-fields are ony searchable by their exact value.
+fields are only searchable by their exact value.
 
 If you need to index full text content such as email bodies or product
 descriptions, it is likely that you should rather use a <<text,`text`>> field.
@@ -28,12 +28,12 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[keyword-params]]
 ==== Parameters for keyword fields
 
-The following parameters are accepted by `string` fields:
+The following parameters are accepted by `keyword` fields:
 
 [horizontal]
 
@@ -62,16 +62,8 @@ The following parameters are accepted by `string` fields:
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index or analyze any string longer than this value.  Defaults to
+    Do not index any string longer than this value.  Defaults to
     `2147483647` so that all values would be accepted.
-
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 
@@ -109,3 +101,14 @@ The following parameters are accepted by `string` fields:
     Which scoring algorithm or _similarity_ should be used. Defaults
     to `classic`, which uses TF/IDF.
 
+<<normalizer,`normalizer`>>::
+
+    experimental[]
+    How to pre-process the keyword prior to indexing. Defaults to `null`,
+    meaning the keyword is kept as-is.
+
+NOTE: Indexes imported from 2.x do not support `keyword`. Instead they will
+attempt to downgrade `keyword` into `string`. This allows you to merge modern
+mappings with legacy mappings. Long lived indexes will have to be recreated
+before upgrading to 6.x but mapping downgrade gives you the opportunity to do
+the recreation on your own schedule.

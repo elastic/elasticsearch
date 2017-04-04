@@ -18,68 +18,80 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+
 /**
- *
+ * Result of the running the significant terms aggregation on an unmapped field.
  */
-public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, InternalSignificantTerms.Bucket> {
+public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, UnmappedSignificantTerms.Bucket> {
+    public static final String NAME = "umsigterms";
 
-    public static final Type TYPE = new Type("significant_terms", "umsigterms");
-
-    private static final List<Bucket> BUCKETS = Collections.emptyList();
-    private static final Map<String, Bucket> BUCKETS_MAP = Collections.emptyMap();
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public UnmappedSignificantTerms readResult(StreamInput in) throws IOException {
-            UnmappedSignificantTerms buckets = new UnmappedSignificantTerms();
-            buckets.readFrom(in);
-            return buckets;
+    /**
+     * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
+     * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
+     */
+    protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
+        private Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations,
+                DocValueFormat format) {
+            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
         }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    UnmappedSignificantTerms() {} // for serialization
-
-    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        //We pass zero for index/subset sizes because for the purpose of significant term analysis
-        // we assume an unmapped index's size is irrelevant to the proceedings.
-        super(0, 0, name, requiredSize, minDocCount, JLHScore.PROTOTYPE, BUCKETS, pipelineAggregators, metaData);
+    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        super(name, requiredSize, minDocCount, pipelineAggregators, metaData);
     }
 
-    @Override
-    public Type type() {
-        return TYPE;
+    /**
+     * Read from a stream.
+     */
+    public UnmappedSignificantTerms(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    public UnmappedSignificantTerms create(List<InternalSignificantTerms.Bucket> buckets) {
-        return new UnmappedSignificantTerms(this.name, this.requiredSize, this.minDocCount, this.pipelineAggregators(), this.metaData);
+    protected void writeTermTypeInfoTo(StreamOutput out) throws IOException {
+        // Nothing to write
     }
 
     @Override
-    public InternalSignificantTerms.Bucket createBucket(InternalAggregations aggregations, InternalSignificantTerms.Bucket prototype) {
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected String getType() {
+        return SignificantStringTerms.NAME;
+    }
+
+    @Override
+    public UnmappedSignificantTerms create(List<Bucket> buckets) {
+        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
         throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
     }
 
     @Override
-    protected UnmappedSignificantTerms create(long subsetSize, long supersetSize, List<Bucket> buckets, InternalSignificantTerms prototype) {
+    protected UnmappedSignificantTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
         throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
     }
 
@@ -94,23 +106,38 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        this.requiredSize = readSize(in);
-        this.minDocCount = in.readVLong();
-        this.buckets = BUCKETS;
-        this.bucketMap = BUCKETS_MAP;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        writeSize(requiredSize, out);
-        out.writeVLong(minDocCount);
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS).endArray();
+        builder.startArray(CommonFields.BUCKETS.getPreferredName()).endArray();
         return builder;
     }
 
+    @Override
+    protected Bucket[] createBucketsArray(int size) {
+        return new Bucket[size];
+    }
+
+    @Override
+    protected List<Bucket> getBucketsInternal() {
+        return emptyList();
+    }
+
+    @Override
+    public SignificantTerms.Bucket getBucketByKey(String term) {
+        return null;
+    }
+
+    @Override
+    protected SignificanceHeuristic getSignificanceHeuristic() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected long getSubsetSize() {
+        return 0;
+    }
+
+    @Override
+    protected long getSupersetSize() {
+        return 0;
+    }
 }

@@ -19,18 +19,21 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,18 +41,38 @@ import java.io.IOException;
 import java.util.List;
 
 public class TransportRethrottleAction extends TransportTasksAction<BulkByScrollTask, RethrottleRequest, ListTasksResponse, TaskInfo> {
+    private final Client client;
+
     @Inject
-    public TransportRethrottleAction(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RethrottleAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+    public TransportRethrottleAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            Client client) {
+        super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        this.client = client;
     }
 
     @Override
-    protected TaskInfo taskOperation(RethrottleRequest request, BulkByScrollTask task) {
-        // Apply the new throttle and fetch status of the task. The user might not want that status but they likely do and it is cheap.
-        task.rethrottle(request.getRequestsPerSecond());
-        return task.taskInfo(clusterService.localNode(), true);
+    protected void taskOperation(RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
+        rethrottle(clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
+    }
+
+    static void rethrottle(String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
+            ActionListener<TaskInfo> listener) {
+        int runningSubTasks = task.runningSliceSubTasks();
+        if (runningSubTasks == 0) {
+            // Nothing to do, all sub tasks are done
+            task.rethrottle(newRequestsPerSecond);
+            listener.onResponse(task.taskInfo(localNodeId, true));
+            return;
+        }
+        RethrottleRequest subRequest = new RethrottleRequest();
+        subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubTasks);
+        subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
+        client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(r -> {
+            r.rethrowFailures("Rethrottle");
+            listener.onResponse(task.getInfoGivenSliceInfo(localNodeId, r.getTasks()));
+        }, listener::onFailure));
     }
 
     @Override

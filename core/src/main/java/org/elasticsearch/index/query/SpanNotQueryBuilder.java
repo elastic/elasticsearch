@@ -22,21 +22,29 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder<SpanNotQueryBuilder> {
-
+public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_not";
 
     /** the default pre parameter size */
     public static final int DEFAULT_PRE = 0;
     /** the default post parameter size */
     public static final int DEFAULT_POST = 0;
+
+    private static final ParseField POST_FIELD = new ParseField("post");
+    private static final ParseField PRE_FIELD = new ParseField("pre");
+    private static final ParseField DIST_FIELD = new ParseField("dist");
+    private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
+    private static final ParseField INCLUDE_FIELD = new ParseField("include");
 
     private final SpanQueryBuilder include;
 
@@ -45,8 +53,6 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     private int pre = DEFAULT_PRE;
 
     private int post = DEFAULT_POST;
-
-    static final SpanNotQueryBuilder PROTOTYPE = new SpanNotQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     /**
      * Construct a span query matching spans from <code>include</code> which
@@ -63,6 +69,25 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         }
         this.include = include;
         this.exclude = exclude;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SpanNotQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        include = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+        exclude = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+        pre = in.readVInt();
+        post = in.readVInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(include);
+        out.writeNamedWriteable(exclude);
+        out.writeVInt(pre);
+        out.writeVInt(post);
     }
 
     /**
@@ -125,14 +150,90 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(SpanNotQueryParser.INCLUDE_FIELD.getPreferredName());
+        builder.field(INCLUDE_FIELD.getPreferredName());
         include.toXContent(builder, params);
-        builder.field(SpanNotQueryParser.EXCLUDE_FIELD.getPreferredName());
+        builder.field(EXCLUDE_FIELD.getPreferredName());
         exclude.toXContent(builder, params);
-        builder.field(SpanNotQueryParser.PRE_FIELD.getPreferredName(), pre);
-        builder.field(SpanNotQueryParser.POST_FIELD.getPreferredName(), post);
+        builder.field(PRE_FIELD.getPreferredName(), pre);
+        builder.field(POST_FIELD.getPreferredName(), post);
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static SpanNotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        SpanQueryBuilder include = null;
+        SpanQueryBuilder exclude = null;
+
+        Integer dist = null;
+        Integer pre  = null;
+        Integer post = null;
+
+        String queryName = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (INCLUDE_FIELD.match(currentFieldName)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (query instanceof SpanQueryBuilder == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "spanNot [include] must be of type span query");
+                    }
+                    include = (SpanQueryBuilder) query;
+                } else if (EXCLUDE_FIELD.match(currentFieldName)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (query instanceof SpanQueryBuilder == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "spanNot [exclude] must be of type span query");
+                    }
+                    exclude = (SpanQueryBuilder) query;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                if (DIST_FIELD.match(currentFieldName)) {
+                    dist = parser.intValue();
+                } else if (PRE_FIELD.match(currentFieldName)) {
+                    pre = parser.intValue();
+                } else if (POST_FIELD.match(currentFieldName)) {
+                    post = parser.intValue();
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        if (include == null) {
+            throw new ParsingException(parser.getTokenLocation(), "spanNot must have [include] span query clause");
+        }
+        if (exclude == null) {
+            throw new ParsingException(parser.getTokenLocation(), "spanNot must have [exclude] span query clause");
+        }
+        if (dist != null && (pre != null || post != null)) {
+            throw new ParsingException(parser.getTokenLocation(), "spanNot can either use [dist] or [pre] & [post] (or none)");
+        }
+
+        SpanNotQueryBuilder spanNotQuery = new SpanNotQueryBuilder(include, exclude);
+        if (dist != null) {
+            spanNotQuery.dist(dist);
+        }
+        if (pre != null) {
+            spanNotQuery.pre(pre);
+        }
+        if (post != null) {
+            spanNotQuery.post(post);
+        }
+        spanNotQuery.boost(boost);
+        spanNotQuery.queryName(queryName);
+        return spanNotQuery;
     }
 
     @Override
@@ -144,24 +245,6 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         assert excludeQuery instanceof SpanQuery;
 
         return new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);
-    }
-
-    @Override
-    protected SpanNotQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder include = (SpanQueryBuilder)in.readQuery();
-        SpanQueryBuilder exclude = (SpanQueryBuilder)in.readQuery();
-        SpanNotQueryBuilder queryBuilder = new SpanNotQueryBuilder(include, exclude);
-        queryBuilder.pre(in.readVInt());
-        queryBuilder.post(in.readVInt());
-        return queryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(include);
-        out.writeQuery(exclude);
-        out.writeVInt(pre);
-        out.writeVInt(post);
     }
 
     @Override

@@ -61,7 +61,7 @@ public class MultiCommandTests extends CommandTestCase {
 
     public void testUnknownCommand() throws Exception {
         multiCommand.subcommands.put("something", new DummySubCommand());
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("somethingelse");
         });
         assertEquals(ExitCodes.USAGE, e.exitCode);
@@ -70,7 +70,7 @@ public class MultiCommandTests extends CommandTestCase {
 
     public void testMissingCommand() throws Exception {
         multiCommand.subcommands.put("command1", new DummySubCommand());
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute();
         });
         assertEquals(ExitCodes.USAGE, e.exitCode);

@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
 
-public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteable<QB>, ToXContent {
+public interface QueryBuilder extends NamedWriteable, ToXContent {
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.
@@ -49,8 +49,11 @@ public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteabl
 
     /**
      * Sets the arbitrary name to be assigned to the query (see named queries).
+     * Implementers should return the concrete type of the
+     * {@link QueryBuilder} so that calls can be chained. This is done
+     * automatically when extending {@link AbstractQueryBuilder}.
      */
-    QB queryName(String queryName);
+    QueryBuilder queryName(String queryName);
 
     /**
      * Returns the arbitrary name assigned to the query (see named queries).
@@ -65,8 +68,11 @@ public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteabl
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
+     * Implementers should return the concrete type of the
+     * {@link QueryBuilder} so that calls can be chained. This is done
+     * automatically when extending {@link AbstractQueryBuilder}.
      */
-    QB boost(float boost);
+    QueryBuilder boost(float boost);
 
     /**
      * Returns the name that identifies uniquely the query
@@ -77,7 +83,7 @@ public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteabl
      * Rewrites this query builder into its primitive form. By default this method return the builder itself. If the builder
      * did not change the identity reference must be returned otherwise the builder will be rewritten infinitely.
      */
-    default QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+    default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
     }
 
@@ -87,7 +93,7 @@ public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteabl
      * rewrites the query until it doesn't change anymore.
      * @throws IOException if an {@link IOException} occurs
      */
-    static QueryBuilder<?> rewriteQuery(QueryBuilder<?> original, QueryRewriteContext context) throws IOException {
+    static QueryBuilder rewriteQuery(QueryBuilder original, QueryRewriteContext context) throws IOException {
         QueryBuilder builder = original;
         for (QueryBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
              rewrittenBuilder = builder.rewrite(context)) {

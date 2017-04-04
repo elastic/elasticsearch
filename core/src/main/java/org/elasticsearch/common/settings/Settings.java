@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.property.PropertyPlaceholder;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +45,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,18 +58,19 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -77,23 +83,33 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    private final Map<String, String> forcedUnderscoreSettings;
-    private SortedMap<String, String> settings;
+    /** The raw settings from the full key to raw string value. */
+    private final Map<String, String> settings;
 
-    Settings(Map<String, String> settings) {
+    /** The secure settings storage associated with these settings. */
+    private final SecureSettings secureSettings;
+
+    /** The first level of setting names. This is constructed lazily in {@link #names()}. */
+    private final SetOnce<Set<String>> firstLevelNames = new SetOnce<>();
+
+    /**
+     * Setting names found in this Settings for both string and secure settings.
+     * This is constructed lazily in {@link #keySet()}.
+     */
+    private final SetOnce<Set<String>> keys = new SetOnce<>();
+
+    Settings(Map<String, String> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
-        Map<String, String> forcedUnderscoreSettings = null;
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
-            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
-            if (!toUnderscoreCase.equals(entry.getKey())) {
-                if (forcedUnderscoreSettings == null) {
-                    forcedUnderscoreSettings = new HashMap<>();
-                }
-                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
-            }
-        }
-        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? emptyMap() : unmodifiableMap(forcedUnderscoreSettings);
+        this.secureSettings = secureSettings;
+    }
+
+    /**
+     * Retrieve the secure settings in these settings.
+     */
+    SecureSettings getSecureSettings() {
+        // pkg private so it can only be accessed by local subclasses of SecureSetting
+        return secureSettings;
     }
 
     /**
@@ -101,7 +117,8 @@ public final class Settings implements ToXContent {
      * @return an unmodifiable map of settings
      */
     public Map<String, String> getAsMap() {
-        return Collections.unmodifiableMap(this.settings);
+        // settings is always unmodifiable
+        return this.settings;
     }
 
     /**
@@ -200,30 +217,16 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
-        Builder builder = new Builder();
-        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (entry.getKey().startsWith(prefix)) {
-                if (entry.getKey().length() < prefix.length()) {
-                    // ignore this. one
-                    continue;
-                }
-                builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
-            }
-        }
-        return builder.build();
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), secureSettings == null ? null :
+            new PrefixedSecureSettings(secureSettings, s -> prefix + s, s -> s.startsWith(prefix)));
     }
 
     /**
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
      */
     public Settings filter(Predicate<String> predicate) {
-        Builder builder = new Builder();
-        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (predicate.test(entry.getKey())) {
-                builder.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return builder.build();
+        return new Settings(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
+            new PrefixedSecureSettings(secureSettings, UnaryOperator.identity(), predicate));
     }
 
     /**
@@ -240,24 +243,7 @@ public final class Settings implements ToXContent {
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
     public String get(String setting) {
-        String retVal = settings.get(setting);
-        if (retVal != null) {
-            return retVal;
-        }
-        return forcedUnderscoreSettings.get(setting);
-    }
-
-    /**
-     * Returns the setting value associated with the first setting key.
-     */
-    public String get(String[] settings) {
-        for (String setting : settings) {
-            String retVal = get(setting);
-            if (retVal != null) {
-                return retVal;
-            }
-        }
-        return null;
+        return settings.get(setting);
     }
 
     /**
@@ -266,15 +252,6 @@ public final class Settings implements ToXContent {
      */
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
-        return retVal == null ? defaultValue : retVal;
-    }
-
-    /**
-     * Returns the setting value associated with the first setting key, if none exists,
-     * returns the default value provided.
-     */
-    public String get(String[] settings, String defaultValue) {
-        String retVal = get(settings);
         return retVal == null ? defaultValue : retVal;
     }
 
@@ -295,22 +272,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as float) associated with teh first setting key, if none
-     * exists, returns the default value provided.
-     */
-    public Float getAsFloat(String[] settings, Float defaultValue) throws SettingsException {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Float.parseFloat(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse float setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
      * Returns the setting value (as double) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -327,23 +288,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as double) associated with teh first setting key, if none
-     * exists, returns the default value provided.
-     */
-    public Double getAsDouble(String[] settings, Double defaultValue) {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Double.parseDouble(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse double setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
-        }
-    }
-
-
-    /**
      * Returns the setting value (as int) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -356,22 +300,6 @@ public final class Settings implements ToXContent {
             return Integer.parseInt(sValue);
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse int setting [" + setting + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
-     * Returns the setting value (as int) associated with the first setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public Integer getAsInt(String[] settings, Integer defaultValue) {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse int setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -392,22 +320,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as long) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public Long getAsLong(String[] settings, Long defaultValue) {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Long.parseLong(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse long setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
      * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -415,12 +327,34 @@ public final class Settings implements ToXContent {
         return Booleans.parseBoolean(get(setting), defaultValue);
     }
 
+    // TODO #22298: Delete this method and update call sites to <code>#getAsBoolean(String, Boolean)</code>.
     /**
-     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
-     * returns the default value provided.
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exist, returns the default value provided.
+     * If the index was created on Elasticsearch below 6.0, booleans will be parsed leniently otherwise they are parsed strictly.
+     *
+     * See {@link Booleans#isBooleanLenient(char[], int, int)} for the definition of a "lenient boolean"
+     * and {@link Booleans#isBoolean(char[], int, int)} for the definition of a "strict boolean".
+     *
+     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
      */
-    public Boolean getAsBoolean(String[] settings, Boolean defaultValue) {
-        return Booleans.parseBoolean(get(settings), defaultValue);
+    @Deprecated
+    public Boolean getAsBooleanLenientForPreEs6Indices(
+        final Version indexVersion,
+        final String setting,
+        final Boolean defaultValue,
+        final DeprecationLogger deprecationLogger) {
+        if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            //Only emit a warning if the setting's value is not a proper boolean
+            final String value = get(setting, "false");
+            if (Booleans.isBoolean(value) == false) {
+                @SuppressWarnings("deprecation")
+                boolean convertedValue = Booleans.parseBooleanLenient(get(setting), defaultValue);
+                deprecationLogger.deprecated("The value [{}] of setting [{}] is not coerced into boolean anymore. Please change " +
+                    "this value to [{}].", value, setting, String.valueOf(convertedValue));
+                return convertedValue;
+            }
+        }
+        return getAsBoolean(setting, defaultValue);
     }
 
     /**
@@ -432,41 +366,11 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as time) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
-         // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseTimeValue:
-         for (String setting : settings) {
-             String retVal = get(setting);
-             if (retVal != null) {
-                 parseTimeValue(get(settings), defaultValue, setting);
-             }
-         }
-         return defaultValue;
-    }
-
-    /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue, setting);
-    }
-
-    /**
-     * Returns the setting value (as size) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
-        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValue
-        for (String setting : settings) {
-            String retVal = get(setting);
-            if (retVal != null) {
-                parseBytesSizeValue(get(settings), defaultValue, setting);
-            }
-        }
-        return defaultValue;
     }
 
     /**
@@ -479,22 +383,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
-     * (eg. 12%). If it does not exists, parses the default value provided.
-     */
-    public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
-        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValueOrHeapRatio
-        for (String setting : settings) {
-            String retVal = get(setting);
-            if (retVal != null) {
-                return MemorySizeValue.parseBytesSizeValueOrHeapRatio(retVal, setting);
-            }
-        }
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(defaultValue, settings[0]);
-    }
-
-    /**
      * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
      * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
      * it does not exist, parses the default value provided.
@@ -504,28 +392,11 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
-     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
-     * it does not exist, parses the default value provided.
-     */
-    public RatioValue getAsRatio(String[] settings, String defaultValue) throws SettingsException {
-        return RatioValue.parseRatioValue(get(settings, defaultValue));
-    }
-
-    /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
-    }
-
-    /**
-     * Returns the setting value (as size) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public SizeValue getAsSize(String[] settings, SizeValue defaultValue) throws SettingsException {
-        return parseSizeValue(get(settings), defaultValue);
     }
 
     /**
@@ -619,6 +490,7 @@ public final class Settings implements ToXContent {
         }
         return getGroupsInternal(settingPrefix, ignoreNonGrouped);
     }
+
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         // we don't really care that it might happen twice
         Map<String, Map<String, String>> map = new LinkedHashMap<>();
@@ -631,7 +503,8 @@ public final class Settings implements ToXContent {
                     if (ignoreNonGrouped) {
                         continue;
                     }
-                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting [" + setting + "] because of a missing '.'");
+                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
+                            + setting + "] because of a missing '.'");
                 }
                 String name = nameValue.substring(0, dotIndex);
                 String value = nameValue.substring(dotIndex + 1);
@@ -645,7 +518,7 @@ public final class Settings implements ToXContent {
         }
         Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
+            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), secureSettings));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -679,16 +552,24 @@ public final class Settings implements ToXContent {
      * @return  The direct keys of this settings
      */
     public Set<String> names() {
-        Set<String> names = new HashSet<>();
-        for (String key : settings.keySet()) {
-            int i = key.indexOf(".");
-            if (i < 0) {
-                names.add(key);
-            } else {
-                names.add(key.substring(0, i));
+        synchronized (firstLevelNames) {
+            if (firstLevelNames.get() == null) {
+                Stream<String> stream = settings.keySet().stream();
+                if (secureSettings != null) {
+                    stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
+                }
+                Set<String> names = stream.map(k -> {
+                    int i = k.indexOf('.');
+                    if (i < 0) {
+                        return k;
+                    } else {
+                        return k.substring(0, i);
+                    }
+                }).collect(Collectors.toSet());
+                firstLevelNames.set(Collections.unmodifiableSet(names));
             }
         }
-        return names;
+        return firstLevelNames.get();
     }
 
     /**
@@ -728,21 +609,17 @@ public final class Settings implements ToXContent {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        out.writeVInt(settings.getAsMap().size());
+        out.writeVInt(settings.size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             out.writeString(entry.getKey());
             out.writeOptionalString(entry.getValue());
         }
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     /**
      * Returns a builder to be used in order to build settings.
      */
-    public static Builder settingsBuilder() {
+    public static Builder builder() {
         return new Builder();
     }
 
@@ -755,30 +632,57 @@ public final class Settings implements ToXContent {
             }
         } else {
             for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(entry.getKey(), entry.getValue());
             }
         }
         return builder;
     }
+
+    public static final Set<String> FORMAT_PARAMS =
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
 
     /**
      * Returns <tt>true</tt> if this settings object contains no settings
      * @return <tt>true</tt> if this settings object contains no settings
      */
     public boolean isEmpty() {
-        return this.settings.isEmpty();
+        return this.settings.isEmpty() && (secureSettings == null || secureSettings.getSettingNames().isEmpty());
+    }
+
+    /** Returns the number of settings in this settings object. */
+    public int size() {
+        return keySet().size();
+    }
+
+    /** Returns the fully qualified setting names contained in this settings object. */
+    public Set<String> keySet() {
+        synchronized (keys) {
+            if (keys.get() == null) {
+                if (secureSettings == null) {
+                    keys.set(settings.keySet());
+                } else {
+                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                    // uniquify, since for legacy reasons the same setting name may exist in both
+                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+                }
+            }
+        }
+        return keys.get();
     }
 
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
-     * settings implementation. Use {@link Settings#settingsBuilder()} in order to
+     * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
      */
     public static class Builder {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
 
-        private final Map<String, String> map = new LinkedHashMap<>();
+        // we use a sorted map for consistent serialization when using getAsMap()
+        private final Map<String, String> map = new TreeMap<>();
+
+        private SetOnce<SecureSettings> secureSettings = new SetOnce<>();
 
         private Builder() {
 
@@ -799,12 +703,15 @@ public final class Settings implements ToXContent {
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
-            String retVal = map.get(key);
-            if (retVal != null) {
-                return retVal;
+            return map.get(key);
+        }
+
+        public Builder setSecureSettings(SecureSettings secureSettings) {
+            if (secureSettings.isLoaded() == false) {
+                throw new IllegalStateException("Secure settings must already be loaded");
             }
-            // try camel case version
-            return map.get(toCamelCase(key));
+            this.secureSettings.set(secureSettings);
+            return this;
         }
 
         /**
@@ -822,7 +729,8 @@ public final class Settings implements ToXContent {
                 }
             }
             if ((settings.length % 2) != 0) {
-                throw new IllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
+                throw new IllegalArgumentException(
+                        "array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
             }
             for (int i = 0; i < settings.length; i++) {
                 put(settings[i++].toString(), settings[i].toString());
@@ -1030,6 +938,9 @@ public final class Settings implements ToXContent {
         public Builder put(Settings settings) {
             removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
+            if (settings.getSecureSettings() != null) {
+                setSecureSettings(settings.getSecureSettings());
+            }
             return this;
         }
 
@@ -1083,22 +994,12 @@ public final class Settings implements ToXContent {
             return this;
         }
 
-        public Builder loadFromDelimitedString(String value, char delimiter) {
-            String[] values = Strings.splitStringToArray(value, delimiter);
-            for (String s : values) {
-                int index = s.indexOf('=');
-                if (index == -1) {
-                    throw new IllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
-                }
-                map.put(s.substring(0, index), s.substring(index + 1));
-            }
-            return this;
-        }
-
         /**
          * Loads settings from the actual string content that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * @deprecated use {@link #loadFromSource(String, XContentType)} to avoid content type detection
          */
+        @Deprecated
         public Builder loadFromSource(String source) {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
             try {
@@ -1111,123 +1012,105 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Loads settings from a url that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * Loads settings from the actual string content that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromXContentType(XContentType)} method to obtain a loader
          */
-        public Builder loadFromPath(Path path) throws SettingsException {
+        public Builder loadFromSource(String source, XContentType xContentType) {
+            SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromXContentType(xContentType);
             try {
-                return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
-            } catch (IOException e) {
-                throw new SettingsException("Failed to open stream for url [" + path + "]", e);
+                Map<String, String> loadedSettings = settingsLoader.load(source);
+                put(loadedSettings);
+            } catch (Exception e) {
+                throw new SettingsException("Failed to load settings from [" + source + "]", e);
             }
+            return this;
+        }
+
+        /**
+         * Loads settings from a url that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
+         */
+        public Builder loadFromPath(Path path) throws IOException {
+            // NOTE: loadFromStream will close the input stream
+            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
         }
 
         /**
          * Loads settings from a stream that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
          */
-        public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
+        public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
-            try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
-                put(loadedSettings);
-            } catch (Exception e) {
-                throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
-            }
+            // NOTE: copyToString will close the input stream
+            Map<String, String> loadedSettings =
+                settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
+            put(loadedSettings);
             return this;
         }
 
-        /**
-         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
-         *
-         * @param prefix     The prefix to filter property key by
-         * @param properties The properties to put
-         * @return The builder
-         */
-        public Builder putProperties(String prefix, Dictionary<Object, Object> properties) {
-            for (Object property : Collections.list(properties.keys())) {
-                String key = Objects.toString(property);
-                String value = Objects.toString(properties.get(property));
-                if (key.startsWith(prefix)) {
-                    map.put(key.substring(prefix.length()), value);
+        public Builder putProperties(Map<String, String> esSettings, Predicate<String> keyPredicate, Function<String, String> keyFunction) {
+            for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
+                final String key = esSetting.getKey();
+                if (keyPredicate.test(key)) {
+                    map.put(keyFunction.apply(key), esSetting.getValue());
                 }
             }
             return this;
         }
 
         /**
-         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
-         *
-         * @param prefix     The prefix to filter property key by
-         * @param properties The properties to put
-         * @return The builder
-         */
-        public Builder putProperties(String prefix, Dictionary<Object, Object> properties, String ignorePrefix) {
-            for (Object property : Collections.list(properties.keys())) {
-                String key = Objects.toString(property);
-                String value = Objects.toString(properties.get(property));
-                if (key.startsWith(prefix)) {
-                    if (!key.startsWith(ignorePrefix)) {
-                        map.put(key.substring(prefix.length()), value);
-                    }
-                }
-            }
-            return this;
-        }
-
-        /**
-         * Runs across all the settings set on this builder and replaces <tt>${...}</tt> elements in the
-         * each setting value according to the following logic:
-         * <p>
-         * First, tries to resolve it against a System property ({@link System#getProperty(String)}), next,
-         * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
-         * and replace it with another setting already set on this builder.
+         * Runs across all the settings set on this builder and
+         * replaces <tt>${...}</tt> elements in each setting with
+         * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
+            return replacePropertyPlaceholders(System::getenv);
+        }
+
+        // visible for testing
+        Builder replacePropertyPlaceholders(Function<String, String> getenv) {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
-                    @Override
-                    public String resolvePlaceholder(String placeholderName) {
-                        if (placeholderName.startsWith("env.")) {
-                            // explicit env var prefix
-                            return System.getenv(placeholderName.substring("env.".length()));
-                        }
-                        String value = System.getProperty(placeholderName);
-                        if (value != null) {
-                            return value;
-                        }
-                        value = System.getenv(placeholderName);
-                        if (value != null) {
-                            return value;
-                        }
-                        return map.get(placeholderName);
+                @Override
+                public String resolvePlaceholder(String placeholderName) {
+                    final String value = getenv.apply(placeholderName);
+                    if (value != null) {
+                        return value;
                     }
+                    return map.get(placeholderName);
+                }
 
-                    @Override
-                    public boolean shouldIgnoreMissing(String placeholderName) {
-                        // if its an explicit env var, we are ok with not having a value for it and treat it as optional
-                        if (placeholderName.startsWith("env.") || placeholderName.startsWith("prompt.")) {
-                            return true;
-                        }
-                        return false;
-                    }
-
-                    @Override
-                    public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                        if (placeholderName.startsWith("prompt.")) {
-                            return false;
-                        }
+                @Override
+                public boolean shouldIgnoreMissing(String placeholderName) {
+                    if (placeholderName.startsWith("prompt.")) {
                         return true;
                     }
-                };
-            for (Map.Entry<String, String> entry : new HashMap<>(map).entrySet()) {
-                String value = propertyPlaceholder.replacePlaceholders(entry.getKey(), entry.getValue(), placeholderResolver);
+                    return false;
+                }
+
+                @Override
+                public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
+                    if (placeholderName.startsWith("prompt.")) {
+                        return false;
+                    }
+                    return true;
+                }
+            };
+
+            Iterator<Map.Entry<String, String>> entryItr = map.entrySet().iterator();
+            while (entryItr.hasNext()) {
+                Map.Entry<String, String> entry = entryItr.next();
+                if (entry.getValue() == null) {
+                    // a null value obviously can't be replaced
+                    continue;
+                }
+                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {
-                    map.put(entry.getKey(), value);
+                    entry.setValue(value);
                 } else {
-                    map.remove(entry.getKey());
+                    entryItr.remove();
                 }
             }
             return this;
@@ -1257,7 +1140,163 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(Collections.unmodifiableMap(map));
+            return new Settings(map, secureSettings.get());
+        }
+    }
+
+    // TODO We could use an FST internally to make things even faster and more compact
+    private static final class FilteredMap extends AbstractMap<String, String> {
+        private final Map<String, String> delegate;
+        private final Predicate<String> filter;
+        private final String prefix;
+        // we cache that size since we have to iterate the entire set
+        // this is safe to do since this map is only used with unmodifiable maps
+        private int size = -1;
+        @Override
+        public Set<Entry<String, String>> entrySet() {
+            Set<Entry<String, String>> delegateSet = delegate.entrySet();
+            AbstractSet<Entry<String, String>> filterSet = new AbstractSet<Entry<String, String>>() {
+
+                @Override
+                public Iterator<Entry<String, String>> iterator() {
+                    Iterator<Entry<String, String>> iter = delegateSet.iterator();
+
+                    return new Iterator<Entry<String, String>>() {
+                        private int numIterated;
+                        private Entry<String, String> currentElement;
+                        @Override
+                        public boolean hasNext() {
+                            if (currentElement != null) {
+                                return true; // protect against calling hasNext twice
+                            } else {
+                                if (numIterated == size) { // early terminate
+                                    assert size != -1 : "size was never set: " + numIterated + " vs. " + size;
+                                    return false;
+                                }
+                                while (iter.hasNext()) {
+                                    if (filter.test((currentElement = iter.next()).getKey())) {
+                                        numIterated++;
+                                        return true;
+                                    }
+                                }
+                                // we didn't find anything
+                                currentElement = null;
+                                return false;
+                            }
+                        }
+
+                        @Override
+                        public Entry<String, String> next() {
+                            if (currentElement == null && hasNext() == false) { // protect against no #hasNext call or not respecting it
+
+                                throw new NoSuchElementException("make sure to call hasNext first");
+                            }
+                            final Entry<String, String> current = this.currentElement;
+                            this.currentElement = null;
+                            if (prefix == null) {
+                                return current;
+                            }
+                            return new Entry<String, String>() {
+                                @Override
+                                public String getKey() {
+                                    return current.getKey().substring(prefix.length());
+                                }
+
+                                @Override
+                                public String getValue() {
+                                    return current.getValue();
+                                }
+
+                                @Override
+                                public String setValue(String value) {
+                                    throw new UnsupportedOperationException();
+                                }
+                            };
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return FilteredMap.this.size();
+                }
+            };
+            return filterSet;
+        }
+
+        private FilteredMap(Map<String, String> delegate, Predicate<String> filter, String prefix) {
+            this.delegate = delegate;
+            this.filter = filter;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public String get(Object key) {
+            if (key instanceof String) {
+                final String theKey = prefix == null ? (String)key : prefix + key;
+                if (filter.test(theKey)) {
+                    return delegate.get(theKey);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            if (key instanceof String) {
+                final String theKey = prefix == null ? (String) key : prefix + key;
+                if (filter.test(theKey)) {
+                    return delegate.containsKey(theKey);
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int size() {
+            if (size == -1) {
+                size = Math.toIntExact(delegate.keySet().stream().filter((e) -> filter.test(e)).count());
+            }
+            return size;
+        }
+    }
+
+    private static class PrefixedSecureSettings implements SecureSettings {
+        private final SecureSettings delegate;
+        private final UnaryOperator<String> keyTransform;
+        private final Predicate<String> keyPredicate;
+        private final SetOnce<Set<String>> settingNames = new SetOnce<>();
+
+        PrefixedSecureSettings(SecureSettings delegate, UnaryOperator<String> keyTransform, Predicate<String> keyPredicate) {
+            this.delegate = delegate;
+            this.keyTransform = keyTransform;
+            this.keyPredicate = keyPredicate;
+        }
+
+        @Override
+        public boolean isLoaded() {
+            return delegate.isLoaded();
+        }
+
+        @Override
+        public Set<String> getSettingNames() {
+            synchronized (settingNames) {
+                if (settingNames.get() == null) {
+                    Set<String> names = delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet());
+                    settingNames.set(Collections.unmodifiableSet(names));
+                }
+            }
+            return settingNames.get();
+        }
+
+        @Override
+        public SecureString getString(String setting) throws GeneralSecurityException{
+            return delegate.getString(keyTransform.apply(setting));
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

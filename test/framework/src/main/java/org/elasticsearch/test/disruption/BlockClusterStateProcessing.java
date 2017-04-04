@@ -19,7 +19,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,26 +58,21 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("service_disruption_block", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
 
             @Override
-            public boolean runOnlyOnMaster() {
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 started.countDown();
                 CountDownLatch latch = disruptionLatch.get();
                 if (latch != null) {
                     latch.await();
                 }
-                return currentState;
+                return unchanged();
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected error during disruption", t);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected error during disruption", e);
             }
         });
         try {

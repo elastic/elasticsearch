@@ -1,9 +1,8 @@
 [[search-request-preference]]
 === Preference
 
-Controls a `preference` of which shard replicas to execute the search
-request on. By default, the operation is randomized between the shard
-replicas.
+Controls a `preference` of which shard copies on which to execute the
+search. By default, the operation is randomized among the available shard copies.
 
 The `preference` is a query string parameter which can be set to:
 
@@ -27,22 +26,17 @@ The `preference` is a query string parameter which can be set to:
 	The operation will prefer to be executed on a local
 	allocated shard if possible.
 
-`_only_node:xyz`:: 
-	Restricts the search to execute only on a node with
-	the provided node id (`xyz` in this case).
-
-`_prefer_node:xyz`:: 
-	Prefers execution on the node with the provided
-	node id (`xyz` in this case) if applicable.
+`_prefer_nodes:abc,xyz`::
+	Prefers execution on the nodes with the provided
+	node ids (`abc` or `xyz` in this case) if applicable.
 
 `_shards:2,3`:: 
 	Restricts the operation to the specified shards. (`2`
 	and `3` in this case). This preference can be combined with other
-	preferences but it has to appear first: `_shards:2,3;_primary`
+	preferences but it has to appear first: `_shards:2,3|_primary`
 
 `_only_nodes`::
-    Restricts the operation to nodes specified in node specification
-    https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html
+    Restricts the operation to nodes specified in <<cluster,node specification>>
 
 Custom (string) value:: 
 	A custom value will be used to guarantee that
@@ -56,7 +50,7 @@ for the user:
 
 [source,js]
 ------------------------------------------------
-curl localhost:9200/_search?preference=xyzabc123 -d '
+GET /_search?preference=xyzabc123
 {
     "query": {
         "match": {
@@ -64,7 +58,6 @@ curl localhost:9200/_search?preference=xyzabc123 -d '
         }
     }
 }
-'
 ------------------------------------------------
-
+// CONSOLE
 

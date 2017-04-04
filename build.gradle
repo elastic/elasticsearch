@@ -17,54 +17,43 @@
  * under the License.
  */
 
-import com.bmuschko.gradle.nexus.NexusPlugin
+import java.nio.file.Path
+import java.util.regex.Matcher
+import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.VersionProperties
 
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
-  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+  version = VersionProperties.elasticsearch
+  description = "Elasticsearch subproject ${project.path}"
+}
 
-  plugins.withType(NexusPlugin).whenPluginAdded {
-    modifyPom {
-      project {
-        url 'https://github.com/elastic/elasticsearch'
-        inceptionYear '2009'
+Path rootPath = rootDir.toPath()
+// setup pom license info, but only for artifacts that are part of elasticsearch
+configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
 
-        scm {
-          url 'https://github.com/elastic/elasticsearch'
-          connection 'scm:https://elastic@github.com/elastic/elasticsearch'
-          developerConnection 'scm:git://github.com/elastic/elasticsearch.git'
-        }
+  // we only use maven publish to add tasks for pom generation
+  plugins.withType(MavenPublishPlugin).whenPluginAdded {
+    publishing {
+      publications {
+        // add license information to generated poms
+        all {
+          pom.withXml { XmlProvider xml ->
+            Node node = xml.asNode()
+            node.appendNode('inceptionYear', '2009')
 
-        licenses {
-          license {
-            name 'The Apache Software License, Version 2.0'
-            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-            distribution 'repo'
-          }
-        }
-      }
-    }
-    extraArchive {
-      javadoc = true
-      tests = false
-    }
-    // we have our own username/password prompts so that they only happen once
-    // TODO: add gpg signing prompts
-    project.gradle.taskGraph.whenReady { taskGraph ->
-      if (taskGraph.allTasks.any { it.name == 'uploadArchives' }) {
-        Console console = System.console()
-        if (project.hasProperty('nexusUsername') == false) {
-          String nexusUsername = console.readLine('\nNexus username: ')
-          project.rootProject.allprojects.each {
-            it.ext.nexusUsername = nexusUsername
-          }
-        }
-        if (project.hasProperty('nexusPassword') == false) {
-          String nexusPassword = new String(console.readPassword('\nNexus password: '))
-          project.rootProject.allprojects.each {
-            it.ext.nexusPassword = nexusPassword
+            Node license = node.appendNode('licenses').appendNode('license')
+            license.appendNode('name', 'The Apache Software License, Version 2.0')
+            license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
+            license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'Elastic')
+            developer.appendNode('url', 'http://www.elastic.co')
           }
         }
       }
@@ -72,12 +61,26 @@ subprojects {
   }
 }
 
+int prevMajor = Integer.parseInt(VersionProperties.elasticsearch.split('\\.')[0]) - 1
+String prevSnapshot = VersionProperties.elasticsearch.contains('alpha') ? '-SNAPSHOT' : ''
+File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
+List<String> versionLines = versionFile.readLines('UTF-8')
+int prevMinor = 0
+for (String line : versionLines) {
+  Matcher match = line =~ /\W+public static final Version V_${prevMajor}_(\d+)_.*/
+  if (match.matches()) {
+    prevMinor = Math.max(Integer.parseInt(match.group(1)), prevMinor)
+  }
+}
+
+// injecting groovy property variables into all projects
 allprojects {
-  // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
+    // for backcompat testing
+    bwcVersion = "${prevMajor}.${prevMinor}.0${prevSnapshot}"
   }
 }
 
@@ -100,6 +103,14 @@ subprojects {
       // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
       javadoc.options.encoding='UTF8'
       javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+      /*
+      TODO: building javadocs with java 9 b118 is currently broken with weird errors, so
+      for now this is commented out...try again with the next ea build...
+      javadoc.executable = new File(project.javaHome, 'bin/javadoc')
+      if (project.javaVersion == JavaVersion.VERSION_1_9) {
+        // TODO: remove this hack! gradle should be passing this...
+        javadoc.options.addStringOption('source', '8')
+      }*/
     }
   }
 
@@ -108,20 +119,33 @@ subprojects {
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
+    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
+    "org.elasticsearch.client:rest:${version}": ':client:rest',
+    "org.elasticsearch.client:sniffer:${version}": ':client:sniffer',
+    "org.elasticsearch.client:test:${version}": ':client:test',
+    "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${bwcVersion}": ':distribution:bwc-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    // for transport client
+    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
+    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
+    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
+    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
-  configurations.all {
-    resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
-      projectSubstitutions.each { k,v ->
-        subs.substitute(subs.module(k)).with(subs.project(v))
+  project.afterEvaluate {
+    configurations.all {
+      resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
+        projectSubstitutions.each { k,v ->
+          subs.substitute(subs.module(k)).with(subs.project(v))
+        }
       }
     }
   }
@@ -181,6 +205,10 @@ allprojects {
       outputDir = file('build-idea/classes/main')
       testOutputDir = file('build-idea/classes/test')
 
+      // also ignore other possible build dirs
+      excludeDirs += file('build')
+      excludeDirs += file('build-eclipse')
+
       iml {
         // fix so that Gradle idea plugin properly generates support for resource folders
         // see also https://issues.gradle.org/browse/GRADLE-2975
@@ -197,11 +225,18 @@ allprojects {
       }
     }
   }
+
+  task cleanIdeaBuildDir(type: Delete) {
+    delete 'build-idea'
+  }
+  cleanIdeaBuildDir.setGroup("ide")
+  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
+
+  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
 }
 
 idea {
   project {
-    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
     vcs = 'Git'
   }
 }
@@ -213,13 +248,6 @@ tasks.idea.doLast {
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
   throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
 }
-// add buildSrc itself as a groovy project
-task buildSrcIdea(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['cleanIdea', 'ideaModule']
-}
-tasks.idea.dependsOn(buildSrcIdea)
-
 
 // eclipse configuration
 allprojects {
@@ -227,6 +255,9 @@ allprojects {
   // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
   if (path != ':') {
     eclipse.project.name = path
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      eclipse.project.name = eclipse.project.name.replace(':', '_')
+    }
   }
 
   plugins.withType(JavaBasePlugin) {
@@ -252,19 +283,13 @@ allprojects {
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse {
+  task wipeEclipseSettings(type: Delete) {
     delete '.settings'
   }
+  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
-
-// add buildSrc itself as a groovy project
-task buildSrcEclipse(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['cleanEclipse', 'eclipse']
-}
-tasks.eclipse.dependsOn(buildSrcEclipse)
 
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through

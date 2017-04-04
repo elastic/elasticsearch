@@ -22,8 +22,17 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.bmuschko.nexus'
 apply plugin: 'nebula.optional-base'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+
+publishing {
+  publications {
+    nebula {
+      artifactId 'elasticsearch'
+    }
+  }
+}
 
 archivesBaseName = 'elasticsearch'
 
@@ -46,40 +55,38 @@ dependencies {
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
-  compile 'org.elasticsearch:securesm:1.0'
+  compile 'org.elasticsearch:securesm:1.1'
 
   // utilities
-  compile 'net.sf.jopt-simple:jopt-simple:4.9'
+  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.8.2'
-  // joda 2.0 moved to using volatile fields for datetime
-  // When updating to a new version, make sure to update our copy of BaseDateTime
-  compile 'org.joda:joda-convert:1.2'
+  compile 'joda-time:joda-time:2.9.5'
 
   // json and yaml
+  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
-  // network stack
-  compile 'io.netty:netty:3.10.5.Final'
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
   // precentil ranks aggregation
-  compile 'org.hdrhistogram:HdrHistogram:2.1.6'
+  compile 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // lucene spatial
   compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
   compile "com.vividsolutions:jts:${versions.jts}", optional
 
   // logging
-  compile "log4j:log4j:${versions.log4j}", optional
-  compile "log4j:apache-log4j-extras:${versions.log4j}", optional
+  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}", optional
+  compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  // to bridge dependencies that are still on Log4j 1 to Log4j 2
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
 
-  compile "net.java.dev.jna:jna:${versions.jna}", optional
+  compile "net.java.dev.jna:jna:${versions.jna}"
 
   if (isEclipse == false || project.path == ":core-tests") {
     testCompile("org.elasticsearch.test:framework:${version}") {
@@ -87,6 +94,8 @@ dependencies {
       exclude group: 'org.elasticsearch', module: 'elasticsearch'
     }
   }
+  testCompile 'com.google.jimfs:jimfs:1.1'
+  testCompile 'com.google.guava:guava:18.0'
 }
 
 if (isEclipse) {
@@ -111,121 +120,146 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
-thirdPartyAudit.excludes = [
-  // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
-  'org.jboss.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+task generateModulesList {
+  List<String> modules = project(':modules').subprojects.collect { it.name }
+  File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
+  processResources.from(modulesFile) 
+  inputs.property('modules', modules) 
+  outputs.file(modulesFile)
+  doLast {
+    modulesFile.parentFile.mkdirs()
+    modulesFile.setText(modules.join('\n'), 'UTF-8')
+  }
+}
 
+task generatePluginsList {
+  List<String> plugins = project(':plugins').subprojects
+    .findAll { it.name.contains('example') == false }
+    .collect { it.name }
+  File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
+  processResources.from(pluginsFile) 
+  inputs.property('plugins', plugins) 
+  outputs.file(pluginsFile)
+  doLast {
+    pluginsFile.parentFile.mkdirs()
+    pluginsFile.setText(plugins.join('\n'), 'UTF-8')
+  }
+}
+
+processResources {
+  dependsOn generateModulesList, generatePluginsList
+}
+
+thirdPartyAudit.excludes = [
   // classes are missing!
 
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-  'com.fasterxml.jackson.databind.ObjectMapper', 
+  'com.fasterxml.jackson.databind.ObjectMapper',
 
-  // from org.jboss.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder (netty)
-  'com.google.protobuf.CodedInputStream', 
-
-  // from org.jboss.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender (netty)
-  'com.google.protobuf.CodedOutputStream', 
-
-  // from org.jboss.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-  'com.google.protobuf.ExtensionRegistry', 
-  'com.google.protobuf.MessageLite$Builder', 
-  'com.google.protobuf.MessageLite', 
-  'com.google.protobuf.Parser', 
-
-  // from org.apache.log4j.receivers.net.JMSReceiver (log4j-extras)
-  'javax.jms.Message', 
-  'javax.jms.MessageListener', 
-  'javax.jms.ObjectMessage', 
-  'javax.jms.TopicConnection', 
-  'javax.jms.TopicConnectionFactory', 
-  'javax.jms.TopicPublisher', 
-  'javax.jms.TopicSession', 
-  'javax.jms.TopicSubscriber', 
-
-   // from org.apache.log4j.net.SMTPAppender (log4j)
-  'javax.mail.Authenticator', 
-  'javax.mail.Message$RecipientType', 
-  'javax.mail.Message', 
-  'javax.mail.Multipart', 
-  'javax.mail.PasswordAuthentication', 
-  'javax.mail.Session', 
-  'javax.mail.Transport', 
-  'javax.mail.internet.InternetAddress', 
-  'javax.mail.internet.InternetHeaders', 
-  'javax.mail.internet.MimeBodyPart', 
-  'javax.mail.internet.MimeMessage', 
-  'javax.mail.internet.MimeMultipart', 
-  'javax.mail.internet.MimeUtility', 
-
-  // from org.jboss.netty.channel.socket.http.HttpTunnelingServlet (netty)
-  'javax.servlet.ServletConfig', 
-  'javax.servlet.ServletException', 
-  'javax.servlet.ServletOutputStream', 
-  'javax.servlet.http.HttpServlet', 
-  'javax.servlet.http.HttpServletRequest', 
-  'javax.servlet.http.HttpServletResponse', 
-
-  // from org.jboss.netty.logging.CommonsLoggerFactory (netty)
-  'org.apache.commons.logging.Log', 
-  'org.apache.commons.logging.LogFactory',
-
-  // from org.jboss.netty.handler.ssl.OpenSslEngine (netty)
-  'org.apache.tomcat.jni.Buffer', 
-  'org.apache.tomcat.jni.Library', 
-  'org.apache.tomcat.jni.Pool', 
-  'org.apache.tomcat.jni.SSL', 
-  'org.apache.tomcat.jni.SSLContext', 
-  
-  // from org.jboss.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-  'org.bouncycastle.asn1.x500.X500Name', 
-  'org.bouncycastle.cert.X509v3CertificateBuilder', 
-  'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter', 
-  'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder', 
-  'org.bouncycastle.jce.provider.BouncyCastleProvider', 
-  'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder', 
-
-  // from org.jboss.netty.handler.ssl.JettyNpnSslEngine (netty)
-  'org.eclipse.jetty.npn.NextProtoNego$ClientProvider', 
-  'org.eclipse.jetty.npn.NextProtoNego$ServerProvider', 
-  'org.eclipse.jetty.npn.NextProtoNego', 
-
-  // from org.jboss.netty.logging.JBossLoggerFactory (netty)
-  'org.jboss.logging.Logger', 
-
-  // from org.jboss.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-  'org.jboss.marshalling.ByteInput', 
-
-  // from org.jboss.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-  'org.jboss.marshalling.ByteOutput', 
-
-  // from org.jboss.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-  'org.jboss.marshalling.Marshaller', 
-
-  // from org.jboss.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-  'org.jboss.marshalling.MarshallerFactory', 
-  'org.jboss.marshalling.MarshallingConfiguration', 
-  'org.jboss.marshalling.Unmarshaller', 
+  // from log4j
+  'com.beust.jcommander.IStringConverter',
+  'com.beust.jcommander.JCommander',
+  'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
+  'com.conversantmedia.util.concurrent.SpinPolicy',
+  'com.fasterxml.jackson.annotation.JsonInclude$Include',
+  'com.fasterxml.jackson.databind.DeserializationContext',
+  'com.fasterxml.jackson.databind.JsonMappingException',
+  'com.fasterxml.jackson.databind.JsonNode',
+  'com.fasterxml.jackson.databind.Module$SetupContext',
+  'com.fasterxml.jackson.databind.ObjectReader',
+  'com.fasterxml.jackson.databind.ObjectWriter',
+  'com.fasterxml.jackson.databind.SerializerProvider',
+  'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+  'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
+  'com.fasterxml.jackson.databind.module.SimpleModule',
+  'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
+  'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
+  'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
+  'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+  'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+  'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+  'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+  'com.fasterxml.jackson.databind.node.JsonNodeFactory',
+  'com.fasterxml.jackson.databind.node.ObjectNode',
+  'org.fusesource.jansi.Ansi',
+  'org.fusesource.jansi.AnsiRenderer$Code',
+  'com.lmax.disruptor.BlockingWaitStrategy',
+  'com.lmax.disruptor.BusySpinWaitStrategy',
+  'com.lmax.disruptor.EventFactory',
+  'com.lmax.disruptor.EventTranslator',
+  'com.lmax.disruptor.EventTranslatorTwoArg',
+  'com.lmax.disruptor.EventTranslatorVararg',
+  'com.lmax.disruptor.ExceptionHandler',
+  'com.lmax.disruptor.LifecycleAware',
+  'com.lmax.disruptor.RingBuffer',
+  'com.lmax.disruptor.Sequence',
+  'com.lmax.disruptor.SequenceReportingEventHandler',
+  'com.lmax.disruptor.SleepingWaitStrategy',
+  'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
+  'com.lmax.disruptor.WaitStrategy',
+  'com.lmax.disruptor.YieldingWaitStrategy',
+  'com.lmax.disruptor.dsl.Disruptor',
+  'com.lmax.disruptor.dsl.ProducerType',
+  'javax.jms.Connection',
+  'javax.jms.ConnectionFactory',
+  'javax.jms.Destination',
+  'javax.jms.Message',
+  'javax.jms.MessageConsumer',
+  'javax.jms.MessageListener',
+  'javax.jms.MessageProducer',
+  'javax.jms.ObjectMessage',
+  'javax.jms.Session',
+  'javax.mail.Authenticator',
+  'javax.mail.Message$RecipientType',
+  'javax.mail.PasswordAuthentication',
+  'javax.mail.Session',
+  'javax.mail.Transport',
+  'javax.mail.internet.InternetAddress',
+  'javax.mail.internet.InternetHeaders',
+  'javax.mail.internet.MimeBodyPart',
+  'javax.mail.internet.MimeMessage',
+  'javax.mail.internet.MimeMultipart',
+  'javax.mail.internet.MimeUtility',
+  'javax.mail.util.ByteArrayDataSource',
+  'javax.persistence.AttributeConverter',
+  'javax.persistence.EntityManager',
+  'javax.persistence.EntityManagerFactory',
+  'javax.persistence.EntityTransaction',
+  'javax.persistence.Persistence',
+  'javax.persistence.PersistenceException',
+  'org.apache.commons.compress.compressors.CompressorStreamFactory',
+  'org.apache.commons.compress.utils.IOUtils',
+  'org.apache.commons.csv.CSVFormat',
+  'org.apache.commons.csv.QuoteMode',
+  'org.apache.kafka.clients.producer.KafkaProducer',
+  'org.apache.kafka.clients.producer.Producer',
+  'org.apache.kafka.clients.producer.ProducerRecord',
+  'org.codehaus.stax2.XMLStreamWriter2',
+  'org.jctools.queues.MessagePassingQueue$Consumer',
+  'org.jctools.queues.MpscArrayQueue',
+  'org.osgi.framework.AdaptPermission',
+  'org.osgi.framework.AdminPermission',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
+  'org.osgi.framework.BundleReference',
+  'org.osgi.framework.FrameworkUtil',
+  'org.osgi.framework.SynchronousBundleListener',
+  'org.osgi.framework.wiring.BundleWire',
+  'org.osgi.framework.wiring.BundleWiring',
+  'org.zeromq.ZMQ$Context',
+  'org.zeromq.ZMQ$Socket',
+  'org.zeromq.ZMQ',
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser', 
-
-  // from org.jboss.netty.container.osgi.NettyBundleActivator (netty)
-  'org.osgi.framework.BundleActivator', 
-  'org.osgi.framework.BundleContext', 
-
-  // from org.jboss.netty.logging.OsgiLoggerFactory$1 (netty)
-  'org.osgi.framework.ServiceReference', 
-  'org.osgi.service.log.LogService', 
-  'org.osgi.util.tracker.ServiceTracker', 
-  'org.osgi.util.tracker.ServiceTrackerCustomizer', 
-
-  // from org.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory',
 ]
 
-// dependency license are currently checked in distribution
-dependencyLicenses.enabled = false
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 
 if (isEclipse == false || project.path == ":core-tests") {
   task integTest(type: RandomizedTestingTask,

@@ -12,12 +12,14 @@
 
 
 STOP_REQUIRED=false
+REMOVE_SERVICE=false
 
 case "$1" in
 
     # Debian ####################################################
     remove)
         STOP_REQUIRED=true
+        REMOVE_SERVICE=true
     ;;
     upgrade)
         if [ "$RESTART_ON_UPGRADE" = "true" ]; then
@@ -30,6 +32,7 @@ case "$1" in
     # RedHat ####################################################
     0)
         STOP_REQUIRED=true
+        REMOVE_SERVICE=true
     ;;
     1)
         # Dont do anything on upgrade, because the preun script in redhat gets executed after the postinst (madness!)
@@ -63,5 +66,26 @@ if [ "$STOP_REQUIRED" = "true" ]; then
     fi
     echo " OK"
 fi
+
+if [ "$REMOVE_SERVICE" = "true" ]; then
+    if command -v systemctl >/dev/null; then
+        systemctl disable elasticsearch.service > /dev/null 2>&1 || true
+    fi
+
+    if command -v chkconfig >/dev/null; then
+        chkconfig --del elasticsearch 2> /dev/null || true
+    fi
+
+    if command -v update-rc.d >/dev/null; then
+        update-rc.d elasticsearch remove >/dev/null || true
+    fi
+
+    SCRIPTS_DIR="/etc/elasticsearch/scripts"
+    # delete the scripts directory if and only if empty
+    if [ -d "$SCRIPTS_DIR" ]; then
+        rmdir --ignore-fail-on-non-empty "$SCRIPTS_DIR"
+    fi
+fi
+
 
 ${scripts.footer}

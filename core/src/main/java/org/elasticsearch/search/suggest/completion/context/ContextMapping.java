@@ -25,8 +25,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,19 +100,20 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Prototype for the query context
      */
-    protected abstract T fromXContent(XContentParser parser) throws IOException;
+    protected abstract T fromXContent(QueryParseContext context) throws IOException;
 
     /**
      * Parses query contexts for this mapper
      */
-    public final List<InternalQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public final List<InternalQueryContext> parseQueryContext(QueryParseContext context) throws IOException, ElasticsearchParseException {
         List<T> queryContexts = new ArrayList<>();
+        XContentParser parser = context.parser();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add(fromXContent(parser));
+            queryContexts.add(fromXContent(context));
         } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
-                queryContexts.add(fromXContent(parser));
+                queryContexts.add(fromXContent(context));
             }
         }
         return toInternalQueryContexts(queryContexts);

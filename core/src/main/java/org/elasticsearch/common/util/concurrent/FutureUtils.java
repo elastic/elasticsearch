@@ -23,8 +23,6 @@ import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.concurrent.Future;
 
-/**
- */
 public class FutureUtils {
 
     @SuppressForbidden(reason = "Future#cancel()")

@@ -10,9 +10,6 @@
                 _parent: { type: "foo" }
             settings:
               number_of_shards: 5
- - do:
-      cluster.health:
-          wait_for_status: yellow
 
  - do:
       index:
@@ -37,9 +34,9 @@
         body:
           docs:
             - { _id: 1 }
-            - { _id: 1, parent: 5, fields: [ _parent, _routing ] }
-            - { _id: 1, parent: 4, fields: [ _parent, _routing ] }
-            - { _id: 2, parent: 5, fields: [ _parent, _routing ] }
+            - { _id: 1, parent: 5, stored_fields: [ _parent, _routing ] }
+            - { _id: 1, parent: 4, stored_fields: [ _parent, _routing ] }
+            - { _id: 2, parent: 5, stored_fields: [ _parent, _routing ] }
 
  - is_false:  docs.0.found
  - is_false:  docs.1.found

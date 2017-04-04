@@ -16,32 +16,10 @@ following:
 gradle assemble
 -----------------------------
 
-== Other test options
-
-To disable and enable network transport, set the `Des.node.mode`.
-
-Use network transport:
-
-------------------------------------
--Des.node.mode=network
-------------------------------------
-
-Use local transport (default since 1.3):
-
--------------------------------------
--Des.node.mode=local
--------------------------------------
-
-Alternatively, you can set the `ES_TEST_LOCAL` environment variable:
-
--------------------------------------
-export ES_TEST_LOCAL=true && gradle test
--------------------------------------
-
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
-run it using Maven:
+run it using Gradle:
 
 -------------------------------------
 gradle run
@@ -201,7 +179,7 @@ gradle test -Dtests.timeoutSuite=5000! ...
 Change the logging level of ES (not gradle)
 
 --------------------------------
-gradle test -Des.logger.level=DEBUG
+gradle test -Dtests.es.logger.level=DEBUG
 --------------------------------
 
 Print all the logging output from the test runs to the commandline
@@ -291,18 +269,18 @@ REST tests use the following command:
 
 ---------------------------------------------------------------------------
 gradle :distribution:integ-test-zip:integTest   \
-  -Dtests.class=org.elasticsearch.test.rest.RestIT
+  -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT"
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
 gradle :distribution:integ-test-zip:integTest \
-  -Dtests.class=org.elasticsearch.test.rest.RestIT \
+  -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT" \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
-`RestNIT` are the executable test classes that runs all the
+`*Yaml*IT` are the executable test classes that runs all the
 yaml suites available within the `rest-api-spec` folder.
 
 The REST tests support all the options provided by the randomized runner, plus the following:
@@ -341,24 +319,25 @@ vagrant plugin install vagrant-cachier
 . Validate your installed dependencies:
 
 -------------------------------------
-gradle :qa:vagrant:checkVagrantVersion
+gradle :qa:vagrant:vagrantCheckVersion
 -------------------------------------
 
 . Download and smoke test the VMs with `gradle vagrantSmokeTest` or
-`gradle vagrantSmokeTestAllDistros`. The first time you run this it will
+`gradle -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
 download the base images and provision the boxes and immediately quit. If you
 you this again it'll skip the download step.
 
-. Run the tests with `gradle checkPackages`. This will cause gradle to build
+. Run the tests with `gradle packagingTest`. This will cause gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
-You can run on all the VMs by running `gradle checkPackagesAllDistros`. You can
-run a particular VM with a command like `gradle checkOel7`. See `gradle tasks`
-for a list. Its important to know that if you ctrl-c any of these `gradle`
-commands then the boxes will remain running and you'll have to terminate them
-with `vagrant halt`.
+You can run on all the VMs by running `gradle -Pvagrant.boxes=all packagingTest`.
+You can run a particular VM with a command like
+`gradle -Pvagrant.boxes=oel-7 packagingTest`. See `gradle tasks` for a complete
+list of available vagrant boxes for testing. It's important to know that if you
+ctrl-c any of these `gradle` commands then the boxes will remain running and
+you'll have to terminate them with 'gradle stop'.
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
@@ -368,11 +347,12 @@ These are the linux flavors the Vagrantfile currently supports:
 
 * ubuntu-1204 aka precise
 * ubuntu-1404 aka trusty
-* ubuntu-1504 aka vivid
+* ubuntu-1604 aka xenial
 * debian-8 aka jessie, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-22
+* fedora-24
+* oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
 * opensuse-13
@@ -381,13 +361,12 @@ We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
 
 * sles-11
-* oel-6
 
 We're missing the follow because our tests are very linux/bash centric:
 
 * Windows Server 2012
 
-Its important to think of VMs like cattle. If they become lame you just shoot
+It's important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
 
 ----------------------------------------------------
@@ -421,8 +400,8 @@ that'd consume a ton of ram.
 == Testing scripts more directly
 
 In general its best to stick to testing in vagrant because the bats scripts are
-destructive. When working with a single package its generally faster to run its
-tests in a tighter loop than maven provides. In one window:
+destructive. When working with a single package it's generally faster to run its
+tests in a tighter loop than gradle provides. In one window:
 
 --------------------------------
 gradle :distribution:rpm:assemble
@@ -432,18 +411,45 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $TESTROOT
-sudo bats $BATS/*rpm*.bats
+cd $BATS_ARCHIVES
+sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-gradle prepareTestRoot
+gradle vagrantSetUp
 vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $TESTROOT
-sudo bats $BATS/*.bats
+cd $BATS_ARCHIVES
+sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
+
+You can also use Gradle to prepare the test environment and then starts a single VM:
+
+-------------------------------------------------
+gradle vagrantFedora24#up
+-------------------------------------------------
+
+Or any of vagrantCentos6#up, vagrantDebian8#up, vagrantFedora24#up, vagrantOel6#up,
+vagrantOel7#up, vagrantOpensuse13#up, vagrantSles12#up, vagrantUbuntu1204#up,
+vagrantUbuntu1604#up.
+
+Once up, you can then connect to the VM using SSH from the elasticsearch directory:
+
+-------------------------------------------------
+vagrant ssh fedora-24
+-------------------------------------------------
+
+Or from another directory:
+
+-------------------------------------------------
+VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-24
+-------------------------------------------------
+
+Note: Starting vagrant VM outside of the elasticsearch folder requires to
+indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
+environment variable.
+
 
 == Coverage analysis
 
@@ -468,7 +474,7 @@ Combined (Unit+Integration) coverage:
 mvn -Dtests.coverage verify jacoco:report
 ---------------------------------------------------------------------------
 
-== Debugging from an IDE
+== Launching and debugging from an IDE
 
 If you want to run elasticsearch from your IDE, the `gradle run` task
 supports a remote debugging option:
@@ -477,13 +483,24 @@ supports a remote debugging option:
 gradle run --debug-jvm
 ---------------------------------------------------------------------------
 
+== Debugging remotely from an IDE
+
+If you want to run Elasticsearch and be able to remotely attach the process
+for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPTS`:
+
+---------------------------------------------------------------------------
+ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
+---------------------------------------------------------------------------
+
+Read your IDE documentation for how to attach a debugger to a JVM process.
+
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their
 dependency on elasticsearch will be substituted with the local elasticsearch
-build. To add your plugin, create a directory called x-plugins as a sibling
-of elasticsearch. Checkout your plugin underneath x-plugins and the build
-will automatically pick it up. You can verify the plugin is included as part
-of the build by checking the projects of the build.
+build. To add your plugin, create a directory called elasticsearch-extra as
+a sibling of elasticsearch. Checkout your plugin underneath elasticsearch-extra
+and the build will automatically pick it up. You can verify the plugin is
+included as part of the build by checking the projects of the build.
 
 ---------------------------------------------------------------------------
 gradle projects

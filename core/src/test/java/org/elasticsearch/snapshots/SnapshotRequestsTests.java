@@ -22,7 +22,9 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -75,10 +77,9 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.endArray();
         }
 
-        byte[] bytes = builder.endObject().bytes().toBytes();
+        BytesReference bytes = builder.endObject().bytes();
 
-
-        request.source(bytes);
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
@@ -134,10 +135,9 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.endArray();
         }
 
-        byte[] bytes = builder.endObject().bytes().toBytes();
+        BytesReference bytes = builder.endObject().bytes();
 
-
-        request.source(bytes);
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());

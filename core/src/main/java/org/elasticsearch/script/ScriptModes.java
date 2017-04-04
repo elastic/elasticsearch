@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,22 +28,22 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Holds the {@link org.elasticsearch.script.ScriptMode}s for each of the different scripting languages available,
- * each script source and each scripted operation.
+ * Holds the boolean indicating the enabled mode for each of the different scripting languages available, each script source and each
+ * scripted operation.
  */
 public class ScriptModes {
 
     private static final String SCRIPT_SETTINGS_PREFIX = "script";
     private static final String ENGINE_SETTINGS_PREFIX = "script.engine";
 
-    final Map<String, ScriptMode> scriptModes;
+    final Map<String, Boolean> scriptEnabled;
 
     ScriptModes(ScriptSettings scriptSettings, Settings settings) {
-        HashMap<String, ScriptMode> scriptModes = new HashMap<>();
-        for (Setting<ScriptMode> scriptModeSetting : scriptSettings.getScriptLanguageSettings()) {
+        HashMap<String, Boolean> scriptModes = new HashMap<>();
+        for (Setting<Boolean> scriptModeSetting : scriptSettings.getScriptLanguageSettings()) {
             scriptModes.put(scriptModeSetting.getKey(), scriptModeSetting.get(settings));
         }
-        this.scriptModes = Collections.unmodifiableMap(scriptModes);
+        this.scriptEnabled = Collections.unmodifiableMap(scriptModes);
     }
 
     /**
@@ -54,14 +53,14 @@ public class ScriptModes {
      * @param lang the language that the script is written in
      * @param scriptType the type of the script
      * @param scriptContext the operation that requires the execution of the script
-     * @return whether scripts are on, off, or enabled only for sandboxed languages
+     * @return whether scripts are enabled (true) or disabled (false)
      */
-    public ScriptMode getScriptMode(String lang, ScriptType scriptType, ScriptContext scriptContext) {
-        //native scripts are always on as they are static by definition
+    public boolean getScriptEnabled(String lang, ScriptType scriptType, ScriptContext scriptContext) {
+        //native scripts are always enabled as they are static by definition
         if (NativeScriptEngineService.NAME.equals(lang)) {
-            return ScriptMode.ON;
+            return true;
         }
-        ScriptMode scriptMode = scriptModes.get(getKey(lang, scriptType, scriptContext));
+        Boolean scriptMode = scriptEnabled.get(getKey(lang, scriptType, scriptContext));
         if (scriptMode == null) {
             throw new IllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");
         }
@@ -73,7 +72,11 @@ public class ScriptModes {
     }
 
     static String sourceKey(ScriptType scriptType) {
-        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getScriptType();
+        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getName();
+    }
+
+    static String getGlobalKey(String lang, ScriptType scriptType) {
+        return ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType;
     }
 
     static String getKey(String lang, ScriptType scriptType, ScriptContext scriptContext) {
@@ -83,10 +86,10 @@ public class ScriptModes {
     @Override
     public String toString() {
         //order settings by key before printing them out, for readability
-        TreeMap<String, ScriptMode> scriptModesTreeMap = new TreeMap<>();
-        scriptModesTreeMap.putAll(scriptModes);
+        TreeMap<String, Boolean> scriptModesTreeMap = new TreeMap<>();
+        scriptModesTreeMap.putAll(scriptEnabled);
         StringBuilder stringBuilder = new StringBuilder();
-        for (Map.Entry<String, ScriptMode> stringScriptModeEntry : scriptModesTreeMap.entrySet()) {
+        for (Map.Entry<String, Boolean> stringScriptModeEntry : scriptModesTreeMap.entrySet()) {
             stringBuilder.append(stringScriptModeEntry.getKey()).append(": ").append(stringScriptModeEntry.getValue()).append("\n");
         }
         return stringBuilder.toString();

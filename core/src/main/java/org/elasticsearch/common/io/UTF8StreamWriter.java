@@ -25,8 +25,6 @@ import java.io.OutputStream;
 import java.io.Writer;
 
 
-/**
- */
 public final class UTF8StreamWriter extends Writer {
 
     /**

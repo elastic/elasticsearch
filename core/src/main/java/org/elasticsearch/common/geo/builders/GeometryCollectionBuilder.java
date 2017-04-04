@@ -53,7 +53,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     public GeometryCollectionBuilder(StreamInput in) throws IOException {
         int shapes = in.readVInt();
         for (int i = 0; i < shapes; i++) {
-            shape(in.readShape());
+            shape(in.readNamedWriteable(ShapeBuilder.class));
         }
     }
 
@@ -61,7 +61,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(shapes.size());
         for (ShapeBuilder shape : shapes) {
-            out.writeShape(shape);
+            out.writeNamedWriteable(shape);
         }
     }
 

@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
     private final IndicesService indicesService;
-    private final boolean realtime;
 
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -53,8 +52,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 GetRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
-
-        this.realtime = settings.getAsBoolean("action.get.realtime", true);
     }
 
     @Override
@@ -65,19 +62,16 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing(), request.request().preference());
+                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
     }
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        if (request.request().realtime == null) {
-            request.request().realtime = this.realtime;
-        }
         IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
         if (request.request().realtime && // if the realtime flag is set
                 request.request().preference() == null && // the preference flag is not already set
                 indexMeta != null && // and we have the index
-                IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings())) { // and the index uses shadow replicas
+                indexMeta.isIndexUsingShadowReplicas()) { // and the index uses shadow replicas
             // set the preference for the request to use "_primary" automatically
             request.request().preference(Preference.PRIMARY.type());
         }
@@ -98,8 +92,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
-                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
+        GetResult result = indexShard.getService().get(request.type(), request.id(), request.storedFields(),
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

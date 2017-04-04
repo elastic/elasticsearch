@@ -19,23 +19,93 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class StreamTests extends ESTestCase {
+
+    public void testBooleanSerialization() throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeBoolean(false);
+        output.writeBoolean(true);
+
+        final BytesReference bytesReference = output.bytes();
+
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        assertThat(bytesRef.length, equalTo(2));
+        final byte[] bytes = bytesRef.bytes;
+        assertThat(bytes[0], equalTo((byte) 0));
+        assertThat(bytes[1], equalTo((byte) 1));
+
+        final StreamInput input = bytesReference.streamInput();
+        assertFalse(input.readBoolean());
+        assertTrue(input.readBoolean());
+
+        final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
+        set.remove((byte) 0);
+        set.remove((byte) 1);
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
+        final BytesReference corrupt = new BytesArray(corruptBytes);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readBoolean());
+        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        assertThat(e, hasToString(containsString(message)));
+    }
+
+    public void testOptionalBooleanSerialization() throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeOptionalBoolean(false);
+        output.writeOptionalBoolean(true);
+        output.writeOptionalBoolean(null);
+
+        final BytesReference bytesReference = output.bytes();
+
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        assertThat(bytesRef.length, equalTo(3));
+        final byte[] bytes = bytesRef.bytes;
+        assertThat(bytes[0], equalTo((byte) 0));
+        assertThat(bytes[1], equalTo((byte) 1));
+        assertThat(bytes[2], equalTo((byte) 2));
+
+        final StreamInput input = bytesReference.streamInput();
+        final Boolean maybeFalse = input.readOptionalBoolean();
+        assertNotNull(maybeFalse);
+        assertFalse(maybeFalse);
+        final Boolean maybeTrue = input.readOptionalBoolean();
+        assertNotNull(maybeTrue);
+        assertTrue(maybeTrue);
+        assertNull(input.readOptionalBoolean());
+
+        final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
+        set.remove((byte) 0);
+        set.remove((byte) 1);
+        set.remove((byte) 2);
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
+        final BytesReference corrupt = new BytesArray(corruptBytes);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readOptionalBoolean());
+        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        assertThat(e, hasToString(containsString(message)));
+    }
+
     public void testRandomVLongSerialization() throws IOException {
         for (int i = 0; i < 1024; i++) {
             long write = randomLong();
@@ -61,8 +131,8 @@ public class StreamTests extends ESTestCase {
         for (Tuple<Long, byte[]> value : values) {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(value.v1());
-            assertArrayEquals(Long.toString(value.v1()), value.v2(), out.bytes().toBytes());
-            ByteBufferBytesReference bytes = new ByteBufferBytesReference(ByteBuffer.wrap(value.v2()));
+            assertArrayEquals(Long.toString(value.v1()), value.v2(), BytesReference.toBytes(out.bytes()));
+            BytesReference bytes = new BytesArray(value.v2());
             assertEquals(Arrays.toString(value.v2()), (long)value.v1(), bytes.streamInput().readZLong());
         }
     }
@@ -121,4 +191,63 @@ public class StreamTests extends ESTestCase {
         streamInput.readBytes(new byte[bytesToRead], 0, bytesToRead);
         assertEquals(streamInput.available(), length - bytesToRead);
     }
+
+    public void testWritableArrays() throws IOException {
+
+        final String[] strings = generateRandomStringArray(10, 10, false, true);
+        WriteableString[] sourceArray = Arrays.stream(strings).<WriteableString>map(WriteableString::new).toArray(WriteableString[]::new);
+        WriteableString[] targetArray;
+        BytesStreamOutput out = new BytesStreamOutput();
+
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                sourceArray = null;
+            }
+            out.writeOptionalArray(sourceArray);
+            targetArray = out.bytes().streamInput().readOptionalArray(WriteableString::new, WriteableString[]::new);
+        } else {
+            out.writeArray(sourceArray);
+            targetArray = out.bytes().streamInput().readArray(WriteableString::new, WriteableString[]::new);
+        }
+
+        assertThat(targetArray, equalTo(sourceArray));
+    }
+
+    static final class WriteableString implements Writeable {
+        final String string;
+
+        WriteableString(String string) {
+            this.string = string;
+        }
+
+        WriteableString(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            WriteableString that = (WriteableString) o;
+
+            return string.equals(that.string);
+
+        }
+
+        @Override
+        public int hashCode() {
+            return string.hashCode();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(string);
+        }
+    }
+
 }

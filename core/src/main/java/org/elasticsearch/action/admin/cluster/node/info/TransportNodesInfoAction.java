@@ -19,51 +19,44 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- *
- */
-public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfoAction.NodeInfoRequest, NodeInfo> {
+public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest,
+                                                                   NodesInfoResponse,
+                                                                   TransportNodesInfoAction.NodeInfoRequest,
+                                                                   NodeInfo> {
 
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesInfoAction(Settings settings, ThreadPool threadPool,
                                     ClusterService clusterService, TransportService transportService,
-                                    NodeService nodeService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT);
+                                    NodeService nodeService, ActionFilters actionFilters,
+                                    IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, NodesInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
+              indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT, NodeInfo.class);
         this.nodeService = nodeService;
     }
 
     @Override
-    protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest, AtomicReferenceArray responses) {
-        final List<NodeInfo> nodesInfos = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeInfo) {
-                nodesInfos.add((NodeInfo) resp);
-            }
-        }
-        return new NodesInfoResponse(clusterName, nodesInfos.toArray(new NodeInfo[nodesInfos.size()]));
+    protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest,
+                                            List<NodeInfo> responses, List<FailedNodeException> failures) {
+        return new NodesInfoResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -80,7 +73,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.transport(), request.http(), request.plugins(), request.ingest());
+                request.transport(), request.http(), request.plugins(), request.ingest(), request.indices());
     }
 
     @Override

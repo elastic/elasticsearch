@@ -26,7 +26,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 
@@ -39,11 +40,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     private String id;
     private String routing;
     private String preference;
-    private QueryBuilder<?> query;
-    private String[] fields;
+    private QueryBuilder query;
+    private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
-    private String[] filteringAlias = Strings.EMPTY_ARRAY;
+    private AliasFilter filteringAlias = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     long nowInMillis;
 
@@ -100,11 +101,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         return this;
     }
 
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
-    public ExplainRequest query(QueryBuilder<?> query) {
+    public ExplainRequest query(QueryBuilder query) {
         this.query = query;
         return this;
     }
@@ -122,20 +123,20 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     }
 
 
-    public String[] fields() {
-        return fields;
+    public String[] storedFields() {
+        return storedFields;
     }
 
-    public ExplainRequest fields(String[] fields) {
-        this.fields = fields;
+    public ExplainRequest storedFields(String[] fields) {
+        this.storedFields = fields;
         return this;
     }
 
-    public String[] filteringAlias() {
+    public AliasFilter filteringAlias() {
         return filteringAlias;
     }
 
-    public ExplainRequest filteringAlias(String[] filteringAlias) {
+    public ExplainRequest filteringAlias(AliasFilter filteringAlias) {
         if (filteringAlias != null) {
             this.filteringAlias = filteringAlias;
         }
@@ -165,13 +166,10 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        query = in.readQuery();
-        filteringAlias = in.readStringArray();
-        if (in.readBoolean()) {
-            fields = in.readStringArray();
-        }
-
-        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        query = in.readNamedWriteable(QueryBuilder.class);
+        filteringAlias = new AliasFilter(in);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         nowInMillis = in.readVLong();
     }
 
@@ -182,16 +180,10 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeQuery(query);
-        out.writeStringArray(filteringAlias);
-        if (fields != null) {
-            out.writeBoolean(true);
-            out.writeStringArray(fields);
-        } else {
-            out.writeBoolean(false);
-        }
-
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeNamedWriteable(query);
+        filteringAlias.writeTo(out);
+        out.writeOptionalStringArray(storedFields);
+        out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
     }
 }

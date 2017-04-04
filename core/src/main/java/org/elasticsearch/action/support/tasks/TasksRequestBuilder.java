@@ -22,20 +22,33 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 
 /**
  * Builder for task-based requests
  */
-public class TasksRequestBuilder <Request extends BaseTasksRequest<Request>, Response extends BaseTasksResponse, RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+public class TasksRequestBuilder<
+            Request extends BaseTasksRequest<Request>,
+            Response extends BaseTasksResponse,
+            RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
+        > extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
     protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
         super(client, action, request);
     }
 
+    /**
+     * Set the task to lookup.
+     */
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder setTaskId(TaskId taskId) {
+        request.setTaskId(taskId);
+        return (RequestBuilder) this;
+    }
+
     @SuppressWarnings("unchecked")
     public final RequestBuilder setNodesIds(String... nodesIds) {
-        request.setNodesIds(nodesIds);
+        request.setNodes(nodesIds);
         return (RequestBuilder) this;
     }
 
@@ -48,6 +61,15 @@ public class TasksRequestBuilder <Request extends BaseTasksRequest<Request>, Res
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
         request.setTimeout(timeout);
+        return (RequestBuilder) this;
+    }
+
+    /**
+     * Match all children of the provided task. 
+     */
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder setParentTaskId(TaskId taskId) {
+        request.setParentTaskId(taskId);
         return (RequestBuilder) this;
     }
 }

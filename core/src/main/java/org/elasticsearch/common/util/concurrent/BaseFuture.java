@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.util.Objects;
@@ -31,6 +33,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public abstract class BaseFuture<V> implements Future<V> {
+
+    private static final String BLOCKING_OP_REASON = "Blocking operation";
 
     /**
      * Synchronization control for AbstractFutures.
@@ -56,7 +60,10 @@ public abstract class BaseFuture<V> implements Future<V> {
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
-        assert timeout <= 0 || Transports.assertNotTransportThread("Blocking operation");
+        assert timeout <= 0 ||
+            (Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
+                ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
+                ClusterService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON));
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -78,7 +85,9 @@ public abstract class BaseFuture<V> implements Future<V> {
      */
     @Override
     public V get() throws InterruptedException, ExecutionException {
-        assert Transports.assertNotTransportThread("Blocking operation");
+        assert Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
+            ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
+            ClusterService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON);
         return sync.get();
     }
 

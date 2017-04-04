@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
@@ -30,45 +32,46 @@ import java.util.List;
  */
 public class ParsedDocument {
 
-    private final Field uid, version;
+    private final Field version;
 
-    private final String id;
-
-    private final String type;
+    private final String id, type;
+    private final BytesRef uid;
+    private final SeqNoFieldMapper.SequenceID seqID;
 
     private final String routing;
-
-    private final long timestamp;
-
-    private final long ttl;
 
     private final List<Document> documents;
 
     private BytesReference source;
+    private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
 
     private String parent;
 
-    public ParsedDocument(Field uid, Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
-        this.uid = uid;
+    public ParsedDocument(Field version,
+                          SeqNoFieldMapper.SequenceID seqID,
+                          String id,
+                          String type,
+                          String routing,
+                          List<Document> documents,
+                          BytesReference source,
+                          XContentType xContentType,
+                          Mapping dynamicMappingsUpdate) {
         this.version = version;
+        this.seqID = seqID;
         this.id = id;
         this.type = type;
+        this.uid = Uid.createUidAsBytes(type, id);
         this.routing = routing;
-        this.timestamp = timestamp;
-        this.ttl = ttl;
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
+        this.xContentType = xContentType;
     }
 
-    public Field uid() {
-        return this.uid;
-    }
-
-    public Field version() {
-        return version;
+    public BytesRef uid() {
+        return uid;
     }
 
     public String id() {
@@ -79,16 +82,18 @@ public class ParsedDocument {
         return this.type;
     }
 
+    public Field version() {
+        return version;
+    }
+
+    public void updateSeqID(long sequenceNumber, long primaryTerm) {
+        this.seqID.seqNo.setLongValue(sequenceNumber);
+        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
+        this.seqID.primaryTerm.setLongValue(primaryTerm);
+    }
+
     public String routing() {
         return this.routing;
-    }
-
-    public long timestamp() {
-        return this.timestamp;
-    }
-
-    public long ttl() {
-        return this.ttl;
     }
 
     public Document rootDoc() {
@@ -103,8 +108,13 @@ public class ParsedDocument {
         return this.source;
     }
 
-    public void setSource(BytesReference source) {
+    public XContentType getXContentType() {
+        return this.xContentType;
+    }
+
+    public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
+        this.xContentType = xContentType;
     }
 
     public ParsedDocument parent(String parent) {
@@ -138,4 +148,5 @@ public class ParsedDocument {
         sb.append("Document ").append("uid[").append(uid).append("] doc [").append(documents).append("]");
         return sb.toString();
     }
+
 }

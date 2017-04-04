@@ -2,7 +2,6 @@
 "Help":
   - do:
       cat.snapshots:
-        repository: test_cat_snapshots_1
         help: true
 
   - match:

@@ -19,12 +19,12 @@
 package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -36,10 +36,9 @@ import java.util.TimeZone;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
-import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SPEC;
-import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SUITE;
+import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
+import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SPEC;
+import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
 
 /**
  * A {@link RunListener} that emits a command you can use to re-run a failing test with the failing random seed to
@@ -47,7 +46,7 @@ import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SUITE;
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final ESLogger logger = Loggers.getLogger(ESTestCase.class);
+    protected final Logger logger = Loggers.getLogger(ESTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {
@@ -81,9 +80,9 @@ public class ReproduceInfoPrinter extends RunListener {
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
-        //Rest tests are a special case as they allow for additional parameters
-        if (ESRestTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
-            gradleMessageBuilder.appendRestTestsProperties();
+        // Client yaml suite tests are a special case as they allow for additional parameters
+        if (ESClientYamlSuiteTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+            gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
         System.err.println(b.toString());
@@ -137,11 +136,10 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level");
+            appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER,
-                    ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
+                appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
@@ -153,7 +151,7 @@ public class ReproduceInfoPrinter extends RunListener {
             return this;
         }
 
-        public ReproduceErrorMessageBuilder appendRestTestsProperties() {
+        public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
             return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
         }
 

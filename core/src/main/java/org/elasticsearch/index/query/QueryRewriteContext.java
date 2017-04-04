@@ -18,42 +18,49 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fieldstats.FieldStatsProvider;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+
+import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
+    protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
-    protected final IndicesQueriesRegistry indicesQueriesRegistry;
-    protected final QueryParseContext parseContext;
-    protected FieldStatsProvider fieldStatsProvider;
+    private final NamedXContentRegistry xContentRegistry;
+    protected final Client client;
+    protected final IndexReader reader;
+    protected final LongSupplier nowInMillis;
 
-    public QueryRewriteContext(IndexSettings indexSettings, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
+            LongSupplier nowInMillis) {
+        this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.parseContext = new QueryParseContext(indicesQueriesRegistry);
-    }
-
-    public void setFieldStatsProvider(FieldStatsProvider fieldStatsProvider) {
-        this.fieldStatsProvider = fieldStatsProvider;
-    }
-
-    public FieldStatsProvider getFieldStatsProvider() {
-        return fieldStatsProvider;
+        this.xContentRegistry = xContentRegistry;
+        this.client = client;
+        this.reader = reader;
+        this.nowInMillis = nowInMillis;
     }
 
     /**
      * Returns a clients to fetch resources from local or remove nodes.
      */
-    public final Client getClient() {
-        return scriptService.getClient();
+    public Client getClient() {
+        return client;
     }
 
     /**
@@ -65,18 +72,39 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Returns a script service to fetch scripts.
+     * Return the MapperService.
      */
-    public final ScriptService getScriptService() {
-        return scriptService;
+    public final MapperService getMapperService() {
+        return mapperService;
+    }
+
+    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available, for
+     *  instance if we are on the coordinating node or if this rewrite context is used to index
+     *  queries (percolation). */
+    public IndexReader getIndexReader() {
+        return reader;
     }
 
     /**
-     * Returns a new {@link QueryParseContext} to parse template or wrapped queries.
+     * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
      */
-    public QueryParseContext newParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-        queryParseContext.parseFieldMatcher(parseContext.parseFieldMatcher());
-        return queryParseContext;
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
+    }
+
+    /**
+     * Returns a new {@link QueryParseContext} that wraps the provided parser.
+     */
+    public QueryParseContext newParseContext(XContentParser parser) {
+        return new QueryParseContext(parser);
+    }
+
+    public long nowInMillis() {
+        return nowInMillis.getAsLong();
+    }
+
+    public BytesReference getTemplateBytes(Script template) {
+        ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
+        return (BytesReference) executable.run();
     }
 }

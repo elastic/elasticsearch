@@ -28,9 +28,6 @@ import org.elasticsearch.index.IndexSettings;
 
 import static org.elasticsearch.index.analysis.NGramTokenizerFactory.parseTokenChars;
 
-/**
- *
- */
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;

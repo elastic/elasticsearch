@@ -19,50 +19,32 @@
 
 package org.elasticsearch.plugin.example;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
+
+import java.util.List;
+import java.util.function.Supplier;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Example of a plugin.
  */
-public class JvmExamplePlugin extends Plugin {
-
-    private final Settings settings;
+public class JvmExamplePlugin extends Plugin implements ActionPlugin {
+    private final ExamplePluginConfiguration config;
 
     public JvmExamplePlugin(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    public String name() {
-        return "jvm-example";
-    }
-
-    @Override
-    public String description() {
-        return "A plugin that extends all extension points";
-    }
-
-    @Override
-    public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new ConfiguredExampleModule());
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes") // Plugin use a rawtype
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        return services;
+        Environment environment = new Environment(settings);
+        config = new ExamplePluginConfiguration(environment);
     }
 
     @Override
@@ -70,19 +52,10 @@ public class JvmExamplePlugin extends Plugin {
         return Settings.EMPTY;
     }
 
-    public void onModule(RepositoriesModule repositoriesModule) {
-    }
-
-    /**
-     * Module decalaring some example configuration and a _cat action that uses
-     * it.
-     */
-    public static class ConfiguredExampleModule extends AbstractModule {
-        @Override
-        protected void configure() {
-          bind(ExamplePluginConfiguration.class).asEagerSingleton();
-          Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
-          catActionMultibinder.addBinding().to(ExampleCatAction.class).asEagerSingleton();
-        }
+    @Override
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster) {
+        return singletonList(new ExampleCatAction(settings, restController, config));
     }
 }

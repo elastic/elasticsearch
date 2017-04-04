@@ -33,7 +33,7 @@ Dynamic templates are specified as an array of named objects:
   ]
 --------------------------------------------------
 <1> The template name can be any string value.
-<2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `match_path`, `unmatch_path`.
+<2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
 
 
@@ -96,7 +96,7 @@ PUT my_index/my_type/1
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `my_integer` field is mapped as an `integer`.
 <2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
 
@@ -140,7 +140,7 @@ PUT my_index/my_type/1
   "long_text": "foo" <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `long_num` field is mapped as a `long`.
 <2> The `long_text` field uses the default `string` mapping.
 
@@ -198,7 +198,7 @@ PUT my_index/my_type/1
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[template-variables]]
 ==== `{name}` and `{dynamic_type}`
@@ -245,9 +245,151 @@ PUT my_index/my_type/1
   "count":   5 <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
 <2> The `count` field is mapped as a `long` field with `doc_values` disabled
+
+[[template-examples]]
+==== Template examples
+
+Here are some examples of potentially useful dynamic templates:
+
+===== Structured search
+
+By default elasticsearch will map string fields as a `text` field with a sub
+`keyword` field. However if you are only indexing structured content and not
+interested in full text search, you can make elasticsearch map your fields
+only as `keyword`s. Note that this means that in order to search those fields,
+you will have to search on the exact same value that was indexed.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "strings_as_keywords": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+
+===== `text`-only mappings for strings
+
+On the contrary to the previous example, if the only thing that you care about
+on your string fields is full-text search, and if you don't plan on running
+aggregations, sorting or exact search on your string fields, you could tell
+elasticsearch to map it only as a text field (which was the default behaviour
+before 5.0):
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "strings_as_text": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "text"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+
+===== Disabled norms
+
+Norms are index-time scoring factors. If you do not care about scoring, which
+would be the case for instance if you never sort documents by score, you could
+disable the storage of these scoring factors in the index and save some space.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "strings_as_keywords": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "text",
+              "norms": false,
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+
+The sub `keyword` field appears in this template to be consistent with the
+default rules of dynamic mappings. Of course if you do not need them because
+you don't need to perform exact search or aggregate on this field, you could
+remove it as described in the previous section.
+
+===== Time-series
+
+When doing time series analysis with elasticsearch, it is common to have many
+numeric fields that you will often aggregate on but never filter on. In such a
+case, you could disable indexing on those fields to save disk space and also
+maybe gain some indexing speed:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "unindexed_longs": {
+            "match_mapping_type": "long",
+            "mapping": {
+              "type": "long",
+              "index": false
+            }
+          }
+        },
+        {
+          "unindexed_doubles": {
+            "match_mapping_type": "double",
+            "mapping": {
+              "type": "float", <1>
+              "index": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+<1> Like the default dynamic mapping rules, doubles are mapped as floats, which
+    are usually accurate enough, yet require half the disk space.
 
 
 [[override-default-template]]
@@ -257,28 +399,26 @@ You can override the default mappings for all indices and all types
 by specifying a `_default_` type mapping in an index template
 which matches all indices.
 
-For example, to disable the `_all` field by default for all types in all
+For example, to disable the `_field_names` field by default for all types in all
 new indices, you could create the following index template:
 
 [source,js]
 --------------------------------------------------
-PUT _template/disable_all_field
+PUT _template/disable_field_names
 {
-  "disable_all_field": {
-    "order": 0,
-    "template": "*", <1>
-    "mappings": {
-      "_default_": { <2>
-        "_all": { <3>
-          "enabled": false
-        }
+  "order": 0,
+  "index_patterns": ["*"], <1>
+  "mappings": {
+    "_default_": { <2>
+      "_field_names": { <3>
+        "enabled": false
       }
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Applies the mappings to an `index` which matches the pattern `*`, in other
     words, all new indices.
 <2> Defines the `_default_` type mapping types within the index.
-<3> Disables the `_all` field by default.
+<3> Disables the `_field_names` field by default.

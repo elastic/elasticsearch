@@ -21,14 +21,10 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 
@@ -46,20 +42,16 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     @Override
     protected ScoreSortBuilder mutate(ScoreSortBuilder original) throws IOException {
         ScoreSortBuilder result = new ScoreSortBuilder();
-        result.order(RandomSortDataGenerator.order(original.order()));
+        result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
         return result;
     }
-
-    @Rule
-    public ExpectedException exceptionRule = ExpectedException.none();
 
     /**
      * test passing null to {@link ScoreSortBuilder#order(SortOrder)} is illegal
      */
     public void testIllegalOrder() {
-            exceptionRule.expect(NullPointerException.class);
-            exceptionRule.expectMessage("sort order cannot be null.");
-            new ScoreSortBuilder().order(null);
+        Exception e = expectThrows(NullPointerException.class, () -> new ScoreSortBuilder().order(null));
+        assertEquals("sort order cannot be null.", e.getMessage());
     }
 
     /**
@@ -67,43 +59,39 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      * instead of the `reverse` field that we render in toXContent
      */
     public void testParseOrder() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
         String scoreSortString = "{ \"_score\": { \"order\": \""+ order.toString() +"\" }}";
-        XContentParser parser = XContentFactory.xContent(scoreSortString).createParser(scoreSortString);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(parser);
         ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
     }
 
     public void testReverseOptionFails() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String json = "{ \"_score\": { \"reverse\": true }}";
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(parser);
 
         try {
           ScoreSortBuilder.fromXContent(context, "_score");
           fail("adding reverse sorting option should fail with an exception");
-        } catch (ParsingException e) {
+        } catch (IllegalArgumentException e) {
             // all good
         }
     }
 
     @Override
-    protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField) {
+    protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField, DocValueFormat format) {
         assertEquals(SortField.Type.SCORE, sortField.getType());
         assertEquals(builder.order() == SortOrder.DESC ? false : true, sortField.getReverse());
     }

@@ -18,6 +18,9 @@ sudo bin/elasticsearch-plugin install repository-hdfs
 The plugin must be installed on _every_ node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-hdfs/repository-hdfs-{version}.zip.
+
 [[repository-hdfs-remove]]
 [float]
 ==== Removal
@@ -46,20 +49,49 @@ plugin folder and point `HADOOP_HOME` variable to it; this should minimize the a
 [[repository-hdfs-config]]
 ==== Configuration Properties
 
-Once installed, define the configuration for the `hdfs` repository through `elasticsearch.yml` or the
+Once installed, define the configuration for the `hdfs` repository through the
 {ref}/modules-snapshots.html[REST API]:
 
-[source,yaml]
+[source,js]
 ----
-repositories
-  hdfs:
-    uri: "hdfs://<host>:<port>/"    \# required - HDFS address only
-    path: "some/path"               \# required - path within the file-system where data is stored/loaded
-    load_defaults: "true"           \# optional - whether to load the default Hadoop configuration (default) or not
-    conf_location: "extra-cfg.xml"  \# optional - Hadoop configuration XML to be loaded (use commas for multi values)
-    conf.<key> : "<value>"          \# optional - 'inlined' key=value added to the Hadoop configuration
-    concurrent_streams: 5           \# optional - the number of concurrent streams (defaults to 5)
-    compress: "false"               \# optional - whether to compress the metadata or not (default)
-    chunk_size: "10mb"              \# optional - chunk size (disabled by default)
-    
+PUT _snapshot/my_hdfs_repository
+{
+  "type": "hdfs",
+  "settings": {
+    "uri": "hdfs://namenode:8020/",
+    "path": "elasticsearch/respositories/my_hdfs_repository",
+    "conf.dfs.client.read.shortcircuit": "true"
+  }
+}
 ----
+// CONSOLE
+// TEST[skip:we don't have hdfs set up while testing this]
+
+The following settings are supported:
+
+[horizontal]
+`uri`::
+
+    The uri address for hdfs. ex: "hdfs://<host>:<port>/". (Required)
+
+`path`::
+
+    The file path within the filesystem where data is stored/loaded. ex: "path/to/file". (Required)
+
+`load_defaults`::
+
+    Whether to load the default Hadoop configuration or not. (Enabled by default)
+
+`conf.<key>`::
+
+    Inlined configuration parameter to be added to Hadoop configuration. (Optional)
+    Only client oriented properties from the hadoop http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-common/core-default.xml[core] and http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs] configuration files will be recognized by the plugin.
+
+`compress`::
+
+    Whether to compress the metadata or not. (Disabled by default)
+
+`chunk_size`::
+
+    Override the chunk size. (Disabled by default)
+

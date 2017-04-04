@@ -23,9 +23,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,10 +39,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     @Override
     protected PrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
-        String value = randomAsciiOfLengthBetween(1, 10);
-        PrefixQueryBuilder query = new PrefixQueryBuilder(fieldName, value);
-
+        PrefixQueryBuilder query = randomPrefixQuery();
         if (randomBoolean()) {
             query.rewrite(getRandomRewriteMethod());
         }
@@ -46,7 +47,26 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected Map<String, PrefixQueryBuilder> getAlternateVersions() {
+        Map<String, PrefixQueryBuilder> alternateVersions = new HashMap<>();
+        PrefixQueryBuilder prefixQuery = randomPrefixQuery();
+        String contentString = "{\n" +
+                "    \"prefix\" : {\n" +
+                "        \"" + prefixQuery.fieldName() + "\" : \"" + prefixQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, prefixQuery);
+        return alternateVersions;
+    }
+
+    private static PrefixQueryBuilder randomPrefixQuery() {
+        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+        String value = randomAsciiOfLengthBetween(1, 10);
+        return new PrefixQueryBuilder(fieldName, value);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) query;
         assertThat(prefixQuery.getPrefix().field(), equalTo(queryBuilder.fieldName()));
@@ -54,33 +74,22 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new PrefixQueryBuilder(null, "text");
-            } else {
-                new PrefixQueryBuilder("", "text");
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new PrefixQueryBuilder(null, "text"));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new PrefixQueryBuilder("", "text"));
+        assertEquals("field name is null or empty", e.getMessage());
 
-        try {
-            new PrefixQueryBuilder("field", null);
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new PrefixQueryBuilder("field", null));
+        assertEquals("value cannot be null", e.getMessage());
     }
 
     public void testBlendedRewriteMethod() throws IOException {
-        for (String rewrite : Arrays.asList("top_terms_blended_freqs_10", "topTermsBlendedFreqs10")) {
-            Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite).buildAsBytes()).toQuery(createShardContext());
-            assertThat(parsedQuery, instanceOf(PrefixQuery.class));
-            PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
-            assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
-            assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
-        }
+        String rewrite = "top_terms_blended_freqs_10";
+        Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite)).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+        PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+        assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
+        assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
     }
 
     public void testFromJson() throws IOException {
@@ -93,5 +102,41 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertEquals(json, "ki", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.00001);
         assertEquals(json, "user", parsed.fieldName());
+    }
+
+    public void testNumeric() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        PrefixQueryBuilder query = prefixQuery(INT_FIELD_NAME, "12*");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use prefix queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json =
+                "{\n" +
+                "    \"prefix\": {\n" +
+                "      \"user1\": {\n" +
+                "        \"value\": \"ki\"\n" +
+                "      },\n" +
+                "      \"user2\": {\n" +
+                "        \"value\": \"ki\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+
+        String shortJson =
+                "{\n" +
+                "    \"prefix\": {\n" +
+                "      \"user1\": \"ki\",\n" +
+                "      \"user2\": \"ki\"\n" +
+                "    }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

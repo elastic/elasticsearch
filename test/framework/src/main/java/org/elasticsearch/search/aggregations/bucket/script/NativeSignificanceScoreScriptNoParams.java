@@ -40,6 +40,11 @@ public class NativeSignificanceScoreScriptNoParams extends TestScript {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return NATIVE_SIGNIFICANCE_SCORE_SCRIPT_NO_PARAMS;
+        }
     }
 
     private NativeSignificanceScoreScriptNoParams() {
@@ -47,6 +52,7 @@ public class NativeSignificanceScoreScriptNoParams extends TestScript {
 
     @Override
     public Object run() {
+        checkParams();
         return _subset_freq.longValue() + _subset_size.longValue() + _superset_freq.longValue() + _superset_size.longValue();
     }
 }

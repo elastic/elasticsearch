@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for {@link DecimalDigitFilter}
  */
-public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory {
+public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public DecimalDigitFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -37,5 +37,10 @@ public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new DecimalDigitFilter(tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

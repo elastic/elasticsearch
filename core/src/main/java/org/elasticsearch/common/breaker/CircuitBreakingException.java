@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -67,9 +68,13 @@ public class CircuitBreakingException extends ElasticsearchException {
     }
 
     @Override
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    @Override
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("bytes_wanted", bytesWanted);
         builder.field("bytes_limit", byteLimit);
-        super.innerToXContent(builder, params);
     }
 }

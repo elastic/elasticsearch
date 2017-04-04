@@ -9,7 +9,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]
@@ -34,7 +34,7 @@
   - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:25:00Z" }
-  - match: { _source.attachment.content_length: "19" }
+  - match: { _source.attachment.content_length: 19 }
   - match: { _source.attachment.content_type: "application/msword" }
 
 
@@ -49,7 +49,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]
@@ -74,6 +74,6 @@
   - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:24:00Z" }
-  - match: { _source.attachment.content_length: "19" }
+  - match: { _source.attachment.content_length: 19 }
   - match: { _source.attachment.content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
 

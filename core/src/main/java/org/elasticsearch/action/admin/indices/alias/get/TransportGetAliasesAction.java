@@ -35,8 +35,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-/**
- */
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
 
     @Inject

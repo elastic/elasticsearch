@@ -18,6 +18,9 @@ sudo bin/elasticsearch-plugin install repository-azure
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-azure/repository-azure-{version}.zip.
+
 [[repository-azure-remove]]
 [float]
 ==== Removal
@@ -69,6 +72,12 @@ It's not set by default which means that elasticsearch is using the
 http://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
 set by the azure client (known as 5 minutes).
 
+`max_retries` can help to control the exponential backoff policy. It will fix the number of retries
+in case of failures before considering the snapshot is failing. Defaults to `3` retries.
+The initial backoff period is defined by Azure SDK as `30s`. Which means `30s` of wait time
+before retrying after a first timeout or failure. The maximum backoff period is defined by Azure SDK as
+`90s`.
+
 [source,yaml]
 ----
 cloud:
@@ -79,13 +88,15 @@ cloud:
                 account: your_azure_storage_account1
                 key: your_azure_storage_key1
                 default: true
+                max_retries: 7
             my_account2:
                 account: your_azure_storage_account2
                 key: your_azure_storage_key2
                 timeout: 30s
 ----
 
-In this example, timeout will be 10s for `my_account1` and 30s for `my_account2`.
+In this example, timeout will be `10s` per try for `my_account1` with `7` retries before failing
+and `30s` per try for `my_account2` with `3` retries.
 
 [[repository-azure-repository-settings]]
 ===== Repository settings
@@ -99,7 +110,8 @@ The Azure repository supports following settings:
 
 `container`::
 
-    Container name. Defaults to `elasticsearch-snapshots`
+    Container name. You must create the azure container before creating the repository.
+    Defaults to `elasticsearch-snapshots`.
 
 `base_path`::
 
@@ -118,18 +130,18 @@ The Azure repository supports following settings:
     setting doesn't affect index files that are already compressed by default.
     Defaults to `false`.
 
-`read_only`::
+`readonly`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.
 
 `location_mode`::
 
     `primary_only` or `secondary_only`. Defaults to `primary_only`. Note that if you set it
-    to `secondary_only`, it will force `read_only` to true.
+    to `secondary_only`, it will force `readonly` to true.
 
 Some examples, using scripts:
 
-[source,json]
+[source,js]
 ----
 # The simpliest one
 PUT _snapshot/my_backup1
@@ -167,34 +179,19 @@ PUT _snapshot/my_backup4
     }
 }
 ----
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:we don't have azure setup while testing this]
 
 Example using Java:
 
 [source,java]
 ----
 client.admin().cluster().preparePutRepository("my_backup_java1")
-    .setType("azure").setSettings(Settings.settingsBuilder()
+    .setType("azure").setSettings(Settings.builder()
         .put(Storage.CONTAINER, "backup-container")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
     ).get();
 ----
-
-[[repository-azure-global-settings]]
-===== Global repositories settings
-
-All those repository settings can also be defined globally in `elasticsearch.yml` file using prefix
-`repositories.azure.`. For example:
-
-[source,yaml]
-----
-repositories.azure:
-    container: backup-container
-    base_path: backups
-    chunk_size: 32m
-    compress": true
-----
-
 
 [[repository-azure-validation]]
 ===== Repository validation rules
@@ -207,4 +204,3 @@ be a valid DNS name, conforming to the following naming rules:
 permitted in container names.
 * All letters in a container name must be lowercase.
 * Container names must be from 3 through 63 characters long.
-

@@ -19,10 +19,8 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
-import org.gradle.api.Task
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
@@ -58,6 +56,9 @@ class NodeInfo {
     /** config directory */
     File confDir
 
+    /** data directory (as an Object, to allow lazy evaluation) */
+    Object dataDir
+
     /** THE config file */
     File configFile
 
@@ -91,16 +92,32 @@ class NodeInfo {
     /** buffer for ant output when starting this node */
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
-    /** Creates a node to run as part of a cluster for the given task */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion, File sharedDir) {
+    /** the version of elasticsearch that this node runs */
+    String nodeVersion
+
+    /** Holds node configuration for part of a test cluster. */
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
         this.sharedDir = sharedDir
-        clusterName = "${task.path.replace(':', '_').substring(1)}"
-        baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
+        if (config.clusterName != null) {
+            clusterName = config.clusterName
+        } else {
+            clusterName = project.path.replace(':', '_').substring(1) + '_' + prefix
+        }
+        baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
+        this.nodeVersion = nodeVersion
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
+        if (config.dataDir != null) {
+            if (config.numNodes != 1) {
+                throw new IllegalArgumentException("Cannot set data dir for integ test with more than one node")
+            }
+            dataDir = config.dataDir
+        } else {
+            dataDir = new File(homeDir, "data")
+        }
         configFile = new File(confDir, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
@@ -129,19 +146,22 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = [
-            'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
-        ]
-        args.addAll("-E", "es.node.portsfile=true")
-        env.put('ES_JAVA_OPTS', config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" "))
+        env = [ 'JAVA_HOME' : project.javaHome ]
+        args.addAll("-E", "node.portsfile=true")
+        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
+        if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
+            esJavaOpts += " -ea -esa"
+        }
+        env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
-            if (property.getKey().startsWith('es.')) {
+            if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
-                args.add("${property.getKey()}=${property.getValue()}")
+                args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        args.addAll("-E", "es.path.conf=${confDir}")
+        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
+        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${-> dataDir.toString()}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }
@@ -183,6 +203,19 @@ class NodeInfo {
     /** Returns an address and port suitable for a uri to connect to this node over transport protocol */
     String transportUri() {
         return transportPortsFile.readLines("UTF-8").get(0)
+    }
+
+    /** Returns the file which contains the transport protocol ports for this node */
+    File getTransportPortsFile() {
+        return transportPortsFile
+    }
+
+    /** Returns the data directory for this node */
+    File getDataDir() {
+        if (!(dataDir instanceof File)) {
+            return new File(dataDir)
+        }
+        return dataDir
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */

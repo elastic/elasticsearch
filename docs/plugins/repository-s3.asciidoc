@@ -4,6 +4,8 @@
 The S3 repository plugin adds support for using S3 as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
+*If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
+
 [[repository-s3-install]]
 [float]
 ==== Installation
@@ -17,6 +19,9 @@ sudo bin/elasticsearch-plugin install repository-s3
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-s3/repository-s3-{version}.zip.
 
 [[repository-s3-remove]]
 [float]
@@ -39,7 +44,8 @@ http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
 credentials for authentication. These can be overridden by, in increasing
 order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
 environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
-elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key` or
+if you wish to set credentials specifically for s3 `cloud.aws.s3.access_key` and `cloud.aws.s3.secret_key`:
 
 [source,yaml]
 ----
@@ -106,21 +112,24 @@ cloud:
 ===== Region
 
 The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
+You can specifically set it for s3 only using `cloud.aws.s3.region`.
 The available values are:
 
-* `us-east` (`us-east-1`)
-* `us-west` (`us-west-1`)
-* `us-west-1`
-* `us-west-2`
-* `ap-southeast` (`ap-southeast-1`)
-* `ap-southeast-1`
-* `ap-southeast-2`
-* `ap-northeast` (`ap-northeast-1`)
-* `ap-northeast-2` (`ap-northeast-2`)
-* `eu-west` (`eu-west-1`)
-* `eu-central` (`eu-central-1`)
-* `sa-east` (`sa-east-1`)
-* `cn-north` (`cn-north-1`)
+* `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
+* `us-west` (`us-west-1`) for US West (N. California)
+* `us-west-2` for US West (Oregon)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
+* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
+* `ap-southeast-2` for Asia Pacific (Sydney)
+* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
+* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
+* `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
+* `eu-central` (`eu-central-1`) for EU (Frankfurt)
+* `sa-east` (`sa-east-1`) for South America (São Paulo)
+* `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[repository-s3-usage-signer]]
 ===== S3 Signer API
@@ -132,12 +141,23 @@ signer to use.
 If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
 use `S3SignerType`, which is Signature Version 2.
 
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.s3.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
+
 [[repository-s3-repository]]
 ==== S3 Repository
 
 The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
 
-[source,json]
+[source,js]
 ----
 PUT _snapshot/my_s3_repository
 {
@@ -148,7 +168,8 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:we don't have s3 set up while testing this]
 
 The following settings are supported:
 
@@ -210,15 +231,20 @@ The following settings are supported:
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to `100mb`.
+    Multipart API and may result in upload errors. Defaults to the minimum
+    between `100mb` and `5%` of the heap size.
 
 `max_retries`::
 
     Number of retries in case of S3 errors. Defaults to `3`.
 
-`read_only`::
+`use_throttle_retries`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
+
+`readonly`::
+
+    Makes repository read-only. Defaults to `false`.
 
 `canned_acl`::
 
@@ -235,6 +261,16 @@ The following settings are supported:
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
+
+`path_style_access`::
+
+    Activate path style access for http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html[virtual hosting of buckets].
+    The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
+    in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
+
+Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
+They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
+by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
@@ -283,6 +319,7 @@ IAM in conjunction with pre-existing S3 buckets. Here is an example policy which
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
 
@@ -326,6 +363,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
@@ -343,6 +381,7 @@ specific bucket like this:
    ]
 }
 ----
+// NOTCONSOLE
 
 [[repository-s3-endpoint]]
 ===== Using other S3 endpoint

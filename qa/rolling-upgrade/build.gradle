@@ -1,0 +1,89 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+task oldClusterTest(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+}
+
+oldClusterTestCluster {
+  distribution = 'zip'
+  bwcVersion = project.bwcVersion // TODO: either randomize, or make this settable with sysprop
+  numBwcNodes = 2
+  numNodes = 2
+  clusterName = 'rolling-upgrade'
+  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  setting 'http.content_type.required', 'true'
+}
+
+oldClusterTestRunner {
+  systemProperty 'tests.rest.suite', 'old_cluster'
+}
+
+task mixedClusterTest(type: RestIntegTestTask) {
+  dependsOn(oldClusterTestRunner, 'oldClusterTestCluster#node1.stop')
+}
+
+mixedClusterTestCluster {
+  distribution = 'zip'
+  clusterName = 'rolling-upgrade'
+  unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+  dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+}
+
+mixedClusterTestRunner {
+  systemProperty 'tests.rest.suite', 'mixed_cluster'
+  finalizedBy 'oldClusterTestCluster#node0.stop'
+}
+
+task upgradedClusterTest(type: RestIntegTestTask) {
+  dependsOn(mixedClusterTestRunner, 'oldClusterTestCluster#node0.stop')
+}
+
+upgradedClusterTestCluster {
+  distribution = 'zip'
+  clusterName = 'rolling-upgrade'
+  unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+  dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+}
+
+upgradedClusterTestRunner {
+  systemProperty 'tests.rest.suite', 'upgraded_cluster'
+  // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
+  finalizedBy 'mixedClusterTestCluster#stop'
+}
+
+task integTest {
+  dependsOn = [upgradedClusterTest]
+}
+
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+
+check.dependsOn(integTest)
+
+repositories {
+  maven {
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+}

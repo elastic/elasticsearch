@@ -19,200 +19,117 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
- *
+ * Deletes indices.
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
-
-    private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
 
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
-
     @Inject
-    public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
-                                      NodeIndexDeletedAction nodeIndexDeletedAction) {
+    public MetaDataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
     }
 
-    public void deleteIndices(final Request request, final Listener userListener) {
-        final DeleteIndexListener listener = new DeleteIndexListener(userListener);
+    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request,
+            final ActionListener<ClusterStateUpdateResponse> listener) {
+        if (request.indices() == null || request.indices().length == 0) {
+            throw new IllegalArgumentException("Index name is required");
+        }
 
-        clusterService.submitStateUpdateTask("delete-index " + request.indices, new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
             @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                final MetaData meta = currentState.metaData();
-                final Set<IndexMetaData> metaDatas = request.indices.stream().map(i -> meta.getIndexSafe(i)).collect(Collectors.toSet());
-                // Check if index deletion conflicts with any running snapshots
-                SnapshotsService.checkIndexDeletion(currentState, metaDatas);
-                final Set<Index> indices = request.indices;
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-                MetaData.Builder metaDataBuilder = MetaData.builder(meta);
-                ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-
-                for (final Index index : indices) {
-                    String indexName = index.getName();
-                    logger.debug("[{}] deleting index", index);
-                    routingTableBuilder.remove(indexName);
-                    clusterBlocksBuilder.removeIndexBlocks(indexName);
-                    metaDataBuilder.remove(indexName);
-                }
-                // wait for events from all nodes that it has been removed from their respective metadata...
-                int count = currentState.nodes().size();
-                // add the notifications that the store was deleted from *data* nodes
-                count += currentState.nodes().dataNodes().size();
-                final AtomicInteger counter = new AtomicInteger(count * indices.size());
-
-                // this listener will be notified once we get back a notification based on the cluster state change below.
-                final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
-                    @Override
-                    public void onNodeIndexDeleted(Index deleted, String nodeId) {
-                        if (indices.contains(deleted)) {
-                            if (counter.decrementAndGet() == 0) {
-                                listener.onResponse(new Response(true));
-                                nodeIndexDeletedAction.remove(this);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onNodeIndexStoreDeleted(Index deleted, String nodeId) {
-                        if (indices.contains(deleted)) {
-                            if (counter.decrementAndGet() == 0) {
-                                listener.onResponse(new Response(true));
-                                nodeIndexDeletedAction.remove(this);
-                            }
-                        }
-                    }
-                };
-                nodeIndexDeletedAction.add(nodeIndexDeleteListener);
-                listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, () -> {
-                    listener.onResponse(new Response(false));
-                    nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
-                });
-
-                MetaData newMetaData = metaDataBuilder.build();
-                ClusterBlocks blocks = clusterBlocksBuilder.build();
-                RoutingAllocation.Result routingResult = allocationService.reroute(
-                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build(),
-                        "deleted indices [" + indices + "]");
-                return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                return deleteIndices(currentState, Sets.newHashSet(request.indices()));
             }
         });
     }
 
-    class DeleteIndexListener implements Listener {
+    /**
+     * Delete some indices from the cluster state.
+     */
+    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
+        final MetaData meta = currentState.metaData();
+        final Set<IndexMetaData> metaDatas = indices.stream().map(i -> meta.getIndexSafe(i)).collect(toSet());
+        // Check if index deletion conflicts with any running snapshots
+        SnapshotsService.checkIndexDeletion(currentState, metaDatas);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+        MetaData.Builder metaDataBuilder = MetaData.builder(meta);
+        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
 
-        private final AtomicBoolean notified = new AtomicBoolean();
-        private final Listener listener;
-        volatile ScheduledFuture<?> future;
-
-        private DeleteIndexListener(Listener listener) {
-            this.listener = listener;
+        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
+        final int previousGraveyardSize = graveyardBuilder.tombstones().size();
+        for (final Index index : indices) {
+            String indexName = index.getName();
+            logger.info("{} deleting index", index);
+            routingTableBuilder.remove(indexName);
+            clusterBlocksBuilder.removeIndexBlocks(indexName);
+            metaDataBuilder.remove(indexName);
         }
+        // add tombstones to the cluster state for each deleted index
+        final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
+        metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+        logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
+            graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
 
-        @Override
-        public void onResponse(final Response response) {
-            if (notified.compareAndSet(false, true)) {
-                FutureUtils.cancel(future);
-                listener.onResponse(response);
+        MetaData newMetaData = metaDataBuilder.build();
+        ClusterBlocks blocks = clusterBlocksBuilder.build();
+
+        // update snapshot restore entries
+        ImmutableOpenMap<String, ClusterState.Custom> customs = currentState.getCustoms();
+        final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
+            if (updatedRestoreInProgress != restoreInProgress) {
+                ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
+                builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
+                customs = builder.build();
             }
         }
 
-        @Override
-        public void onFailure(Throwable t) {
-            if (notified.compareAndSet(false, true)) {
-                FutureUtils.cancel(future);
-                listener.onFailure(t);
-            }
-        }
-    }
-
-    public interface Listener {
-
-        void onResponse(Response response);
-
-        void onFailure(Throwable t);
-    }
-
-    public static class Request {
-
-        final Set<Index> indices;
-
-        TimeValue timeout = TimeValue.timeValueSeconds(10);
-        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public Request(Set<Index> indices) {
-            this.indices = indices;
-        }
-
-        public Request timeout(TimeValue timeout) {
-            this.timeout = timeout;
-            return this;
-        }
-
-        public Request masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class Response {
-        private final boolean acknowledged;
-
-        public Response(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
+        return allocationService.reroute(
+                ClusterState.builder(currentState)
+                    .routingTable(routingTableBuilder.build())
+                    .metaData(newMetaData)
+                    .blocks(blocks)
+                    .customs(customs)
+                    .build(),
+                "deleted indices [" + indices + "]");
     }
 }

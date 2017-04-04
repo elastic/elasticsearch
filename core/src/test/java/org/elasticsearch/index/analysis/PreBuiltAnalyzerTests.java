@@ -39,9 +39,6 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
@@ -79,7 +76,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
         Version randomVersion = randomVersion(random());
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 

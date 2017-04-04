@@ -31,7 +31,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -54,8 +54,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class FreqTermsEnumTests extends ESTestCase {
 
     private String[] terms;
@@ -138,19 +136,19 @@ public class FreqTermsEnumTests extends ESTestCase {
 
         // now go over each doc, build the relevant references and filter
         reader = DirectoryReader.open(iw);
-        List<Term> filterTerms = new ArrayList<>();
+        List<BytesRef> filterTerms = new ArrayList<>();
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
             Document doc = reader.document(docId);
             addFreqs(doc, referenceAll);
             if (!deletedIds.contains(doc.getField("id").stringValue())) {
                 addFreqs(doc, referenceNotDeleted);
                 if (randomBoolean()) {
-                    filterTerms.add(new Term("id", doc.getField("id").stringValue()));
+                    filterTerms.add(new BytesRef(doc.getField("id").stringValue()));
                     addFreqs(doc, referenceFilter);
                 }
             }
         }
-        filter = new TermsQuery(filterTerms);
+        filter = new TermInSetQuery("id",filterTerms);
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {

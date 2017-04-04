@@ -26,10 +26,8 @@ package org.elasticsearch.action;
 public interface RealtimeRequest {
 
     /**
-     * @param realtime Controls whether this request should be realtime by reading from the translog. If <code>null</code>
-     *                 is specified then whether the operation will be realtime depends on the api of the concrete request
-     *                 subclass.
+     * @param realtime Controls whether this request should be realtime by reading from the translog.
      */
-    <R extends RealtimeRequest> R realtime(Boolean realtime);
+    <R extends RealtimeRequest> R realtime(boolean realtime);
 
 }

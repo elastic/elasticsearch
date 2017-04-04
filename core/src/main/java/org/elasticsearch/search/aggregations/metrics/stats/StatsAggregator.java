@@ -24,27 +24,24 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     final ValuesSource.Numeric valuesSource;
-    final ValueFormatter formatter;
+    final DocValueFormat format;
 
     LongArray counts;
     DoubleArray sums;
@@ -52,8 +49,8 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray maxes;
 
 
-    public StatsAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
-                           AggregationContext context,
+    public StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
+            SearchContext context,
                            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
@@ -67,7 +64,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        this.formatter = formatter;
+        this.format = format;
     }
 
     @Override
@@ -156,12 +153,12 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             return buildEmptyAggregation();
         }
         return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket),
-                maxes.get(bucket), formatter, pipelineAggregators(), metaData());
+                maxes.get(bucket), format, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, format, pipelineAggregators(), metaData());
     }
 
     @Override

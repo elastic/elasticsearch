@@ -21,28 +21,30 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- */
-public class ThreadPoolInfo implements Streamable, Iterable<ThreadPool.Info>, ToXContent {
+public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToXContent {
 
-    private List<ThreadPool.Info> infos;
-
-    ThreadPoolInfo() {
-    }
-
+    private final List<ThreadPool.Info> infos;
 
     public ThreadPoolInfo(List<ThreadPool.Info> infos) {
-        this.infos = infos;
+        this.infos = Collections.unmodifiableList(infos);
+    }
+
+    public ThreadPoolInfo(StreamInput in) throws IOException {
+        this.infos = Collections.unmodifiableList(in.readList(ThreadPool.Info::new));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeList(infos);
     }
 
     @Override
@@ -50,33 +52,8 @@ public class ThreadPoolInfo implements Streamable, Iterable<ThreadPool.Info>, To
         return infos.iterator();
     }
 
-    public static ThreadPoolInfo readThreadPoolInfo(StreamInput in) throws IOException {
-        ThreadPoolInfo info = new ThreadPoolInfo();
-        info.readFrom(in);
-        return info;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        infos = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            ThreadPool.Info info = new ThreadPool.Info();
-            info.readFrom(in);
-            infos.add(info);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(infos.size());
-        for (ThreadPool.Info info : infos) {
-            info.writeTo(out);
-        }
-    }
-
     static final class Fields {
-        static final XContentBuilderString THREAD_POOL = new XContentBuilderString("thread_pool");
+        static final String THREAD_POOL = "thread_pool";
     }
 
     @Override

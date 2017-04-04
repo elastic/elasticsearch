@@ -18,16 +18,17 @@
  */
 package org.elasticsearch.index.analysis;
 
+import java.io.Reader;
+import java.util.regex.Pattern;
+
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-import java.io.Reader;
-import java.util.regex.Pattern;
-
-public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
+public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
 
     private final Pattern pattern;
     private final String replacement;
@@ -35,10 +36,11 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
     public PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
-        if (!Strings.hasLength(settings.get("pattern"))) {
+        String sPattern = settings.get("pattern");
+        if (!Strings.hasLength(sPattern)) {
             throw new IllegalArgumentException("pattern is missing for [" + name + "] char filter of type 'pattern_replace'");
         }
-        pattern = Pattern.compile(settings.get("pattern"));
+        pattern = Regex.compile(sPattern, settings.get("flags"));
         replacement = settings.get("replacement", ""); // when not set or set to "", use "".
     }
 
@@ -53,5 +55,10 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
     @Override
     public Reader create(Reader tokenStream) {
         return new PatternReplaceCharFilter(pattern, replacement, tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

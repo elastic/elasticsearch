@@ -47,7 +47,7 @@ public class ProcessProbe {
     }
 
     private static class ProcessProbeHolder {
-        private final static ProcessProbe INSTANCE = new ProcessProbe();
+        private static final ProcessProbe INSTANCE = new ProcessProbe();
     }
 
     public static ProcessProbe getInstance() {
@@ -66,7 +66,7 @@ public class ProcessProbe {
         }
         try {
             return (Long) getMaxFileDescriptorCountField.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             return -1;
         }
     }
@@ -80,7 +80,7 @@ public class ProcessProbe {
         }
         try {
             return (Long) getOpenFileDescriptorCountField.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             return -1;
         }
     }
@@ -102,7 +102,7 @@ public class ProcessProbe {
                 if (time >= 0) {
                     return (time / 1_000_000L);
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 return -1;
             }
         }
@@ -119,33 +119,21 @@ public class ProcessProbe {
                 if (virtual >= 0) {
                     return virtual;
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 return -1;
             }
         }
         return -1;
     }
 
-    public ProcessInfo processInfo() {
-        return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked());
+    public ProcessInfo processInfo(long refreshInterval) {
+        return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked(), refreshInterval);
     }
 
     public ProcessStats processStats() {
-        ProcessStats stats = new ProcessStats();
-        stats.timestamp = System.currentTimeMillis();
-        stats.openFileDescriptors = getOpenFileDescriptorCount();
-        stats.maxFileDescriptors = getMaxFileDescriptorCount();
-
-        ProcessStats.Cpu cpu = new ProcessStats.Cpu();
-        cpu.percent = getProcessCpuPercent();
-        cpu.total = getProcessCpuTotalTime();
-        stats.cpu = cpu;
-
-        ProcessStats.Mem mem = new ProcessStats.Mem();
-        mem.totalVirtual = getTotalVirtualMemorySize();
-        stats.mem = mem;
-
-        return stats;
+        ProcessStats.Cpu cpu = new ProcessStats.Cpu(getProcessCpuPercent(), getProcessCpuTotalTime());
+        ProcessStats.Mem mem = new ProcessStats.Mem(getTotalVirtualMemorySize());
+        return new ProcessStats(System.currentTimeMillis(), getOpenFileDescriptorCount(), getMaxFileDescriptorCount(), cpu, mem);
     }
 
     /**
@@ -155,12 +143,12 @@ public class ProcessProbe {
     private static Method getMethod(String methodName) {
         try {
             return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // not available
             return null;
         }
     }
-    
+
     /**
      * Returns a given method of the UnixOperatingSystemMXBean,
      * or null if the method is not found or unavailable.
@@ -168,7 +156,7 @@ public class ProcessProbe {
     private static Method getUnixMethod(String methodName) {
         try {
             return Class.forName("com.sun.management.UnixOperatingSystemMXBean").getMethod(methodName);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // not available
             return null;
         }

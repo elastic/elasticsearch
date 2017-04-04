@@ -19,23 +19,18 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -50,27 +45,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * actions.
  * </p>
  */
-public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
+public class RoutingService extends AbstractLifecycleComponent {
 
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 
-    final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final AllocationService allocationService;
 
     private AtomicBoolean rerouting = new AtomicBoolean();
-    private volatile long minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
-    private volatile ScheduledFuture registeredNextDelayFuture;
 
     @Inject
-    public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
+    public RoutingService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        if (clusterService != null) {
-            clusterService.addFirst(this);
-        }
     }
 
     @Override
@@ -83,12 +71,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     protected void doClose() {
-        FutureUtils.cancel(registeredNextDelayFuture);
-        clusterService.remove(this);
-    }
-
-    public AllocationService getAllocationService() {
-        return this.allocationService;
     }
 
     /**
@@ -96,48 +78,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
      */
     public final void reroute(String reason) {
         performReroute(reason);
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().localNodeMaster()) {
-            // Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
-            // If the minimum of the currently relevant delay settings is larger than something we scheduled in the past,
-            // we are guaranteed that the planned schedule will happen before any of the current shard delays are expired.
-            long minDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSettingNanos(settings, event.state());
-            if (minDelaySetting <= 0) {
-                logger.trace("no need to schedule reroute - no delayed unassigned shards, minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastSchedulingNanos);
-                minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
-                FutureUtils.cancel(registeredNextDelayFuture);
-            } else if (minDelaySetting < minDelaySettingAtLastSchedulingNanos) {
-                FutureUtils.cancel(registeredNextDelayFuture);
-                minDelaySettingAtLastSchedulingNanos = minDelaySetting;
-                TimeValue nextDelay = TimeValue.timeValueNanos(UnassignedInfo.findNextDelayedAllocationIn(event.state()));
-                assert nextDelay.nanos() > 0 : "next delay must be non 0 as minDelaySetting is [" + minDelaySetting + "]";
-                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
-                        UnassignedInfo.getNumberOfDelayedUnassigned(event.state()), nextDelay);
-                registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
-                        reroute("assign delayed unassigned shards");
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.warn("failed to schedule/execute reroute post unassigned shard", t);
-                        minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
-                    }
-                });
-            } else {
-                logger.trace("no need to schedule reroute - current schedule reroute is enough. minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastSchedulingNanos);
-            }
-        }
-    }
-
-    // visible for testing
-    long getMinDelaySettingAtLastSchedulingNanos() {
-        return this.minDelaySettingAtLastSchedulingNanos;
     }
 
     // visible for testing
@@ -155,12 +95,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
-                    if (!routingResult.changed()) {
-                        // no state changed
-                        return currentState;
-                    }
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
+                    return allocationService.reroute(currentState, reason);
                 }
 
                 @Override
@@ -170,20 +105,20 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     rerouting.set(false);
                     ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
-                        logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state), e);
                     } else {
-                        logger.error("unexpected failure during [{}], current state version [{}]", t, source, state.version());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]", source, state.version()), e);
                     }
                 }
             });
-        } catch (Throwable e) {
+        } catch (Exception e) {
             rerouting.set(false);
             ClusterState state = clusterService.state();
-            logger.warn("failed to reroute routing table, current state:\n{}", e, state.prettyPrint());
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
         }
     }
 }

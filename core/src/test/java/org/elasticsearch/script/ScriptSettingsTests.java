@@ -25,98 +25,47 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
-    public void testConflictingModesForLanguage() {
+    public void testSettingsAreProperlyPropogated() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
+            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
-        ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
-        Settings settings =
-            Settings
-                .builder()
-                .put(ScriptModes.getKey("test1", scriptType, scriptContext), "off")
-                .put(ScriptModes.getKey("test2", scriptType, scriptContext), "on")
-                .build();
-        boolean sawConflictingSettings = false;
-        for (Setting<ScriptMode> scriptModeSetting : scriptSettings.getScriptLanguageSettings()) {
-            if (scriptModeSetting.getKey().startsWith(ScriptModes.getKey("test3", scriptType, scriptContext))) {
-                try {
-                    scriptModeSetting.get(settings);
-                    fail("should have seen conflicting settings");
-                } catch (IllegalArgumentException e) {
-                    assertThat(e.getMessage(), anyOf(containsString("conflicting settings [{off=[test1], on=[test2]}] for language [test3]"), containsString("conflicting settings [{on=[test2], on=[test1]}] for language [test3]")));
-                    sawConflictingSettings = true;
-                }
+        boolean enabled = randomBoolean();
+        Settings s = Settings.builder().put("script.inline", enabled).build();
+        for (Iterator<Setting<Boolean>> iter = scriptSettings.getScriptLanguageSettings().iterator(); iter.hasNext();) {
+            Setting<Boolean> setting = iter.next();
+            if (setting.getKey().endsWith(".inline")) {
+                assertThat("inline settings should have propagated", setting.get(s), equalTo(enabled));
+                assertThat(setting.getDefaultRaw(s), equalTo(Boolean.toString(enabled)));
             }
-        }
-        assertTrue(sawConflictingSettings);
-    }
-
-    public void testDefaultLanguageIsGroovy() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(Settings.EMPTY), equalTo("groovy"));
-    }
-
-    public void testCustomDefaultLanguage() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        String defaultLanguage = randomFrom(CustomScriptEngineService.TYPES);
-        Settings settings = Settings.builder().put("script.default_lang", defaultLanguage).build();
-        assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(settings), equalTo(defaultLanguage));
-    }
-
-    public void testInvalidDefaultLanguage() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        Settings settings = Settings.builder().put("script.default_lang", "C++").build();
-        try {
-            scriptSettings.getDefaultScriptLanguageSetting().get(settings);
-            fail("should have seen unregistered default language");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("unregistered default language [C++]"));
         }
     }
 
     private static class CustomScriptEngineService implements ScriptEngineService {
 
-        public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("test1", "test2", "test3"));
+        public static final String NAME = "custom";
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return Collections.singletonList(TYPES.get(0));
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
-        public boolean isSandboxed() {
-            return false;
-        }
-
-        @Override
-        public Object compile(String script, Map<String, String> params) {
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return null;
         }
 
@@ -132,12 +81,6 @@ public class ScriptSettingsTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(@Nullable CompiledScript script) {
-
         }
     }
 

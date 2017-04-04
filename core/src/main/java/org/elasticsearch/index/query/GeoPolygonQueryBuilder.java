@@ -19,41 +19,46 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
-
     public static final String NAME = "geo_polygon";
 
-    private static final List<GeoPoint> PROTO_SHAPE = Arrays.asList(new GeoPoint[] { new GeoPoint(1.0, 1.0), new GeoPoint(1.0, 2.0),
-            new GeoPoint(2.0, 1.0) });
-
-    static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder("field", PROTO_SHAPE);
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+    private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
+    private static final ParseField POINTS_FIELD = new ParseField("points");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String fieldName;
 
     private final List<GeoPoint> shell;
 
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
+
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public GeoPolygonQueryBuilder(String fieldName, List<GeoPoint> points) {
         if (Strings.isEmpty(fieldName)) {
@@ -80,6 +85,32 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         }
     }
 
+    /**
+     * Read from a stream.
+     */
+    public GeoPolygonQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        int size = in.readVInt();
+        shell = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            shell.add(in.readGeoPoint());
+        }
+        validationMethod = GeoValidationMethod.readFromStream(in);
+        ignoreUnmapped = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeVInt(shell.size());
+        for (GeoPoint point : shell) {
+            out.writeGeoPoint(point);
+        }
+        validationMethod.writeTo(out);
+        out.writeBoolean(ignoreUnmapped);
+    }
+
     public String fieldName() {
         return fieldName;
     }
@@ -99,13 +130,36 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return this.validationMethod;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public GeoPolygonQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            }
         }
-        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+        if (!(fieldType instanceof GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
@@ -115,10 +169,9 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         }
         final int shellSize = shell.size();
 
-        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             for (GeoPoint point : shell) {
                 if (!GeoUtils.isValidLatitude(point.lat())) {
                     throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
@@ -131,31 +184,22 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
 
-        final Version indexVersionCreated = context.indexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_2_2_0) || GeoValidationMethod.isCoerce(validationMethod)) {
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
             for (GeoPoint point : shell) {
                 GeoUtils.normalizePoint(point, true, true);
             }
-        }
-
-        if (indexVersionCreated.before(Version.V_2_2_0)) {
-            IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-            return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shellSize]));
         }
 
         double[] lats = new double[shellSize];
         double[] lons = new double[shellSize];
         GeoPoint p;
         for (int i=0; i<shellSize; ++i) {
-            p = new GeoPoint(shell.get(i));
+            p = shell.get(i);
             lats[i] = p.lat();
             lons[i] = p.lon();
         }
-        // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
-        // if index created V_2_3 > use prefix encoded postings format
-        final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
-            GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-        return new GeoPointInPolygonQuery(fieldType.name(), encoding, lons, lats);
+
+        return LatLonPoint.newPolygonQuery(fieldType.name(), new Polygon(lats, lons));
     }
 
     @Override
@@ -163,53 +207,104 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        builder.startArray(GeoPolygonQueryParser.POINTS_FIELD.getPreferredName());
+        builder.startArray(POINTS_FIELD.getPreferredName());
         for (GeoPoint point : shell) {
             builder.startArray().value(point.lon()).value(point.lat()).endArray();
         }
         builder.endArray();
         builder.endObject();
 
-        builder.field(GeoPolygonQueryParser.COERCE_FIELD.getPreferredName(), GeoValidationMethod.isCoerce(validationMethod));
-        builder.field(GeoPolygonQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), GeoValidationMethod.isIgnoreMalformed(validationMethod));
+        builder.field(VALIDATION_METHOD.getPreferredName(), validationMethod);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
-    @Override
-    protected GeoPolygonQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        List<GeoPoint> shell = new ArrayList<>();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            shell.add(in.readGeoPoint());
+    public static GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String fieldName = null;
+
+        List<GeoPoint> shell = null;
+
+        Float boost = null;
+        GeoValidationMethod validationMethod = null;
+        String queryName = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        if (POINTS_FIELD.match(currentFieldName)) {
+                            shell = new ArrayList<GeoPoint>();
+                            while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                shell.add(GeoUtils.parseGeoPoint(parser));
+                            }
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[geo_polygon] query does not support [" + currentFieldName + "]");
+                        }
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[geo_polygon] query does not support token type [" + token.name() + "] under [" + currentFieldName + "]");
+                    }
+                }
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                    ignoreUnmapped = parser.booleanValue();
+                } else if (VALIDATION_METHOD.match(currentFieldName)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[geo_polygon] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] unexpected token type [" + token.name() + "]");
+            }
         }
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
-        builder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        return builder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeVInt(shell.size());
-        for (GeoPoint point : shell) {
-            out.writeGeoPoint(point);
+        if (validationMethod != null) {
+            // if GeoValidationMethod was explicitly set ignore deprecated coerce and ignoreMalformed settings
+            builder.setValidationMethod(validationMethod);
         }
-        validationMethod.writeTo(out);
+
+        if (queryName != null) {
+            builder.queryName(queryName);
+        }
+        if (boost != null) {
+            builder.boost(boost);
+        }
+        builder.ignoreUnmapped(ignoreUnmapped);
+        return builder;
     }
 
     @Override
     protected boolean doEquals(GeoPolygonQueryBuilder other) {
         return Objects.equals(validationMethod, other.validationMethod)
                 && Objects.equals(fieldName, other.fieldName)
-                && Objects.equals(shell, other.shell);
+                && Objects.equals(shell, other.shell)
+                && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(validationMethod, fieldName, shell);
+        return Objects.hash(validationMethod, fieldName, shell, ignoreUnmapped);
     }
 
     @Override

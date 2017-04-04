@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.similarity;
 
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +29,15 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class SimilarityServiceTests extends ESTestCase {
+    public void testDefaultSimilarity() {
+        Settings settings = Settings.builder().build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        assertThat(service.getDefaultSimilarity(), instanceOf(BM25Similarity.class));
+    }
 
     // Tests #16594
     public void testOverrideBuiltInSimilarity() {
@@ -53,10 +63,10 @@ public class SimilarityServiceTests extends ESTestCase {
     }
 
     // Tests #16594
-    public void testDefaultSimilarity() {
-        Settings settings = Settings.builder().put("index.similarity.default.type", "BM25").build();
+    public void testOverrideDefaultSimilarity() {
+        Settings settings = Settings.builder().put("index.similarity.default.type", "classic").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
-        assertTrue(service.getDefaultSimilarity() instanceof BM25SimilarityProvider);
+        assertTrue(service.getDefaultSimilarity() instanceof ClassicSimilarity);
     }
 }

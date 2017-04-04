@@ -8,7 +8,7 @@ then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer
-is used exclusively for communication between nodes and between nodes and the
+is used exclusively for communication between nodes and the
 {javaclient}/transport-client.html[Java `TransportClient`]; the HTTP layer is
 used only by external REST clients.
 
@@ -81,6 +81,9 @@ cluster health to have a stable master node.
 
 Any master-eligible node (all nodes by default) may be elected to become the
 master node by the <<modules-discovery-zen,master election process>>.
+
+IMPORTANT: Master nodes must have access to the `data/` directory (just like 
+`data` nodes) as this is where the cluster state is persisted between node restarts.
 
 Indexing and searching your data is CPU-, memory-, and I/O-intensive work
 which can put pressure on a node's resources. To ensure that your master
@@ -157,7 +160,8 @@ PUT _cluster/settings
   }
 }
 ----------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
 
 TIP: An advantage of splitting the master and data roles between dedicated
 nodes is that you can have just three master-eligible nodes and set
@@ -205,10 +209,12 @@ To create a dedicated ingest node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
+search.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
+<4> Disable cross-cluster search (enabled by default).
 
 [float]
 [[coordinating-only-node]]
@@ -231,17 +237,19 @@ acknowledgement of cluster state updates from every node! The benefit of
 coordinating only nodes should not be overstated -- data nodes can happily
 serve the same purpose.
 
-To create a coordinating only node, set:
+To create a dedicated coordinating node, set:
 
 [source,yaml]
 -------------------
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
+search.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable cross-cluster search (enabled by default).
 
 [float]
 == Node data path settings
@@ -264,7 +272,7 @@ Like all node settings, it can also be specified on the command line as:
 
 [source,sh]
 -----------------------
-./bin/elasticsearch -Ees.path.data=/var/elasticsearch/data
+./bin/elasticsearch -Epath.data=/var/elasticsearch/data
 -----------------------
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
@@ -277,26 +285,20 @@ your data! The RPM and Debian distributions do this for you already.
 [[max-local-storage-nodes]]
 === `node.max_local_storage_nodes`
 
-The <<data-path,data path>> can be shared by multiple nodes, even by nodes
-from different clusters.  This is very useful for testing failover and
-different configurations on your development machine.  In production, however,
-it is recommended to run only one node of Elasticsearch per server.
+The <<data-path,data path>> can be shared by multiple nodes, even by nodes from different
+clusters. This is very useful for testing failover and different configurations on your development
+machine. In production, however, it is recommended to run only one node of Elasticsearch per server.
 
-To prevent more than one node from sharing the same data path, add this
-setting to the `elasticsearch.yml` config file:
+By default, Elasticsearch is configured to prevent more than one node from sharing the same data
+path. To allow for more than one node (e.g., on your development machine), use the setting
+`node.max_local_storage_nodes` and set this to a positive integer larger than one.
 
-[source,yaml]
-------------------------------
-node.max_local_storage_nodes: 1
-------------------------------
-
-WARNING: Never run different node types (i.e. master, data) from the
-same data directory. This can lead to unexpected data loss.
+WARNING: Never run different node types (i.e. master, data) from the same data directory. This can
+lead to unexpected data loss.
 
 [float]
 == Other node settings
 
 More node settings can be found in <<modules,Modules>>.  Of particular note are
-the <<cluster-name,`cluster.name`>>, the <<node-name,`node.name`>> and the
+the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
-

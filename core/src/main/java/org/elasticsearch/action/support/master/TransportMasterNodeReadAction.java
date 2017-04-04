@@ -46,7 +46,14 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
     protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
+    }
+
+    protected TransportMasterNodeReadAction(Settings settings, String actionName, boolean checkSizeLimit, TransportService transportService,
+                                            ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+        super(settings, actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver,request);
         this.forceLocal = FORCE_LOCAL_SETTING.get(settings);
     }
 

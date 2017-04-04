@@ -26,7 +26,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,6 +39,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
+
+import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
@@ -72,10 +78,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
+        assertThat(clusterStateResponse.getState().nodes().getNodes().size(), is(cluster().size()));
 
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
-        assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));
+        assertThat(clusterStateResponseFiltered.getState().nodes().getNodes().size(), is(0));
     }
 
     public void testMetadata() throws Exception {
@@ -88,20 +94,39 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     public void testIndexTemplates() throws Exception {
         client().admin().indices().preparePutTemplate("foo_template")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "text").field("store", true).endObject()
-                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
-                        .endObject().endObject().endObject())
+                .addMapping("type1", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("type1")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
                 .get();
 
         client().admin().indices().preparePutTemplate("fuu_template")
-                .setTemplate("test*")
+                .setPatterns(Collections.singletonList("test*"))
                 .setOrder(1)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "text").field("store", "no").endObject()
-                        .endObject().endObject().endObject())
+                .addMapping("type1", XContentFactory.jsonBuilder()
+                        .startObject()
+                            .startObject("type1")
+                                .startObject("properties")
+                                    .startObject("field2")
+                                        .field("type", "text")
+                                        .field("store", false)
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject())
                 .get();
 
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().get();
@@ -112,18 +137,38 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testThatFilteringByIndexWorksForMetadataAndRoutingTable() throws Exception {
-        ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear()
-                .setMetaData(true).setRoutingTable(true).setIndices("foo", "fuu", "non-existent").get();
+        testFilteringByIndexWorks(new String[]{"foo", "fuu", "non-existent"}, new String[]{"foo", "fuu"});
+        testFilteringByIndexWorks(new String[]{"baz"}, new String[]{"baz"});
+        testFilteringByIndexWorks(new String[]{"f*"}, new String[]{"foo", "fuu"});
+        testFilteringByIndexWorks(new String[]{"b*"}, new String[]{"baz"});
+        testFilteringByIndexWorks(new String[]{"*u"}, new String[]{"fuu"});
 
-        // metadata
-        assertThat(clusterStateResponseFiltered.getState().metaData().indices().size(), is(2));
-        assertThat(clusterStateResponseFiltered.getState().metaData().indices(), CollectionAssertions.hasKey("foo"));
-        assertThat(clusterStateResponseFiltered.getState().metaData().indices(), CollectionAssertions.hasKey("fuu"));
+        String[] randomIndices = randomFrom(new String[]{"*"}, new String[]{MetaData.ALL}, Strings.EMPTY_ARRAY, new String[]{"f*", "b*"});
+        testFilteringByIndexWorks(randomIndices, new String[]{"foo", "fuu", "baz"});
+    }
 
-        // routing table
-        assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("foo"), is(true));
-        assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("fuu"), is(true));
-        assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("baz"), is(false));
+    /**
+     * Retrieves the cluster state for the given indices and then checks
+     * that the cluster state returns coherent data for both routing table and metadata.
+     */
+    private void testFilteringByIndexWorks(String[] indices, String[] expected) {
+        ClusterStateResponse clusterState = client().admin().cluster().prepareState()
+                                                                            .clear()
+                                                                            .setMetaData(true)
+                                                                            .setRoutingTable(true)
+                                                                            .setIndices(indices)
+                                                                            .get();
+
+        ImmutableOpenMap<String, IndexMetaData> metaData = clusterState.getState().getMetaData().indices();
+        assertThat(metaData.size(), is(expected.length));
+
+        RoutingTable routingTable = clusterState.getState().getRoutingTable();
+        assertThat(routingTable.indicesRouting().size(), is(expected.length));
+
+        for (String expectedIndex : expected) {
+            assertThat(metaData, CollectionAssertions.hasKey(expectedIndex));
+            assertThat(routingTable.hasIndex(expectedIndex), is(true));
+        }
     }
 
     public void testLargeClusterStatePublishing() throws Exception {
@@ -133,7 +178,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
-            mapping.startObject(Strings.randomBase64UUID()).field("type", "text").endObject();
+            mapping.startObject(UUIDs.randomBase64UUID()).field("type", "text").endObject();
             counter += 10; // each field is about 10 bytes, assuming compression in place
             numberOfFields++;
             if (counter > estimatedBytesSize) {

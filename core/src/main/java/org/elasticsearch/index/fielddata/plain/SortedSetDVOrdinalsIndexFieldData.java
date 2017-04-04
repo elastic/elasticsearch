@@ -21,41 +21,64 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.SortedSetSelector;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
 
     private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
+    private final Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction;
 
-    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName, CircuitBreakerService breakerService) {
+    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName,
+            CircuitBreakerService breakerService, Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
         super(indexSettings.getIndex(), fieldName);
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
+        this.scriptFunction = scriptFunction;
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new BytesRefFieldComparatorSource((IndexFieldData<?>) this, missingValue, sortMode, nested);
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        /**
+         * Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
+         * returns a custom sort field otherwise.
+         */
+        if (nested != null ||
+                (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
+                (source.sortMissingLast(missingValue) == false && source.sortMissingFirst(missingValue) == false)) {
+            return new SortField(getFieldName(), source, reverse);
+        }
+        SortField sortField = new SortedSetSortField(fieldName, reverse,
+            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+        sortField.setMissingValue(source.sortMissingLast(missingValue) ^ reverse ?
+            SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
+        return sortField;
     }
 
     @Override
     public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName);
+        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName, scriptFunction);
     }
 
     @Override
@@ -89,7 +112,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         }
         try {
             return cache.load(indexReader, this);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
@@ -100,6 +123,6 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
+        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger, scriptFunction);
     }
 }

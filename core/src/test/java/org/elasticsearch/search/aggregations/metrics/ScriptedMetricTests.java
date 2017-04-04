@@ -20,18 +20,19 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricAggregatorBuilder> {
+public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricAggregationBuilder> {
 
     @Override
-    protected ScriptedMetricAggregatorBuilder createTestAggregatorBuilder() {
-        ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
+    protected ScriptedMetricAggregationBuilder createTestAggregatorBuilder() {
+        ScriptedMetricAggregationBuilder factory = new ScriptedMetricAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.initScript(randomScript("initScript"));
         }
@@ -54,7 +55,9 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
         if (randomBoolean()) {
             return new Script(script);
         } else {
-            return new Script(script, randomFrom(ScriptType.values()), randomFrom("my_lang", null), null);
+            ScriptType type = randomFrom(ScriptType.values());
+            return new Script(
+                type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), script, Collections.emptyMap());
         }
     }
 

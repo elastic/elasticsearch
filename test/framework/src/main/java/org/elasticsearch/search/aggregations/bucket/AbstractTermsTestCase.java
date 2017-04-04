@@ -48,7 +48,7 @@ public abstract class AbstractTermsTestCase extends ESIntegTestCase {
                     .addAggregation(terms("terms")
                             .executionHint(randomExecutionHint())
                             .field(fieldName)
-                            .size(0)
+                            .size(10000)
                             .collectMode(randomFrom(SubAggCollectionMode.values())))
                     .get();
             assertSearchResponse(allTerms);

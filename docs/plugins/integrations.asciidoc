@@ -28,6 +28,9 @@ Integrations are not plugins, but are external tools or modules that make it eas
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
 
+* http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
+  XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
+
 [float]
 [[data-integrations]]
 === Data import/export and validation
@@ -38,13 +41,13 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by Elasticsearch:
 
-* https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
+* {logstash}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
   The Logstash `elasticsearch` output plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
+* {logstash}/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
   The Logstash `elasticsearch` input plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
+* {logstash}/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
   The Logstash `elasticsearch` filter plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
+* {logstash}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 [float]
@@ -84,11 +87,6 @@ releases 2.0 and later do not support rivers.
 
 * https://github.com/elastic/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
-
-This project appears to have been abandoned:
-
-* https://github.com/medcl/salt-elasticsearch[SaltStack]:
-  SaltStack Module for Elasticsearch
 
 [float]
 [[framework-integrations]]
@@ -135,23 +133,6 @@ This project appears to have been abandoned:
 * https://github.com/twitter/storehaus[Twitter Storehaus]:
   Thin asynchronous Scala client for Storehaus.
 
-These projects appear to have been abandoned:
-
-* https://metacpan.org/module/Catalyst::Model::Search::Elasticsearch[Catalyst]:
-  Elasticsearch and Catalyst integration.
-
-* http://github.com/aparo/django-elasticsearch[django-elasticsearch]:
-  Django Elasticsearch Backend.
-
-* https://github.com/kzwang/elasticsearch-osem[elasticsearch-osem]:
-  A Java Object Search Engine Mapping (OSEM) for Elasticsearch
-
-* http://geeks.aretotally.in/play-framework-module-elastic-search-distributed-searching-with-json-http-rest-or-java[Play!Framework]:
-  Integrate with Play! Framework Application.
-
-* http://code.google.com/p/terrastore/wiki/Search_Integration[Terrastore Search]:
-  http://code.google.com/p/terrastore/[Terrastore] integration module with elasticsearch.
-
 
 [float]
 [[hadoop-integrations]]
@@ -163,18 +144,6 @@ These projects appear to have been abandoned:
 * link:/guide/en/elasticsearch/hadoop/current/[es-hadoop]: Elasticsearch real-time
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,
   Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
-
-[float]
-==== Supported by the community:
-
-These projects appear to have been abandoned:
-
-* http://github.com/Aconex/elasticflume[elasticflume]:
-  http://github.com/cloudera/flume[Flume] sink implementation.
-
-
-* https://github.com/infochimps-labs/wonderdog[Wonderdog]:
-  Hadoop bulk loader into elasticsearch.
 
 
 [float]
@@ -220,6 +189,9 @@ These projects appear to have been abandoned:
 
 * https://www.wireshark.org/[Wireshark]:
   Protocol dissection for Zen discovery, HTTP and the binary protocol
+
+* https://www.itemsapi.com/[ItemsAPI]:
+  Search backend for mobile and web
 
 
 These projects appear to have been abandoned:

@@ -38,14 +38,14 @@ public class PercentilesMethodTests extends ESTestCase {
     public void testwriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PercentilesMethod.TDIGEST.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PercentilesMethod.HDR.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
@@ -54,14 +54,14 @@ public class PercentilesMethodTests extends ESTestCase {
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(PercentilesMethod.TDIGEST.readFrom(in), equalTo(PercentilesMethod.TDIGEST));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(PercentilesMethod.readFromStream(in), equalTo(PercentilesMethod.TDIGEST));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(PercentilesMethod.TDIGEST.readFrom(in), equalTo(PercentilesMethod.HDR));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(PercentilesMethod.readFromStream(in), equalTo(PercentilesMethod.HDR));
             }
         }
     }
@@ -69,8 +69,8 @@ public class PercentilesMethodTests extends ESTestCase {
     public void testInvalidReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(2, Integer.MAX_VALUE));
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                PercentilesMethod.TDIGEST.readFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {
+                PercentilesMethod.readFromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown PercentilesMethod ordinal ["));

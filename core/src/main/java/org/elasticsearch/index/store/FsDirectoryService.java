@@ -26,18 +26,12 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.RateLimitedFSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.store.SleepingLockWrapper;
-import org.apache.lucene.store.StoreRateLimiting;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
@@ -45,12 +39,10 @@ import org.elasticsearch.index.shard.ShardPath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
-/**
- */
-public class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
+public class FsDirectoryService extends DirectoryService {
 
     protected final IndexStore indexStore;
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
@@ -64,7 +56,6 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
 
-    private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 
     @Inject
@@ -75,48 +66,25 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
     }
 
     @Override
-    public long throttleTimeInNanos() {
-        return rateLimitingTimeInNanos.count();
-    }
-
-    @Override
-    public StoreRateLimiting rateLimiting() {
-        return indexStore.rateLimiting();
-    }
-
-    @Override
     public Directory newDirectory() throws IOException {
         final Path location = path.resolveIndex();
+        final LockFactory lockFactory = indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING);
         Files.createDirectories(location);
-        Directory wrapped = newFSDirectory(location, indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING));
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings.getSettings())) {
+        Directory wrapped = newFSDirectory(location, lockFactory);
+        Set<String> preLoadExtensions = new HashSet<>(
+                indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
+        wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
+        if (indexSettings.isOnSharedFilesystem()) {
             wrapped = new SleepingLockWrapper(wrapped, 5000);
         }
-        return new RateLimitedFSDirectory(wrapped, this, this) ;
+        return wrapped;
     }
-
-    @Override
-    public void onPause(long nanos) {
-        rateLimitingTimeInNanos.inc(nanos);
-    }
-
-    /*
-    * We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
-    * this provides good random access performance while not creating unnecessary mmaps for files like stored
-    * fields etc.
-    */
-    private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("nvd", "dvd", "tim"));
-
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
-            IndexModule.Type.DEFAULT.getSettingsKey());
-        if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
-            final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
-            if (open instanceof MMapDirectory && Constants.WINDOWS == false) {
-                return newDefaultDir(location, (MMapDirectory) open, lockFactory);
-            }
-            return open;
+            IndexModule.Type.FS.getSettingsKey());
+        if (IndexModule.Type.FS.match(storeType)) {
+            return FSDirectory.open(location, lockFactory); // use lucene defaults
         } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);
         } else if (IndexModule.Type.NIOFS.match(storeType)) {
@@ -127,13 +95,25 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         throw new IllegalArgumentException("No directory found for type [" + storeType + "]");
     }
 
-    private Directory newDefaultDir(Path location, final MMapDirectory mmapDir, LockFactory lockFactory) throws IOException {
-        return new FileSwitchDirectory(PRIMARY_EXTENSIONS, mmapDir, new NIOFSDirectory(location, lockFactory), true) {
-            @Override
-            public String[] listAll() throws IOException {
-                // Avoid doing listAll twice:
-                return mmapDir.listAll();
+    private static Directory setPreload(Directory directory, Path location, LockFactory lockFactory,
+            Set<String> preLoadExtensions) throws IOException {
+        if (preLoadExtensions.isEmpty() == false
+                && directory instanceof MMapDirectory
+                && ((MMapDirectory) directory).getPreload() == false) {
+            if (preLoadExtensions.contains("*")) {
+                ((MMapDirectory) directory).setPreload(true);
+                return directory;
             }
-        };
+            MMapDirectory primary = new MMapDirectory(location, lockFactory);
+            primary.setPreload(true);
+            return new FileSwitchDirectory(preLoadExtensions, primary, directory, true) {
+                @Override
+                public String[] listAll() throws IOException {
+                    // avoid listing twice
+                    return primary.listAll();
+                }
+            };
+        }
+        return directory;
     }
 }

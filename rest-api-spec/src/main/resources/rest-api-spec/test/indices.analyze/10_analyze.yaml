@@ -8,7 +8,8 @@ setup:
 "Basic test":
     - do:
         indices.analyze:
-          text: Foo Bar
+          body:
+            text: Foo Bar
     - length: { tokens: 2 }
     - match:     { tokens.0.token: foo }
     - match:     { tokens.1.token: bar }
@@ -17,9 +18,10 @@ setup:
 "Tokenizer and filter":
     - do:
         indices.analyze:
-          filters:      lowercase
-          text:         Foo Bar
-          tokenizer:    keyword
+          body:
+            filter:       [lowercase]
+            text:         Foo Bar
+            tokenizer:    keyword
     - length: { tokens: 1 }
     - match:     { tokens.0.token: foo bar }
 
@@ -35,16 +37,13 @@ setup:
                   text:
                     type:     text
                     analyzer: whitespace
-    - do:
-        cluster.health:
-          wait_for_status: yellow
-
 
     - do:
         indices.analyze:
-          field: text
           index: test
-          text: Foo Bar!
+          body:
+            field: text
+            text: Foo Bar!
     - length: { tokens: 2 }
     - match:     { tokens.0.token: Foo }
     - match:     { tokens.1.token: Bar! }
@@ -52,22 +51,14 @@ setup:
 "JSON in Body":
     - do:
         indices.analyze:
-          body: { "text": "Foo Bar", "filters": ["lowercase"], "tokenizer": keyword }
+          body: { "text": "Foo Bar", "filter": ["lowercase"], "tokenizer": keyword }
     - length: {tokens: 1 }
     - match:     { tokens.0.token: foo bar }
----
-"Body params override query string":
-    - do:
-        indices.analyze:
-          text: Foo Bar
-          body: { "text": "Bar Foo", "filters": ["lowercase"], "tokenizer": keyword }
-    - length: {tokens: 1 }
-    - match:     { tokens.0.token: bar foo }
 ---
 "Array text":
     - do:
         indices.analyze:
-          body: { "text": ["Foo Bar", "Baz"], "filters": ["lowercase"], "tokenizer": keyword }
+          body: { "text": ["Foo Bar", "Baz"], "filter": ["lowercase"], "tokenizer": keyword }
     - length: {tokens: 2 }
     - match:     { tokens.0.token: foo bar }
     - match:     { tokens.1.token: baz }
@@ -85,7 +76,7 @@ setup:
 "Detail output spcified attribute":
     - do:
         indices.analyze:
-          body: {"text": "<text>This is troubled</text>", "char_filters": ["html_strip"], "filters": ["snowball"], "tokenizer": standard, "explain": true, "attributes": ["keyword"]}
+          body: {"text": "<text>This is troubled</text>", "char_filter": ["html_strip"], "filter": ["snowball"], "tokenizer": standard, "explain": true, "attributes": ["keyword"]}
     - length: { detail.charfilters: 1 }
     - length: { detail.tokenizer.tokens: 3 }
     - length: { detail.tokenfilters.0.tokens: 3 }
@@ -99,3 +90,39 @@ setup:
     - match:     { detail.tokenfilters.0.tokens.2.token: troubl }
     - match:     { detail.tokenfilters.0.tokens.2.keyword: false }
 
+---
+"Custom filter in request":
+    - do:
+        indices.analyze:
+          body: { "text": "Foo Bar Buzz", "filter": ["lowercase",   {     "type": "stop", "stopwords": ["foo", "buzz"]}], "tokenizer": whitespace, "explain": true }
+    - length: {detail.tokenizer.tokens: 3 }
+    - length: {detail.tokenfilters.0.tokens: 3 }
+    - length: {detail.tokenfilters.1.tokens: 1 }
+    - match:     { detail.tokenizer.name: whitespace }
+    - match:     { detail.tokenizer.tokens.0.token: Foo }
+    - match:     { detail.tokenizer.tokens.1.token: Bar }
+    - match:     { detail.tokenizer.tokens.2.token: Buzz }
+    - match:     { detail.tokenfilters.0.name: lowercase }
+    - match:     { detail.tokenfilters.0.tokens.0.token: foo }
+    - match:     { detail.tokenfilters.0.tokens.1.token: bar }
+    - match:     { detail.tokenfilters.0.tokens.2.token: buzz }
+    - match:     { detail.tokenfilters.1.name: "_anonymous_tokenfilter_[1]" }
+    - match:     { detail.tokenfilters.1.tokens.0.token: bar }
+---
+"Custom char_filter in request":
+    - do:
+        indices.analyze:
+          body: { "text": "jeff quit phish", "char_filter": [{"type": "mapping", "mappings": ["ph => f", "qu => q"]}], "tokenizer": keyword }
+    - length: {tokens: 1 }
+    - match:     { tokens.0.token: "jeff qit fish" }
+
+---
+"Custom tokenizer in request":
+    - do:
+        indices.analyze:
+          body: { "text": "good", "tokenizer": {"type": "nGram", "min_gram": 2, "max_gram": 2}, "explain": true }
+    - length: {detail.tokenizer.tokens: 3 }
+    - match:     { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:     { detail.tokenizer.tokens.0.token: go }
+    - match:     { detail.tokenizer.tokens.1.token: oo }
+    - match:     { detail.tokenizer.tokens.2.token: od }

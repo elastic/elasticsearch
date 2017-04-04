@@ -19,13 +19,11 @@
                                     type: phonetic
                                     encoder: daitch_mokotoff
     - do:
-        cluster.health:
-            wait_for_status: yellow
-    - do:
         indices.analyze:
             index: phonetic_sample
-            analyzer: my_analyzer
-            text: Moskowitz
+            body:
+                analyzer: my_analyzer
+                text: Moskowitz
 
     - length: { tokens: 1 }
     - match:  { tokens.0.token: "645740" }

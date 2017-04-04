@@ -40,6 +40,7 @@ public class ParentIdAggIT extends ESIntegTestCase {
                 .startObject("_parent")
                 .field("type", "parenttype")
                 .endObject()
+                .endObject()
                 .endObject();
         assertAcked(prepareCreate("testidx").addMapping("childtype", mapping));
         client().prepareIndex("testidx", "childtype").setSource(jsonBuilder().startObject().field("num", 1).endObject()).setParent("p1").get();

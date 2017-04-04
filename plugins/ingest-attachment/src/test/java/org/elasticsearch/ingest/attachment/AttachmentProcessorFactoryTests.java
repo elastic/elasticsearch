@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -43,80 +43,97 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
     public void testBuildDefaults() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        config.put("source_field", "_field");
+        config.put("field", "_field");
 
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
 
-        AttachmentProcessor processor = factory.create(config);
+        AttachmentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getSourceField(), equalTo("_field"));
+        assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
-        assertThat(processor.getFields(), sameInstance(AttachmentProcessor.Factory.DEFAULT_FIELDS));
+        assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testConfigureIndexedChars() throws Exception {
         int indexedChars = randomIntBetween(1, 100000);
         Map<String, Object> config = new HashMap<>();
-        config.put("source_field", "_field");
+        config.put("field", "_field");
         config.put("indexed_chars", indexedChars);
 
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        AttachmentProcessor processor = factory.create(config);
+        AttachmentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getIndexedChars(), is(indexedChars));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildTargetField() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        config.put("source_field", "_field");
+        config.put("field", "_field");
         config.put("target_field", "_field");
-        AttachmentProcessor processor = factory.create(config);
-        assertThat(processor.getSourceField(), equalTo("_field"));
+        AttachmentProcessor processor = factory.create(null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildFields() throws Exception {
-        Set<AttachmentProcessor.Field> fields = EnumSet.noneOf(AttachmentProcessor.Field.class);
+        Set<AttachmentProcessor.Property> properties = EnumSet.noneOf(AttachmentProcessor.Property.class);
         List<String> fieldNames = new ArrayList<>();
-        int numFields = scaledRandomIntBetween(1, AttachmentProcessor.Field.values().length);
+        int numFields = scaledRandomIntBetween(1, AttachmentProcessor.Property.values().length);
         for (int i = 0; i < numFields; i++) {
-            AttachmentProcessor.Field field = AttachmentProcessor.Field.values()[i];
-            fields.add(field);
-            fieldNames.add(field.name().toLowerCase(Locale.ROOT));
+            AttachmentProcessor.Property property = AttachmentProcessor.Property.values()[i];
+            properties.add(property);
+            fieldNames.add(property.name().toLowerCase(Locale.ROOT));
         }
         Map<String, Object> config = new HashMap<>();
-        config.put("source_field", "_field");
-        config.put("fields", fieldNames);
-        AttachmentProcessor processor = factory.create(config);
-        assertThat(processor.getSourceField(), equalTo("_field"));
-        assertThat(processor.getFields(), equalTo(fields));
+        config.put("field", "_field");
+        config.put("properties", fieldNames);
+        AttachmentProcessor processor = factory.create(null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getProperties(), equalTo(properties));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildIllegalFieldOption() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        config.put("source_field", "_field");
-        config.put("fields", Collections.singletonList("invalid"));
+        config.put("field", "_field");
+        config.put("properties", Collections.singletonList("invalid"));
         try {
-            factory.create(config);
+            factory.create(null, null, config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("[fields] illegal field option [invalid]"));
+            assertThat(e.getMessage(), containsString("[properties] illegal field option [invalid]"));
             // ensure allowed fields are mentioned
-            for (AttachmentProcessor.Field field : AttachmentProcessor.Field.values()) {
-                assertThat(e.getMessage(), containsString(field.name()));
+            for (AttachmentProcessor.Property property : AttachmentProcessor.Property.values()) {
+                assertThat(e.getMessage(), containsString(property.name()));
             }
         }
 
         config = new HashMap<>();
-        config.put("source_field", "_field");
-        config.put("fields", "invalid");
+        config.put("field", "_field");
+        config.put("properties", "invalid");
         try {
-            factory.create(config);
+            factory.create(null, null, config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[fields] property isn't a list, but of type [java.lang.String]"));
+            assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
         }
+    }
+
+    public void testIgnoreMissing() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("ignore_missing", true);
+
+        String processorTag = randomAsciiOfLength(10);
+
+        AttachmentProcessor processor = factory.create(null, processorTag, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertTrue(processor.isIgnoreMissing());
     }
 }

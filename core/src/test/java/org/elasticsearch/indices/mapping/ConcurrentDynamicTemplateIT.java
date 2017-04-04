@@ -22,6 +22,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -53,8 +54,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
         for (int i = 0; i < iters; i++) {
             cluster().wipeIndices("test");
             assertAcked(prepareCreate("test")
-                    .addMapping(mappingType, mapping));
-            ensureYellow();
+                    .addMapping(mappingType, mapping, XContentType.JSON));
             int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<>();
@@ -69,7 +69,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         throwable.add(e);
                         latch.countDown();
                     }

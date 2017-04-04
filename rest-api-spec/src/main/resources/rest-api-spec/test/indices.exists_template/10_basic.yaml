@@ -6,6 +6,11 @@ setup:
         ignore: [404]
 ---
 "Test indices.exists_template":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.exists_template:
         name: test
@@ -16,7 +21,7 @@ setup:
       indices.put_template:
         name: test
         body:
-          template: 'test-*'
+          index_patterns: ['test-*']
           settings:
             number_of_shards:   1
             number_of_replicas: 0

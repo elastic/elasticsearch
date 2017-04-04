@@ -4,8 +4,9 @@
 "Analyzer":
     - do:
         indices.analyze:
-          text:         JR新宿駅の近くにビールを飲みに行こうか
-          analyzer:     kuromoji
+          body:
+            text:         JR新宿駅の近くにビールを飲みに行こうか
+            analyzer:     kuromoji
     - length: { tokens: 7 }
     - match:  { tokens.0.token: jr }
     - match:  { tokens.1.token: 新宿 }
@@ -18,8 +19,9 @@
 "Tokenizer":
     - do:
         indices.analyze:
-          text:         関西国際空港
-          tokenizer:    kuromoji_tokenizer
+          body:
+            text:         関西国際空港
+            tokenizer:    kuromoji_tokenizer
     - length: { tokens: 4 }
     - match:  { tokens.0.token: 関西 }
     - match:  { tokens.1.token: 関西国際空港 }
@@ -29,26 +31,29 @@
 "Baseform filter":
     - do:
         indices.analyze:
-          text:         飲み
-          tokenizer:    kuromoji_tokenizer
-          filters:      kuromoji_baseform
+          body:
+            text:         飲み
+            tokenizer:    kuromoji_tokenizer
+            filter:       [kuromoji_baseform]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: 飲む }
 ---
 "Reading filter":
     - do:
         indices.analyze:
-          text:         寿司
-          tokenizer:    kuromoji_tokenizer
-          filters:      kuromoji_readingform
+          body:
+            text:         寿司
+            tokenizer:    kuromoji_tokenizer
+            filter:       [kuromoji_readingform]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: スシ }
 ---
 "Stemming filter":
     - do:
         indices.analyze:
-          text:         サーバー
-          tokenizer:    kuromoji_tokenizer
-          filters:      kuromoji_stemmer
+          body:
+            text:         サーバー
+            tokenizer:    kuromoji_tokenizer
+            filter:       [kuromoji_stemmer]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: サーバ }

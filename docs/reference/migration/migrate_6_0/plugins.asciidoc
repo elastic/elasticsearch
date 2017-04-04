@@ -1,0 +1,35 @@
+[[breaking_60_plugins_changes]]
+=== Plugins changes
+
+==== Mapper attachments plugin
+
+* The mapper attachments plugin has been deprecated in elasticsearch 5.0 and is now removed.
+You can use {plugins}/ingest-attachment.html[ingest attachment plugin] instead.
+
+==== S3 Repository plugin
+
+* The bucket an s3 repository is configured with will no longer be created automatically.
+It must exist before the s3 repository is created.
+
+* Support for specifying s3 credentials through environment variables and
+system properties has been removed. Use the `elasticsearch-keystore` tool
+to securely store the credentials.
+
+* Specifying region has been removed. This includes the settings `cloud.aws.region`,
+`cloud.aws.s3.region`, `repositories.s3.region`, and specifying
+region inside the repository settings. Instead, specify the full endpoint if a custom
+s3 location is needed, or rely on the default behavior which automatically locates
+the region of the configured bucket.
+
+==== Azure Repository plugin
+
+* The container an azure repository is configured with will no longer be created automatically.
+It must exist before the azure repository is created.
+
+* Global repositories settings you are able to set in elasticsearch config file under `repositories.azure`
+name space have been removed. This includes `repositories.azure.account`, `repositories.azure.container`,
+`repositories.azure.base_path`, `repositories.azure.location_mode`, `repositories.azure.chunk_size` and
+`repositories.azure.compress`.
+You must set those settings per repository instead. Respectively `account`, `container`, `base_path`,
+`location_mode`, `chunk_size` and `compress`.
+See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].

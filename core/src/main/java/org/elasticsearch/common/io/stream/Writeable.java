@@ -24,42 +24,70 @@ import java.io.IOException;
 /**
  * Implementers can be written to a {@linkplain StreamOutput} and read from a {@linkplain StreamInput}. This allows them to be "thrown
  * across the wire" using Elasticsearch's internal protocol. If the implementer also implements equals and hashCode then a copy made by
- * serializing and deserializing must be equal and have the same hashCode. It isn't required that such a copy be entirely unchanged. For
- * example, {@link org.elasticsearch.common.unit.TimeValue} converts the time to nanoseconds for serialization.
- * {@linkplain org.elasticsearch.common.unit.TimeValue} actually implements {@linkplain Streamable} not {@linkplain Writeable} but it has
- * the same contract.
- *
+ * serializing and deserializing must be equal and have the same hashCode. It isn't required that such a copy be entirely unchanged.
+ * <p>
  * Prefer implementing this interface over implementing {@link Streamable} where possible. Lots of code depends on {@linkplain Streamable}
  * so this isn't always possible.
- *
- * The fact that this interface extends {@link StreamableReader} should be consider vestigial. Instead of using its
- * {@link #readFrom(StreamInput)} method you should prefer using the Reader interface as a reference to a constructor that takes
- * {@link StreamInput}. The reasoning behind this is that most "good" readFrom implementations just delegated to such a constructor anyway
- * and they required an unsightly PROTOTYPE object.
  */
-public interface Writeable<T> extends StreamableReader<T> { // TODO remove extends StreamableReader<T> from this interface, and remove <T>
+public interface Writeable {
+
     /**
      * Write this into the {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
 
-    @Override
-    default T readFrom(StreamInput in) throws IOException {
-        // See class javadoc for reasoning
-        throw new UnsupportedOperationException(
-                "Prefer calling a constructor or static method that takes a StreamInput to calling readFrom.");
+    /**
+     * Reference to a method that can write some object to a {@link StreamOutput}.
+     * <p>
+     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString}). If the value can be
+     * {@code null}, then the "optional" variant of methods should be used!
+     * <p>
+     * Most classes should implement {@link Writeable} and the {@link Writeable#writeTo(StreamOutput)} method should <em>use</em>
+     * {@link StreamOutput} methods directly or this indirectly:
+     * <pre><code>
+     * public void writeTo(StreamOutput out) throws IOException {
+     *     out.writeVInt(someValue);
+     *     out.writeMapOfLists(someMap, StreamOutput::writeString, StreamOutput::writeString);
+     * }
+     * </code></pre>
+     */
+    @FunctionalInterface
+    interface Writer<V> {
+
+        /**
+         * Write {@code V}-type {@code value} to the {@code out}put stream.
+         *
+         * @param out Output to write the {@code value} too
+         * @param value The value to add
+         */
+        void write(StreamOutput out, V value) throws IOException;
+
     }
 
     /**
      * Reference to a method that can read some object from a stream. By convention this is a constructor that takes
      * {@linkplain StreamInput} as an argument for most classes and a static method for things like enums. Returning null from one of these
      * is always wrong - for that we use methods like {@link StreamInput#readOptionalWriteable(Reader)}.
+     * <p>
+     * As most classes will implement this via a constructor (or a static method in the case of enumerations), it's something that should
+     * look like:
+     * <pre><code>
+     * public MyClass(final StreamInput in) throws IOException {
+     *     this.someValue = in.readVInt();
+     *     this.someMap = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+     * }
+     * </code></pre>
      */
     @FunctionalInterface
-    interface Reader<R> {
+    interface Reader<V> {
+
         /**
-         * Read R from a stream.
+         * Read {@code V}-type value from a stream.
+         *
+         * @param in Input to read the value from
          */
-        R read(StreamInput in) throws IOException;
+        V read(StreamInput in) throws IOException;
+
     }
+
 }

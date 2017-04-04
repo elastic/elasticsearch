@@ -19,32 +19,51 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
 
-/**
- */
-public abstract class TransportRequest extends TransportMessage {
+import java.io.IOException;
 
+public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();
     }
+
+    /**
+     * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
+     */
+    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
     public TransportRequest() {
     }
 
     /**
-     * Returns the task object that should be used to keep track of the processing of the request.
-     *
-     * A request can override this method and return null to avoid being tracked by the task manager.
+     * Set a reference to task that created this request.
      */
-    public Task createTask(long id, String type, String action) {
-        return new Task(id, type, action, getDescription());
+    @Override
+    public void setParentTask(TaskId taskId) {
+        this.parentTaskId = taskId;
     }
 
     /**
-     * Returns optional description of the request to be displayed by the task manager
+     * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
      */
-    public String getDescription() {
-        return "";
+    @Override
+    public TaskId getParentTask() {
+        return parentTaskId;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        parentTaskId = TaskId.readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        parentTaskId.writeTo(out);
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for {@link ScandinavianFoldingFilter}
  */
-public class ScandinavianFoldingFilterFactory extends AbstractTokenFilterFactory {
+public class ScandinavianFoldingFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public ScandinavianFoldingFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -38,4 +38,8 @@ public class ScandinavianFoldingFilterFactory extends AbstractTokenFilterFactory
         return new ScandinavianFoldingFilter(tokenStream);
     }
 
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
 }

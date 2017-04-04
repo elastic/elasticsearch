@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 
-/**
- */
 public class RoutingNodesUtils {
 
     public static int numberOfShardsOfType(RoutingNodes nodes, ShardRoutingState state) {

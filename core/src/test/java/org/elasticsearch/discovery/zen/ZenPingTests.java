@@ -22,12 +22,12 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -38,10 +38,10 @@ public class ZenPingTests extends ESTestCase {
         DiscoveryNode[] nodes = new DiscoveryNode[randomIntBetween(1, 30)];
         long maxIdPerNode[] = new long[nodes.length];
         DiscoveryNode masterPerNode[] = new DiscoveryNode[nodes.length];
-        boolean hasJoinedOncePerNode[] = new boolean[nodes.length];
+        long clusterStateVersionPerNode[] = new long[nodes.length];
         ArrayList<ZenPing.PingResponse> pings = new ArrayList<>();
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode("" + i, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+            nodes[i] = new DiscoveryNode("" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         }
 
         for (int pingCount = scaledRandomIntBetween(10, nodes.length * 10); pingCount > 0; pingCount--) {
@@ -50,8 +50,9 @@ public class ZenPingTests extends ESTestCase {
             if (randomBoolean()) {
                 masterNode = nodes[randomInt(nodes.length - 1)];
             }
-            boolean hasJoinedOnce = randomBoolean();
-            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.DEFAULT, hasJoinedOnce);
+            long clusterStateVersion = randomLong();
+            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.CLUSTER_NAME_SETTING.
+                getDefault(Settings.EMPTY), clusterStateVersion);
             if (rarely()) {
                 // ignore some pings
                 continue;
@@ -59,7 +60,7 @@ public class ZenPingTests extends ESTestCase {
             // update max ping info
             maxIdPerNode[node] = ping.id();
             masterPerNode[node] = masterNode;
-            hasJoinedOncePerNode[node] = hasJoinedOnce;
+            clusterStateVersionPerNode[node] = clusterStateVersion;
             pings.add(ping);
         }
 
@@ -67,15 +68,15 @@ public class ZenPingTests extends ESTestCase {
         Collections.shuffle(pings, random());
 
         ZenPing.PingCollection collection = new ZenPing.PingCollection();
-        collection.addPings(pings.toArray(new ZenPing.PingResponse[pings.size()]));
+        pings.forEach(collection::addPing);
 
-        ZenPing.PingResponse[] aggregate = collection.toArray();
+        List<ZenPing.PingResponse> aggregate = collection.toList();
 
         for (ZenPing.PingResponse ping : aggregate) {
-            int nodeId = Integer.parseInt(ping.node().id());
+            int nodeId = Integer.parseInt(ping.node().getId());
             assertThat(maxIdPerNode[nodeId], equalTo(ping.id()));
             assertThat(masterPerNode[nodeId], equalTo(ping.master()));
-            assertThat(hasJoinedOncePerNode[nodeId], equalTo(ping.hasJoinedOnce()));
+            assertThat(clusterStateVersionPerNode[nodeId], equalTo(ping.getClusterStateVersion()));
 
             maxIdPerNode[nodeId] = -1; // mark as seen
         }

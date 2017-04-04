@@ -36,7 +36,7 @@ import static java.util.Collections.emptySet;
  */
 interface State {
 
-    static final State NONE = new State() {
+    State NONE = new State() {
         @Override
         public State parent() {
             throw new UnsupportedOperationException();

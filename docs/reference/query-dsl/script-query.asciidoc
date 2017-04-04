@@ -7,17 +7,23 @@ context, for example:
 
 [source,js]
 ----------------------------------------------
-"bool" : {
-    "must" : {
-        ...
-    }, 
-    "filter" : {
-        "script" : {
-            "script" : "doc['num1'].value > 1"
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "script" : {
+                    "script" : {
+                        "inline": "doc['num1'].value > 1",
+                        "lang": "painless"
+                     }
+                }
+            }
         }
     }
 }
 ----------------------------------------------
+// CONSOLE
 
 [float]
 ==== Custom Parameters
@@ -28,20 +34,24 @@ to use the ability to pass parameters to the script itself, for example:
 
 [source,js]
 ----------------------------------------------
-"bool" : {
-    "must" : {
-        ...
-    }, 
-    "filter" : {
-        "script" : {
-            "script" : {
-                "inline" : "doc['num1'].value > param1"
-                "params" : {
-                    "param1" : 5
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "script" : {
+                    "script" : {
+                        "inline" : "doc['num1'].value > params.param1",
+                        "lang"   : "painless",
+                        "params" : {
+                            "param1" : 5
+                        }
+                    }
                 }
             }
         }
     }
 }
 ----------------------------------------------
+// CONSOLE
 

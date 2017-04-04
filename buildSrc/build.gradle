@@ -1,5 +1,3 @@
-import java.nio.file.Files
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,25 +17,29 @@ import java.nio.file.Files
  * under the License.
  */
 
-// we must use buildscript + apply so that an external plugin
-// can apply this file, since the plugins directive is not
-// supported through file includes
-buildscript {
-  repositories {
-    jcenter()
-  }
-  dependencies {
-    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
-  }
-}
+import java.nio.file.Files
+
 apply plugin: 'groovy'
-apply plugin: 'com.bmuschko.nexus'
-// TODO: move common IDE configuration to a common file to include
-apply plugin: 'idea'
-apply plugin: 'eclipse'
 
 group = 'org.elasticsearch.gradle'
-archivesBaseName = 'build-tools'
+
+if (GradleVersion.current() < GradleVersion.version('3.3')) {
+  throw new GradleException('Gradle 3.3+ is required to build elasticsearch')
+}
+
+if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
+  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
+}
+
+if (project == rootProject) {
+  // change the build dir used during build init, so that doing a clean
+  // won't wipe out the buildscript jar
+  buildDir = 'build-bootstrap'
+}
+
+/*****************************************************************************
+ *         Propagating version.properties to the rest of the build           *
+ *****************************************************************************/
 
 Properties props = new Properties()
 props.load(project.file('version.properties').newDataInputStream())
@@ -51,35 +53,10 @@ if (snapshot) {
   props.put("elasticsearch", version);
 }
 
-
-repositories {
-  mavenCentral()
-  maven {
-    name 'sonatype-snapshots'
-    url "https://oss.sonatype.org/content/repositories/snapshots/"
-  }
-  jcenter()
-}
-
-dependencies {
-  compile gradleApi()
-  compile localGroovy()
-  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
-  compile("junit:junit:${props.getProperty('junit')}") {
-    transitive = false
-  }
-  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
-  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
-  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
-  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.0'
-  compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
-  compile 'org.apache.rat:apache-rat:0.11'
-}
-
 File tempPropertiesFile = new File(project.buildDir, "version.properties")
 task writeVersionProperties {
   inputs.properties(props)
+  outputs.file(tempPropertiesFile)
   doLast {
     OutputStream stream = Files.newOutputStream(tempPropertiesFile.toPath());
     try {
@@ -95,31 +72,88 @@ processResources {
   from tempPropertiesFile
 }
 
-extraArchive {
-  javadoc = false
-  tests = false
+/*****************************************************************************
+ *                    Dependencies used by the entire build                  *
+ *****************************************************************************/
+
+repositories {
+  jcenter()
 }
 
-idea {
-  module {
-    inheritOutputDirs = false
-    outputDir = file('build-idea/classes/main')
-    testOutputDir = file('build-idea/classes/test')
+dependencies {
+  compile gradleApi()
+  compile localGroovy()
+  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile("junit:junit:${props.getProperty('junit')}") {
+    transitive = false
+  }
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
+  compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
+  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
+  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
+  compile 'de.thetaphi:forbiddenapis:2.3'
+  compile 'org.apache.rat:apache-rat:0.11'
+}
+
+// Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
+// Use logging dependency instead
+
+dependencies {
+  compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
+  compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
+}
+
+/*****************************************************************************
+ *                         Bootstrap repositories                            *
+ *****************************************************************************/
+// this will only happen when buildSrc is built on its own during build init
+if (project == rootProject) {
+
+  repositories {
+    if (System.getProperty("repos.mavenLocal") != null) {
+      mavenLocal()
+    }
+    mavenCentral()
+  }
+  test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
+}
+
+/*****************************************************************************
+ *                           Normal project checks                           *
+ *****************************************************************************/
+
+// this happens when included as a normal project in the build, which we do
+// to enforce precommit checks like forbidden apis, as well as setup publishing
+if (project != rootProject) {
+  apply plugin: 'elasticsearch.build'
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
+
+  // groovydoc succeeds, but has some weird internal exception...
+  groovydoc.enabled = false
+
+  // build-tools is not ready for primetime with these...
+  dependencyLicenses.enabled = false
+  forbiddenApisMain.enabled = false
+  forbiddenApisTest.enabled = false
+  jarHell.enabled = false
+  thirdPartyAudit.enabled = false
+
+  // test for elasticsearch.build tries to run with ES...
+  test.enabled = false
+
+  // TODO: re-enable once randomizedtesting gradle code is published and removed from here
+  licenseHeaders.enabled = false
+
+  forbiddenPatterns {
+    exclude '**/*.wav'
+    // the file that actually defines nocommit
+    exclude '**/ForbiddenPatternsTask.groovy'
+  }
+
+  namingConventions {
+    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
+    integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
   }
 }
-
-eclipse {
-  classpath {
-    defaultOutputDir = file('build-eclipse')
-  }
-}
-
-task copyEclipseSettings(type: Copy) {
-  from project.file('src/main/resources/eclipse.settings')
-  into '.settings'
-}
-// otherwise .settings is not nuked entirely
-tasks.cleanEclipse {
-  delete '.settings'
-}
-tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)

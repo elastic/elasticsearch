@@ -7,17 +7,21 @@ an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_child" : {
-        "type" : "blog_tag",
-        "query" : {
-            "term" : {
-                "tag" : "something"
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+            "query" : {
+                "term" : {
+                    "tag" : "something"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Scoring capabilities
@@ -32,18 +36,22 @@ inside the `has_child` query:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_child" : {
-        "type" : "blog_tag",
-        "score_mode" : "min",
-        "query" : {
-            "term" : {
-                "tag" : "something"
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+            "score_mode" : "min",
+            "query" : {
+                "term" : {
+                    "tag" : "something"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Min/Max Children
@@ -54,21 +62,65 @@ a match:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_child" : {
-        "type" : "blog_tag",
-        "score_mode" : "min",
-        "min_children": 2, <1>
-        "max_children": 10, <1>
-        "query" : {
-            "term" : {
-                "tag" : "something"
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+            "score_mode" : "min",
+            "min_children": 2, <1>
+            "max_children": 10, <1>
+            "query" : {
+                "term" : {
+                    "tag" : "something"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 <1> Both `min_children` and `max_children` are optional.
 
 The  `min_children` and `max_children` parameters can be combined with
 the `score_mode` parameter.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped `type`
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the `type`
+is not mapped.
+
+[float]
+==== Sorting
+
+Parent documents can't be sorted by fields in matching child documents via the
+regular sort options. If you need to sort parent document by field in the child
+documents then you can should use the `function_score` query and then just sort
+by `_score`.
+
+Sorting blogs by child documents' `click_count` field:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+            "score_mode" : "max",
+            "query" : {
+                "function_score" : {
+                    "script_score": {
+                        "script": "_score * doc['click_count'].value"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

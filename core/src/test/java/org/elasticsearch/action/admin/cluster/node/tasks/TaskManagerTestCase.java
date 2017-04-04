@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,29 +39,34 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -67,13 +74,13 @@ import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 public abstract class TaskManagerTestCase extends ESTestCase {
 
     protected static ThreadPool threadPool;
-    public static final ClusterName clusterName = new ClusterName("test-cluster");
+    public static final Settings CLUSTER_SETTINGS = Settings.builder().put("cluster.name", "test-cluster").build();
     protected TestNode[] testNodes;
     protected int nodesCount;
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool(TransportTasksActionTests.class.getSimpleName());
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -87,7 +94,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         testNodes = new TestNode[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             testNodes[i] = new TestNode("node" + i, threadPool, settings);
-            ;
         }
     }
 
@@ -112,27 +118,22 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     static class NodesResponse extends BaseNodesResponse<NodeResponse> {
 
-        private int failureCount;
-
-        protected NodesResponse(ClusterName clusterName, NodeResponse[] nodes, int failureCount) {
-            super(clusterName, nodes);
-            this.failureCount = failureCount;
+        protected NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            failureCount = in.readVInt();
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeResponse::new);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(failureCount);
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
 
         public int failureCount() {
-            return failureCount;
+            return failures().size();
         }
     }
 
@@ -142,29 +143,17 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+        AbstractTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService,
+            super(settings, actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                    request, nodeRequest, ThreadPool.Names.GENERIC);
+                    request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
-        protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray responses) {
-            final List<NodeResponse> nodesList = new ArrayList<>();
-            int failureCount = 0;
-            for (int i = 0; i < responses.length(); i++) {
-                Object resp = responses.get(i);
-                if (resp instanceof NodeResponse) { // will also filter out null response for unallocated ones
-                    nodesList.add((NodeResponse) resp);
-                } else if (resp instanceof FailedNodeException) {
-                    failureCount++;
-                } else {
-                    logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
-                }
-            }
-            return new NodesResponse(clusterName, nodesList.toArray(new NodeResponse[nodesList.size()]), failureCount);
+        protected NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures) {
+            return new NodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -183,9 +172,16 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
+            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction =
+                address -> {
+                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                 return discoveryNode.get();
+                };
             transportService = new TransportService(settings,
-                    new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                    threadPool) {
+                    new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
+                        new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                        new NetworkService(settings, Collections.emptyList())),
+                    threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -196,22 +192,20 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService = createClusterService(threadPool);
-            clusterService.add(transportService.getTaskManager());
-            discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(),
-                    emptyMap(), emptySet(), Version.CURRENT);
+            clusterService = createClusterService(threadPool, discoveryNode.get());
+            clusterService.addStateApplier(transportService.getTaskManager());
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, clusterName, threadPool, clusterService, transportService,
+            transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterName, threadPool, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver);
+            transportCancelTasksAction = new TransportCancelTasksAction(settings, threadPool, clusterService,
+                    transportService, actionFilters, indexNameExpressionResolver);
             transportService.acceptIncomingRequests();
         }
 
         public final ClusterService clusterService;
         public final TransportService transportService;
-        public final DiscoveryNode discoveryNode;
+        private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         public final TransportListTasksAction transportListTasksAction;
         public final TransportCancelTasksAction transportCancelTasksAction;
 
@@ -222,22 +216,24 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         public String getNodeId() {
-            return discoveryNode.getId();
+            return discoveryNode().getId();
         }
+
+        public DiscoveryNode discoveryNode() { return  discoveryNode.get(); }
     }
 
     public static void connectNodes(TestNode... nodes) {
         DiscoveryNode[] discoveryNodes = new DiscoveryNode[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
-            discoveryNodes[i] = nodes[i].discoveryNode;
+            discoveryNodes[i] = nodes[i].discoveryNode();
         }
         DiscoveryNode master = discoveryNodes[0];
         for (TestNode node : nodes) {
-            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode, master, discoveryNodes));
+            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode(), master, discoveryNodes));
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {
-                nodeA.transportService.connectToNode(nodeB.discoveryNode);
+                nodeA.transportService.connectToNode(nodeB.discoveryNode());
             }
         }
     }
@@ -245,10 +241,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static RecordingTaskManagerListener[] setupListeners(TestNode[] nodes, String... actionMasks) {
         RecordingTaskManagerListener[] listeners = new RecordingTaskManagerListener[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
-            listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode, actionMasks);
+            listeners[i] = new RecordingTaskManagerListener(nodes[i].getNodeId(), actionMasks);
             ((MockTaskManager) (nodes[i].transportService.getTaskManager())).addListener(listeners[i]);
         }
         return listeners;
     }
-
 }

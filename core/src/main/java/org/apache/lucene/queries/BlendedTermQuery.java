@@ -163,7 +163,7 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            contexts[i] = ctx = adjustDF(ctx, Math.min(maxDoc, actualDf));
+            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
             prev = current;
             if (sumTTF >= 0 && ctx.totalTermFreq() >= 0) {
                 sumTTF += ctx.totalTermFreq();
@@ -179,16 +179,17 @@ public abstract class BlendedTermQuery extends Query {
             }
             // the blended sumTTF can't be greater than the sumTTTF on the field
             final long fixedTTF = sumTTF == -1 ? -1 : sumTTF;
-            contexts[i] = adjustTTF(contexts[i], fixedTTF);
+            contexts[i] = adjustTTF(reader.getContext(), contexts[i], fixedTTF);
         }
     }
 
-    private TermContext adjustTTF(TermContext termContext, long sumTTF) {
+    private TermContext adjustTTF(IndexReaderContext readerContext, TermContext termContext, long sumTTF) {
+        assert termContext.wasBuiltFor(readerContext);
         if (sumTTF == -1 && termContext.totalTermFreq() == -1) {
             return termContext;
         }
-        TermContext newTermContext = new TermContext(termContext.topReaderContext);
-        List<LeafReaderContext> leaves = termContext.topReaderContext.leaves();
+        TermContext newTermContext = new TermContext(readerContext);
+        List<LeafReaderContext> leaves = readerContext.leaves();
         final int len;
         if (leaves == null) {
             len = 1;
@@ -209,7 +210,8 @@ public abstract class BlendedTermQuery extends Query {
         return newTermContext;
     }
 
-    private static TermContext adjustDF(TermContext ctx, int newDocFreq) {
+    private static TermContext adjustDF(IndexReaderContext readerContext, TermContext ctx, int newDocFreq) {
+        assert ctx.wasBuiltFor(readerContext);
         // Use a value of ttf that is consistent with the doc freq (ie. gte)
         long newTTF;
         if (ctx.totalTermFreq() < 0) {
@@ -217,14 +219,14 @@ public abstract class BlendedTermQuery extends Query {
         } else {
             newTTF = Math.max(ctx.totalTermFreq(), newDocFreq);
         }
-        List<LeafReaderContext> leaves = ctx.topReaderContext.leaves();
+        List<LeafReaderContext> leaves = readerContext.leaves();
         final int len;
         if (leaves == null) {
             len = 1;
         } else {
             len = leaves.size();
         }
-        TermContext newCtx = new TermContext(ctx.topReaderContext);
+        TermContext newCtx = new TermContext(readerContext);
         for (int i = 0; i < len; ++i) {
             TermState termState = ctx.get(i);
             if (termState == null) {
@@ -283,7 +285,7 @@ public abstract class BlendedTermQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!super.equals(o)) return false;
+        if (sameClassAs(o) == false) return false;
 
         BlendedTermQuery that = (BlendedTermQuery) o;
         return Arrays.equals(equalsTerms(), that.equalsTerms());
@@ -291,7 +293,7 @@ public abstract class BlendedTermQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(equalsTerms()));
+        return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
     }
 
     public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final boolean disableCoord) {

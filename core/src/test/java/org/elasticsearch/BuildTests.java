@@ -19,21 +19,38 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.file.AccessMode;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.net.URL;
 
 public class BuildTests extends ESTestCase {
 
     /** Asking for the jar metadata should not throw exception in tests, no matter how configured */
     public void testJarMetadata() throws IOException {
-        Path path = Build.getElasticsearchCodebase();
+        URL url = Build.getElasticsearchCodebase();
         // throws exception if does not exist, or we cannot access it
-        path.getFileSystem().provider().checkAccess(path, AccessMode.READ);
+        try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
         // these should never be null
         assertNotNull(Build.CURRENT.date());
         assertNotNull(Build.CURRENT.shortHash());
+    }
+
+    public void testEqualsAndHashCode() {
+        Build build = Build.CURRENT;
+        Build another = new Build(build.shortHash(), build.date(), build.isSnapshot());
+        assertEquals(build, another);
+        assertEquals(build.hashCode(), another.hashCode());
+
+        Build differentHash = new Build(randomAsciiOfLengthBetween(3, 10), build.date(), build.isSnapshot());
+        assertNotEquals(build, differentHash);
+
+        Build differentDate = new Build(build.shortHash(), "1970-01-01", build.isSnapshot());
+        assertNotEquals(build, differentDate);
+
+        Build differentSnapshot = new Build(build.shortHash(), build.date(), !build.isSnapshot());
+        assertNotEquals(build, differentSnapshot);
     }
 }

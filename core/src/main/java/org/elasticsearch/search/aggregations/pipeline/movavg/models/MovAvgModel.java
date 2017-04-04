@@ -20,9 +20,8 @@
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel implements Writeable<MovAvgModel>, ToXContent {
+public abstract class MovAvgModel implements NamedWriteable, ToXContent {
 
     /**
      * Should this model be fit to the data via a cost minimizing algorithm by default?
@@ -137,25 +136,16 @@ public abstract class MovAvgModel implements Writeable<MovAvgModel>, ToXContent 
      * Abstract class which also provides some concrete parsing functionality.
      */
     public abstract static class AbstractModelParser {
-
-        /**
-         * Returns the name of the model
-         *
-         * @return The model's name
-         */
-        public abstract String getName();
-
         /**
          * Parse a settings hash that is specific to this model
          *
          * @param settings           Map of settings, extracted from the request
          * @param pipelineName       Name of the parent pipeline agg
          * @param windowSize         Size of the window for this moving avg
-         * @param parseFieldMatcher  Matcher for field names
          * @return                   A fully built moving average model
          */
         public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,
-                                          int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException;
+                                          int windowSize) throws ParseException;
 
 
         /**

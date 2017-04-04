@@ -41,8 +41,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class DuelScrollIT extends ESIntegTestCase {
     public void testDuelQueryThenFetch() throws Exception {
         TestContext context = create(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH);
@@ -53,7 +51,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 .setSize(context.numDocs).get();
         assertNoFailures(control);
         SearchHits sh = control.getHits();
-        assertThat(sh.totalHits(), equalTo((long) context.numDocs));
+        assertThat(sh.getTotalHits(), equalTo((long) context.numDocs));
         assertThat(sh.getHits().length, equalTo(context.numDocs));
 
         SearchResponse searchScrollResponse = client().prepareSearch("index")
@@ -64,11 +62,11 @@ public class DuelScrollIT extends ESIntegTestCase {
 
         assertNoFailures(searchScrollResponse);
         assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
-        assertThat(searchScrollResponse.getHits().hits().length, equalTo(context.scrollRequestSize));
+        assertThat(searchScrollResponse.getHits().getHits().length, equalTo(context.scrollRequestSize));
 
         int counter = 0;
         for (SearchHit hit : searchScrollResponse.getHits()) {
-            assertThat(hit.sortValues()[0], equalTo(sh.getAt(counter++).sortValues()[0]));
+            assertThat(hit.getSortValues()[0], equalTo(sh.getAt(counter++).getSortValues()[0]));
         }
 
         int iter = 1;
@@ -77,7 +75,7 @@ public class DuelScrollIT extends ESIntegTestCase {
             searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll("10m").get();
             assertNoFailures(searchScrollResponse);
             assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
-            if (searchScrollResponse.getHits().hits().length == 0) {
+            if (searchScrollResponse.getHits().getHits().length == 0) {
                 break;
             }
 
@@ -88,42 +86,10 @@ public class DuelScrollIT extends ESIntegTestCase {
             } else {
                 expectedLength = context.scrollRequestSize - (scrollSlice - context.numDocs);
             }
-            assertThat(searchScrollResponse.getHits().hits().length, equalTo(expectedLength));
+            assertThat(searchScrollResponse.getHits().getHits().length, equalTo(expectedLength));
             for (SearchHit hit : searchScrollResponse.getHits()) {
-                assertThat(hit.sortValues()[0], equalTo(sh.getAt(counter++).sortValues()[0]));
+                assertThat(hit.getSortValues()[0], equalTo(sh.getAt(counter++).getSortValues()[0]));
             }
-            scrollId = searchScrollResponse.getScrollId();
-        }
-
-        assertThat(counter, equalTo(context.numDocs));
-        clearScroll(scrollId);
-    }
-
-    public void testDuelQueryAndFetch() throws Exception {
-        // *_QUERY_AND_FETCH search types are tricky: the ordering can be incorrect, since it returns num_shards * (from + size)
-        // a subsequent scroll call can return hits that should have been in the hits of the first scroll call.
-
-        TestContext context = create(SearchType.DFS_QUERY_AND_FETCH, SearchType.QUERY_AND_FETCH);
-        SearchResponse searchScrollResponse = client().prepareSearch("index")
-                .setSearchType(context.searchType)
-                .addSort(context.sort)
-                .setSize(context.scrollRequestSize)
-                .setScroll("10m").get();
-
-        assertNoFailures(searchScrollResponse);
-        assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
-
-        int counter = searchScrollResponse.getHits().hits().length;
-        String scrollId = searchScrollResponse.getScrollId();
-        while (true) {
-            searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll("10m").get();
-            assertNoFailures(searchScrollResponse);
-            assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
-            if (searchScrollResponse.getHits().hits().length == 0) {
-                break;
-            }
-
-            counter += searchScrollResponse.getHits().hits().length;
             scrollId = searchScrollResponse.getScrollId();
         }
 
@@ -269,15 +235,15 @@ public class DuelScrollIT extends ESIntegTestCase {
                 assertNoFailures(scroll);
                 assertEquals(control.getHits().getTotalHits(), scroll.getHits().getTotalHits());
                 assertEquals(control.getHits().getMaxScore(), scroll.getHits().getMaxScore(), 0.01f);
-                if (scroll.getHits().hits().length == 0) {
+                if (scroll.getHits().getHits().length == 0) {
                     break;
                 }
-                for (int i = 0; i < scroll.getHits().hits().length; ++i) {
+                for (int i = 0; i < scroll.getHits().getHits().length; ++i) {
                     SearchHit controlHit = control.getHits().getAt(scrollDocs + i);
                     SearchHit scrollHit = scroll.getHits().getAt(i);
                     assertEquals(controlHit.getId(), scrollHit.getId());
                 }
-                scrollDocs += scroll.getHits().hits().length;
+                scrollDocs += scroll.getHits().getHits().length;
                 scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll("10m").get();
             }
             assertEquals(control.getHits().getTotalHits(), scrollDocs);
@@ -290,16 +256,9 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
     }
 
-    public void testDuelIndexOrderQueryAndFetch() throws Exception {
-        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_AND_FETCH, SearchType.DFS_QUERY_AND_FETCH));
-        // QUERY_AND_FETCH only works with a single shard
-        final int numDocs = createIndex(true);
-        testDuelIndexOrder(searchType, false, numDocs);
-        testDuelIndexOrder(searchType, true, numDocs);
-    }
-
     public void testDuelIndexOrderQueryThenFetch() throws Exception {
-        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH));
+        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH,
+            SearchType.DFS_QUERY_THEN_FETCH));
         final int numDocs = createIndex(false);
         testDuelIndexOrder(searchType, false, numDocs);
         testDuelIndexOrder(searchType, true, numDocs);

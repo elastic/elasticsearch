@@ -1,0 +1,11 @@
+[[java-rest-overview]]
+== Overview
+
+The Java REST Client comes with 2 flavors:
+
+* <<java-rest-low>>: which is the official low-level client for Elasticsearch.
+It allows to communicate with an Elasticsearch cluster through http and is compatible
+with all elasticsearch versions.
+
+* <<java-rest-high>>: which is the official high-level client for Elasticsearch. It adds support
+part of the elasticsearch document level and search API on top of the low-level client.

@@ -7,12 +7,14 @@ into the "twitter" index, under a type called "tweet" with an id of 1:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
+PUT twitter/tweet/1
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The result of the above index operation is:
 
@@ -20,30 +22,33 @@ The result of the above index operation is:
 --------------------------------------------------
 {
     "_shards" : {
-        "total" : 10,
+        "total" : 2,
         "failed" : 0,
-        "successful" : 10
+        "successful" : 2
     },
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "_seq_no" : 0,
+    "result" : created
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
 
 The `_shards` header provides information about the replication process of the index operation.
 
 * `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
 * `successful`- Indicates the number of shard copies the index operation succeeded on.
-* `failures` - An array that contains replication related errors in the case an index operation failed on a replica shard.
+* `failed` - An array that contains replication related errors in the case an index operation failed on a replica shard.
 
 The index operation is successful in the case `successful` is at least 1.
 
-NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, a  quorum is
-        required). In that case, `total` will be equal to the total shards based on the index replica settings and
-        `successful` will be equal to the number of shards started (primary plus replicas). As there were no failures,
-        the `failed` will be 0.
+NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, only the 
+        primary is required, but this behavior can be <<index-wait-for-active-shards,changed>>). In that case, 
+        `total` will be equal to the total shards based on the `number_of_replicas` setting and `successful` will be 
+        equal to the number of shards started (primary plus replicas). If there were no failures, the `failed` will be 0.
 
 [float]
 [[index-creation]]
@@ -65,8 +70,7 @@ section for more information on mapping definitions.
 Automatic index creation can be disabled by setting
 `action.auto_create_index` to `false` in the config file of all nodes.
 Automatic mapping creation can be disabled by setting
-`index.mapper.dynamic` to `false` in the config files of all nodes (or
-on the specific index settings).
+`index.mapper.dynamic` to `false` per-index as an index setting.
 
 Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
@@ -90,10 +94,13 @@ meantime (when reading in order to update, it is recommended to set
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/twitter/tweet/1?version=2' -d '{
+PUT twitter/tweet/1?version=2
+{
     "message" : "elasticsearch now has versioning support, double cool!"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[catch: conflict]
 
 *NOTE:* versioning is completely real time, and is not affected by the
 near real time aspects of search operations. If no version is provided,
@@ -111,6 +118,14 @@ version of the currently stored document. If true, the document will be
 indexed and the new version number used. If the value provided is less
 than or equal to the stored document's version number, a version
 conflict will occur and the index operation will fail.
+
+WARNING: External versioning supports the value 0 as a valid version number.
+This allows the version to be in sync with an external versioning system
+where version numbers start from zero instead of one. It has the side effect
+that documents with version number equal to zero cannot neither be updated
+using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
+using the <<docs-delete-by-query,Delete By Query API>> as long as their
+version number is equal to zero.
 
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source
@@ -140,12 +155,10 @@ than the version of the stored document. If there is no existing document
 the operation will succeed as well. The given version will be used as the new version
 and will be stored with the new document. The supplied version must be a non-negative long number.
 
-`force`:: the document will be indexed regardless of the version of the stored document or if there
-is no existing document. The given version will be used as the new version and will be stored
-with the new document. This version type is typically used for correcting errors.
-
-*NOTE*: The `external_gte` & `force` version types are meant for special use cases and should be used
-with care. If used incorrectly, they can result in loss of data.
+*NOTE*: The `external_gte` version type is meant for special use cases and
+should be used with care. If used incorrectly, it can result in loss of data.
+There is another option, `force`, which is deprecated because it can cause
+primary and replica shards to diverge.
 
 [float]
 [[operation-type]]
@@ -160,23 +173,27 @@ Here is an example of using the `op_type` parameter:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1?op_type=create' -d '{
+PUT twitter/tweet/1?op_type=create
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Another option to specify `create` is to use the following uri:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1/_create' -d '{
+PUT twitter/tweet/1/_create
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 === Automatic ID Generation
@@ -188,25 +205,35 @@ will automatically be set to `create`. Here is an example (note the
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/tweet/' -d '{
+POST twitter/tweet/
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The result of the above index operation is:
 
 [source,js]
 --------------------------------------------------
 {
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    },
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "_seq_no" : 0,
+    "result": "created"
 }
 --------------------------------------------------
+// TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
 
 [float]
 [[index-routing]]
@@ -219,12 +246,14 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/tweet?routing=kimchy' -d '{
+POST twitter/tweet?routing=kimchy
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 In the example above, the "tweet" document is routed to a shard based on
 the `routing` parameter provided: "kimchy".
@@ -245,81 +274,28 @@ For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT localhost:9200/blogs/blog_tag/1122?parent=1111 -d '{
+PUT blogs
+{
+  "mappings": {
+    "tag_parent": {},
+    "blog_tag": {
+      "_parent": {
+        "type": "tag_parent"
+      }
+    }
+  }
+}
+
+PUT blogs/blog_tag/1122?parent=1111
+{
     "tag" : "something"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 When indexing a child document, the routing value is automatically set
 to be the same as its parent, unless the routing value is explicitly
 specified using the `routing` parameter.
-
-[float]
-[[index-timestamp]]
-=== Timestamp
-
-deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
-
-A document can be indexed with a `timestamp` associated with it. The
-`timestamp` value of a document can be set using the `timestamp`
-parameter. For example:
-
-[source,js]
---------------------------------------------------
-$ curl -XPUT localhost:9200/twitter/tweet/1?timestamp=2009-11-15T14%3A12%3A12 -d '{
-    "user" : "kimchy",
-    "message" : "trying out Elasticsearch"
-}'
---------------------------------------------------
-
-If the `timestamp` value is not provided externally or in the `_source`,
-the `timestamp` will be automatically set to the date the document was
-processed by the indexing chain. More information can be found on the
-<<mapping-timestamp-field,_timestamp mapping
-page>>.
-
-[float]
-[[index-ttl]]
-=== TTL
-
-deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
-
-
-A document can be indexed with a `ttl` (time to live) associated with
-it. Expired documents will be expunged automatically. The expiration
-date that will be set for a document with a provided `ttl` is relative
-to the `timestamp` of the document, meaning it can be based on the time
-of indexing or on any time provided. The provided `ttl` must be strictly
-positive and can be a number (in milliseconds) or any valid time value
-as shown in the following examples:
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1?ttl=86400000' -d '{
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}'
---------------------------------------------------
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1?ttl=1d' -d '{
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}'
---------------------------------------------------
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
-    "_ttl": "1d",
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}'
---------------------------------------------------
-
-More information can be found on the
-<<mapping-ttl-field,_ttl mapping page>>.
 
 [float]
 [[index-distributed]]
@@ -331,36 +307,68 @@ containing this shard. After the primary shard completes the operation,
 if needed, the update is distributed to applicable replicas.
 
 [float]
-[[index-consistency]]
-=== Write Consistency
+[[index-wait-for-active-shards]]
+=== Wait For Active Shards
 
-To prevent writes from taking place on the "wrong" side of a network
-partition, by default, index operations only succeed if a quorum
-(>replicas/2+1) of active shards are available. This default can be
-overridden on a node-by-node basis using the `action.write_consistency`
-setting. To alter this behavior per-operation, the `consistency` request
-parameter can be used.
+To improve the resiliency of writes to the system, indexing operations 
+can be configured to wait for a certain number of active shard copies 
+before proceeding with the operation. If the requisite number of active
+shard copies are not available, then the write operation must wait and 
+retry, until either the requisite shard copies have started or a timeout 
+occurs. By default, write operations only wait for the primary shards 
+to be active before proceeding (i.e. `wait_for_active_shards=1`).
+This default can be overridden in the index settings dynamically
+by setting `index.write.wait_for_active_shards`. To alter this behavior 
+per operation, the `wait_for_active_shards` request parameter can be used.
 
-Valid write consistency values are `one`, `quorum`, and `all`.
+Valid values are `all` or any positive integer up to the total number
+of configured copies per shard in the index (which is `number_of_replicas+1`).
+Specifying a negative value or a number greater than the number of 
+shard copies will throw an error.
 
-Note, for the case where the number of replicas is 1 (total of 2 copies
-of the data), then the default behavior is to succeed if 1 copy (the primary)
-can perform the write.
+For example, suppose we have a cluster of three nodes, `A`, `B`, and `C` and
+we create an index `index` with the number of replicas set to 3 (resulting in 
+4 shard copies, one more copy than there are nodes). If we 
+attempt an indexing operation, by default the operation will only ensure
+the primary copy of each shard is available before proceeding. This means
+that even if `B` and `C` went down, and `A` hosted the primary shard copies,
+the indexing operation would still proceed with only one copy of the data. 
+If `wait_for_active_shards` is set on the request to `3` (and all 3 nodes
+are up), then the indexing operation will require 3 active shard copies 
+before proceeding, a requirement which should be met because there are 3
+active nodes in the cluster, each one holding a copy of the shard. However,
+if we set `wait_for_active_shards` to `all` (or to `4`, which is the same), 
+the indexing operation will not proceed as we do not have all 4 copies of 
+each shard active in the index. The operation will timeout 
+unless a new node is brought up in the cluster to host the fourth copy of
+the shard.
 
-The index operation only returns after all *active* shards within the
-replication group have indexed the document (sync replication).
+It is important to note that this setting greatly reduces the chances of 
+the write operation not writing to the requisite number of shard copies, 
+but it does not completely eliminate the possibility, because this check
+occurs before the write operation commences. Once the write operation
+is underway, it is still possible for replication to fail on any number of 
+shard copies but still succeed on the primary. The `_shards` section of the
+write operation's response reveals the number of shard copies on which 
+replication succeeded/failed.
+
+[source,js]
+--------------------------------------------------
+{
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    }
+}
+--------------------------------------------------
 
 [float]
 [[index-refresh]]
 === Refresh
 
-To refresh the shard (not the whole index) immediately after the operation
-occurs, so that the document appears in search results immediately, the
-`refresh` parameter can be set to `true`. Setting this option to `true` should
-*ONLY* be done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note, getting
-a document using the get API is completely realtime and doesn't require a
-refresh.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh,refresh>>.
 
 [float]
 [[index-noop]]
@@ -392,9 +400,11 @@ to 5 minutes:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1?timeout=5m' -d '{
+PUT twitter/tweet/1?timeout=5m
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE

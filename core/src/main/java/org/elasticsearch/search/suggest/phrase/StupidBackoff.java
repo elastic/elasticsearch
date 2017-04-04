@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
@@ -102,12 +101,11 @@ public final class StupidBackoff extends SmoothingModel {
     }
 
     @Override
-    protected final int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(discount);
     }
 
-    public static SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static SmoothingModel fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         double discount = DEFAULT_BACKOFF_DISCOUNT;
@@ -115,7 +113,7 @@ public final class StupidBackoff extends SmoothingModel {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             }
-            if (token.isValue() && parseContext.parseFieldMatcher().match(fieldName, DISCOUNT_FIELD)) {
+            if (token.isValue() && DISCOUNT_FIELD.match(fieldName)) {
                 discount = parser.doubleValue();
             }
         }

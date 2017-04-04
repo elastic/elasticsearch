@@ -71,21 +71,58 @@ Once your changes and tests are ready to submit for review:
 
 Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch.
 
+Please adhere to the general guideline that you should never force push
+to a publicly shared branch. Once you have opened your pull request, you
+should consider your branch publicly shared. Instead of force pushing
+you can just add incremental commits; this is generally easier on your
+reviewers. If you need to pick up changes from master, you can merge
+master into your branch. A reviewer might ask you to rebase a
+long-running pull request in which case force pushing is okay for that
+request. Note that squashing at the end of the review process should
+also not be done, that can be done when the pull request is [integrated
+via GitHub](https://github.com/blog/2141-squash-your-commits).
+
 Contributing to the Elasticsearch codebase
 ------------------------------------------
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-Make sure you have [Gradle](http://gradle.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE: `gradle eclipse` then `File: Import: Existing Projects into Workspace`. Select the option `Search for nested projects`. Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini` accordingly to avoid GC overhead errors.
+Make sure you have [Gradle](http://gradle.org) installed, as
+Elasticsearch uses it as its build system. Gradle must be at least
+version 3.3 in order to build successfully.
+
+Eclipse users can automatically configure their IDE: `gradle eclipse`
+then `File: Import: Existing Projects into Workspace`. Select the
+option `Search for nested projects`. Additionally you will want to
+ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
+accordingly to avoid GC overhead errors.
+
+IntelliJ users can automatically configure their IDE: `gradle idea`
+then `File->New Project From Existing Sources`. Point to the root of
+the source directory, select
+`Import project from external model->Gradle`, enable
+`Use auto-import`.
+
+The Elasticsearch codebase makes heavy use of Java `assert`s and the
+test runner requires that assertions be enabled within the JVM. This
+can be accomplished by passing the flag `-ea` to the JVM on startup.
+
+For IntelliJ, go to
+`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
+`-ea`.
+
+For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
+`VM Arguments`.
 
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
-* Line width is 140 characters
+* Line width is 100 characters
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.
- * Eclipse: Preferences->Java->Code Style->Organize Imports. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
+ * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
+ * IntelliJ: `Preferences->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
 * Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
 
 To create a distribution from the source, simply run:
@@ -95,10 +132,39 @@ cd elasticsearch/
 gradle assemble
 ```
 
-You will find the newly built packages under: `./distribution/build/distributions/`.
+You will find the newly built packages under: `./distribution/(deb|rpm|tar|zip)/build/distributions/`.
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
 ```sh
 gradle check
 ```
+
+Contributing as part of a class
+-------------------------------
+In general Elasticsearch is happy to accept contributions that were created as
+part of a class but strongly advise against making the contribution as part of
+the class. So if you have code you wrote for a class feel free to submit it.
+
+Please, please, please do not assign contributing to Elasticsearch as part of a
+class. If you really want to assign writing code for Elasticsearch as an
+assignment then the code contributions should be made to your private clone and
+opening PRs against the primary Elasticsearch clone must be optional, fully
+voluntary, not for a grade, and without any deadlines.
+
+Because:
+
+* While the code review process is likely very educational, it can take wildly
+varying amounts of time depending on who is available, where the change is, and
+how deep the change is. There is no way to predict how long it will take unless
+we rush.
+* We do not rush reviews without a very, very good reason. Class deadlines
+aren't a good enough reason for us to rush reviews.
+* We deeply discourage opening a PR you don't intend to work through the entire
+code review process because it wastes our time.
+* We don't have the capacity to absorb an entire class full of new contributors,
+especially when they are unlikely to become long time contributors.
+
+Finally, we require that you run `gradle check` before submitting a
+non-documentation contribution. This is mentioned above, but it is worth
+repeating in this section because it has come up in this context.

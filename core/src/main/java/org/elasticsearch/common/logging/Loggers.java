@@ -19,18 +19,28 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.lucene.util.SuppressForbidden;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.message.MessageFactory;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
+import static javax.security.auth.login.Configuration.getConfiguration;
 import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 
 /**
@@ -38,96 +48,68 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
  */
 public class Loggers {
 
-    private final static String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
-
     public static final String SPACE = " ";
 
-    private static boolean consoleLoggingEnabled = true;
-
-    public static void disableConsoleLogging() {
-        consoleLoggingEnabled = false;
-    }
-
-    public static void enableConsoleLogging() {
-        consoleLoggingEnabled = true;
-    }
-
-    public static boolean consoleLoggingEnabled() {
-        return consoleLoggingEnabled;
-    }
-
-    public static ESLogger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
+    public static Logger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     /**
-     * Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings,ShardId,String...)} but String loggerName instead of
+     * Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings, ShardId, String...)} but String loggerName instead of
      * Class.
      */
-    public static ESLogger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
+    public static Logger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(loggerName, settings,
-                asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+            asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
-    public static ESLogger getLogger(Class<?> clazz, Settings settings, Index index, String... prefixes) {
+    public static Logger getLogger(Class<?> clazz, Settings settings, Index index, String... prefixes) {
         return getLogger(clazz, settings, asArrayList(SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
-    public static ESLogger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
-        return getLogger(buildClassLoggerName(clazz), settings, prefixes);
+    public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
+        final List<String> prefixesList = prefixesList(settings, prefixes);
+        return getLogger(clazz, prefixesList.toArray(new String[prefixesList.size()]));
     }
 
-    @SuppressForbidden(reason = "using localhost for logging on which host it is is fine")
-    private static InetAddress getHostAddress() {
-        try {
-            return InetAddress.getLocalHost();
-        } catch (UnknownHostException e) {
-            return null;
-        }
+    public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
+        final List<String> prefixesList = prefixesList(settings, prefixes);
+        return getLogger(loggerName, prefixesList.toArray(new String[prefixesList.size()]));
     }
 
-    @SuppressForbidden(reason = "do not know what this method does")
-    public static ESLogger getLogger(String loggerName, Settings settings, String... prefixes) {
+    private static List<String> prefixesList(Settings settings, String... prefixes) {
         List<String> prefixesList = new ArrayList<>();
-        if (settings.getAsBoolean("logger.logHostAddress", false)) {
-            final InetAddress addr = getHostAddress();
-            if (addr != null) {
-                prefixesList.add(addr.getHostAddress());
-            }
-        }
-        if (settings.getAsBoolean("logger.logHostName", false)) {
-            final InetAddress addr = getHostAddress();
-            if (addr != null) {
-                prefixesList.add(addr.getHostName());
-            }
-        }
-        String name = settings.get("node.name");
-        if (name != null) {
-            prefixesList.add(name);
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            prefixesList.add(Node.NODE_NAME_SETTING.get(settings));
         }
         if (prefixes != null && prefixes.length > 0) {
             prefixesList.addAll(asList(prefixes));
         }
-        return getLogger(getLoggerName(loggerName), prefixesList.toArray(new String[prefixesList.size()]));
+        return prefixesList;
     }
 
-    public static ESLogger getLogger(ESLogger parentLogger, String s) {
-        return ESLoggerFactory.getLogger(parentLogger.getPrefix(), getLoggerName(parentLogger.getName() + s));
+    public static Logger getLogger(Logger parentLogger, String s) {
+        assert parentLogger instanceof PrefixLogger;
+        return ESLoggerFactory.getLogger(((PrefixLogger)parentLogger).prefix(), parentLogger.getName() + s);
     }
 
-    public static ESLogger getLogger(String s) {
-        return ESLoggerFactory.getLogger(getLoggerName(s));
+    public static Logger getLogger(String s) {
+        return ESLoggerFactory.getLogger(s);
     }
 
-    public static ESLogger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(getLoggerName(buildClassLoggerName(clazz)));
+    public static Logger getLogger(Class<?> clazz) {
+        return ESLoggerFactory.getLogger(clazz);
     }
 
-    public static ESLogger getLogger(Class<?> clazz, String... prefixes) {
-        return getLogger(buildClassLoggerName(clazz), prefixes);
+    public static Logger getLogger(Class<?> clazz, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
-    public static ESLogger getLogger(String name, String... prefixes) {
+    public static Logger getLogger(String name, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), name);
+    }
+
+    private static String formatPrefix(String... prefixes) {
         String prefix = null;
         if (prefixes != null && prefixes.length > 0) {
             StringBuilder sb = new StringBuilder();
@@ -145,21 +127,78 @@ public class Loggers {
                 prefix = sb.toString();
             }
         }
-        return ESLoggerFactory.getLogger(prefix, getLoggerName(name));
+        return prefix;
     }
 
-    private static String buildClassLoggerName(Class<?> clazz) {
-        String name = clazz.getName();
-        if (name.startsWith("org.elasticsearch.")) {
-            name = Classes.getPackageName(clazz);
+    /**
+     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
+     * level.
+     */
+    public static void setLevel(Logger logger, String level) {
+        final Level l;
+        if (level == null) {
+            l = null;
+        } else {
+            l = Level.valueOf(level);
         }
-        return name;
+        setLevel(logger, l);
     }
 
-    private static String getLoggerName(String name) {
-        if (name.startsWith("org.elasticsearch.")) {
-            name = name.substring("org.elasticsearch.".length());
+    public static void setLevel(Logger logger, Level level) {
+        if (!LogManager.ROOT_LOGGER_NAME.equals(logger.getName())) {
+            Configurator.setLevel(logger.getName(), level);
+        } else {
+            final LoggerContext ctx = LoggerContext.getContext(false);
+            final Configuration config = ctx.getConfiguration();
+            final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+            loggerConfig.setLevel(level);
+            ctx.updateLoggers();
         }
-        return commonPrefix + name;
+
+        // we have to descend the hierarchy
+        final LoggerContext ctx = LoggerContext.getContext(false);
+        for (final LoggerConfig loggerConfig : ctx.getConfiguration().getLoggers().values()) {
+            if (LogManager.ROOT_LOGGER_NAME.equals(logger.getName()) || loggerConfig.getName().startsWith(logger.getName() + ".")) {
+                Configurator.setLevel(loggerConfig.getName(), level);
+            }
+        }
     }
+
+    public static void addAppender(final Logger logger, final Appender appender) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        config.addAppender(appender);
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        if (!logger.getName().equals(loggerConfig.getName())) {
+            loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
+            config.addLogger(logger.getName(), loggerConfig);
+        }
+        loggerConfig.addAppender(appender, null, null);
+        ctx.updateLoggers();
+    }
+
+    public static void removeAppender(final Logger logger, final Appender appender) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        if (!logger.getName().equals(loggerConfig.getName())) {
+            loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
+            config.addLogger(logger.getName(), loggerConfig);
+        }
+        loggerConfig.removeAppender(appender.getName());
+        ctx.updateLoggers();
+    }
+
+    public static Appender findAppender(final Logger logger, final Class<? extends Appender> clazz) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        for (final Map.Entry<String, Appender> entry : loggerConfig.getAppenders().entrySet()) {
+            if (entry.getValue().getClass().equals(clazz)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
 }

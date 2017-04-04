@@ -24,26 +24,19 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 
 import java.io.Closeable;
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final QueryCache queryCache;
     private final BitsetFilterCache bitsetFilterCache;
-    private final PercolatorQueryCache percolatorQueryCache;
 
-    public IndexCache(IndexSettings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache,
-                      PercolatorQueryCache percolatorQueryCache) {
+    public IndexCache(IndexSettings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache) {
         super(indexSettings);
         this.queryCache = queryCache;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.percolatorQueryCache = percolatorQueryCache;
     }
 
     public QueryCache query() {
@@ -57,13 +50,9 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
         return bitsetFilterCache;
     }
 
-    public PercolatorQueryCache getPercolatorQueryCache() {
-        return percolatorQueryCache;
-    }
-
     @Override
     public void close() throws IOException {
-        IOUtils.close(queryCache, bitsetFilterCache, percolatorQueryCache);
+        IOUtils.close(queryCache, bitsetFilterCache);
     }
 
     public void clear(String reason) {

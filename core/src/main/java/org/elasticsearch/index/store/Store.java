@@ -263,7 +263,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
     /**
      * Renames all the given files from the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
@@ -388,7 +387,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             IOUtils.closeWhileHandlingException(shardLock);
         }
     }
-
 
     /**
      * Reads a MetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
@@ -597,7 +595,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * This method deletes every file in this store that is not contained in the given source meta data or is a
      * legacy checksum file. After the delete it pulls the latest metadata snapshot from the store and compares it
-     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown
+     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown.
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
@@ -641,9 +639,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 for (StoreFileMetaData meta : recoveryDiff.different) {
                     StoreFileMetaData local = targetMetaData.get(meta.name());
                     StoreFileMetaData remote = sourceMetaData.get(meta.name());
-                    // if we have different files the they must have no checksums otherwise something went wrong during recovery.
-                    // we have that problem when we have an empty index is only a segments_1 file then we can't tell if it's a Lucene 4.8 file
-                    // and therefore no checksum. That isn't much of a problem since we simply copy it over anyway but those files come out as
+                    // if we have different files then they must have no checksums; otherwise something went wrong during recovery.
+                    // we have that problem when we have an empty index is only a segments_1 file so we can't tell if it's a Lucene 4.8 file
+                    // and therefore no checksum is included. That isn't a problem since we simply copy it over anyway but those files come out as
                     // different in the diff. That's why we have to double check here again if the rest of it matches.
 
                     // all is fine this file is just part of a commit or a segment that is different
@@ -675,7 +673,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
         }
-
 
         @Override
         public void close() throws IOException {

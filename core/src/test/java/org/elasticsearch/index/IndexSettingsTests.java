@@ -370,6 +370,27 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
+    public void testTranslogGenerationSizeThreshold() {
+        final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
+        final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
+        final ByteSizeValue actualValue =
+                ByteSizeValue.parseBytesSizeValue(size.toString(), key);
+        final IndexMetaData metaData =
+                newIndexMeta(
+                        "index",
+                        Settings.builder()
+                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(key, size.toString())
+                                .build());
+        final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(actualValue, settings.getGenerationThresholdSize());
+        final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.toString(), key);
+        settings.updateIndexMetaData(
+                newIndexMeta("index", Settings.builder().put(key, newSize.toString()).build()));
+        assertEquals(actual, settings.getGenerationThresholdSize());
+    }
+
     public void testArchiveBrokenIndexSettings() {
         Settings settings =
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(

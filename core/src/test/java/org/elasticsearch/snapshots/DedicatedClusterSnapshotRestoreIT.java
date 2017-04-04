@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -55,7 +54,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -150,14 +148,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testRestorePersistentSettings() throws Exception {
         logger.info("--> start 2 nodes");
-        Settings nodeSettings = Settings.builder()
-                .put("discovery.type", "zen")
-                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
-                .put("discovery.initial_state_timeout", "500ms")
-                .build();
-        internalCluster().startNode(nodeSettings);
+        internalCluster().startNode();
         Client client = client();
-        String secondNode = internalCluster().startNode(nodeSettings);
+        String secondNode = internalCluster().startNode();
         logger.info("--> wait for the second node to join the cluster");
         assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut(), equalTo(false));
 

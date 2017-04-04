@@ -453,9 +453,9 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition":0, "num_partitions":2 } } } } }
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 0, "num_partitions": 2 } } } } }
 
-  - match: { hits.total: 3 }
+  - match: { hits.total : 3 }
 
   - length: { aggregations.str_terms.buckets: 1 }
 
@@ -467,7 +467,7 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition":1, "num_partitions":2 } } } } }
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 1, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
 
@@ -512,7 +512,7 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition":0, "num_partitions":2 } } } } }
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 0, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
 
@@ -524,7 +524,7 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition":1, "num_partitions":2 } } } } }
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 1, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
 

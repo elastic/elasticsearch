@@ -22,7 +22,7 @@
         },
         "wait_for_completion": {
           "type" : "boolean",
-          "default": false,
+          "default": true,
           "description" : "Should the request should block until the reindex is complete."
         },
         "requests_per_second": {

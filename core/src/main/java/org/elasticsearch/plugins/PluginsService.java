@@ -58,8 +58,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -99,7 +101,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName());
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -107,16 +109,16 @@ public class PluginsService extends AbstractComponent {
             pluginsList.add(pluginInfo);
         }
 
+        Set<Bundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();
         // load modules
         if (modulesDirectory != null) {
             try {
-                List<Bundle> bundles = getModuleBundles(modulesDirectory);
-                List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
-                pluginsLoaded.addAll(loaded);
-                for (Tuple<PluginInfo, Plugin> module : loaded) {
-                    modulesList.add(module.v1());
+                Set<Bundle> modules = getModuleBundles(modulesDirectory);
+                for (Bundle bundle : modules) {
+                    modulesList.add(bundle.plugin);
                 }
+                seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
@@ -125,16 +127,18 @@ public class PluginsService extends AbstractComponent {
         // now, find all the ones that are in plugins/
         if (pluginsDirectory != null) {
             try {
-                List<Bundle> bundles = getPluginBundles(pluginsDirectory);
-                List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
-                pluginsLoaded.addAll(loaded);
-                for (Tuple<PluginInfo, Plugin> plugin : loaded) {
-                    pluginsList.add(plugin.v1());
+                Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
+                for (Bundle bundle : plugins) {
+                    pluginsList.add(bundle.plugin);
                 }
+                seenBundles.addAll(plugins);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         }
+
+        List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seenBundles);
+        pluginsLoaded.addAll(loaded);
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
@@ -234,48 +238,70 @@ public class PluginsService extends AbstractComponent {
     // a "bundle" is a group of plugins in a single classloader
     // really should be 1-1, but we are not so fortunate
     static class Bundle {
-        List<PluginInfo> plugins = new ArrayList<>();
-        List<URL> urls = new ArrayList<>();
+        final PluginInfo plugin;
+        final Set<URL> urls;
+
+        Bundle(PluginInfo plugin, Set<URL> urls) {
+            this.plugin = Objects.requireNonNull(plugin);
+            this.urls = Objects.requireNonNull(urls);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Bundle bundle = (Bundle) o;
+            return Objects.equals(plugin, bundle.plugin);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(plugin);
+        }
     }
 
     // similar in impl to getPluginBundles, but DO NOT try to make them share code.
     // we don't need to inherit all the leniency, and things are different enough.
-    static List<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
+    static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
         // damn leniency
         if (Files.notExists(modulesDirectory)) {
-            return Collections.emptyList();
+            return Collections.emptySet();
         }
-        List<Bundle> bundles = new ArrayList<>();
+        Set<Bundle> bundles = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
             for (Path module : stream) {
                 if (FileSystemUtils.isHidden(module)) {
                     continue; // skip over .DS_Store etc
                 }
                 PluginInfo info = PluginInfo.readFromProperties(module);
-                Bundle bundle = new Bundle();
-                bundle.plugins.add(info);
+                Set<URL> urls = new LinkedHashSet<>();
                 // gather urls for jar files
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(module, "*.jar")) {
                     for (Path jar : jarStream) {
                         // normalize with toRealPath to get symlinks out of our hair
-                        bundle.urls.add(jar.toRealPath().toUri().toURL());
+                        URL url = jar.toRealPath().toUri().toURL();
+                            if (urls.add(url) == false) {
+                                throw new IllegalStateException("duplicate codebase: " + url);
+                            }
                     }
                 }
-                bundles.add(bundle);
+                if (bundles.add(new Bundle(info, urls)) == false) {
+                    throw new IllegalStateException("duplicate module: " + info);
+                }
             }
         }
         return bundles;
     }
 
-    static List<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
+    static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
 
         // TODO: remove this leniency, but tests bogusly rely on it
         if (!isAccessibleDirectory(pluginsDirectory, logger)) {
-            return Collections.emptyList();
+            return Collections.emptySet();
         }
 
-        List<Bundle> bundles = new ArrayList<>();
+        Set<Bundle> bundles = new LinkedHashSet<>();
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
@@ -292,47 +318,58 @@ public class PluginsService extends AbstractComponent {
                         + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
                 }
 
-                List<URL> urls = new ArrayList<>();
+                Set<URL> urls = new LinkedHashSet<>();
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                     for (Path jar : jarStream) {
                         // normalize with toRealPath to get symlinks out of our hair
-                        urls.add(jar.toRealPath().toUri().toURL());
+                        URL url = jar.toRealPath().toUri().toURL();
+                        if (urls.add(url) == false) {
+                            throw new IllegalStateException("duplicate codebase: " + url);
+                        }
                     }
                 }
-                final Bundle bundle = new Bundle();
-                bundles.add(bundle);
-                bundle.plugins.add(info);
-                bundle.urls.addAll(urls);
+                if (bundles.add(new Bundle(info, urls)) == false) {
+                    throw new IllegalStateException("duplicate plugin: " + info);
+                }
             }
         }
 
         return bundles;
     }
 
-    private List<Tuple<PluginInfo,Plugin>> loadBundles(List<Bundle> bundles) {
+    private List<Tuple<PluginInfo,Plugin>> loadBundles(Set<Bundle> bundles) {
         List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
 
         for (Bundle bundle : bundles) {
             // jar-hell check the bundle against the parent classloader
             // pluginmanager does it, but we do it again, in case lusers mess with jar files manually
             try {
-                final List<URL> jars = new ArrayList<>();
-                jars.addAll(Arrays.asList(JarHell.parseClassPath()));
-                jars.addAll(bundle.urls);
-                JarHell.checkJarHell(jars.toArray(new URL[0]));
+                Set<URL> classpath = JarHell.parseClassPath();
+                // check we don't have conflicting codebases
+                Set<URL> intersection = new HashSet<>(classpath);
+                intersection.retainAll(bundle.urls);
+                if (intersection.isEmpty() == false) {
+                    throw new IllegalStateException("jar hell! duplicate codebases between" +
+                                                    " plugin and core: " + intersection);
+                }
+                // check we don't have conflicting classes
+                Set<URL> union = new HashSet<>(classpath);
+                union.addAll(bundle.urls);
+                JarHell.checkJarHell(union);
             } catch (Exception e) {
-                throw new IllegalStateException("failed to load bundle " + bundle.urls + " due to jar hell", e);
+                throw new IllegalStateException("failed to load plugin " + bundle.plugin +
+                                                " due to jar hell", e);
             }
 
-            // create a child to load the plugins in this bundle
-            ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), getClass().getClassLoader());
-            for (PluginInfo pluginInfo : bundle.plugins) {
-                // reload lucene SPI with any new services from the plugin
-                reloadLuceneSPI(loader);
-                final Class<? extends Plugin> pluginClass = loadPluginClass(pluginInfo.getClassname(), loader);
-                final Plugin plugin = loadPlugin(pluginClass, settings);
-                plugins.add(new Tuple<>(pluginInfo, plugin));
-            }
+            // create a child to load the plugin in this bundle
+            ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]),
+                                                            getClass().getClassLoader());
+            // reload lucene SPI with any new services from the plugin
+            reloadLuceneSPI(loader);
+            final Class<? extends Plugin> pluginClass =
+                loadPluginClass(bundle.plugin.getClassname(), loader);
+            final Plugin plugin = loadPlugin(pluginClass, settings);
+            plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
         return Collections.unmodifiableList(plugins);

@@ -114,7 +114,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
+The Debian package for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------

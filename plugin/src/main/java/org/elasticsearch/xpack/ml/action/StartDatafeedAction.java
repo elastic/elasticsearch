@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -513,10 +514,12 @@ public class StartDatafeedAction
             logger.debug(reason);
             return new Assignment(null, reason);
         }
-        if (jobTask.getStatus() != JobState.OPENED) {
+        JobTaskStatus taskStatus = (JobTaskStatus) jobTask.getStatus();
+        if (taskStatus == null || taskStatus.getState() != JobState.OPENED) {
             // lets try again later when the job has been opened:
+            String taskStatusAsString = taskStatus == null ? "null" : taskStatus.getState().toString();
             String reason = "cannot start datafeed [" + datafeed.getId() + "], because job's [" + datafeed.getJobId() +
-                    "] state is [" + jobTask.getStatus() +  "] while state [" + JobState.OPENED + "] is required";
+                    "] state is [" + taskStatusAsString +  "] while state [" + JobState.OPENED + "] is required";
             logger.debug(reason);
             return new Assignment(null, reason);
         }

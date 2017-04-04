@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
@@ -407,9 +408,9 @@ public class MlMetadata implements MetaData.Custom {
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTask<?> task = getJobTask(jobId, tasks);
         if (task != null && task.getStatus() != null) {
-            JobState jobTaskState = (JobState) task.getStatus();
+            JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
             if (jobTaskState != null) {
-                return jobTaskState;
+                return jobTaskState.getState();
             }
         }
         // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed

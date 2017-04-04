@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -348,11 +348,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 if (persistentTask == null) {
                     return false;
                 }
-                JobState jobState = (JobState) persistentTask.getStatus();
+                JobTaskStatus jobState = (JobTaskStatus) persistentTask.getStatus();
                 if (jobState == null) {
                     return false;
                 }
-                switch (jobState) {
+                switch (jobState.getState()) {
                     case OPENED:
                         opened = true;
                         return true;
@@ -504,9 +504,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     if (node.getId().equals(task.getExecutorNode()) == false) {
                         return false;
                     }
-                    JobState jobTaskState = (JobState) task.getStatus();
+                    JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
                     return jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                            task.isCurrentStatus() == false; // previous executor node failed and
+                           jobTaskState.staleStatus(task); // previous executor node failed and
                     // current executor node didn't have the chance to set job status to OPENING
                 }).size();
             } else {

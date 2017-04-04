@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
@@ -121,10 +122,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator, client);
 
         JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getAllocationId()).thenReturn(1L);
         manager.openJob("foo", jobTask, false, e -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess("foo"));
-        verify(jobTask).updatePersistentStatus(eq(JobState.OPENED), any());
+        verify(jobTask).updatePersistentStatus(eq(new JobTaskStatus(JobState.OPENED, 1L)), any());
     }
 
     public void testOpenJob_exceedMaxNumJobs() {

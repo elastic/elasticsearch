@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -175,7 +176,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             Map<String, String> expectedNodeAttr = new HashMap<>();
             expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
             assertEquals(expectedNodeAttr, node.getAttributes());
-            assertEquals(JobState.OPENED, task.getStatus());
+            JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
+            assertNotNull(jobTaskStatus);
+            assertEquals(JobState.OPENED, jobTaskStatus.getState());
         });
 
         logger.info("stop the only running ml node");
@@ -226,8 +229,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             for (DiscoveryNode node : event.state().nodes()) {
                 Collection<PersistentTask<?>> foundTasks = tasks.findTasks(OpenJobAction.NAME, task -> {
+                    JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
                     return node.getId().equals(task.getExecutorNode()) &&
-                            (task.getStatus() == null || task.isCurrentStatus() == false);
+                            (jobTaskState == null || jobTaskState.staleStatus(task));
                 });
                 int count = foundTasks.size();
                 if (count > maxConcurrentJobAllocations) {
@@ -254,7 +258,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNotNull(task.getExecutorNode());
-                assertEquals(JobState.OPENED, task.getStatus());
+                JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
+                assertNotNull(jobTaskStatus);
+                assertEquals(JobState.OPENED, jobTaskStatus.getState());
             }
         });
 
@@ -294,7 +300,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNotNull(task.getExecutorNode());
-                assertEquals(JobState.OPENED, task.getStatus());
+                JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
+                assertNotNull(jobTaskStatus);
+                assertEquals(JobState.OPENED, jobTaskStatus.getState());
             }
         }, 30, TimeUnit.SECONDS);
 
@@ -367,16 +375,18 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         if (hasExecutorNode) {
             assertNotNull(task.getExecutorNode());
-            assertTrue(task.isCurrentStatus());
             assertFalse(task.needsReassignment(clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();
             expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
             assertEquals(expectedNodeAttr, node.getAttributes());
+
+            JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
+            assertNotNull(jobTaskStatus);
+            assertEquals(expectedState, jobTaskStatus.getState());
         } else {
             assertNull(task.getExecutorNode());
         }
-        assertEquals(expectedState, task.getStatus());
     }
 
 }

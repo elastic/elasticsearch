@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
@@ -283,7 +284,7 @@ public class OpenJobActionTests extends ESTestCase {
         PersistentTask<OpenJobAction.Request> task =
                 new PersistentTask<>(id, OpenJobAction.NAME, new OpenJobAction.Request(jobId), new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
-            task = new PersistentTask<>(task, jobState);
+            task = new PersistentTask<>(task, new JobTaskStatus(jobState, 0L));
         }
         return task;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -98,10 +99,10 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final Auditor auditor;
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
-            JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-            JobDataCountsPersister jobDataCountsPersister,
-            AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-            NamedXContentRegistry xContentRegistry, Auditor auditor) {
+                                    JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+                                    JobDataCountsPersister jobDataCountsPersister,
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+                                    NamedXContentRegistry xContentRegistry, Auditor auditor) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -363,7 +364,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     private void setJobState(JobTask jobTask, JobState state) {
-        jobTask.updatePersistentStatus(state, new ActionListener<PersistentTask<?>>() {
+        JobTaskStatus taskStatus = new JobTaskStatus(state, jobTask.getAllocationId());
+        jobTask.updatePersistentStatus(taskStatus, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
@@ -376,8 +378,9 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    public void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        jobTask.updatePersistentStatus(state, new ActionListener<PersistentTask<?>>() {
+    void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
+        JobTaskStatus taskStatus = new JobTaskStatus(state, jobTask.getAllocationId());
+        jobTask.updatePersistentStatus(taskStatus, new ActionListener<PersistentTask<?>>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
                         try {

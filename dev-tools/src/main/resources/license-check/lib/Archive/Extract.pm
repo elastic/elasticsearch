@@ -48,7 +48,7 @@ use vars qw[$VERSION $PREFER_BIN $PROGRAMS $WARN $DEBUG
             $_ALLOW_BIN $_ALLOW_PURE_PERL $_ALLOW_TAR_ITER
          ];
 
-$VERSION            = '0.76';
+$VERSION            = '0.80';
 $PREFER_BIN         = 0;
 $WARN               = 1;
 $DEBUG              = 0;
@@ -60,6 +60,7 @@ $_ALLOW_TAR_ITER    = 1;    # try to use Archive::Tar->iter if available
 my @Types           = ( TGZ, TAR, GZ, ZIP, BZ2, TBZ, Z, LZMA, XZ, TXZ );
 
 local $Params::Check::VERBOSE = $Params::Check::VERBOSE = 1;
+local $Module::Load::Conditional::FORCE_SAFE_INC = 1;
 
 =pod
 
@@ -134,16 +135,14 @@ CMD: for my $pgm (qw[tar unzip gzip bunzip2 uncompress unlzma unxz]) {
       $PROGRAMS->{$pgm} = $unzip;
       next CMD;
     }
-    if ( $pgm eq 'unzip' and ( ON_NETBSD or ON_FREEBSD ) ) {
+    if ( $pgm eq 'unzip' and ( ON_FREEBSD || ON_LINUX ) ) {
       local $IPC::Cmd::INSTANCES = 1;
-      ($PROGRAMS->{$pgm}) = grep { ON_NETBSD ? m!/usr/pkg/! : m!/usr/local! } can_run($pgm);
+      ($PROGRAMS->{$pgm}) = grep { _is_infozip_esque($_) } can_run($pgm);
       next CMD;
     }
-    if ( $pgm eq 'unzip' and ON_LINUX ) {
-      # Check if 'unzip' is busybox masquerading
+    if ( $pgm eq 'unzip' and ON_NETBSD ) {
       local $IPC::Cmd::INSTANCES = 1;
-      my $opt = ON_VMS ? '"-Z"' : '-Z';
-      ($PROGRAMS->{$pgm}) = grep { scalar run(command=> [ $_, $opt, '-1' ]) } can_run($pgm);
+      ($PROGRAMS->{$pgm}) = grep { m!/usr/pkg/! } can_run($pgm);
       next CMD;
     }
     if ( $pgm eq 'tar' and ( ON_OPENBSD || ON_SOLARIS || ON_NETBSD ) ) {
@@ -1501,6 +1500,44 @@ sub _unlzma_cz {
     $self->extract_path( File::Spec->rel2abs(cwd()) );
 
     return 1;
+}
+
+#####################################
+#
+# unzip heuristics for FreeBSD-alikes
+#
+#####################################
+
+sub _is_infozip_esque {
+  my $unzip = shift;
+
+  my @strings;
+  my $buf = '';
+
+  {
+    open my $file, '<', $unzip or die "$!\n";
+    binmode $file;
+    local $/ = \1;
+    local $_;
+    while(<$file>) {
+      if ( m![[:print:]]! ) {
+        $buf .= $_;
+        next;
+      }
+      if ( $buf and m![^[:print:]]! ) {
+        push @strings, $buf if length $buf >= 4;
+        $buf = '';
+        next;
+      }
+    }
+  }
+  push @strings, $buf if $buf;
+  foreach my $part ( @strings ) {
+    if ( $part =~ m!ZIPINFO! or $part =~ m!usage:.+?Z1! ) {
+      return $unzip;
+    }
+  }
+  return;
 }
 
 #################################

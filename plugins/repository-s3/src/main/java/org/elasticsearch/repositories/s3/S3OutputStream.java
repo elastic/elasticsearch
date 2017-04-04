@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -28,7 +28,7 @@ import java.io.OutputStream;
 /**
  * S3OutputStream buffers data before flushing it to an underlying S3OutputStream.
  */
-public abstract class S3OutputStream extends OutputStream {
+abstract class S3OutputStream extends OutputStream {
 
     /**
      * Limit of upload allowed by AWS S3.
@@ -48,7 +48,7 @@ public abstract class S3OutputStream extends OutputStream {
 
     private int flushCount = 0;
 
-    public S3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, int numberOfRetries, boolean serverSideEncryption) {
+    S3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, int numberOfRetries, boolean serverSideEncryption) {
         this.blobStore = blobStore;
         this.bucketName = bucketName;
         this.blobName = blobName;

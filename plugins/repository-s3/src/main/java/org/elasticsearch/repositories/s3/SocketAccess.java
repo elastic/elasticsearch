@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.util;
+package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.SpecialPermission;
 
@@ -33,7 +33,7 @@ import java.security.PrivilegedExceptionAction;
  * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
  * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-public final class SocketAccess {
+final class SocketAccess {
 
     private SocketAccess() {}
 

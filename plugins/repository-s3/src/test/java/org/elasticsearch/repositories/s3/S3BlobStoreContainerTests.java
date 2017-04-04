@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;

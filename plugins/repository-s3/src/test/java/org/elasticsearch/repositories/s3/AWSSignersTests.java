@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
+import org.elasticsearch.repositories.s3.AwsSigner;
+import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 

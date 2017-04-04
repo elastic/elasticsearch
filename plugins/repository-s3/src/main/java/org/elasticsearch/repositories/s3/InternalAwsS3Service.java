@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.repositories.s3;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +36,6 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -45,9 +44,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.repositories.s3.S3Repository;
 
-public class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
+class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
     // pkg private for tests
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
@@ -57,7 +55,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
      */
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<>();
 
-    public InternalAwsS3Service(Settings settings) {
+    InternalAwsS3Service(Settings settings) {
         super(settings);
     }
 

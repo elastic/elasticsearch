@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;

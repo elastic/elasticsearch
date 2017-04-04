@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
-  classname 'org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin'
+  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
 versions << [

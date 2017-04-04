@@ -358,8 +358,9 @@ public class InternalTestClusterTests extends ESTestCase {
                         .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
-                        // timeout as no initial state timeout makes split elections more likely
-                        .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s") // speed up
+                        // speedup join timeout as setting initial state timeout to 0 makes split
+                        // elections more likely
+                        .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
                         .build();
                 }
 

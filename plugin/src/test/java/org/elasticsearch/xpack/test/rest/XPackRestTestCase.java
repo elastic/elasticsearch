@@ -21,7 +21,8 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE =
+            basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
 
     public XPackRestTestCase(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

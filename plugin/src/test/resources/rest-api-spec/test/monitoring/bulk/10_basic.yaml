@@ -1,18 +1,4 @@
 ---
-setup:
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-  - do:
-      # Waits for the monitoring data index to be available:
-      # it indicates that the local exporter is ready
-      cluster.health:
-          index: ".monitoring-data-*"
-          wait_for_active_shards: 1
-          timeout: 60s
-
----
 "Bulk indexing of monitoring data":
 
   - do:

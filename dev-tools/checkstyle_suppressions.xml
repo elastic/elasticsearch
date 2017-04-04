@@ -1236,8 +1236,6 @@
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ssl[/\\]TestsSSLService.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]support[/\\]clock[/\\]ClockMock.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]template[/\\]TemplateUtilsTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]test[/\\]rest[/\\]XPackRestIT.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]test[/\\]rest[/\\]XPackRestTestCase.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]watcher[/\\]OldWatcherIndicesBackwardsCompatibilityTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]watcher[/\\]WatcherF.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]watcher[/\\]WatcherFeatureSetTests.java" checks="LineLength" />

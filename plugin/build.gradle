@@ -308,12 +308,16 @@ project.afterEvaluate {
 
 integTestRunner {
   // TODO: fix this rest test to not depend on a hardcoded port!
-  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
+  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
 }
 
 integTestCluster {
   setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.monitoring.collection.interval', '3s'
+  // Integration tests are supposed to enable/disable exporters before/after each test
+  setting 'xpack.monitoring.exporters._local.type', 'local'
+  setting 'xpack.monitoring.exporters._local.enabled', 'false'
+  setting 'xpack.monitoring.collection.interval', '-1'
+
   waitCondition = { NodeInfo node, AntBuilder ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       for (int i = 0; i < 10; i++) {

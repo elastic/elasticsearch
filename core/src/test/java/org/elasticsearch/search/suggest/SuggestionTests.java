@@ -65,7 +65,7 @@ public class SuggestionTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static Suggestion<? extends Entry<? extends Option>> createTestItem(Class<? extends Suggestion> type) {
-        String name = randomAsciiOfLengthBetween(5, 10);
+        String name = randomAlphaOfLengthBetween(5, 10);
         // note: size will not be rendered via "toXContent", only passed on internally on transport layer
         int size = randomInt();
         Supplier<Entry> entrySupplier = null;

@@ -50,13 +50,13 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             Map<String, Object> metaData) {
         Map<String, Object> params = new HashMap<>();
         if (randomBoolean()) {
-            params.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            params.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         Script reduceScript = null;
         if (hasReduceScript) {
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME, params);
         }
-        return new InternalScriptedMetric(name, randomAsciiOfLength(5), reduceScript, pipelineAggregators, metaData);
+        return new InternalScriptedMetric(name, randomAlphaOfLength(5), reduceScript, pipelineAggregators, metaData);
     }
 
     /**

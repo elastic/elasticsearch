@@ -6,6 +6,7 @@
       reason: validation logic only fixed from 5.1.2 onwards
 
  - do:
+      catch:              request
       create:
           index:          test
           type:           test
@@ -13,13 +14,13 @@
           body:           { foo: bar }
           version_type:   external
           version:        0
-          ignore:         400
 
  - match: { status: 400 }
  - match: { error.type: action_request_validation_exception }
  - match: { error.reason: "Validation Failed: 1: create operations only support internal versioning. use index instead;" }
 
  - do:
+      catch:              request
       create:
           index:          test
           type:           test
@@ -27,7 +28,6 @@
           body:           { foo: bar }
           version_type:   external
           version:        5
-          ignore:         400
 
  - match: { status: 400 }
  - match: { error.type: action_request_validation_exception }

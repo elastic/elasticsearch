@@ -178,20 +178,28 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
-            ensureIndexCompatibility(Version.CURRENT.minimumIndexCompatibilityVersion(), request.state.getMetaData());
+            ensureIndexCompatibility(Version.CURRENT, request.state.getMetaData());
             // for now, the mere fact that we can serialize the cluster state acts as validation....
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
     /**
-     * Ensures that all indices are compatible with the supported index version.
+     * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
+     * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
+     * compatibility version.
+     * @see Version#minimumIndexCompatibilityVersion()
      * @throws IllegalStateException if any index is incompatible with the given version
      */
-    static void ensureIndexCompatibility(final Version supportedIndexVersion, MetaData metaData) {
+    static void ensureIndexCompatibility(final Version nodeVersion, MetaData metaData) {
+        Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
         for (IndexMetaData idxMetaData : metaData) {
+            if (idxMetaData.getCreationVersion().after(nodeVersion)) {
+                throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
+                    + idxMetaData.getCreationVersion() + " the node version is: " + nodeVersion);
+            }
             if (idxMetaData.getCreationVersion().before(supportedIndexVersion)) {
                 throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
                     + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);

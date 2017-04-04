@@ -113,9 +113,9 @@ public class TransportNodesActionTests extends ESTestCase {
         nodeResponses.add(new OtherNodeResponse());
         List<FailedNodeException> failures = mockList(
             () -> new FailedNodeException(
-                randomAsciiOfLength(8),
-                randomAsciiOfLength(8),
-                new IllegalStateException(randomAsciiOfLength(8))),
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                new IllegalStateException(randomAlphaOfLength(8))),
             randomIntBetween(0, 2));
 
         List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
@@ -192,7 +192,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Map<String, String> attributes = new HashMap<>();
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
             if (frequently()) {
-                attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
+                attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes, roles);
             discoBuilder = discoBuilder.add(node);

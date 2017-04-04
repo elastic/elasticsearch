@@ -55,7 +55,7 @@ public class SuggestionEntryTests extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     public static <O extends Option> Entry<O> createTestItem(Class<? extends Entry> entryType) {
-        Text entryText = new Text(randomAsciiOfLengthBetween(5, 15));
+        Text entryText = new Text(randomAlphaOfLengthBetween(5, 15));
         int offset = randomInt();
         int length = randomInt();
         Entry entry;

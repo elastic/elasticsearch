@@ -130,7 +130,7 @@ public class UpdateResponseTests extends ESTestCase {
         String id = actualGetResult.getId();
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
-        String indexUUid = randomAsciiOfLength(5);
+        String indexUUid = randomAlphaOfLength(5);
         int shardId = randomIntBetween(0, 5);
 
         // We also want small number values (randomNonNegativeLong() tend to generate high numbers)

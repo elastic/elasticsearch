@@ -110,7 +110,7 @@ public class SetProcessorTests extends ESTestCase {
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {
         TemplateService templateService = TestTemplateService.instance();
-        return new SetProcessor(randomAsciiOfLength(10), templateService.compile(fieldName),
+        return new SetProcessor(randomAlphaOfLength(10), templateService.compile(fieldName),
                 ValueSource.wrap(fieldValue, templateService), overrideEnabled);
     }
 }

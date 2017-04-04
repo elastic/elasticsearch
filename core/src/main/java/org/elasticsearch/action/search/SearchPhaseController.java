@@ -234,7 +234,7 @@ public final class SearchPhaseController extends AbstractComponent {
             final CollapseTopFieldDocs[] shardTopDocs = new CollapseTopFieldDocs[numShards];
             fillTopDocs(shardTopDocs, results, new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
                 sort.getSort(), new Object[0], Float.NaN));
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, true);
         } else if (result.queryResult().topDocs() instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);

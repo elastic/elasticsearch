@@ -183,7 +183,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
         }
         return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, Math.min(5, maxNumShards), 1, maxNumShards,
-            Property.IndexScope);
+            Property.IndexScope, Property.Final);
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";

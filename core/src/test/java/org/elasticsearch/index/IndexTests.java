@@ -50,7 +50,7 @@ public class IndexTests extends ESTestCase {
     }
 
     public void testXContent() throws IOException {
-        final String name = randomAsciiOfLengthBetween(4, 15);
+        final String name = randomAlphaOfLengthBetween(4, 15);
         final String uuid = UUIDs.randomBase64UUID();
         final Index original = new Index(name, uuid);
         final XContentBuilder builder = JsonXContent.contentBuilder();

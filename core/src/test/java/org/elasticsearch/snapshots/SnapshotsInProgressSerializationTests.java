@@ -49,22 +49,22 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     }
 
     private Entry randomSnapshot() {
-        Snapshot snapshot = new Snapshot(randomAsciiOfLength(10), new SnapshotId(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+        Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
         State state = randomFrom(State.values());
         int numberOfIndices = randomIntBetween(0, 10);
         List<IndexId> indices = new ArrayList<>();
         for (int i = 0; i < numberOfIndices; i++) {
-            indices.add(new IndexId(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+            indices.add(new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         int shardsCount = randomIntBetween(0, 10);
         for (int j = 0; j < shardsCount; j++) {
-            ShardId shardId = new ShardId(new Index(randomAsciiOfLength(10), randomAsciiOfLength(10)), randomIntBetween(0, 10));
-            String nodeId = randomAsciiOfLength(10);
+            ShardId shardId = new ShardId(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)), randomIntBetween(0, 10));
+            String nodeId = randomAlphaOfLength(10);
             State shardState = randomFrom(State.values());
             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState));
         }

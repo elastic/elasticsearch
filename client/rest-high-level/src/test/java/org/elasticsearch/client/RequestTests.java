@@ -79,9 +79,9 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testDelete() throws IOException {
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
         DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -93,12 +93,12 @@ public class RequestTests extends ESTestCase {
 
         if (frequently()) {
             if (randomBoolean()) {
-                String routing = randomAsciiOfLengthBetween(3, 10);
+                String routing = randomAlphaOfLengthBetween(3, 10);
                 deleteRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
             if (randomBoolean()) {
-                String parent = randomAsciiOfLengthBetween(3, 10);
+                String parent = randomAlphaOfLengthBetween(3, 10);
                 deleteRequest.parent(parent);
                 expectedParams.put("parent", parent);
             }
@@ -116,20 +116,20 @@ public class RequestTests extends ESTestCase {
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
         GetRequest getRequest = new GetRequest(index, type, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
             if (randomBoolean()) {
-                String preference = randomAsciiOfLengthBetween(3, 10);
+                String preference = randomAlphaOfLengthBetween(3, 10);
                 getRequest.preference(preference);
                 expectedParams.put("preference", preference);
             }
             if (randomBoolean()) {
-                String routing = randomAsciiOfLengthBetween(3, 10);
+                String routing = randomAlphaOfLengthBetween(3, 10);
                 getRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
@@ -166,7 +166,7 @@ public class RequestTests extends ESTestCase {
                 String[] storedFields = new String[numStoredFields];
                 StringBuilder storedFieldsParam = new StringBuilder();
                 for (int i = 0; i < numStoredFields; i++) {
-                    String storedField = randomAsciiOfLengthBetween(3, 10);
+                    String storedField = randomAlphaOfLengthBetween(3, 10);
                     storedFields[i] = storedField;
                     storedFieldsParam.append(storedField);
                     if (i < numStoredFields - 1) {
@@ -188,11 +188,11 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testIndex() throws IOException {
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
         IndexRequest indexRequest = new IndexRequest(index, type);
 
-        String id = randomBoolean() ? randomAsciiOfLengthBetween(3, 10) : null;
+        String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
         indexRequest.id(id);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -219,17 +219,17 @@ public class RequestTests extends ESTestCase {
 
         if (frequently()) {
             if (randomBoolean()) {
-                String routing = randomAsciiOfLengthBetween(3, 10);
+                String routing = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
             if (randomBoolean()) {
-                String parent = randomAsciiOfLengthBetween(3, 10);
+                String parent = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.parent(parent);
                 expectedParams.put("parent", parent);
             }
             if (randomBoolean()) {
-                String pipeline = randomAsciiOfLengthBetween(3, 10);
+                String pipeline = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.setPipeline(pipeline);
                 expectedParams.put("pipeline", pipeline);
             }
@@ -270,9 +270,9 @@ public class RequestTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
 
         Map<String, String> expectedParams = new HashMap<>();
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
 
         UpdateRequest updateRequest = new UpdateRequest(index, type, id);
         updateRequest.detectNoop(randomBoolean());
@@ -295,12 +295,12 @@ public class RequestTests extends ESTestCase {
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
         if (randomBoolean()) {
-            String routing = randomAsciiOfLengthBetween(3, 10);
+            String routing = randomAlphaOfLengthBetween(3, 10);
             updateRequest.routing(routing);
             expectedParams.put("routing", routing);
         }
         if (randomBoolean()) {
-            String parent = randomAsciiOfLengthBetween(3, 10);
+            String parent = randomAlphaOfLengthBetween(3, 10);
             updateRequest.parent(parent);
             expectedParams.put("parent", parent);
         }
@@ -416,9 +416,9 @@ public class RequestTests extends ESTestCase {
 
         int nbItems = randomIntBetween(10, 100);
         for (int i = 0; i < nbItems; i++) {
-            String index = randomAsciiOfLength(5);
-            String type = randomAsciiOfLength(5);
-            String id = randomAsciiOfLength(5);
+            String index = randomAlphaOfLength(5);
+            String type = randomAlphaOfLength(5);
+            String id = randomAlphaOfLength(5);
 
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
@@ -428,16 +428,16 @@ public class RequestTests extends ESTestCase {
                 IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
                 docWriteRequest = indexRequest;
                 if (randomBoolean()) {
-                    indexRequest.setPipeline(randomAsciiOfLength(5));
+                    indexRequest.setPipeline(randomAlphaOfLength(5));
                 }
                 if (randomBoolean()) {
-                    indexRequest.parent(randomAsciiOfLength(5));
+                    indexRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.CREATE) {
                 IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
                 docWriteRequest = createRequest;
                 if (randomBoolean()) {
-                    createRequest.parent(randomAsciiOfLength(5));
+                    createRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
@@ -449,14 +449,14 @@ public class RequestTests extends ESTestCase {
                     randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
                 }
                 if (randomBoolean()) {
-                    updateRequest.parent(randomAsciiOfLength(5));
+                    updateRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
                 docWriteRequest = new DeleteRequest(index, type, id);
             }
 
             if (randomBoolean()) {
-                docWriteRequest.routing(randomAsciiOfLength(10));
+                docWriteRequest.routing(randomAlphaOfLength(10));
             }
             if (randomBoolean()) {
                 docWriteRequest.version(randomNonNegativeLong());
@@ -591,7 +591,7 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         for (int i = 0; i < nbParams; i++) {
             String paramName = "p_" + i;
-            String paramValue = randomAsciiOfLength(5);
+            String paramValue = randomAlphaOfLength(5);
             params.putParam(paramName, paramValue);
             expectedParams.put(paramName, paramValue);
         }
@@ -665,7 +665,7 @@ public class RequestTests extends ESTestCase {
                 String[] includes = new String[numIncludes];
                 StringBuilder includesParam = new StringBuilder();
                 for (int i = 0; i < numIncludes; i++) {
-                    String include = randomAsciiOfLengthBetween(3, 10);
+                    String include = randomAlphaOfLengthBetween(3, 10);
                     includes[i] = include;
                     includesParam.append(include);
                     if (i < numIncludes - 1) {
@@ -679,7 +679,7 @@ public class RequestTests extends ESTestCase {
                 String[] excludes = new String[numExcludes];
                 StringBuilder excludesParam = new StringBuilder();
                 for (int i = 0; i < numExcludes; i++) {
-                    String exclude = randomAsciiOfLengthBetween(3, 10);
+                    String exclude = randomAlphaOfLengthBetween(3, 10);
                     excludes[i] = exclude;
                     excludesParam.append(exclude);
                     if (i < numExcludes - 1) {

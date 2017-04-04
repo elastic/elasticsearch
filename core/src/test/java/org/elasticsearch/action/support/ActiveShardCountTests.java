@@ -62,7 +62,7 @@ public class ActiveShardCountTests extends ESTestCase {
         assertSame(ActiveShardCount.parseString("0"), ActiveShardCount.NONE);
         int value = randomIntBetween(1, 50);
         assertEquals(ActiveShardCount.parseString(value + ""), ActiveShardCount.from(value));
-        expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.parseString(randomAsciiOfLengthBetween(4, 8)));
+        expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.parseString(randomAlphaOfLengthBetween(4, 8)));
         expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.parseString("-1")); // magic numbers not exposed through API
         expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.parseString("-2"));
         expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.parseString(randomIntBetween(-10, -3) + ""));
@@ -200,7 +200,7 @@ public class ActiveShardCountTests extends ESTestCase {
             final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
             for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary()) {
-                    shardRouting = shardRouting.initialize(randomAsciiOfLength(8), null, shardRouting.getExpectedShardSize())
+                    shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                                        .moveToStarted();
                 }
                 newIndexRoutingTable.addShard(shardRouting);
@@ -224,7 +224,7 @@ public class ActiveShardCountTests extends ESTestCase {
                     assertTrue(shardRouting.active());
                 } else {
                     if (numToStart > 0) {
-                        shardRouting = shardRouting.initialize(randomAsciiOfLength(8), null, shardRouting.getExpectedShardSize())
+                        shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                                            .moveToStarted();
                         numToStart--;
                     }
@@ -250,7 +250,7 @@ public class ActiveShardCountTests extends ESTestCase {
                 } else {
                     if (shardRouting.active() == false) {
                         if (numToStart > 0) {
-                            shardRouting = shardRouting.initialize(randomAsciiOfLength(8), null, shardRouting.getExpectedShardSize())
+                            shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                                                .moveToStarted();
                             numToStart--;
                         }
@@ -276,7 +276,7 @@ public class ActiveShardCountTests extends ESTestCase {
                     assertTrue(shardRouting.active());
                 } else {
                     if (shardRouting.active() == false) {
-                        shardRouting = shardRouting.initialize(randomAsciiOfLength(8), null, shardRouting.getExpectedShardSize())
+                        shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                                            .moveToStarted();
                     }
                 }

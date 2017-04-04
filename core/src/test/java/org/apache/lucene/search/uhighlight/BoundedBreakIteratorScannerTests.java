@@ -43,9 +43,9 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         String[] vocabulary = new String[maxSize];
         for (int i = 0; i < maxSize; i++) {
             if (rarely()) {
-                vocabulary[i] = randomAsciiOfLengthBetween(50, 200);
+                vocabulary[i] = randomAlphaOfLengthBetween(50, 200);
             } else {
-                vocabulary[i] = randomAsciiOfLengthBetween(1, 30);
+                vocabulary[i] = randomAlphaOfLengthBetween(1, 30);
             }
         }
 

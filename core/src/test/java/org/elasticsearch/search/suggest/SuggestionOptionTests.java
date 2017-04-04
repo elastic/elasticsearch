@@ -35,9 +35,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class SuggestionOptionTests extends ESTestCase {
 
     public static Option createTestItem() {
-        Text text = new Text(randomAsciiOfLengthBetween(5, 15));
+        Text text = new Text(randomAlphaOfLengthBetween(5, 15));
         float score = randomFloat();
-        Text highlighted = randomFrom((Text) null, new Text(randomAsciiOfLengthBetween(5, 15)));
+        Text highlighted = randomFrom((Text) null, new Text(randomAlphaOfLengthBetween(5, 15)));
         Boolean collateMatch = randomFrom((Boolean) null, randomBoolean());
         return new Option(text, highlighted, score, collateMatch);
     }

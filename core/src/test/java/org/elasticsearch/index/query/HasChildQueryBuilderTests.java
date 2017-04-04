@@ -109,7 +109,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         hqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             hqb.innerHit(new InnerHitBuilder()
-                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
                     .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)), hqb.ignoreUnmapped());
         }

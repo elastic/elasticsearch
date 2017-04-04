@@ -95,11 +95,11 @@ public class ScriptServiceTests extends ESTestCase {
         for (int i = 0; i < randomInt; i++) {
             String plugin;
             do {
-                plugin = randomAsciiOfLength(randomIntBetween(1, 10));
+                plugin = randomAlphaOfLength(randomIntBetween(1, 10));
             } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(plugin));
             String operation;
             do {
-                operation = randomAsciiOfLength(randomIntBetween(1, 30));
+                operation = randomAlphaOfLength(randomIntBetween(1, 30));
             } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(operation));
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
@@ -324,8 +324,8 @@ public class ScriptServiceTests extends ESTestCase {
         String pluginName;
         String unknownContext;
         do {
-            pluginName = randomAsciiOfLength(randomIntBetween(1, 10));
-            unknownContext = randomAsciiOfLength(randomIntBetween(1, 30));
+            pluginName = randomAlphaOfLength(randomIntBetween(1, 10));
+            unknownContext = randomAlphaOfLength(randomIntBetween(1, 30));
         } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext)));
 
         String type = scriptEngineService.getType();

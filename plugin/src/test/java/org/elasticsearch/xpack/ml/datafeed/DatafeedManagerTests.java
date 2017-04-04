@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -318,8 +318,8 @@ public class DatafeedManagerTests extends ESTestCase {
         when(task.getEndTime()).thenReturn(endTime);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            PersistentTaskOperationListener listener = (PersistentTaskOperationListener) invocationOnMock.getArguments()[1];
-            listener.onResponse(0L);
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(mock(PersistentTask.class));
             return null;
         }).when(task).updatePersistentStatus(any(), any());
         return task;
@@ -334,8 +334,8 @@ public class DatafeedManagerTests extends ESTestCase {
         task = spy(task);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            PersistentTaskOperationListener listener = (PersistentTaskOperationListener) invocationOnMock.getArguments()[1];
-            listener.onResponse(0L);
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(mock(PersistentTask.class));
             return null;
         }).when(task).updatePersistentStatus(any(), any());
         return task;

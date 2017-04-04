@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -276,9 +275,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         private void forceCloseJob(long persistentTaskId, String jobId, ActionListener<Response> listener) {
             auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-            persistentTasksService.removeTask(persistentTaskId, new PersistentTaskOperationListener() {
+            persistentTasksService.cancelPersistentTask(persistentTaskId, new ActionListener<PersistentTask<?>>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<?> task) {
                     listener.onResponse(new Response(true));
                 }
 
@@ -301,9 +300,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         // so wait for that to happen here.
         void waitForJobClosed(long persistentTaskId, Request request, Response response, ActionListener<Response> listener) {
             persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, Objects::isNull, request.timeout,
-                    new WaitForPersistentTaskStatusListener() {
+                    new WaitForPersistentTaskStatusListener<OpenJobAction.Request>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<OpenJobAction.Request> task) {
                     logger.debug("finalizing job [{}]", request.getJobId());
                     FinalizeJobExecutionAction.Request finalizeRequest =
                             new FinalizeJobExecutionAction.Request(request.getJobId());

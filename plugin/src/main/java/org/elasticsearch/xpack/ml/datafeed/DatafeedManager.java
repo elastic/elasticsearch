@@ -32,8 +32,9 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -94,9 +95,9 @@ public class DatafeedManager extends AbstractComponent {
             }
             Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
             runningDatafeeds.put(datafeedId, holder);
-            task.updatePersistentStatus(DatafeedState.STARTED, new PersistentTaskOperationListener() {
+            task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<?> persistentTask) {
                     innerRun(holder, task.getDatafeedStartTime(), task.getEndTime());
                 }
 
@@ -359,9 +360,9 @@ public class DatafeedManager extends AbstractComponent {
 
         private void closeJob() {
             persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(20),
-                    new WaitForPersistentTaskStatusListener() {
+                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.Request>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<StartDatafeedAction.Request> PersistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
                     client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
 

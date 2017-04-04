@@ -49,7 +49,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
@@ -80,7 +80,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(
                 new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class)
@@ -93,8 +92,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry) {
         InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, threadPool, internalClient);
-        TestPersistentTasksExecutor testPersistentAction = new TestPersistentTasksExecutor(Settings.EMPTY, persistentTasksService,
-                clusterService);
+        TestPersistentTasksExecutor testPersistentAction = new TestPersistentTasksExecutor(Settings.EMPTY, clusterService);
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
                 Collections.singletonList(testPersistentAction));
         return Arrays.asList(
@@ -306,9 +304,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
 
-        public TestPersistentTasksExecutor(Settings settings, PersistentTasksService persistentTasksService,
-                                           ClusterService clusterService) {
-            super(settings, NAME, persistentTasksService, ThreadPool.Names.GENERIC);
+        public TestPersistentTasksExecutor(Settings settings, ClusterService clusterService) {
+            super(settings, NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
         }
 
@@ -354,9 +351,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                         CountDownLatch latch = new CountDownLatch(1);
                         Status status = new Status("phase " + phase.incrementAndGet());
                         logger.info("updating the task status to {}", status);
-                        task.updatePersistentStatus(status, new PersistentTaskOperationListener() {
+                        task.updatePersistentStatus(status, new ActionListener<PersistentTask<?>>() {
                             @Override
-                            public void onResponse(long taskId) {
+                            public void onResponse(PersistentTask<?> persistentTask) {
                                 logger.info("updating was successful");
                                 latch.countDown();
                             }

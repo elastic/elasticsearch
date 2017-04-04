@@ -26,12 +26,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class RemovePersistentTaskAction extends Action<RemovePersistentTaskAction.Request,
-        RemovePersistentTaskAction.Response,
+        PersistentTaskResponse,
         RemovePersistentTaskAction.RequestBuilder> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
@@ -47,8 +48,8 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public PersistentTaskResponse newResponse() {
+        return new PersistentTaskResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -98,42 +99,8 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AcknowledgedResponse that = (AcknowledgedResponse) o;
-            return isAcknowledged() == that.isAcknowledged();
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-    }
-
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<RemovePersistentTaskAction.Request,
-            RemovePersistentTaskAction.Response, RemovePersistentTaskAction.RequestBuilder> {
+            PersistentTaskResponse, RemovePersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, RemovePersistentTaskAction action) {
             super(client, action, new Request());
@@ -146,7 +113,7 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
 
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -166,8 +133,8 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected PersistentTaskResponse newResponse() {
+            return new PersistentTaskResponse();
         }
 
         @Override
@@ -177,11 +144,12 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTasksClusterService.removePersistentTask(request.taskId, new ActionListener<Empty>() {
+        protected final void masterOperation(final Request request, ClusterState state,
+                                             final ActionListener<PersistentTaskResponse> listener) {
+            persistentTasksClusterService.removePersistentTask(request.taskId, new ActionListener<PersistentTask<?>>() {
                 @Override
-                public void onResponse(Empty empty) {
-                    listener.onResponse(new Response(true));
+                public void onResponse(PersistentTask<?> task) {
+                    listener.onResponse(new PersistentTaskResponse(task));
                 }
 
                 @Override

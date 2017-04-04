@@ -268,7 +268,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
 
         @SuppressWarnings("unchecked")
-        private PersistentTask(StreamInput in) throws IOException {
+        public PersistentTask(StreamInput in) throws IOException {
             id = in.readLong();
             allocationId = in.readLong();
             taskName = in.readString();

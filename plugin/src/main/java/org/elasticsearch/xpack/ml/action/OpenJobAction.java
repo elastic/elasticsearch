@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignme
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 import java.io.IOException;
@@ -307,10 +306,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             if (licenseState.isMachineLearningAllowed()) {
-                PersistentTaskOperationListener finalListener = new PersistentTaskOperationListener() {
+                ActionListener<PersistentTask<Request>> finalListener = new ActionListener<PersistentTask<Request>>() {
                     @Override
-                    public void onResponse(long taskId) {
-                        waitForJobStarted(taskId, request, listener);
+                    public void onResponse(PersistentTask<Request> task) {
+                        waitForJobStarted(task.getId(), request, listener);
                     }
 
                     @Override
@@ -318,7 +317,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                         listener.onFailure(e);
                     }
                 };
-                persistentTasksService.createPersistentActionTask(NAME, request, finalListener);
+                persistentTasksService.startPersistentTask(NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
@@ -327,9 +326,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         void waitForJobStarted(long taskId, Request request, ActionListener<Response> listener) {
             JobPredicate predicate = new JobPredicate();
             persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, request.timeout,
-                    new WaitForPersistentTaskStatusListener() {
+                    new WaitForPersistentTaskStatusListener<Request>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<Request> persistentTask) {
                     listener.onResponse(new Response(predicate.opened));
                 }
 
@@ -377,9 +376,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         private volatile int maxConcurrentJobAllocations;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
-                                              PersistentTasksService persistentTasksService, ClusterService clusterService,
-                                              AutodetectProcessManager autodetectProcessManager, Auditor auditor) {
-            super(settings, NAME, persistentTasksService, ThreadPool.Names.MANAGEMENT);
+                                              ClusterService clusterService, AutodetectProcessManager autodetectProcessManager,
+                                              Auditor auditor) {
+            super(settings, NAME, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.autodetectProcessManager = autodetectProcessManager;
             this.auditor = auditor;

@@ -139,7 +139,6 @@ indices:internal/data/write/mldeletebyquery
 cluster:internal/xpack/ml/job/update/process
 cluster:admin/xpack/ml/delete_expired_data
 cluster:admin/persistent/create
-cluster:admin/persistent/start
 cluster:admin/persistent/completion
 cluster:admin/persistent/update_status
 cluster:admin/persistent/remove

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
@@ -23,7 +24,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
@@ -147,10 +147,10 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         AllocatedPersistentTask task = runningTasks.remove(persistentTaskId);
         if (task != null) {
             if (task.markAsCancelled()) {
-                persistentTasksService.sendCancellation(task.getId(), new PersistentTaskOperationListener() {
+                persistentTasksService.sendCancellation(task.getId(), new ActionListener<CancelTasksResponse>() {
                     @Override
-                    public void onResponse(long taskId) {
-                        logger.trace("Persistent task with id {} was cancelled", taskId);
+                    public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                        logger.trace("Persistent task with id {} was cancelled", task.getId());
 
                     }
 
@@ -240,7 +240,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         }
     }
 
-    private class PublishedResponseListener implements PersistentTaskOperationListener {
+    private class PublishedResponseListener implements ActionListener<PersistentTask<?>> {
         private final AllocatedPersistentTask task;
 
         PublishedResponseListener(final AllocatedPersistentTask task) {
@@ -249,8 +249,8 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
 
         @Override
-        public void onResponse(long taskId) {
-            logger.trace("notification for task {} was successful", task.getPersistentTaskId());
+        public void onResponse(PersistentTask<?> persistentTask) {
+            logger.trace("notification for task {} was successful", task.getId());
             if (task.markAsNotified() == false) {
                 logger.warn("attempt to mark task {} in the {} state as NOTIFIED", task.getPersistentTaskId(), task.getState());
             }

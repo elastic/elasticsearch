@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,16 +42,15 @@ public class PersistentTasksService extends AbstractComponent {
     }
 
     /**
-     * Creates the specified persistent action. The action is started unless the stopped parameter is equal to true.
-     * If removeOnCompletion parameter is equal to true, the task is removed from the cluster state upon completion.
-     * Otherwise it will remain there in the stopped state.
+     * Creates the specified persistent task and attempts to assign it to a node.
      */
-    public <Request extends PersistentTaskRequest> void createPersistentActionTask(String action, Request request,
-                                                                                   PersistentTaskOperationListener listener) {
-        CreatePersistentTaskAction.Request createPersistentActionRequest = new CreatePersistentTaskAction.Request(action, request);
+    @SuppressWarnings("unchecked")
+    public <Request extends PersistentTaskRequest> void startPersistentTask(String taskName, Request request,
+                                                                            ActionListener<PersistentTask<Request>> listener) {
+        CreatePersistentTaskAction.Request createPersistentActionRequest = new CreatePersistentTaskAction.Request(taskName, request);
         try {
             client.execute(CreatePersistentTaskAction.INSTANCE, createPersistentActionRequest, ActionListener.wrap(
-                    o -> listener.onResponse(o.getTaskId()), listener::onFailure));
+                    o -> listener.onResponse((PersistentTask<Request>) o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -58,13 +58,12 @@ public class PersistentTasksService extends AbstractComponent {
 
     /**
      * Notifies the PersistentTasksClusterService about successful (failure == null) completion of a task or its failure
-     *
      */
-    public void sendCompletionNotification(long taskId, Exception failure, PersistentTaskOperationListener listener) {
+    public void sendCompletionNotification(long taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
         CompletionPersistentTaskAction.Request restartRequest = new CompletionPersistentTaskAction.Request(taskId, failure);
         try {
-            client.execute(CompletionPersistentTaskAction.INSTANCE, restartRequest, ActionListener.wrap(o -> listener.onResponse(taskId),
-                    listener::onFailure));
+            client.execute(CompletionPersistentTaskAction.INSTANCE, restartRequest,
+                    ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -73,14 +72,13 @@ public class PersistentTasksService extends AbstractComponent {
     /**
      * Cancels the persistent task.
      */
-    public void sendCancellation(long taskId, PersistentTaskOperationListener listener) {
+    void sendCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
         DiscoveryNode localNode = clusterService.localNode();
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setTaskId(new TaskId(localNode.getId(), taskId));
         cancelTasksRequest.setReason("persistent action was removed");
         try {
-            client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(o -> listener.onResponse(taskId),
-                    listener::onFailure));
+            client.admin().cluster().cancelTasks(cancelTasksRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -88,28 +86,28 @@ public class PersistentTasksService extends AbstractComponent {
 
     /**
      * Updates status of the persistent task.
-     *
+     * <p>
      * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentStatus} instead
      */
-    void updateStatus(long taskId, long allocationId, Task.Status status, PersistentTaskOperationListener listener) {
+    void updateStatus(long taskId, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
         UpdatePersistentTaskStatusAction.Request updateStatusRequest =
                 new UpdatePersistentTaskStatusAction.Request(taskId, allocationId, status);
         try {
             client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateStatusRequest, ActionListener.wrap(
-                    o -> listener.onResponse(taskId), listener::onFailure));
+                    o -> listener.onResponse(o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
     /**
-     * Removes a persistent task
+     * Cancels if needed and removes a persistent task
      */
-    public void removeTask(long taskId, PersistentTaskOperationListener listener) {
+    public void cancelPersistentTask(long taskId, ActionListener<PersistentTask<?>> listener) {
         RemovePersistentTaskAction.Request removeRequest = new RemovePersistentTaskAction.Request(taskId);
         try {
-            client.execute(RemovePersistentTaskAction.INSTANCE, removeRequest, ActionListener.wrap(o -> listener.onResponse(taskId),
+            client.execute(RemovePersistentTaskAction.INSTANCE, removeRequest, ActionListener.wrap(o -> listener.onResponse(o.getTask()),
                     listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -121,15 +119,15 @@ public class PersistentTasksService extends AbstractComponent {
      * waits of it.
      */
     public void waitForPersistentTaskStatus(long taskId, Predicate<PersistentTask<?>> predicate, @Nullable TimeValue timeout,
-                                            WaitForPersistentTaskStatusListener listener) {
+                                            WaitForPersistentTaskStatusListener<?> listener) {
         ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         if (predicate.test(PersistentTasksCustomMetaData.getTaskWithId(stateObserver.setAndGetObservedState(), taskId))) {
-            listener.onResponse(taskId);
+            listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(stateObserver.setAndGetObservedState(), taskId));
         } else {
             stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(taskId);
+                    listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(state, taskId));
                 }
 
                 @Override
@@ -145,15 +143,10 @@ public class PersistentTasksService extends AbstractComponent {
         }
     }
 
-    public interface WaitForPersistentTaskStatusListener extends PersistentTaskOperationListener {
+    public interface WaitForPersistentTaskStatusListener<Request extends PersistentTaskRequest>
+            extends ActionListener<PersistentTask<Request>> {
         default void onTimeout(TimeValue timeout) {
             onFailure(new IllegalStateException("timed out after " + timeout));
         }
     }
-
-    public interface PersistentTaskOperationListener {
-        void onResponse(long taskId);
-        void onFailure(Exception e);
-    }
-
 }

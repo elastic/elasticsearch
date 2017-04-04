@@ -131,7 +131,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -305,9 +304,9 @@ public class MachineLearning implements ActionPlugin {
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
 
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
-                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, threadPool, licenseState, persistentTasksService, clusterService,
+                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, threadPool, licenseState, clusterService,
                         autodetectProcessManager, auditor),
-                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, threadPool, licenseState, persistentTasksService,
+                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, threadPool, licenseState,
                         datafeedManager, auditor)
         ));
 
@@ -423,7 +422,6 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),

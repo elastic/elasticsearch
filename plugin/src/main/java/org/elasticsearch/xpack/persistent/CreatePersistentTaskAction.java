@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -185,10 +186,11 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.createPersistentTask(request.action, request.request,
-                    new ActionListener<Long>() {
+                    new ActionListener<PersistentTask<?>>() {
+
                 @Override
-                public void onResponse(Long newTaskId) {
-                    listener.onResponse(new PersistentTaskResponse(newTaskId));
+                public void onResponse(PersistentTask<?> task) {
+                    listener.onResponse(new PersistentTaskResponse(task));
                 }
 
                 @Override

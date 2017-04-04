@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 import java.io.IOException;
@@ -256,9 +255,9 @@ public class StopDatafeedAction
         // so wait for that to happen here.
         void waitForDatafeedStopped(long persistentTaskId, Request request, Response response, ActionListener<Response> listener) {
             persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, Objects::isNull, request.getTimeout(),
-                    new WaitForPersistentTaskStatusListener() {
+                    new WaitForPersistentTaskStatusListener<StartDatafeedAction.Request>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<StartDatafeedAction.Request> task) {
                     listener.onResponse(response);
                 }
 
@@ -270,9 +269,9 @@ public class StopDatafeedAction
         }
 
         private void forceStopTask(long persistentTaskId, ActionListener<Response> listener) {
-            persistentTasksService.removeTask(persistentTaskId, new PersistentTaskOperationListener() {
+            persistentTasksService.cancelPersistentTask(persistentTaskId, new ActionListener<PersistentTask<?>>() {
                 @Override
-                public void onResponse(long taskId) {
+                public void onResponse(PersistentTask<?> persistentTask) {
                     listener.onResponse(new Response(true));
                 }
 

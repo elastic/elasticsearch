@@ -57,7 +57,7 @@ public class AllocatedPersistentTask extends CancellableTask {
      * 
      * This doesn't affect the status of this allocated task. 
      */
-    public void updatePersistentStatus(Task.Status status, PersistentTasksService.PersistentTaskOperationListener listener) {
+    public void updatePersistentStatus(Task.Status status, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
         persistentTasksService.updateStatus(persistentTaskId, allocationId, status, listener);
     }
 

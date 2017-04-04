@@ -48,7 +48,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param listener the listener that will be called when task is started
      */
     public <Request extends PersistentTaskRequest> void createPersistentTask(String action, Request request,
-                                                                             ActionListener<Long> listener) {
+                                                                             ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -63,10 +63,15 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                 listener.onFailure(e);
             }
 
+            @SuppressWarnings("unchecked")
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(
-                        ((PersistentTasksCustomMetaData) newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE)).getCurrentId());
+                PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                if (tasks != null) {
+                    listener.onResponse(tasks.getTask(tasks.getCurrentId()));
+                } else {
+                    listener.onResponse(null);
+                }
             }
         });
     }
@@ -79,7 +84,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param failure  the reason for restarting the task or null if the task completed successfully
      * @param listener the listener that will be called when task is removed
      */
-    public void completePersistentTask(long id, Exception failure, ActionListener<Empty> listener) {
+    public void completePersistentTask(long id, Exception failure, ActionListener<PersistentTask<?>> listener) {
         final String source;
         if (failure != null) {
             logger.warn("persistent task " + id + " failed", failure);
@@ -108,38 +113,8 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(Empty.INSTANCE);
-            }
-        });
-    }
-
-    /**
-     * Switches the persistent task from stopped to started mode
-     *
-     * @param id       the id of a persistent task
-     * @param listener the listener that will be called when task is removed
-     */
-    public void startPersistentTask(long id, ActionListener<Empty> listener) {
-        clusterService.submitStateUpdateTask("start persistent task", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(id)) {
-                    return update(currentState, tasksInProgress
-                            .assignTask(id, (action, request) -> getAssignement(action, currentState, request)));
-                } else {
-                    throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
-                }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(Empty.INSTANCE);
+                // Using old state since in the new state the task is already gone
+                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(oldState, id));
             }
         });
     }
@@ -150,7 +125,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param id       the id of a persistent task
      * @param listener the listener that will be called when task is removed
      */
-    public void removePersistentTask(long id, ActionListener<Empty> listener) {
+    public void removePersistentTask(long id, ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -169,7 +144,8 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(Empty.INSTANCE);
+                // Using old state since in the new state the task is already gone
+                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(oldState, id));
             }
         });
     }
@@ -182,7 +158,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param status   new status
      * @param listener the listener that will be called when task is removed
      */
-    public void updatePersistentTaskStatus(long id, long allocationId, Task.Status status, ActionListener<Empty> listener) {
+    public void updatePersistentTaskStatus(long id, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("update task status", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -206,7 +182,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(Empty.INSTANCE);
+                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, id));
             }
         });
     }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,7 +44,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,7 +54,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -349,9 +349,9 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     private void setJobState(JobTask jobTask, JobState state) {
-        jobTask.updatePersistentStatus(state, new PersistentTaskOperationListener() {
+        jobTask.updatePersistentStatus(state, new ActionListener<PersistentTask<?>>() {
             @Override
-            public void onResponse(long taskId) {
+            public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
             }
 
@@ -363,9 +363,9 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     public void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        jobTask.updatePersistentStatus(state, new PersistentTaskOperationListener() {
+        jobTask.updatePersistentStatus(state, new ActionListener<PersistentTask<?>>() {
                     @Override
-                    public void onResponse(long taskId) {
+                    public void onResponse(PersistentTask<?> persistentTask) {
                         try {
                             handler.accept(null);
                         } catch (IOException e1) {

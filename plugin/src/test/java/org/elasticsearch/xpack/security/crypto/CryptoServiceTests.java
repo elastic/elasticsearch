@@ -44,14 +44,14 @@ public class CryptoServiceTests extends ESTestCase {
 
     public void testSigned() throws Exception {
         CryptoService service = new CryptoService(settings, env);
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         String signed = service.sign(text);
         assertThat(service.isSigned(signed), is(true));
     }
 
     public void testSignAndUnsign() throws Exception {
         CryptoService service = new CryptoService(settings, env);
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         String signed = service.sign(text);
         assertThat(text.equals(signed), is(false));
         String text2 = service.unsignAndVerify(signed);
@@ -61,7 +61,7 @@ public class CryptoServiceTests extends ESTestCase {
     public void testSignAndUnsignNoKeyFile() throws Exception {
         Files.delete(keyFile);
         CryptoService service = new CryptoService(Settings.EMPTY, env);
-        final String text = randomAsciiOfLength(10);
+        final String text = randomAlphaOfLength(10);
         String signed = service.sign(text);
         assertThat(text, equalTo(signed));
         String unsigned = service.unsignAndVerify(signed);
@@ -70,11 +70,11 @@ public class CryptoServiceTests extends ESTestCase {
 
     public void testTamperedSignature() throws Exception {
         CryptoService service = new CryptoService(settings, env);
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
         int length = Integer.parseInt(signed.substring(2, i));
-        String fakeSignature = randomAsciiOfLength(length);
+        String fakeSignature = randomAlphaOfLength(length);
         String fakeSignedText = "$$" + length + "$$" + fakeSignature + signed.substring(i + 2 + length);
 
         try {
@@ -87,12 +87,12 @@ public class CryptoServiceTests extends ESTestCase {
 
     public void testTamperedSignatureOneChar() throws Exception {
         CryptoService service = new CryptoService(settings, env);
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
         int length = Integer.parseInt(signed.substring(2, i));
         StringBuilder fakeSignature = new StringBuilder(signed.substring(i + 2, i + 2 + length));
-        fakeSignature.setCharAt(randomIntBetween(0, fakeSignature.length() - 1), randomAsciiOfLength(1).charAt(0));
+        fakeSignature.setCharAt(randomIntBetween(0, fakeSignature.length() - 1), randomAlphaOfLength(1).charAt(0));
 
         String fakeSignedText = "$$" + length + "$$" + fakeSignature.toString() + signed.substring(i + 2 + length);
 
@@ -106,11 +106,11 @@ public class CryptoServiceTests extends ESTestCase {
 
     public void testTamperedSignatureLength() throws Exception {
         CryptoService service = new CryptoService(settings, env);
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
         int length = Integer.parseInt(signed.substring(2, i));
-        String fakeSignature = randomAsciiOfLength(length);
+        String fakeSignature = randomAlphaOfLength(length);
 
         // Smaller sig length
         String fakeSignedText = "$$" + randomIntBetween(0, length - 1) + "$$" + fakeSignature + signed.substring(i + 2 + length);
@@ -134,7 +134,7 @@ public class CryptoServiceTests extends ESTestCase {
     public void testEncryptionAndDecryptionChars() throws Exception {
         CryptoService service = new CryptoService(settings, env);
                 assertThat(service.isEncryptionEnabled(), is(true));
-        final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
+        final char[] chars = randomAlphaOfLengthBetween(0, 1000).toCharArray();
         final char[] encrypted = service.encrypt(chars);
         assertThat(encrypted, notNullValue());
         assertThat(Arrays.equals(encrypted, chars), is(false));
@@ -147,7 +147,7 @@ public class CryptoServiceTests extends ESTestCase {
         Files.delete(keyFile);
         CryptoService service = new CryptoService(Settings.EMPTY, env);
         assertThat(service.isEncryptionEnabled(), is(false));
-        final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
+        final char[] chars = randomAlphaOfLengthBetween(0, 1000).toCharArray();
         final char[] encryptedChars = service.encrypt(chars);
         final char[] decryptedChars = service.decrypt(encryptedChars);
         assertThat(chars, equalTo(encryptedChars));
@@ -173,8 +173,8 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(service.isEncrypted(new char[0]), is(false));
         assertThat(service.isEncrypted(new char[CryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
         assertThat(service.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
-        assertThat(service.isEncrypted(randomAsciiOfLengthBetween(0, 100).toCharArray()), is(false));
-        assertThat(service.isEncrypted(service.encrypt(randomAsciiOfLength(10).toCharArray())), is(true));
+        assertThat(service.isEncrypted(randomAlphaOfLengthBetween(0, 100).toCharArray()), is(false));
+        assertThat(service.isEncrypted(service.encrypt(randomAlphaOfLength(10).toCharArray())), is(true));
     }
 
     public void testSystemKeyFileRequired() throws Exception {

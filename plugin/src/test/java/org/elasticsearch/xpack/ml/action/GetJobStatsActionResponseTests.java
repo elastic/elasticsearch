@@ -34,7 +34,7 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
         int listSize = randomInt(10);
         List<Response.JobStats> jobStatsList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            String jobId = randomAsciiOfLength(10);
+            String jobId = randomAlphaOfLength(10);
 
             DataCounts dataCounts = new DataCountsTests().createTestInstance();
 
@@ -50,7 +50,7 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             }
             String explanation = null;
             if (randomBoolean()) {
-                explanation = randomAsciiOfLength(3);
+                explanation = randomAlphaOfLength(3);
             }
             TimeValue openTime = null;
             if (randomBoolean()) {

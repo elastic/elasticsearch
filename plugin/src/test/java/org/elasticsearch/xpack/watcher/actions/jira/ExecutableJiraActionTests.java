@@ -59,8 +59,8 @@ public class ExecutableJiraActionTests extends ESTestCase {
         final String host = randomFrom("localhost", "internal-jira.elastic.co");
         final int port = randomFrom(80, 8080, 449, 9443);
         final String url = "https://" + host + ":" + port;
-        final String user = randomAsciiOfLength(10);
-        final String password = randomAsciiOfLength(10);
+        final String user = randomAlphaOfLength(10);
+        final String password = randomAlphaOfLength(10);
 
         Settings accountSettings = Settings.builder()
                 .put("url", url)
@@ -75,7 +75,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(new Payload.Simple())
@@ -286,7 +286,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
 
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")
                 .wid(wid)

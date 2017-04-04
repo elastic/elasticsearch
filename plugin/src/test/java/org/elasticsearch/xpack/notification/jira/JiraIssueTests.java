@@ -103,7 +103,7 @@ public class JiraIssueTests extends ESTestCase {
         final Map<String, Object> fields = new HashMap<>(issue1.getFields());
         if (equals == false) {
             if (fields.isEmpty()) {
-                fields.put(randomAsciiOfLength(5), randomAsciiOfLength(10));
+                fields.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
             } else {
                 fields.remove(randomFrom(fields.keySet()));
             }
@@ -119,7 +119,7 @@ public class JiraIssueTests extends ESTestCase {
         HttpRequest request = HttpRequest.builder(randomFrom("localhost", "internal-jira.elastic.co"), randomFrom(80, 443))
                                             .method(HttpMethod.POST)
                                             .path(JiraAccount.DEFAULT_PATH)
-                                            .auth(new BasicAuth(randomAsciiOfLength(5), randomAsciiOfLength(5).toCharArray()))
+                                            .auth(new BasicAuth(randomAlphaOfLength(5), randomAlphaOfLength(5).toCharArray()))
                                             .build();
         if (rarely()) {
             Tuple<Integer, String> error = randomHttpError();

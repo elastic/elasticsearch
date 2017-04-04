@@ -169,7 +169,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         SecurityClient c = securityClient();
         final List<RoleDescriptor> existingRoles = Arrays.asList(c.prepareGetRoles().get().roles());
         final int existing = existingRoles.size();
-        final Map<String, Object> metadata = Collections.singletonMap("key", randomAsciiOfLengthBetween(1, 10));
+        final Map<String, Object> metadata = Collections.singletonMap("key", randomAlphaOfLengthBetween(1, 10));
         logger.error("--> creating role");
         c.preparePutRole("test_role")
                 .cluster("all", "none")
@@ -470,7 +470,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testCannotCreateUserWithShortPassword() throws Exception {
         SecurityClient client = securityClient();
         try {
-            client.preparePutUser("joe", randomAsciiOfLengthBetween(0, 5).toCharArray(), "admin_role").get();
+            client.preparePutUser("joe", randomAlphaOfLengthBetween(0, 5).toCharArray(), "admin_role").get();
             fail("cannot create a user without a password < 6 characters");
         } catch (ValidationException v) {
             assertThat(v.getMessage().contains("password"), is(true));

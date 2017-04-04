@@ -66,8 +66,8 @@ public class AuditMessageTests extends AbstractSerializingTestCase<AuditMessage>
 
     @Override
     protected AuditMessage createTestInstance() {
-        return new AuditMessage(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 200),
-                randomFrom(Level.values()), randomAsciiOfLengthBetween(1, 20));
+        return new AuditMessage(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 200),
+                randomFrom(Level.values()), randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override

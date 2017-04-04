@@ -85,9 +85,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME), is(false));
 
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
+        assertThat(ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(randomAsciiOfLengthBetween(8, 24)),
+        assertThat(ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
     }
 
@@ -105,13 +105,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME), is(true));
 
-        assertThat(kibanaRole.runAs().check(randomAsciiOfLengthBetween(1, 12)), is(false));
+        assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
-        Arrays.asList(".kibana", ".kibana-devnull", ".reporting-" + randomAsciiOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        Arrays.asList(".kibana", ".kibana-devnull", ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
@@ -137,12 +137,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(kibanaUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
 
-        assertThat(kibanaUserRole.runAs().check(randomAsciiOfLengthBetween(1, 12)), is(false));
+        assertThat(kibanaUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(randomAsciiOfLengthBetween(8, 24)), is(false));
+                .test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
         Arrays.asList(".kibana", ".kibana-devnull").forEach((index) -> {
             logger.info("index name [{}]", index);
@@ -173,16 +173,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(monitoringUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
 
-        assertThat(monitoringUserRole.runAs().check(randomAsciiOfLengthBetween(1, 12)), is(false));
+        assertThat(monitoringUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".kibana"), is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
+        assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
 
-        Arrays.asList(".monitoring-" + randomAsciiOfLength(randomIntBetween(0, 13)),
-                ".marvel-es-" + randomAsciiOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        Arrays.asList(".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+                ".marvel-es-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
             assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
             assertThat(monitoringUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
@@ -210,16 +210,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(MonitoringBulkAction.NAME), is(false));
 
-        assertThat(remoteMonitoringAgentRole.runAs().check(randomAsciiOfLengthBetween(1, 12)), is(false));
+        assertThat(remoteMonitoringAgentRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".kibana"), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(randomAsciiOfLengthBetween(8, 24)), is(false));
+                .test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
-        Arrays.asList(".monitoring-" + randomAsciiOfLength(randomIntBetween(0, 13)),
-                ".marvel-es-" + randomAsciiOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        Arrays.asList(".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+                ".marvel-es-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
             assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
             assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
@@ -247,15 +247,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reportingUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(reportingUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
 
-        assertThat(reportingUserRole.runAs().check(randomAsciiOfLengthBetween(1, 12)), is(false));
+        assertThat(reportingUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".kibana"), is(false));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
+        assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
 
-        final String index = ".reporting-" + randomAsciiOfLength(randomIntBetween(0, 13));
+        final String index = ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
@@ -315,7 +315,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 
-        assertThat(superuserRole.runAs().check(randomAsciiOfLengthBetween(1, 30)), is(true));
+        assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
     }
 
     public void testLogstashSystemRole() {
@@ -332,11 +332,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
 
-        assertThat(logstashSystemRole.runAs().check(randomAsciiOfLengthBetween(1, 30)), is(false));
+        assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
+        assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
     }
 
@@ -354,11 +354,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(beatsSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
 
-        assertThat(beatsSystemRole.runAs().check(randomAsciiOfLengthBetween(1, 30)), is(false));
+        assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
     }
 }

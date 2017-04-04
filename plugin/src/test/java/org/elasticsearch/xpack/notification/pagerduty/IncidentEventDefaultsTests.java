@@ -44,62 +44,62 @@ public class IncidentEventDefaultsTests extends ESTestCase {
     public static Settings randomSettings() {
         Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
-            settings.put("from", randomAsciiOfLength(10));
+            settings.put("from", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             String[] to = new String[randomIntBetween(1, 3)];
             for (int i = 0; i < to.length; i++) {
-                to[i] = randomAsciiOfLength(10);
+                to[i] = randomAlphaOfLength(10);
             }
             settings.putArray("to", to);
         }
         if (randomBoolean()) {
-            settings.put("text", randomAsciiOfLength(10));
+            settings.put("text", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("event_type", randomAsciiOfLength(10));
+            settings.put("event_type", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("icon", randomAsciiOfLength(10));
+            settings.put("icon", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.fallback", randomAsciiOfLength(10));
+            settings.put("attachment.fallback", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.color", randomAsciiOfLength(10));
+            settings.put("attachment.color", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.pretext", randomAsciiOfLength(10));
+            settings.put("attachment.pretext", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.author_name", randomAsciiOfLength(10));
+            settings.put("attachment.author_name", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.author_link", randomAsciiOfLength(10));
+            settings.put("attachment.author_link", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.author_icon", randomAsciiOfLength(10));
+            settings.put("attachment.author_icon", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.title", randomAsciiOfLength(10));
+            settings.put("attachment.title", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.title_link", randomAsciiOfLength(10));
+            settings.put("attachment.title_link", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.text", randomAsciiOfLength(10));
+            settings.put("attachment.text", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.image_url", randomAsciiOfLength(10));
+            settings.put("attachment.image_url", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.thumb_url", randomAsciiOfLength(10));
+            settings.put("attachment.thumb_url", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.field.title", randomAsciiOfLength(10));
+            settings.put("attachment.field.title", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            settings.put("attachment.field.value", randomAsciiOfLength(10));
+            settings.put("attachment.field.value", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             settings.put("attachment.field.short", randomBoolean());

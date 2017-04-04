@@ -30,14 +30,14 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
     protected ShardMonitoringDoc newMonitoringDoc() {
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                new ShardId(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()), randomIntBetween(0, 5)),
+                new ShardId(new Index(randomAlphaOfLength(5), UUID.randomUUID().toString()), randomIntBetween(0, 5)),
                 null, randomBoolean(), ShardRoutingState.UNASSIGNED);
         shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted();
         shardRouting = shardRouting.relocate("node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         ShardMonitoringDoc doc = new ShardMonitoringDoc(randomMonitoringId(),
-                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                randomAlphaOfLength(2), randomAlphaOfLength(5), 1437580442979L,
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 shardRouting,
                 UUID.randomUUID().toString());

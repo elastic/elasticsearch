@@ -165,7 +165,7 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
         String[] items = new String[size];
 
         for (int i = 0; i < size; i++) {
-            items[i] = randomAsciiOfLength(5);
+            items[i] = randomAlphaOfLength(5);
         }
         return items;
     }

@@ -45,8 +45,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         int featureSetCount = randomIntBetween(0, 5);
         for (int i = 0; i < featureSetCount; i++) {
             XPackFeatureSet fs = mock(XPackFeatureSet.class);
-            when(fs.name()).thenReturn(randomAsciiOfLength(5));
-            when(fs.description()).thenReturn(randomAsciiOfLength(10));
+            when(fs.name()).thenReturn(randomAlphaOfLength(5));
+            when(fs.description()).thenReturn(randomAlphaOfLength(10));
             when(fs.available()).thenReturn(randomBoolean());
             when(fs.enabled()).thenReturn(randomBoolean());
             featureSets.add(fs);
@@ -62,11 +62,11 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.expiryDate()).thenReturn(expiryDate);
         License.Status status = randomFrom(License.Status.values());
         when(license.status()).thenReturn(status);
-        String type = randomAsciiOfLength(10);
+        String type = randomAlphaOfLength(10);
         when(license.type()).thenReturn(type);
         License.OperationMode mode = randomFrom(License.OperationMode.values());
         when(license.operationMode()).thenReturn(mode);
-        String uid = randomAsciiOfLength(30);
+        String uid = randomAlphaOfLength(30);
         when(license.uid()).thenReturn(uid);
         when(licenseService.getLicense()).thenReturn(license);
 

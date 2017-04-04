@@ -39,12 +39,12 @@ public class UserAccountTests extends ESTestCase {
 
         Settings.Builder sb = Settings.builder();
 
-        String authToken = randomAsciiOfLength(50);
+        String authToken = randomAlphaOfLength(50);
         sb.put(UserAccount.AUTH_TOKEN_SETTING, authToken);
 
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
-            host = randomAsciiOfLength(10);
+            host = randomAlphaOfLength(10);
             sb.put(HipChatServer.HOST_SETTING, host);
         }
         int port = HipChatServer.DEFAULT.port();

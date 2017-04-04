@@ -17,6 +17,6 @@ public class IndicesAccessControlTests extends ESTestCase {
     public void testEmptyIndicesAccessControl() {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         assertTrue(indicesAccessControl.isGranted());
-        assertNull(indicesAccessControl.getIndexPermissions(randomAsciiOfLengthBetween(3,20)));
+        assertNull(indicesAccessControl.getIndexPermissions(randomAlphaOfLengthBetween(3,20)));
     }
 }

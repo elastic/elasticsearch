@@ -233,7 +233,7 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
-        Path file = createTempDir().resolve(randomAsciiOfLength(10));
+        Path file = createTempDir().resolve(randomAlphaOfLength(10));
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());

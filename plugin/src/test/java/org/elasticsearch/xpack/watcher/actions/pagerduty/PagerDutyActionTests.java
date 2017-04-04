@@ -79,7 +79,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(payload)
@@ -126,7 +126,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder().startObject();
 
-        String accountName = randomAsciiOfLength(10);
+        String accountName = randomAlphaOfLength(10);
         builder.field("account", accountName);
 
         TextTemplate incidentKey = null;
@@ -197,16 +197,16 @@ public class PagerDutyActionTests extends ESTestCase {
     }
 
     public void testParserSelfGenerated() throws Exception {
-        IncidentEvent.Template.Builder event = IncidentEvent.templateBuilder(randomAsciiOfLength(50));
+        IncidentEvent.Template.Builder event = IncidentEvent.templateBuilder(randomAlphaOfLength(50));
 
         if (randomBoolean()) {
-            event.setIncidentKey(new TextTemplate(randomAsciiOfLength(50)));
+            event.setIncidentKey(new TextTemplate(randomAlphaOfLength(50)));
         }
         if (randomBoolean()) {
-            event.setClient(new TextTemplate(randomAsciiOfLength(50)));
+            event.setClient(new TextTemplate(randomAlphaOfLength(50)));
         }
         if (randomBoolean()) {
-            event.setClientUrl(new TextTemplate(randomAsciiOfLength(50)));
+            event.setClientUrl(new TextTemplate(randomAlphaOfLength(50)));
         }
         if (randomBoolean()) {
             event.setAttachPayload(randomBoolean());
@@ -219,10 +219,10 @@ public class PagerDutyActionTests extends ESTestCase {
                     new TextTemplate("_alt")));
         }
         if (randomBoolean()) {
-            event.setEventType(new TextTemplate(randomAsciiOfLength(50)));
+            event.setEventType(new TextTemplate(randomAlphaOfLength(50)));
         }
         if (randomBoolean()) {
-            event.setAccount(randomAsciiOfLength(50)).build();
+            event.setAccount(randomAlphaOfLength(50)).build();
         }
         if (randomBoolean()) {
             event.setProxy(new HttpProxy("localhost", 8080));

@@ -152,11 +152,11 @@ public class HttpInputTests extends ESTestCase {
     public void testParser() throws Exception {
         final HttpMethod httpMethod = rarely() ? null : randomFrom(HttpMethod.values());
         Scheme scheme = randomFrom(Scheme.HTTP, Scheme.HTTPS, null);
-        String host = randomAsciiOfLength(3);
+        String host = randomAlphaOfLength(3);
         int port = randomIntBetween(8000, 9000);
-        String path = randomAsciiOfLength(3);
+        String path = randomAlphaOfLength(3);
         TextTemplate pathTemplate = new TextTemplate(path);
-        String body = randomBoolean() ? randomAsciiOfLength(3) : null;
+        String body = randomBoolean() ? randomAlphaOfLength(3) : null;
         Map<String, TextTemplate> params =
                 randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map() : null;
         Map<String, TextTemplate> headers =
@@ -235,8 +235,8 @@ public class HttpInputTests extends ESTestCase {
     }
 
     public void testThatHeadersAreIncludedInPayload() throws Exception {
-        String headerName = randomAsciiOfLength(10);
-        String headerValue = randomAsciiOfLength(10);
+        String headerName = randomAlphaOfLength(10);
+        String headerValue = randomAlphaOfLength(10);
         boolean responseHasContent = randomBoolean();
 
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);

@@ -36,7 +36,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     @Override
     protected DatafeedConfig createTestInstance() {
-        return createRandomizedDatafeedConfig(randomAsciiOfLength(10));
+        return createRandomizedDatafeedConfig(randomAlphaOfLength(10));
     }
 
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId) {
@@ -48,14 +48,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         builder.setIndexes(randomStringList(1, 10));
         builder.setTypes(randomStringList(1, 10));
         if (randomBoolean()) {
-            builder.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+            builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {
             int scriptsSize = randomInt(3);
             List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
             for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
+                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), new Script(randomAlphaOfLength(10)),
                         randomBoolean()));
             }
             builder.setScriptFields(scriptFields);
@@ -93,7 +93,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         int size = scaledRandomIntBetween(min, max);
         List<String> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            list.add(randomAsciiOfLength(10));
+            list.add(randomAlphaOfLength(10));
         }
         return list;
     }
@@ -191,8 +191,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", "job1");
         datafeed.setIndexes(Arrays.asList("my_index"));
         datafeed.setTypes(Arrays.asList("my_type"));
-        datafeed.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10),
-                new Script(randomAsciiOfLength(10)), randomBoolean())));
+        datafeed.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10),
+                new Script(randomAlphaOfLength(10)), randomBoolean())));
         datafeed.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> datafeed.build());

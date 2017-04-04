@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.resolver.bulk;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -17,8 +15,6 @@ import org.elasticsearch.xpack.monitoring.action.MonitoringIndex;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolverTestCase;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -26,13 +22,13 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MonitoringBulkDataResolverTests extends MonitoringIndexNameResolverTestCase<MonitoringBulkDoc, MonitoringBulkDataResolver> {
 
-    private final String id = randomBoolean() ? randomAsciiOfLength(35) : null;
+    private final String id = randomBoolean() ? randomAlphaOfLength(35) : null;
 
     @Override
     protected MonitoringBulkDoc newMonitoringDoc() {
         MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(),
                 MonitoringTemplateUtils.TEMPLATE_VERSION, MonitoringIndex.DATA, "kibana", id,
-                randomAsciiOfLength(5), Math.abs(randomLong()),
+                randomAlphaOfLength(5), Math.abs(randomLong()),
                 MonitoringBulkDocTests.newRandomSourceNode(),
                 new BytesArray("{\"field1\" : \"value1\"}"), XContentType.JSON);
         return doc;

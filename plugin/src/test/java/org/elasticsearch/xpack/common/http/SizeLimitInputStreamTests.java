@@ -39,7 +39,7 @@ public class SizeLimitInputStreamTests extends ESTestCase {
     }
 
     private void test(int inputStreamLength, int maxAllowedSize) throws IOException {
-        String data = randomAsciiOfLength(inputStreamLength);
+        String data = randomAlphaOfLength(inputStreamLength);
         ByteSizeValue byteSizeValue = new ByteSizeValue(maxAllowedSize, ByteSizeUnit.BYTES);
         SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue,
                 new ByteArrayInputStream(data.getBytes(UTF_8)));

@@ -27,8 +27,8 @@ public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestC
     @Override
     protected DiscoveryNodeMonitoringDoc newMonitoringDoc() {
         DiscoveryNodeMonitoringDoc doc = new DiscoveryNodeMonitoringDoc(randomMonitoringId(),
-                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
-                new DiscoveryNode(randomAsciiOfLength(3), UUID.randomUUID().toString(),
+                randomAlphaOfLength(2), randomAlphaOfLength(5), 1437580442979L,
+                new DiscoveryNode(randomAlphaOfLength(3), UUID.randomUUID().toString(),
                     buildNewFakeTransportAddress(), emptyMap(), emptySet(),
                     randomVersionBetween(random(), VersionUtils.getFirstVersion(), Version.CURRENT)));
         return doc;

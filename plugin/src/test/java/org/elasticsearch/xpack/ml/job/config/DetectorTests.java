@@ -136,18 +136,18 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         } else {
             Set<String> functions = new HashSet<>(Detector.FIELD_NAME_FUNCTIONS);
             functions.removeAll(Detector.Builder.FUNCTIONS_WITHOUT_RULE_SUPPORT);
-            detector = new Detector.Builder(function = randomFrom(functions), randomAsciiOfLengthBetween(1, 20));
+            detector = new Detector.Builder(function = randomFrom(functions), randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            detector.setDetectorDescription(randomAsciiOfLengthBetween(1, 20));
+            detector.setDetectorDescription(randomAlphaOfLengthBetween(1, 20));
         }
         String fieldName = null;
         if (randomBoolean()) {
-            detector.setPartitionFieldName(fieldName = randomAsciiOfLengthBetween(1, 20));
+            detector.setPartitionFieldName(fieldName = randomAlphaOfLengthBetween(1, 20));
         } else if (randomBoolean() && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function) == false) {
-            detector.setOverFieldName(fieldName = randomAsciiOfLengthBetween(1, 20));
+            detector.setOverFieldName(fieldName = randomAlphaOfLengthBetween(1, 20));
         } else if (randomBoolean() && Detector.NO_BY_FIELD_NAME_FUNCTIONS.contains(function) == false) {
-            detector.setByFieldName(fieldName = randomAsciiOfLengthBetween(1, 20));
+            detector.setByFieldName(fieldName = randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             detector.setExcludeFrequent(randomFrom(Detector.ExcludeFrequent.values()));

@@ -5,16 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class ConditionTests extends AbstractSerializingTestCase<Condition> {
 
@@ -49,7 +44,7 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
             condition = new Condition(op, Double.toString(randomDouble()));
             break;
         case MATCH:
-            condition = new Condition(op, randomAsciiOfLengthBetween(1, 20));
+            condition = new Condition(op, randomAlphaOfLengthBetween(1, 20));
             break;
         default:
             throw new AssertionError("Unknown operator selected: " + op);

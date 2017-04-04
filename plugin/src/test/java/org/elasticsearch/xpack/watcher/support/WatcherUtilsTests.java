@@ -100,10 +100,10 @@ public class WatcherUtilsTests extends ESTestCase {
             if (randomBoolean()) {
                 int maxParams = randomIntBetween(1, 10);
                 for (int i = 0; i < maxParams; i++) {
-                    params.put(randomAsciiOfLengthBetween(1, 5), randomAsciiOfLengthBetween(1, 5));
+                    params.put(randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
                 }
             }
-            String text = randomAsciiOfLengthBetween(1, 5);
+            String text = randomAlphaOfLengthBetween(1, 5);
             ScriptType scriptType = randomFrom(ScriptType.values());
             expectedTemplate = new Script(scriptType, "mustache", text, params);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
@@ -198,10 +198,10 @@ public class WatcherUtilsTests extends ESTestCase {
             if (randomBoolean()) {
                 int maxParams = randomIntBetween(1, 10);
                 for (int i = 0; i < maxParams; i++) {
-                    params.put(randomAsciiOfLengthBetween(1, 5), randomAsciiOfLengthBetween(1, 5));
+                    params.put(randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
                 }
             }
-            String text = randomAsciiOfLengthBetween(1, 5);
+            String text = randomAlphaOfLengthBetween(1, 5);
             ScriptType scriptType = randomFrom(ScriptType.values());
             template = new Script(scriptType, "mustache", text, params);
             builder.field("template", template);

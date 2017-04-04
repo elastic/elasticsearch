@@ -176,7 +176,7 @@ public class TestUtils {
                 .maxNodes(5);
         if (version == License.VERSION_START) {
             builder.subscriptionType(randomFrom("dev", "gold", "platinum", "silver"));
-            builder.feature(ESTestCase.randomAsciiOfLength(10));
+            builder.feature(ESTestCase.randomAlphaOfLength(10));
         }
         LicenseSigner signer = new LicenseSigner(priKeyPath, pubKeyPath);
         return signer.sign(builder.build());

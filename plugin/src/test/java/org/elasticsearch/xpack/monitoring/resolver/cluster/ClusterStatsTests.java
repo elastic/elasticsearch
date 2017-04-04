@@ -45,7 +45,7 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
         ClusterStatsNodes.Counts counts = client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts();
         assertThat(counts.getTotal(), greaterThan(0));
 
-        String indexNameBase = randomAsciiOfLength(5).toLowerCase(Locale.ROOT);
+        String indexNameBase = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         int indicesCount = randomIntBetween(1, 5);
         String[] indices = new String[indicesCount];
         for (int i = 0; i < indicesCount; i++) {

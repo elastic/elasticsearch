@@ -20,15 +20,15 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
     protected Request createTestInstance() {
         TestRequest testRequest = new TestRequest();
         if (randomBoolean()) {
-            testRequest.setTestParam(randomAsciiOfLengthBetween(1, 20));
+            testRequest.setTestParam(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            testRequest.setParentTask(randomAsciiOfLengthBetween(1, 20), randomLong());
+            testRequest.setParentTask(randomAlphaOfLengthBetween(1, 20), randomLong());
         }
         if (randomBoolean()) {
-            testRequest.setExecutorNodeAttr(randomAsciiOfLengthBetween(1, 20));
+            testRequest.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
         }
-        return new Request(randomAsciiOfLengthBetween(1, 20), new TestRequest());
+        return new Request(randomAlphaOfLengthBetween(1, 20), new TestRequest());
     }
 
     @Override

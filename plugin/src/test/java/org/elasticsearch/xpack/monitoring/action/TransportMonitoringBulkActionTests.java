@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -251,7 +250,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             String monitoringVersion = randomVersion(random()).toString();
             MonitoringIndex index = randomBoolean() ? randomFrom(MonitoringIndex.values()) : null;
             String type = randomFrom("type1", "type2", "type3");
-            String id = randomAsciiOfLength(10);
+            String id = randomAlphaOfLength(10);
 
             BytesReference source;
             XContentType xContentType = randomFrom(XContentType.values());

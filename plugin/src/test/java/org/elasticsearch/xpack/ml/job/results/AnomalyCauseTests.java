@@ -34,34 +34,34 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
             anomalyCause.setTypical(typical);
         }
         if (randomBoolean()) {
-            anomalyCause.setByFieldName(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setByFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setByFieldValue(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setByFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setCorrelatedByFieldValue(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setCorrelatedByFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setOverFieldName(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setOverFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setOverFieldValue(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setOverFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setPartitionFieldName(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setPartitionFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setPartitionFieldValue(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setPartitionFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setFunction(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setFunction(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setFunctionDescription(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setFunctionDescription(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setFieldName(randomAsciiOfLengthBetween(1, 20));
+            anomalyCause.setFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             anomalyCause.setProbability(randomDouble());
@@ -73,9 +73,9 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
                 int fieldValuesSize = randomInt(10);
                 List<String> fieldValues = new ArrayList<>(fieldValuesSize);
                 for (int j = 0; j < fieldValuesSize; j++) {
-                    fieldValues.add(randomAsciiOfLengthBetween(1, 20));
+                    fieldValues.add(randomAlphaOfLengthBetween(1, 20));
                 }
-                influencers.add(new Influence(randomAsciiOfLengthBetween(1, 20), fieldValues));
+                influencers.add(new Influence(randomAlphaOfLengthBetween(1, 20), fieldValues));
             }
             anomalyCause.setInfluencers(influencers);
         }

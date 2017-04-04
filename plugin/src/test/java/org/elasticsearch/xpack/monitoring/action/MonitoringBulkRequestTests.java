@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -63,32 +62,32 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         MonitoringBulkRequest request = new MonitoringBulkRequest();
 
         // Doc0 is complete
-        MonitoringBulkDoc doc0 = new MonitoringBulkDoc(randomAsciiOfLength(2),
-                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+        MonitoringBulkDoc doc0 = new MonitoringBulkDoc(randomAlphaOfLength(2),
+                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
                 null, SOURCE, XContentType.JSON);
         request.add(doc0);
 
         // Doc1 has no type
-        MonitoringBulkDoc doc1 = new MonitoringBulkDoc(randomAsciiOfLength(2),
-                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, null,
+        MonitoringBulkDoc doc1 = new MonitoringBulkDoc(randomAlphaOfLength(2),
+                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, null,
                 null, SOURCE, XContentType.JSON);
         request.add(doc1);
 
         // Doc2 has no source
-        MonitoringBulkDoc doc2 = new MonitoringBulkDoc(randomAsciiOfLength(2),
-                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+        MonitoringBulkDoc doc2 = new MonitoringBulkDoc(randomAlphaOfLength(2),
+                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
                 null, BytesArray.EMPTY, XContentType.JSON);
         request.add(doc2);
 
         // Doc3 has no version
-        MonitoringBulkDoc doc3 = new MonitoringBulkDoc(randomAsciiOfLength(2),
-                null, MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+        MonitoringBulkDoc doc3 = new MonitoringBulkDoc(randomAlphaOfLength(2),
+                null, MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
                 null, SOURCE, XContentType.JSON);
         request.add(doc3);
 
         // Doc4 has no id
         MonitoringBulkDoc doc4 = new MonitoringBulkDoc(null,
-                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
                 null, SOURCE, XContentType.JSON);
         request.add(doc4);
 
@@ -104,8 +103,8 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
             request.add(new MonitoringBulkDoc(String.valueOf(i), String.valueOf(i),
-                    randomFrom(MonitoringIndex.values()), randomAsciiOfLength(5),
-                    randomAsciiOfLength(5), SOURCE, XContentType.JSON));
+                    randomFrom(MonitoringIndex.values()), randomAlphaOfLength(5),
+                    randomAlphaOfLength(5), SOURCE, XContentType.JSON));
         }
         assertThat(request.getDocs(), hasSize(nbDocs));
     }
@@ -128,7 +127,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                         indices[i] = MonitoringIndex.TIMESTAMPED;
                     }
                     if (randomBoolean()) {
-                        types[i] = randomAsciiOfLength(5);
+                        types[i] = randomAlphaOfLength(5);
                         builder.field("_type", types[i]);
                     }
                     builder.endObject().endObject().flush();
@@ -138,9 +137,9 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                 }
             }
 
-            String defaultMonitoringId = randomBoolean() ? randomAsciiOfLength(2) : null;
-            String defaultMonitoringVersion = randomBoolean() ? randomAsciiOfLength(3) : null;
-            String defaultType = rarely() ? randomAsciiOfLength(4) : null;
+            String defaultMonitoringId = randomBoolean() ? randomAlphaOfLength(2) : null;
+            String defaultMonitoringVersion = randomBoolean() ? randomAlphaOfLength(3) : null;
+            String defaultType = rarely() ? randomAlphaOfLength(4) : null;
 
             MonitoringBulkRequest request = new MonitoringBulkRequest();
             request.add(content.bytes(), defaultMonitoringId, defaultMonitoringVersion, defaultType, xContentType);

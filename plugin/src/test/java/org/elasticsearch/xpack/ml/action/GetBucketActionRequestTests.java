@@ -14,13 +14,13 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
 
     @Override
     protected Request createTestInstance() {
-        GetBucketsAction.Request request = new GetBucketsAction.Request(randomAsciiOfLengthBetween(1, 20));
+        GetBucketsAction.Request request = new GetBucketsAction.Request(randomAlphaOfLengthBetween(1, 20));
 
         if (randomBoolean()) {
             request.setTimestamp(String.valueOf(randomLong()));
         } else {
             if (randomBoolean()) {
-                request.setPartitionValue(randomAsciiOfLengthBetween(1, 20));
+                request.setPartitionValue(randomAlphaOfLengthBetween(1, 20));
             }
             if (randomBoolean()) {
                 request.setStart(String.valueOf(randomLong()));
@@ -35,7 +35,7 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
                 request.setAnomalyScore(randomDouble());
             }
             if (randomBoolean()) {
-                request.setPartitionValue(randomAsciiOfLengthBetween(1, 20));
+                request.setPartitionValue(randomAlphaOfLengthBetween(1, 20));
             }
             if (randomBoolean()) {
                 int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);

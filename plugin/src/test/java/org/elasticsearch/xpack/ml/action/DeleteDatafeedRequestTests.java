@@ -12,7 +12,7 @@ public class DeleteDatafeedRequestTests extends AbstractStreamableTestCase<Reque
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLengthBetween(1, 20));
+        return new Request(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override

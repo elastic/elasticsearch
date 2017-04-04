@@ -19,9 +19,9 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
         int size = randomInt(10);
         List<String> fieldValues = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            fieldValues.add(randomAsciiOfLengthBetween(1, 20));
+            fieldValues.add(randomAlphaOfLengthBetween(1, 20));
         }
-        return new Influence(randomAsciiOfLengthBetween(1, 30), fieldValues);
+        return new Influence(randomAlphaOfLengthBetween(1, 30), fieldValues);
     }
 
     @Override

@@ -51,7 +51,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     public static void init() throws Exception {
         usernames = new String[randomIntBetween(5, 10)];
         for (int i = 0; i < usernames.length; i++) {
-            usernames[i] = randomAsciiOfLength(6) + "_" + i;
+            usernames[i] = randomAlphaOfLength(6) + "_" + i;
         }
     }
 

@@ -189,8 +189,8 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
         String monitoringVersion = randomVersion(random()).toString();
         String type = randomFrom("type1", "type2", "type3");
-        String id = randomBoolean() ? randomAsciiOfLength(3) : null;
-        String clusterUUID = randomBoolean() ? randomAsciiOfLength(5) : null;
+        String id = randomBoolean() ? randomAlphaOfLength(3) : null;
+        String clusterUUID = randomBoolean() ? randomAlphaOfLength(5) : null;
         long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
         MonitoringDoc.Node sourceNode = randomBoolean() ? newRandomSourceNode() : null;
 

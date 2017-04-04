@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 public class GeneratedKeyConfigTests extends ESTestCase {
 
     public void testGenerating() throws Exception {
-        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), randomAsciiOfLengthBetween(1, 8)).build();
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(1, 8)).build();
         GeneratedKeyConfig keyConfig = new GeneratedKeyConfig(settings);
         assertThat(keyConfig.filesToMonitor(null), is(empty()));
         X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(null);

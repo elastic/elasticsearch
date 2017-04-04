@@ -33,7 +33,7 @@ public class SecurityActionMapperTests extends ESTestCase {
                 if (randomBoolean()) {
                     randomAction = randomFrom(actions);
                 } else {
-                    randomAction = randomAsciiOfLength(randomIntBetween(1, 30));
+                    randomAction = randomAlphaOfLength(randomIntBetween(1, 30));
                 }
             } while (randomAction.equals(ClearScrollAction.NAME) ||
                     randomAction.equals(AnalyzeAction.NAME) ||
@@ -48,7 +48,7 @@ public class SecurityActionMapperTests extends ESTestCase {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         int scrollIds = randomIntBetween(1, 10);
         for (int i = 0; i < scrollIds; i++) {
-            clearScrollRequest.addScrollId(randomAsciiOfLength(randomIntBetween(1, 30)));
+            clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
         assertThat(securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ClearScrollAction.NAME));
     }
@@ -58,7 +58,7 @@ public class SecurityActionMapperTests extends ESTestCase {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         int scrollIds = randomIntBetween(0, 10);
         for (int i = 0; i < scrollIds; i++) {
-            clearScrollRequest.addScrollId(randomAsciiOfLength(randomIntBetween(1, 30)));
+            clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
         clearScrollRequest.addScrollId("_all");
         //make sure that wherever the _all is among the scroll ids the action name gets translated
@@ -72,10 +72,10 @@ public class SecurityActionMapperTests extends ESTestCase {
         SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         AnalyzeRequest analyzeRequest;
         if (randomBoolean()) {
-            analyzeRequest = new AnalyzeRequest(randomAsciiOfLength(randomIntBetween(1, 30))).text("text");
+            analyzeRequest = new AnalyzeRequest(randomAlphaOfLength(randomIntBetween(1, 30))).text("text");
         } else {
             analyzeRequest = new AnalyzeRequest(null).text("text");
-            analyzeRequest.index(randomAsciiOfLength(randomIntBetween(1, 30)));
+            analyzeRequest.index(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
         assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
     }

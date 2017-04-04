@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.common.http;
 
 import org.apache.http.conn.ConnectTimeoutException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -31,7 +30,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path("/" + randomAlphaOfLength(5))
                 .build();
 
         long start = System.nanoTime();
@@ -57,7 +56,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path("/" + randomAlphaOfLength(5))
                 .build();
 
         long start = System.nanoTime();
@@ -84,7 +83,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .connectionTimeout(TimeValue.timeValueSeconds(5))
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path("/" + randomAlphaOfLength(5))
                 .build();
 
         long start = System.nanoTime();

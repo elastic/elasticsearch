@@ -138,7 +138,7 @@ public class EmailActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
                 .wid(wid)
                 .payload(payload)
@@ -291,7 +291,7 @@ public class EmailActionTests extends ESTestCase {
 
         ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine,
                 emailAttachmentParser)
-                .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
+                .parseExecutable(randomAlphaOfLength(8), randomAlphaOfLength(3), parser);
 
         assertThat(executable, notNullValue());
         assertThat(executable.action().getAccount(), is("_account"));
@@ -366,7 +366,7 @@ public class EmailActionTests extends ESTestCase {
         EmailTemplate email = emailTemplate.build();
         Authentication auth = randomBoolean() ? null : new Authentication("_user", new Secret("_passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
-        String account = randomAsciiOfLength(6);
+        String account = randomAlphaOfLength(6);
         DataAttachment dataAttachment = randomDataAttachment();
         EmailAttachments emailAttachments = randomEmailAttachments();
 
@@ -385,7 +385,7 @@ public class EmailActionTests extends ESTestCase {
         parser.nextToken();
 
         ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
-                .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
+                .parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(10), parser);
 
         if (!hideSecrets) {
             assertThat(parsed, equalTo(executable));
@@ -415,7 +415,7 @@ public class EmailActionTests extends ESTestCase {
         parser.nextToken();
         try {
             new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentsParser)
-                    .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+                    .parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("unexpected string field [unknown_field]"));
         }
@@ -452,7 +452,7 @@ public class EmailActionTests extends ESTestCase {
 
         EmailActionFactory emailActionFactory = createEmailActionFactory();
         ExecutableEmailAction executableEmailAction =
-                emailActionFactory.parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+                emailActionFactory.parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
 
         Action.Result result = executableEmailAction.execute("test", createWatchExecutionContext(), new Payload.Simple());
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
@@ -470,7 +470,7 @@ public class EmailActionTests extends ESTestCase {
     }
 
     public void testThatDataAttachmentGetsAttachedWithId() throws Exception {
-        String attachmentId = randomAsciiOfLength(10) + ".yml";
+        String attachmentId = randomAlphaOfLength(10) + ".yml";
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("attachments")
@@ -487,7 +487,7 @@ public class EmailActionTests extends ESTestCase {
 
         EmailActionFactory emailActionFactory = createEmailActionFactory();
         ExecutableEmailAction executableEmailAction =
-                emailActionFactory.parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+                emailActionFactory.parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
 
         Action.Result result = executableEmailAction.execute("test", createWatchExecutionContext(), new Payload.Simple());
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
@@ -540,10 +540,10 @@ public class EmailActionTests extends ESTestCase {
         parser.nextToken();
 
         ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine,
-                emailAttachmentsParser).parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+                emailAttachmentsParser).parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
                 .wid(wid)
@@ -569,7 +569,7 @@ public class EmailActionTests extends ESTestCase {
 
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")
                 .wid(wid)
@@ -595,10 +595,10 @@ public class EmailActionTests extends ESTestCase {
             when(httpClient.execute(any(HttpRequest.class))).thenReturn(mockResponse);
 
             HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 1234).build();
-            attachments.add(new HttpRequestAttachment(randomAsciiOfLength(10), template,
+            attachments.add(new HttpRequestAttachment(randomAlphaOfLength(10), template,
                     randomBoolean(), randomFrom("my/custom-type", null)));
         } else if ("data".equals(attachmentType)) {
-            attachments.add(new org.elasticsearch.xpack.notification.email.attachment.DataAttachment(randomAsciiOfLength(10),
+            attachments.add(new org.elasticsearch.xpack.notification.email.attachment.DataAttachment(randomAlphaOfLength(10),
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML)));
         }
 

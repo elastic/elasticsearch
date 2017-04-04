@@ -128,11 +128,11 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentKeystoresAreNotEqual() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path")
-                .put("keystore.password", randomAsciiOfLength(5))
+                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path1")
-                .put("keystore.password", randomAsciiOfLength(5))
+                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.equals(sslConfiguration1), is(equalTo(false)));
         assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(false)));
@@ -143,11 +143,11 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentTruststoresAreNotEqual() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/trust")
-                .put("truststore.password", randomAsciiOfLength(5))
+                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/truststore")
-                .put("truststore.password", randomAsciiOfLength(5))
+                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.equals(sslConfiguration1), is(equalTo(false)));
         assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(false)));
@@ -167,11 +167,11 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentKeystoresHaveDifferentHashCode() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path")
-                .put("keystore.password", randomAsciiOfLength(5))
+                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path1")
-                .put("keystore.password", randomAsciiOfLength(5))
+                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.hashCode(), is(not(equalTo(sslConfiguration1.hashCode()))));
     }
@@ -179,11 +179,11 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentTruststoresHaveDifferentHashCode() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/trust")
-                .put("truststore.password", randomAsciiOfLength(5))
+                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/truststore")
-                .put("truststore.password", randomAsciiOfLength(5))
+                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.hashCode(), is(not(equalTo(sslConfiguration1.hashCode()))));
     }

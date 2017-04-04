@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class LicenseUtilsTests extends ESTestCase {
 
     public void testNewExpirationException() {
-        for (String feature : Arrays.asList("feature", randomAsciiOfLength(5), null, "")) {
+        for (String feature : Arrays.asList("feature", randomAlphaOfLength(5), null, "")) {
             ElasticsearchSecurityException exception = LicenseUtils.newComplianceException(feature);
             assertNotNull(exception);
             assertThat(exception.getMetadataKeys(), contains(LicenseUtils.EXPIRED_FEATURE_METADATA));

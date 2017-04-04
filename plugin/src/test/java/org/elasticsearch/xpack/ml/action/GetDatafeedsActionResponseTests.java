@@ -21,7 +21,7 @@ public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<
         int listSize = randomInt(10);
         List<DatafeedConfig> datafeedList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            datafeedList.add(DatafeedConfigTests.createRandomizedDatafeedConfig(randomAsciiOfLength(10)));
+            datafeedList.add(DatafeedConfigTests.createRandomizedDatafeedConfig(randomAlphaOfLength(10)));
         }
         return new Response(new QueryPage<>(datafeedList, datafeedList.size(), DatafeedConfig.RESULTS_FIELD));
     }

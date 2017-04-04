@@ -21,19 +21,19 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     public ModelPlot createTestInstance(String jobId) {
         ModelPlot modelPlot = new ModelPlot(jobId);
         if (randomBoolean()) {
-            modelPlot.setByFieldName(randomAsciiOfLengthBetween(1, 20));
+            modelPlot.setByFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            modelPlot.setByFieldValue(randomAsciiOfLengthBetween(1, 20));
+            modelPlot.setByFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            modelPlot.setPartitionFieldName(randomAsciiOfLengthBetween(1, 20));
+            modelPlot.setPartitionFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            modelPlot.setPartitionFieldValue(randomAsciiOfLengthBetween(1, 20));
+            modelPlot.setPartitionFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            modelPlot.setModelFeature(randomAsciiOfLengthBetween(1, 20));
+            modelPlot.setModelFeature(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             modelPlot.setModelLower(randomDouble());
@@ -64,13 +64,13 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testEquals_GivenSameObject() {
-        ModelPlot modelPlot = new ModelPlot(randomAsciiOfLength(15));
+        ModelPlot modelPlot = new ModelPlot(randomAlphaOfLength(15));
 
         assertTrue(modelPlot.equals(modelPlot));
     }
 
     public void testEquals_GivenObjectOfDifferentClass() {
-        ModelPlot modelPlot = new ModelPlot(randomAsciiOfLength(15));
+        ModelPlot modelPlot = new ModelPlot(randomAlphaOfLength(15));
 
         assertFalse(modelPlot.equals("a string"));
     }

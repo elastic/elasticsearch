@@ -52,7 +52,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
     @Before
     public void setup() {
         final Settings settings = Settings.builder().build();
-        user = new User(randomAsciiOfLengthBetween(4, 12));
+        user = new User(randomAlphaOfLengthBetween(4, 12));
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService

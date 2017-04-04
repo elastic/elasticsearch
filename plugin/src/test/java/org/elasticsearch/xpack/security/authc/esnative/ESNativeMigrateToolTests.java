@@ -67,7 +67,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         int numToAdd = randomIntBetween(1,10);
         Set<String> addedUsers = new HashSet(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
-            String uname = randomAsciiOfLength(5);
+            String uname = randomAlphaOfLength(5);
             c.preparePutUser(uname, "s3kirt".toCharArray(), "role1", "user").get();
             addedUsers.add(uname);
         }
@@ -107,7 +107,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         int numToAdd = randomIntBetween(1,10);
         Set<String> addedRoles = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
-            String rname = randomAsciiOfLength(5);
+            String rname = randomAlphaOfLength(5);
             c.preparePutRole(rname)
                     .cluster("all", "none")
                     .runAs("root", "nobody")

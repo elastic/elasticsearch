@@ -14,7 +14,7 @@ public class UpdateJobActionRequestTests
 
     @Override
     protected UpdateJobAction.Request createTestInstance() {
-        String jobId = randomAsciiOfLength(10);
+        String jobId = randomAlphaOfLength(10);
         // no need to randomize JobUpdate this is already tested in: JobUpdateTests
         JobUpdate.Builder jobUpdate = new JobUpdate.Builder(jobId);
         jobUpdate.setAnalysisLimits(new AnalysisLimits(100L, 100L));

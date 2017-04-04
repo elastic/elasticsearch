@@ -13,10 +13,10 @@ public class GetCategoriesRequestTests extends AbstractStreamableXContentTestCas
 
     @Override
     protected GetCategoriesAction.Request createTestInstance() {
-        String jobId = randomAsciiOfLength(10);
+        String jobId = randomAlphaOfLength(10);
         GetCategoriesAction.Request request = new GetCategoriesAction.Request(jobId);
         if (randomBoolean()) {
-            request.setCategoryId(randomAsciiOfLength(10));
+            request.setCategoryId(randomAlphaOfLength(10));
         } else {
             int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
             int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;

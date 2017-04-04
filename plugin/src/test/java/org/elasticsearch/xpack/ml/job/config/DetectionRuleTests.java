@@ -89,8 +89,8 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
         String targetFieldValue = null;
         Connective connective = randomFrom(Connective.values());
         if (randomBoolean()) {
-            targetFieldName = randomAsciiOfLengthBetween(1, 20);
-            targetFieldValue = randomAsciiOfLengthBetween(1, 20);
+            targetFieldName = randomAlphaOfLengthBetween(1, 20);
+            targetFieldValue = randomAlphaOfLengthBetween(1, 20);
         }
         int size = 1 + randomInt(20);
         List<RuleCondition> ruleConditions = new ArrayList<>(size);

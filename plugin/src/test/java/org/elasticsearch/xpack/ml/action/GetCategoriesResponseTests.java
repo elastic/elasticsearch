@@ -15,7 +15,7 @@ public class GetCategoriesResponseTests extends AbstractStreamableTestCase<GetCa
 
     @Override
     protected GetCategoriesAction.Response createTestInstance() {
-        CategoryDefinition definition = new CategoryDefinition(randomAsciiOfLength(10));
+        CategoryDefinition definition = new CategoryDefinition(randomAlphaOfLength(10));
         QueryPage<CategoryDefinition> queryPage =
                 new QueryPage<>(Collections.singletonList(definition), 1L, CategoryDefinition.RESULTS_FIELD);
         return new GetCategoriesAction.Response(queryPage);

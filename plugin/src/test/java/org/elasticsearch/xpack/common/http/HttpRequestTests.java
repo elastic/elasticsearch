@@ -79,7 +79,7 @@ public class HttpRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 builder.scheme(randomFrom(Scheme.values()));
                 if (usually()) {
-                    builder.path(randomAsciiOfLength(50));
+                    builder.path(randomAlphaOfLength(50));
                 }
             }
         }
@@ -87,22 +87,22 @@ public class HttpRequestTests extends ESTestCase {
             builder.method(randomFrom(HttpMethod.values()));
         }
         if (randomBoolean()) {
-            builder.setParam(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            builder.setParam(randomAlphaOfLength(10), randomAlphaOfLength(10));
             if (randomBoolean()) {
-                builder.setParam(randomAsciiOfLength(10), randomAsciiOfLength(10));
+                builder.setParam(randomAlphaOfLength(10), randomAlphaOfLength(10));
             }
         }
         if (randomBoolean()) {
-            builder.setHeader(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            builder.setHeader(randomAlphaOfLength(10), randomAlphaOfLength(10));
             if (randomBoolean()) {
-                builder.setHeader(randomAsciiOfLength(10), randomAsciiOfLength(10));
+                builder.setHeader(randomAlphaOfLength(10), randomAlphaOfLength(10));
             }
         }
         if (randomBoolean()) {
-            builder.auth(new BasicAuth(randomAsciiOfLength(10), randomAsciiOfLength(20).toCharArray()));
+            builder.auth(new BasicAuth(randomAlphaOfLength(10), randomAlphaOfLength(20).toCharArray()));
         }
         if (randomBoolean()) {
-            builder.body(randomAsciiOfLength(200));
+            builder.body(randomAlphaOfLength(200));
         }
         if (randomBoolean()) {
             builder.connectionTimeout(TimeValue.parseTimeValue(randomTimeValue(), "my.setting"));
@@ -111,7 +111,7 @@ public class HttpRequestTests extends ESTestCase {
             builder.readTimeout(TimeValue.parseTimeValue(randomTimeValue(), "my.setting"));
         }
         if (randomBoolean()) {
-            builder.proxy(new HttpProxy(randomAsciiOfLength(10), randomIntBetween(1024, 65000)));
+            builder.proxy(new HttpProxy(randomAlphaOfLength(10), randomIntBetween(1024, 65000)));
         }
 
         final HttpRequest httpRequest = builder.build();

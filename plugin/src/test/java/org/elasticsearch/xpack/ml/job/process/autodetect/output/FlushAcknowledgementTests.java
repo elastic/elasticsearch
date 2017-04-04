@@ -18,7 +18,7 @@ public class FlushAcknowledgementTests extends AbstractSerializingTestCase<Flush
 
     @Override
     protected FlushAcknowledgement createTestInstance() {
-        return new FlushAcknowledgement(randomAsciiOfLengthBetween(1, 20));
+        return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override

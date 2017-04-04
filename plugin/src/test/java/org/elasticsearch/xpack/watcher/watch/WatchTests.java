@@ -465,7 +465,7 @@ public class WatchTests extends ESTestCase {
         if (randomBoolean()) {
             EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD,
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(),
+            list.add(new ActionWrapper("_email_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
                     new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
         }
@@ -473,7 +473,7 @@ public class WatchTests extends ESTestCase {
             DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             IndexAction action = new IndexAction("_index", "_type", randomBoolean() ? "123" : null, null, timeout, timeZone);
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(),
+            list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
                     new ExecutableIndexAction(action, logger, client, null)));
         }
@@ -483,7 +483,7 @@ public class WatchTests extends ESTestCase {
                     .path(new TextTemplate("_url"))
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
-            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(),
+            list.add(new ActionWrapper("_webhook_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
                     new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
         }

@@ -19,18 +19,18 @@ public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXCont
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20), randomBoolean() ? null : randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setDescriptionString(randomAsciiOfLengthBetween(1, 20));
+            request.setDescriptionString(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setStart(randomAsciiOfLengthBetween(1, 20));
+            request.setStart(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setEnd(randomAsciiOfLengthBetween(1, 20));
+            request.setEnd(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setSort(randomAsciiOfLengthBetween(1, 20));
+            request.setSort(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             request.setDescOrder(randomBoolean());

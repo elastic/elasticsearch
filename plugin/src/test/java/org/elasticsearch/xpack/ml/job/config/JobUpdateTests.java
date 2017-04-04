@@ -23,9 +23,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate createTestInstance() {
-        JobUpdate.Builder update = new JobUpdate.Builder(randomAsciiOfLength(4));
+        JobUpdate.Builder update = new JobUpdate.Builder(randomAlphaOfLength(4));
         if (randomBoolean()) {
-            update.setDescription(randomAsciiOfLength(20));
+            update.setDescription(randomAlphaOfLength(20));
         }
         if (randomBoolean()) {
             List<JobUpdate.DetectorUpdate> detectorUpdates = null;
@@ -34,7 +34,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             for (int i = 0; i < size; i++) {
                 String detectorDescription = null;
                 if (randomBoolean()) {
-                    detectorDescription = randomAsciiOfLength(12);
+                    detectorDescription = randomAlphaOfLength(12);
                 }
                 List<DetectionRule> detectionRules = null;
                 if (randomBoolean()) {
@@ -48,7 +48,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setDetectorUpdates(detectorUpdates);
         }
         if (randomBoolean()) {
-            update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10)));
+            update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
             update.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong()));
@@ -69,10 +69,10 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {
-            update.setCustomSettings(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+            update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
-            update.setModelSnapshotId(randomAsciiOfLength(10));
+            update.setModelSnapshotId(randomAlphaOfLength(10));
         }
 
         return update.build();
@@ -99,10 +99,10 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                         new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5"), null))));
         detectorUpdates.add(new JobUpdate.DetectorUpdate(1, "description-2", detectionRules2));
 
-        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10));
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
         AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
         List<String> categorizationFilters = Arrays.asList(generateRandomStringArray(10, 10, false));
-        Map<String, Object> customSettings = Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10));
+        Map<String, Object> customSettings = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
 
         JobUpdate.Builder updateBuilder = new JobUpdate.Builder("foo");
         updateBuilder.setDescription("updated_description");
@@ -115,7 +115,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setRenormalizationWindowDays(randomNonNegativeLong());
         updateBuilder.setCategorizationFilters(categorizationFilters);
         updateBuilder.setCustomSettings(customSettings);
-        updateBuilder.setModelSnapshotId(randomAsciiOfLength(10));
+        updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");

@@ -149,7 +149,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
 
         // with realm
-        auditTrail.authenticationFailed(randomAsciiOfLengthBetween(2, 10), token, "_action", message);
+        auditTrail.authenticationFailed(randomAlphaOfLengthBetween(2, 10), token, "_action", message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -162,7 +162,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
 
         // with realm
-        auditTrail.authenticationFailed(randomAsciiOfLengthBetween(2, 10), token, restRequest);
+        auditTrail.authenticationFailed(randomAlphaOfLengthBetween(2, 10), token, restRequest);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
         verifyZeroInteractions(token, restRequest);
@@ -172,7 +172,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_granted" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessGranted(user, randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -194,7 +194,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_denied" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessDenied(user, randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -207,12 +207,12 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         User user = mock(User.class);
 
         // with user
-        auditTrail.tamperedRequest(user, randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.tamperedRequest(user, randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
         // without user
-        auditTrail.tamperedRequest(randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.tamperedRequest(randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -224,7 +224,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         InetAddress address = mock(InetAddress.class);
         SecurityIpFilterRule rule = mock(SecurityIpFilterRule.class);
 
-        auditTrail.connectionGranted(address, randomAsciiOfLengthBetween(1, 12), rule);
+        auditTrail.connectionGranted(address, randomAlphaOfLengthBetween(1, 12), rule);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -236,7 +236,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         InetAddress address = mock(InetAddress.class);
         SecurityIpFilterRule rule = mock(SecurityIpFilterRule.class);
 
-        auditTrail.connectionDenied(address, randomAsciiOfLengthBetween(1, 12), rule);
+        auditTrail.connectionDenied(address, randomAlphaOfLengthBetween(1, 12), rule);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -248,7 +248,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
 
-        auditTrail.runAsGranted(user, randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.runAsGranted(user, randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -260,7 +260,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
 
-        auditTrail.runAsDenied(user, randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.runAsDenied(user, randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -285,7 +285,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
         String realm = "_realm";
-        auditTrail.authenticationSuccess(realm, user, randomAsciiOfLengthBetween(6, 40), message);
+        auditTrail.authenticationSuccess(realm, user, randomAlphaOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 

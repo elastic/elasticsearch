@@ -40,7 +40,7 @@ public class IndexRecoveryResolverTests extends MonitoringIndexNameResolverTestC
         shardRecoveryStates.put("test", Collections.singletonList(new RecoveryState(shardRouting, localNode, null)));
 
         IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(randomMonitoringId(),
-                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                randomAlphaOfLength(2), randomAlphaOfLength(5), 1437580442979L,
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new RecoveryResponse(10, 10, 0, false, shardRecoveryStates, Collections.emptyList()));
         return doc;

@@ -41,7 +41,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                     BucketInfluencer bucketInfluencer = new BucketInfluencer("foo", bucket.getTimestamp(), bucket.getBucketSpan(),
                             sequenceNum++);
                     bucketInfluencer.setAnomalyScore(randomDouble());
-                    bucketInfluencer.setInfluencerFieldName(randomAsciiOfLengthBetween(1, 20));
+                    bucketInfluencer.setInfluencerFieldName(randomAlphaOfLengthBetween(1, 20));
                     bucketInfluencer.setInitialAnomalyScore(randomDouble());
                     bucketInfluencer.setProbability(randomDouble());
                     bucketInfluencer.setRawAnomalyScore(randomDouble());
@@ -62,7 +62,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 int size = randomInt(10);
                 List<PartitionScore> partitionScores = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
-                    partitionScores.add(new PartitionScore(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
+                    partitionScores.add(new PartitionScore(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
                             randomDouble(), randomDouble(), randomDouble()));
                 }
                 bucket.setPartitionScores(partitionScores);
@@ -71,7 +71,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 int size = randomInt(10);
                 Map<String, Double> perPartitionMaxProbability = new HashMap<>(size);
                 for (int i = 0; i < size; i++) {
-                    perPartitionMaxProbability.put(randomAsciiOfLengthBetween(1, 20), randomDouble());
+                    perPartitionMaxProbability.put(randomAlphaOfLengthBetween(1, 20), randomDouble());
                 }
                 bucket.setPerPartitionMaxProbability(perPartitionMaxProbability);
             }

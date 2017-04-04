@@ -41,7 +41,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
     public static void init() throws Exception {
         roles = new String[randomIntBetween(5, 10)];
         for (int i = 0; i < roles.length; i++) {
-            roles[i] = randomAsciiOfLength(6) + "_" + i;
+            roles[i] = randomAlphaOfLength(6) + "_" + i;
         }
     }
 

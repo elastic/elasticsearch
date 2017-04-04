@@ -144,7 +144,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
 
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")
                 .wid(wid)

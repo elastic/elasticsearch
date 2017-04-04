@@ -340,7 +340,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private SearchResponse createSearchResponse(List<Long> timestamps, List<String> field1Values, List<String> field2Values) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getScrollId()).thenReturn(randomAsciiOfLength(1000));
+        when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         List<SearchHit> hits = new ArrayList<>();
         for (int i = 0; i < timestamps.size(); i++) {
             SearchHit hit = new SearchHit(randomInt());

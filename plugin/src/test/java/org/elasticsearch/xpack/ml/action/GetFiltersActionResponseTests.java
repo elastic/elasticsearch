@@ -19,7 +19,7 @@ public class GetFiltersActionResponseTests extends AbstractStreamableTestCase<Ge
         final QueryPage<MlFilter> result;
 
         MlFilter doc = new MlFilter(
-                randomAsciiOfLengthBetween(1, 20), Collections.singletonList(randomAsciiOfLengthBetween(1, 20)));
+                randomAlphaOfLengthBetween(1, 20), Collections.singletonList(randomAlphaOfLengthBetween(1, 20)));
         result = new QueryPage<>(Collections.singletonList(doc), 1, MlFilter.RESULTS_FIELD);
         return new Response(result);
     }

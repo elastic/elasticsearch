@@ -27,7 +27,7 @@ public class AuditUtilTests extends ESTestCase {
         List<String> expectedIndices = new ArrayList<>();
         final boolean includeDuplicates = randomBoolean();
         for (int i = 0; i < numberOfIndices; i++) {
-            String name = randomAsciiOfLengthBetween(1, 30);
+            String name = randomAlphaOfLengthBetween(1, 30);
             expectedIndices.add(name);
             if (includeDuplicates) {
                 expectedIndices.add(name);

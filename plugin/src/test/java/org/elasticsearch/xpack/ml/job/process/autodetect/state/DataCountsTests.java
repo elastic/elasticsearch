@@ -18,7 +18,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
     @Override
     public DataCounts createTestInstance() {
-        return new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
+        return new DataCounts(randomAlphaOfLength(10), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
@@ -59,7 +59,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCountCreatedZero() throws Exception {
-        DataCounts counts = new DataCounts(randomAsciiOfLength(16));
+        DataCounts counts = new DataCounts(randomAlphaOfLength(16));
         assertAllFieldsEqualZero(counts);
     }
 
@@ -72,7 +72,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testIncrements() {
-        DataCounts counts = new DataCounts(randomAsciiOfLength(16));
+        DataCounts counts = new DataCounts(randomAlphaOfLength(16));
 
         counts.incrementInputBytes(15);
         assertEquals(15, counts.getInputBytes());
@@ -91,7 +91,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testGetInputRecordCount() {
-        DataCounts counts = new DataCounts(randomAsciiOfLength(16));
+        DataCounts counts = new DataCounts(randomAlphaOfLength(16));
         counts.incrementProcessedRecordCount(5);
         assertEquals(5, counts.getInputRecordCount());
 
@@ -103,13 +103,13 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCalcProcessedFieldCount() {
-        DataCounts counts = new DataCounts(randomAsciiOfLength(16), 10L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, new Date(), new Date(),
+        DataCounts counts = new DataCounts(randomAlphaOfLength(16), 10L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, new Date(), new Date(),
                 new Date(), new Date(), new Date());
         counts.calcProcessedFieldCount(3);
 
         assertEquals(30, counts.getProcessedFieldCount());
 
-        counts = new DataCounts(randomAsciiOfLength(16), 10L, 0L, 0L, 0L, 0L, 5L, 0L, 0L, 0L, 0L, new Date(), new Date(),
+        counts = new DataCounts(randomAlphaOfLength(16), 10L, 0L, 0L, 0L, 0L, 5L, 0L, 0L, 0L, 0L, new Date(), new Date(),
                 new Date(), new Date(), new Date());
         counts.calcProcessedFieldCount(3);
         assertEquals(25, counts.getProcessedFieldCount());
@@ -117,7 +117,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
     public void testEquals() {
         DataCounts counts1 = new DataCounts(
-                randomAsciiOfLength(16), 10L, 5000L, 2000L, 300L, 6L, 15L, 0L, 0L, 0L, 0L, new Date(), new Date(1435000000L),
+                randomAlphaOfLength(16), 10L, 5000L, 2000L, 300L, 6L, 15L, 0L, 0L, 0L, 0L, new Date(), new Date(1435000000L),
                 new Date(), new Date(), new Date());
         DataCounts counts2 = new DataCounts(counts1);
 
@@ -127,7 +127,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testSetEarliestRecordTimestamp_doesnotOverwrite() {
-        DataCounts counts = new DataCounts(randomAsciiOfLength(12));
+        DataCounts counts = new DataCounts(randomAlphaOfLength(12));
         counts.setEarliestRecordTimeStamp(new Date(100L));
 
         expectThrows(IllegalStateException.class, () -> counts.setEarliestRecordTimeStamp(new Date(200L)));

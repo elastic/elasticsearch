@@ -32,7 +32,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     public static DatafeedUpdate createRandomized(String datafeedId) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
         if (randomBoolean()) {
-            builder.setJobId(randomAsciiOfLength(10));
+            builder.setJobId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, Integer.MAX_VALUE)));
@@ -47,13 +47,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setTypes(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+            builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
             int scriptsSize = randomInt(3);
             List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
             for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
+                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), new Script(randomAlphaOfLength(10)),
                         randomBoolean()));
             }
             builder.setScriptFields(scriptFields);
@@ -63,7 +63,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xconent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-            aggs.addAggregator(AggregationBuilders.avg(randomAsciiOfLength(10)).field(randomAsciiOfLength(10)));
+            aggs.addAggregator(AggregationBuilders.avg(randomAlphaOfLength(10)).field(randomAlphaOfLength(10)));
             builder.setAggregations(aggs);
         }
         if (randomBoolean()) {

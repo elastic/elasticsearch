@@ -209,8 +209,8 @@ public class JiraAccountTests extends ESTestCase {
 
     private void addAccountSettings(String name, Settings.Builder builder) {
         builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.URL_SETTING, "https://internal-jira.elastic.co:443");
-        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.USER_SETTING, randomAsciiOfLength(10));
-        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.PASSWORD_SETTING, randomAsciiOfLength(10));
+        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.USER_SETTING, randomAlphaOfLength(10));
+        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.PASSWORD_SETTING, randomAlphaOfLength(10));
 
         Map<String, Object> defaults = randomIssueDefaults();
         for (Map.Entry<String, Object> setting : defaults.entrySet()) {
@@ -227,24 +227,24 @@ public class JiraAccountTests extends ESTestCase {
         MapBuilder<String, Object> builder = MapBuilder.newMapBuilder();
         if (randomBoolean()) {
             Map<String, Object> project = new HashMap<>();
-            project.put("project", singletonMap("id", randomAsciiOfLength(10)));
+            project.put("project", singletonMap("id", randomAlphaOfLength(10)));
             builder.putAll(project);
         }
         if (randomBoolean()) {
             Map<String, Object> project = new HashMap<>();
-            project.put("issuetype", singletonMap("name", randomAsciiOfLength(5)));
+            project.put("issuetype", singletonMap("name", randomAlphaOfLength(5)));
             builder.putAll(project);
         }
         if (randomBoolean()) {
-            builder.put("summary", randomAsciiOfLength(10));
+            builder.put("summary", randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            builder.put("description", randomAsciiOfLength(50));
+            builder.put("description", randomAlphaOfLength(50));
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 5);
             for (int i = 0; i < count; i++) {
-                builder.put("customfield_" + i, randomAsciiOfLengthBetween(5, 10));
+                builder.put("customfield_" + i, randomAlphaOfLengthBetween(5, 10));
             }
         }
         return builder.immutableMap();

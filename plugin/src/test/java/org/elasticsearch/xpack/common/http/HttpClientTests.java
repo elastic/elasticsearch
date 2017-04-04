@@ -76,24 +76,24 @@ public class HttpClientTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         int responseCode = randomIntBetween(200, 203);
-        String body = randomAsciiOfLengthBetween(2, 8096);
+        String body = randomAlphaOfLengthBetween(2, 8096);
         webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5));
+                .path("/" + randomAlphaOfLength(5));
 
-        String paramKey = randomAsciiOfLength(3);
-        String paramValue = randomAsciiOfLength(3);
+        String paramKey = randomAlphaOfLength(3);
+        String paramValue = randomAlphaOfLength(3);
         requestBuilder.setParam(paramKey, paramValue);
 
         // Certain headers keys like via and host are illegal and the jdk http client ignores those, so lets
         // prepend all keys with `_`, so we don't run into a failure because randomly a restricted header was used:
-        String headerKey = "_" + randomAsciiOfLength(3);
-        String headerValue = randomAsciiOfLength(3);
+        String headerKey = "_" + randomAlphaOfLength(3);
+        String headerValue = randomAlphaOfLength(3);
         requestBuilder.setHeader(headerKey, headerValue);
 
-        requestBuilder.body(randomAsciiOfLength(5));
+        requestBuilder.body(randomAlphaOfLength(5));
         HttpRequest request = requestBuilder.build();
 
         HttpResponse response = httpClient.execute(request);
@@ -434,7 +434,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testMaxHttpResponseSize() throws Exception {
         int randomBytesLength = scaledRandomIntBetween(2, 100);
-        String data = randomAsciiOfLength(randomBytesLength);
+        String data = randomAlphaOfLength(randomBytesLength);
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
 
         Settings settings = Settings.builder()

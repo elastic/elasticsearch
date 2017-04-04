@@ -19,20 +19,20 @@ public class GetRecordsActionRequestTests extends AbstractStreamableXContentTest
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            String start = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomNonNegativeLong());
+            String start = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : String.valueOf(randomNonNegativeLong());
             request.setStart(start);
         }
         if (randomBoolean()) {
-            String end = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomNonNegativeLong());
+            String end = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : String.valueOf(randomNonNegativeLong());
             request.setEnd(end);
         }
         if (randomBoolean()) {
-            request.setPartitionValue(randomAsciiOfLengthBetween(1, 20));
+            request.setPartitionValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setSort(randomAsciiOfLengthBetween(1, 20));
+            request.setSort(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             request.setDecending(randomBoolean());

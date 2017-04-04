@@ -211,7 +211,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testCacheConcurrency() throws Exception {
         final String username = "username";
         final SecuredString password = new SecuredString("changeme".toCharArray());
-        final SecuredString randomPassword = new SecuredString(randomAsciiOfLength(password.length()).toCharArray());
+        final SecuredString randomPassword = new SecuredString(randomAlphaOfLength(password.length()).toCharArray());
 
         final String passwordHash = new String(Hasher.BCRYPT.hash(password));
         RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);

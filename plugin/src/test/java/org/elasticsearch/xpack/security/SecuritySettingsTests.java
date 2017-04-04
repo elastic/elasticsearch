@@ -113,7 +113,7 @@ public class SecuritySettingsTests extends ESTestCase {
                 .put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing2")
                 .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
-                .put("xpack.security.authc.realms.foo.type", randomFrom("ldap", "pki", randomAsciiOfLengthBetween(1, 6)))
+                .put("xpack.security.authc.realms.foo.type", randomFrom("ldap", "pki", randomAlphaOfLengthBetween(1, 6)))
                 .build();
         Settings additionalSettings = Security.additionalSettings(noNative, false);
         assertNotNull(additionalSettings);
@@ -122,7 +122,7 @@ public class SecuritySettingsTests extends ESTestCase {
         final Settings withReserved = Settings.builder()
                 .put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing2")
-                .put("xpack.security.authc.realms.foo.type", randomFrom("ldap", "pki", randomAsciiOfLengthBetween(1, 6)))
+                .put("xpack.security.authc.realms.foo.type", randomFrom("ldap", "pki", randomAlphaOfLengthBetween(1, 6)))
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Security.additionalSettings(withReserved, false));
         assertThat(e.getMessage(), containsString("tribe.on_conflict"));

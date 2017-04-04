@@ -32,7 +32,7 @@ public class RestExecuteWatchActionTests extends ESTestCase {
     private WatcherClient watcherClient = mock(WatcherClient.class);
 
     public void testThatFlagsCanBeSpecifiedViaParameters() throws Exception {
-        String randomId = randomAsciiOfLength(10);
+        String randomId = randomAlphaOfLength(10);
         for (String recordExecution : Arrays.asList("true", "false", null)) {
             for (String ignoreCondition : Arrays.asList("true", "false", null)) {
                 for (String debugCondition : Arrays.asList("true", "false", null)) {

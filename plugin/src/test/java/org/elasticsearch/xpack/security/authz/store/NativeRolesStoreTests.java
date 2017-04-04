@@ -257,7 +257,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
                 new UnassignedInfo(Reason.INDEX_CREATED, ""));
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(shardRouting.initialize(randomAsciiOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted())
+                .addShard(shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted())
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable

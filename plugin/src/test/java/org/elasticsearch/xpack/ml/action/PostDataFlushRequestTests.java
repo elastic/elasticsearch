@@ -12,16 +12,16 @@ public class PostDataFlushRequestTests extends AbstractStreamableTestCase<Reques
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         request.setCalcInterim(randomBoolean());
         if (randomBoolean()) {
-            request.setStart(randomAsciiOfLengthBetween(1, 20));
+            request.setStart(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setEnd(randomAsciiOfLengthBetween(1, 20));
+            request.setEnd(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setAdvanceTime(randomAsciiOfLengthBetween(1, 20));
+            request.setAdvanceTime(randomAlphaOfLengthBetween(1, 20));
         }
         return request;
     }

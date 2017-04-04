@@ -74,7 +74,7 @@ public class HipChatActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(payload)
@@ -123,7 +123,7 @@ public class HipChatActionTests extends ESTestCase {
     public void testParser() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject();
 
-        String accountName = randomAsciiOfLength(10);
+        String accountName = randomAlphaOfLength(10);
         builder.field("account", accountName);
         builder.startObject("message");
 
@@ -146,7 +146,7 @@ public class HipChatActionTests extends ESTestCase {
         }
         String from = null;
         if (randomBoolean()) {
-            from = randomAsciiOfLength(10);
+            from = randomAlphaOfLength(10);
             builder.field("from", from);
         }
         HipChatMessage.Format format = null;
@@ -187,7 +187,7 @@ public class HipChatActionTests extends ESTestCase {
     }
 
     public void testParserSelfGenerated() throws Exception {
-        String accountName = randomAsciiOfLength(10);
+        String accountName = randomAlphaOfLength(10);
         TextTemplate body = new TextTemplate("_body");
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
 
@@ -216,7 +216,7 @@ public class HipChatActionTests extends ESTestCase {
             builder.array("user", u1, u2);
         }
         if (randomBoolean()) {
-            String from = randomAsciiOfLength(10);
+            String from = randomAlphaOfLength(10);
             templateBuilder.setFrom(from);
             builder.field("from", from);
         }

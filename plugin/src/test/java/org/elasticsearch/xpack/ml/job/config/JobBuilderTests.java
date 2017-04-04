@@ -23,7 +23,7 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setId(randomValidJobId());
         }
         if (randomBoolean()) {
-            builder.setDescription(randomAsciiOfLength(10));
+            builder.setDescription(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             builder.setCreateTime(new Date(randomNonNegativeLong()));
@@ -48,7 +48,7 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
         }
         if (randomBoolean()) {
             builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(),
-                    randomAsciiOfLength(10)));
+                    randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -63,11 +63,11 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setCustomSettings(Collections.singletonMap(randomAsciiOfLength(10),
-                    randomAsciiOfLength(10)));
+            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10),
+                    randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotId(randomAsciiOfLength(10));
+            builder.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());

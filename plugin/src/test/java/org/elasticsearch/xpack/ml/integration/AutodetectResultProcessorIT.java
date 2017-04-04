@@ -263,7 +263,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         for (int i=0; i<count; i++) {
             AnomalyRecord r = new AnomalyRecord(JOB_ID, now, 3600L, i);
             r.setByFieldName("by_instance");
-            r.setByFieldValue(randomAsciiOfLength(8));
+            r.setByFieldValue(randomAlphaOfLength(8));
             r.setInterim(isInterim);
             records.add(r);
         }
@@ -276,7 +276,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         int count = randomIntBetween(0, 100);
         Date now = new Date();
         for (int i=0; i<count; i++) {
-            Influencer influencer = new Influencer(JOB_ID, "influence_field", randomAsciiOfLength(10), now, 3600L, i);
+            Influencer influencer = new Influencer(JOB_ID, "influence_field", randomAlphaOfLength(10), now, 3600L, i);
             influencer.setInterim(isInterim);
             influencers.add(influencer);
         }
@@ -293,7 +293,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     private ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
-        builder.setId(randomAsciiOfLength(20));
+        builder.setId(randomAlphaOfLength(20));
         builder.setTimestamp(new Date(randomNonNegativeLong()));
         builder.setLogTime(new Date(randomNonNegativeLong()));
         builder.setBucketAllocationFailuresCount(randomNonNegativeLong());
@@ -306,15 +306,15 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     private ModelSnapshot createModelSnapshot() {
-        return new ModelSnapshot.Builder(JOB_ID).setSnapshotId(randomAsciiOfLength(12)).build();
+        return new ModelSnapshot.Builder(JOB_ID).setSnapshotId(randomAlphaOfLength(12)).build();
     }
 
     private Quantiles createQuantiles() {
-        return new Quantiles(JOB_ID, new Date(randomNonNegativeLong()), randomAsciiOfLength(100));
+        return new Quantiles(JOB_ID, new Date(randomNonNegativeLong()), randomAlphaOfLength(100));
     }
 
     private FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAsciiOfLength(5));
+        return new FlushAcknowledgement(randomAlphaOfLength(5));
     }
 
     private class ResultsBuilder {

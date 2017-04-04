@@ -35,30 +35,30 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         anomalyRecord.setInitialRecordScore(randomDouble());
         anomalyRecord.setInterim(randomBoolean());
         if (randomBoolean()) {
-            anomalyRecord.setFieldName(randomAsciiOfLength(12));
+            anomalyRecord.setFieldName(randomAlphaOfLength(12));
         }
         if (randomBoolean()) {
-            anomalyRecord.setByFieldName(randomAsciiOfLength(12));
-            anomalyRecord.setByFieldValue(randomAsciiOfLength(12));
+            anomalyRecord.setByFieldName(randomAlphaOfLength(12));
+            anomalyRecord.setByFieldValue(randomAlphaOfLength(12));
         }
         if (randomBoolean()) {
-            anomalyRecord.setPartitionFieldName(randomAsciiOfLength(12));
-            anomalyRecord.setPartitionFieldValue(randomAsciiOfLength(12));
+            anomalyRecord.setPartitionFieldName(randomAlphaOfLength(12));
+            anomalyRecord.setPartitionFieldValue(randomAlphaOfLength(12));
         }
         if (randomBoolean()) {
-            anomalyRecord.setOverFieldName(randomAsciiOfLength(12));
-            anomalyRecord.setOverFieldValue(randomAsciiOfLength(12));
+            anomalyRecord.setOverFieldName(randomAlphaOfLength(12));
+            anomalyRecord.setOverFieldValue(randomAlphaOfLength(12));
         }
-        anomalyRecord.setFunction(randomAsciiOfLengthBetween(5, 20));
-        anomalyRecord.setFunctionDescription(randomAsciiOfLengthBetween(5, 20));
+        anomalyRecord.setFunction(randomAlphaOfLengthBetween(5, 20));
+        anomalyRecord.setFunctionDescription(randomAlphaOfLengthBetween(5, 20));
         if (randomBoolean()) {
-            anomalyRecord.setCorrelatedByFieldValue(randomAsciiOfLength(16));
+            anomalyRecord.setCorrelatedByFieldValue(randomAlphaOfLength(16));
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 9);
             List<Influence>  influences = new ArrayList<>();
             for (int i=0; i<count; i++) {
-                influences.add(new Influence(randomAsciiOfLength(8), Collections.singletonList(randomAsciiOfLengthBetween(1, 28))));
+                influences.add(new Influence(randomAlphaOfLength(8), Collections.singletonList(randomAlphaOfLengthBetween(1, 28))));
             }
             anomalyRecord.setInfluencers(influences);
         }

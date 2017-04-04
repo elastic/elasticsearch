@@ -76,7 +76,7 @@ public class SlackActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(payload)
@@ -112,17 +112,17 @@ public class SlackActionTests extends ESTestCase {
             HttpRequest request = mock(HttpRequest.class);
             switch (randomIntBetween(0, 2)) {
                 case 0:
-                    messages.add(SentMessages.SentMessage.error(randomAsciiOfLength(10), message, "unknown error"));
+                    messages.add(SentMessages.SentMessage.error(randomAlphaOfLength(10), message, "unknown error"));
                     hasError = true;
                     break;
                 case 1:
                     when(response.status()).thenReturn(randomIntBetween(300, 600)); // error reponse
-                    messages.add(SentMessages.SentMessage.responded(randomAsciiOfLength(10), message, request, response));
+                    messages.add(SentMessages.SentMessage.responded(randomAlphaOfLength(10), message, request, response));
                     hasError = true;
                     break;
                 case 2:
                     when(response.status()).thenReturn(randomIntBetween(200, 299)); // success
-                    messages.add(SentMessages.SentMessage.responded(randomAsciiOfLength(10), message, request, response));
+                    messages.add(SentMessages.SentMessage.responded(randomAlphaOfLength(10), message, request, response));
                     hasSuccess = true;
             }
         }
@@ -145,7 +145,7 @@ public class SlackActionTests extends ESTestCase {
     public void testParser() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject();
 
-        String accountName = randomAsciiOfLength(10);
+        String accountName = randomAlphaOfLength(10);
         SlackMessage.Template message = SlackMessageTests.createRandomTemplate();
 
         builder.field("account", accountName);
@@ -166,7 +166,7 @@ public class SlackActionTests extends ESTestCase {
     }
 
     public void testParserSelfGenerated() throws Exception {
-        String accountName = randomBoolean() ? randomAsciiOfLength(10) : null;
+        String accountName = randomBoolean() ? randomAlphaOfLength(10) : null;
         SlackMessage.Template message = SlackMessageTests.createRandomTemplate();
 
         HttpProxy proxy = null;

@@ -14,7 +14,7 @@ public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXCo
     @Override
     protected Request createTestInstance() {
         RevertModelSnapshotAction.Request request =
-                new RevertModelSnapshotAction.Request(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20));
+                new RevertModelSnapshotAction.Request(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setDeleteInterveningResults(randomBoolean());
         }

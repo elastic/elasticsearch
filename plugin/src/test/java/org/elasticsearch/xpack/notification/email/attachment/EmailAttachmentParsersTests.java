@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
@@ -78,7 +77,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         EmailAttachmentsParser parser = new EmailAttachmentsParser(Collections.emptyMap());
 
         XContentBuilder builder = jsonBuilder();
-        String type = randomAsciiOfLength(8);
+        String type = randomAlphaOfLength(8);
         builder.startObject().startObject("some-id").startObject(type).endObject().endObject().endObject();
 
         XContentParser xContentParser = createParser(builder);

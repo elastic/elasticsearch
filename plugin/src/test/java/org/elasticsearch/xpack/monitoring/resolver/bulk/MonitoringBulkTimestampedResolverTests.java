@@ -28,8 +28,8 @@ public class MonitoringBulkTimestampedResolverTests
         MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(),
                 MonitoringTemplateUtils.TEMPLATE_VERSION, MonitoringIndex.TIMESTAMPED,
                 "kibana_stats",
-                randomBoolean() ? randomAsciiOfLength(35) : null,
-                randomAsciiOfLength(5), 1437580442979L,
+                randomBoolean() ? randomAlphaOfLength(35) : null,
+                randomAlphaOfLength(5), 1437580442979L,
                 MonitoringBulkDocTests.newRandomSourceNode(),
                 new BytesArray("{\"field1\" : \"value1\"}"), XContentType.JSON);
         return doc;

@@ -173,7 +173,7 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
     }
 
     public void testCreateIndexDeleteInKibanaIndex() throws Exception {
-        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
+        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
 
         if (randomBoolean()) {
             CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",

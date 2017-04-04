@@ -82,7 +82,7 @@ public class SessionFactoryTests extends ESTestCase {
 
     public void testUnauthenticatedSessionThrowsUnsupportedOperationException() throws Exception {
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-                () -> createSessionFactory().unauthenticatedSession(randomAsciiOfLength(5), new PlainActionFuture<>()));
+                () -> createSessionFactory().unauthenticatedSession(randomAlphaOfLength(5), new PlainActionFuture<>()));
         assertThat(e.getMessage(), containsString("unauthenticated sessions"));
     }
 

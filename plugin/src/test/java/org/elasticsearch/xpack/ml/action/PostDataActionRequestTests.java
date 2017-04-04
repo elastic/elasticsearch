@@ -14,17 +14,17 @@ import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostDataAction.Request> {
     @Override
     protected PostDataAction.Request createTestInstance() {
-        PostDataAction.Request request = new PostDataAction.Request(randomAsciiOfLengthBetween(1, 20));
+        PostDataAction.Request request = new PostDataAction.Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setResetStart(randomAsciiOfLengthBetween(1, 20));
+            request.setResetStart(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setResetEnd(randomAsciiOfLengthBetween(1, 20));
+            request.setResetEnd(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             request.setDataDescription(new DataDescription(randomFrom(DataFormat.values()),
-                    randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                    randomAsciiOfLength(1).charAt(0), randomAsciiOfLength(1).charAt(0)));
+                    randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
+                    randomAlphaOfLength(1).charAt(0), randomAlphaOfLength(1).charAt(0)));
         }
         if (randomBoolean()) {
             request.setContent(new BytesArray(new byte[0]), randomFrom(XContentType.values()));

@@ -74,7 +74,7 @@ public class LoggingActionTests extends ESTestCase {
         ctxModel.put("trigger", triggerModel);
         Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
         LoggingAction action = new LoggingAction(template, level, "_category");
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
@@ -95,14 +95,14 @@ public class LoggingActionTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
 
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field("text", template);
         String category = null;
         if (randomBoolean()) {
-            category = randomAsciiOfLength(10);
+            category = randomAlphaOfLength(10);
             builder.field("category", category);
         }
         LoggingLevel level = null;
@@ -115,7 +115,7 @@ public class LoggingActionTests extends ESTestCase {
         XContentParser xContentParser = createParser(builder);
         xContentParser.nextToken();
 
-        ExecutableLoggingAction executable = parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(3), xContentParser);
+        ExecutableLoggingAction executable = parser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(3), xContentParser);
 
         assertThat(executable, notNullValue());
         assertThat(executable.action().category, is(category));
@@ -129,9 +129,9 @@ public class LoggingActionTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
-        String category = randomAsciiOfLength(10);
+        String category = randomAlphaOfLength(10);
         LoggingAction action = new LoggingAction(template, level, category);
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, settings, engine);
         XContentBuilder builder = jsonBuilder();
@@ -140,7 +140,7 @@ public class LoggingActionTests extends ESTestCase {
         XContentParser xContentParser = createParser(builder);
         xContentParser.nextToken();
 
-        ExecutableLoggingAction parsedAction = parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
+        ExecutableLoggingAction parsedAction = parser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(5), xContentParser);
 
         assertThat(parsedAction, equalTo(executable));
     }
@@ -149,11 +149,11 @@ public class LoggingActionTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
-        String text = randomAsciiOfLength(10);
+        String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
         LoggingAction.Builder actionBuilder = loggingAction(template);
         if (randomBoolean()) {
-            actionBuilder.setCategory(randomAsciiOfLength(10));
+            actionBuilder.setCategory(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             actionBuilder.setLevel(randomFrom(LoggingLevel.values()));
@@ -164,7 +164,7 @@ public class LoggingActionTests extends ESTestCase {
         XContentParser xContentParser = createParser(builder);
 
         assertThat(xContentParser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        ExecutableLoggingAction executable = parser.parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(5), xContentParser);
+        ExecutableLoggingAction executable = parser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), xContentParser);
         assertThat(executable, notNullValue());
         assertThat(executable.action(), is(action));
         assertThat(executable.action(), is(action));
@@ -182,7 +182,7 @@ public class LoggingActionTests extends ESTestCase {
         xContentParser.nextToken();
 
         try {
-            parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
+            parser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(5), xContentParser);
             fail("Expected failure as there's no text");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("missing required [text] field"));

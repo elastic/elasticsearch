@@ -382,7 +382,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         String jobId = randomValidJobId();
         Job.Builder builder = new Job.Builder(jobId);
         if (randomBoolean()) {
-            builder.setDescription(randomAsciiOfLength(10));
+            builder.setDescription(randomAlphaOfLength(10));
         }
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {
@@ -399,7 +399,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setDataDescription(dataDescription);
         }
         if (randomBoolean()) {
-            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10)));
+            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -414,10 +414,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setCustomSettings(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotId(randomAsciiOfLength(10));
+            builder.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());

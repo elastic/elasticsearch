@@ -28,35 +28,35 @@ import static org.hamcrest.Matchers.is;
 
 public class SlackMessageTests extends ESTestCase {
     public void testToXContent() throws Exception {
-        String from = randomBoolean() ? null : randomAsciiOfLength(10);
+        String from = randomBoolean() ? null : randomAlphaOfLength(10);
         String[] to = rarely() ? null : new String[randomIntBetween(0, 2)];
         if (to != null) {
             for (int i = 0; i < to.length; i++) {
-                to[i] = randomAsciiOfLength(10);
+                to[i] = randomAlphaOfLength(10);
             }
         }
-        String icon = randomBoolean() ? null : randomAsciiOfLength(10);
-        String text = randomBoolean() ? null : randomAsciiOfLength(50);
+        String icon = randomBoolean() ? null : randomAlphaOfLength(10);
+        String text = randomBoolean() ? null : randomAlphaOfLength(50);
         Attachment[] attachments = randomBoolean() ? null : new Attachment[randomIntBetween(0, 2)];
         if (attachments != null) {
             for (int i = 0; i < attachments.length; i++) {
-                String fallback = randomBoolean() ? null : randomAsciiOfLength(10);
-                String color = randomBoolean() ? null : randomAsciiOfLength(10);
-                String pretext = randomBoolean() ? null : randomAsciiOfLength(10);
-                String authorName = randomBoolean() ? null : randomAsciiOfLength(10);
-                String authorLink = authorName == null || randomBoolean() ? null : randomAsciiOfLength(10);
-                String authorIcon = authorName == null || randomBoolean() ? null : randomAsciiOfLength(10);
-                String title = randomBoolean() ? null : randomAsciiOfLength(10);
-                String titleLink = title == null ||randomBoolean() ? null : randomAsciiOfLength(10);
-                String attachmentText = randomBoolean() ? null : randomAsciiOfLength(10);
+                String fallback = randomBoolean() ? null : randomAlphaOfLength(10);
+                String color = randomBoolean() ? null : randomAlphaOfLength(10);
+                String pretext = randomBoolean() ? null : randomAlphaOfLength(10);
+                String authorName = randomBoolean() ? null : randomAlphaOfLength(10);
+                String authorLink = authorName == null || randomBoolean() ? null : randomAlphaOfLength(10);
+                String authorIcon = authorName == null || randomBoolean() ? null : randomAlphaOfLength(10);
+                String title = randomBoolean() ? null : randomAlphaOfLength(10);
+                String titleLink = title == null ||randomBoolean() ? null : randomAlphaOfLength(10);
+                String attachmentText = randomBoolean() ? null : randomAlphaOfLength(10);
                 Field[] fields = randomBoolean() ? null : new Field[randomIntBetween(0, 2)];
                 if (fields != null) {
                     for (int j = 0; j < fields.length; j++) {
-                        fields[j] = new Field(randomAsciiOfLength(10), randomAsciiOfLength(10), randomBoolean());
+                        fields[j] = new Field(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean());
                     }
                 }
-                String imageUrl = randomBoolean() ? null : randomAsciiOfLength(10);
-                String thumbUrl = randomBoolean() ? null : randomAsciiOfLength(10);
+                String imageUrl = randomBoolean() ? null : randomAlphaOfLength(10);
+                String thumbUrl = randomBoolean() ? null : randomAlphaOfLength(10);
                 attachments[i] = new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
                         attachmentText, fields, imageUrl, thumbUrl);
             }
@@ -226,7 +226,7 @@ public class SlackMessageTests extends ESTestCase {
 
         TextTemplate from = null;
         if (randomBoolean()) {
-            from = new TextTemplate(randomAsciiOfLength(200));
+            from = new TextTemplate(randomAlphaOfLength(200));
             jsonBuilder.field("from", from, params);
         }
         TextTemplate[] to = null;
@@ -234,19 +234,19 @@ public class SlackMessageTests extends ESTestCase {
             jsonBuilder.startArray("to");
             to = new TextTemplate[randomIntBetween(1, 3)];
             for (int i = 0; i < to.length; i++) {
-                to[i] = new TextTemplate(randomAsciiOfLength(10));
+                to[i] = new TextTemplate(randomAlphaOfLength(10));
                 to[i].toXContent(jsonBuilder, params);
             }
             jsonBuilder.endArray();
         }
         TextTemplate text = null;
         if (randomBoolean()) {
-            text = new TextTemplate(randomAsciiOfLength(200));
+            text = new TextTemplate(randomAlphaOfLength(200));
             jsonBuilder.field("text", text, params);
         }
         TextTemplate icon = null;
         if (randomBoolean()) {
-            icon = new TextTemplate(randomAsciiOfLength(10));
+            icon = new TextTemplate(randomAlphaOfLength(10));
             jsonBuilder.field("icon", icon);
         }
         Attachment.Template[] attachments = null;
@@ -257,57 +257,57 @@ public class SlackMessageTests extends ESTestCase {
                 jsonBuilder.startObject();
                 TextTemplate fallback = null;
                 if (randomBoolean()) {
-                    fallback = new TextTemplate(randomAsciiOfLength(200));
+                    fallback = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("fallback", fallback, params);
                 }
                 TextTemplate color = null;
                 if (randomBoolean()) {
-                    color = new TextTemplate(randomAsciiOfLength(200));
+                    color = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("color", color, params);
                 }
                 TextTemplate pretext = null;
                 if (randomBoolean()) {
-                    pretext = new TextTemplate(randomAsciiOfLength(200));
+                    pretext = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("pretext", pretext, params);
                 }
                 TextTemplate authorName = null;
                 TextTemplate authorLink = null;
                 TextTemplate authorIcon = null;
                 if (randomBoolean()) {
-                    authorName = new TextTemplate(randomAsciiOfLength(200));
+                    authorName = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("author_name", authorName, params);
                     if (randomBoolean()) {
-                        authorLink = new TextTemplate(randomAsciiOfLength(200));
+                        authorLink = new TextTemplate(randomAlphaOfLength(200));
                         jsonBuilder.field("author_link", authorLink, params);
                     }
                     if (randomBoolean()) {
-                        authorIcon = new TextTemplate(randomAsciiOfLength(200));
+                        authorIcon = new TextTemplate(randomAlphaOfLength(200));
                         jsonBuilder.field("author_icon", authorIcon, params);
                     }
                 }
                 TextTemplate title = null;
                 TextTemplate titleLink = null;
                 if (randomBoolean()) {
-                    title = new TextTemplate(randomAsciiOfLength(200));
+                    title = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("title", title, params);
                     if (randomBoolean()) {
-                        titleLink = new TextTemplate(randomAsciiOfLength(200));
+                        titleLink = new TextTemplate(randomAlphaOfLength(200));
                         jsonBuilder.field("title_link", titleLink, params);
                     }
                 }
                 TextTemplate attachmentText = null;
                 if (randomBoolean()) {
-                    attachmentText = new TextTemplate(randomAsciiOfLength(200));
+                    attachmentText = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("text", attachmentText, params);
                 }
                 TextTemplate imageUrl = null;
                 if (randomBoolean()) {
-                    imageUrl = new TextTemplate(randomAsciiOfLength(200));
+                    imageUrl = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("image_url", imageUrl, params);
                 }
                 TextTemplate thumbUrl = null;
                 if (randomBoolean()) {
-                    thumbUrl = new TextTemplate(randomAsciiOfLength(200));
+                    thumbUrl = new TextTemplate(randomAlphaOfLength(200));
                     jsonBuilder.field("thumb_url", thumbUrl, params);
                 }
                 Field.Template[] fields = null;
@@ -316,9 +316,9 @@ public class SlackMessageTests extends ESTestCase {
                     fields = new Field.Template[randomIntBetween(1,3)];
                     for (int j = 0; j < fields.length; j++) {
                         jsonBuilder.startObject();
-                        TextTemplate fieldTitle = new TextTemplate(randomAsciiOfLength(50));
+                        TextTemplate fieldTitle = new TextTemplate(randomAlphaOfLength(50));
                         jsonBuilder.field("title", fieldTitle, params);
-                        TextTemplate fieldValue = new TextTemplate(randomAsciiOfLength(50));
+                        TextTemplate fieldValue = new TextTemplate(randomAlphaOfLength(50));
                         jsonBuilder.field("value", fieldValue, params);
                         boolean isShort = randomBoolean();
                         jsonBuilder.field("short", isShort);
@@ -378,61 +378,61 @@ public class SlackMessageTests extends ESTestCase {
         SlackMessage.Template.Builder templateBuilder = SlackMessage.Template.builder();
 
         if (randomBoolean()) {
-            templateBuilder.setFrom(randomAsciiOfLength(10));
+            templateBuilder.setFrom(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
-                templateBuilder.addTo(randomAsciiOfLength(10));
+                templateBuilder.addTo(randomAlphaOfLength(10));
             }
         }
         if (randomBoolean()) {
-            templateBuilder.setIcon(randomAsciiOfLength(10));
+            templateBuilder.setIcon(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            templateBuilder.setText(randomAsciiOfLength(10));
+            templateBuilder.setText(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
                 Attachment.Template.Builder attachmentBuilder = Attachment.Template.builder();
                 if (randomBoolean()) {
-                    attachmentBuilder.setAuthorName(randomAsciiOfLength(10));
+                    attachmentBuilder.setAuthorName(randomAlphaOfLength(10));
                     if (randomBoolean()) {
-                        attachmentBuilder.setAuthorIcon(randomAsciiOfLength(10));
+                        attachmentBuilder.setAuthorIcon(randomAlphaOfLength(10));
                     }
                     if (randomBoolean()) {
-                        attachmentBuilder.setAuthorLink(randomAsciiOfLength(10));
-                    }
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setColor(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setFallback(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setImageUrl(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setPretext(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setThumbUrl(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setTitle(randomAsciiOfLength(10));
-                    if (randomBoolean()) {
-                        attachmentBuilder.setTitleLink(randomAsciiOfLength(10));
+                        attachmentBuilder.setAuthorLink(randomAlphaOfLength(10));
                     }
                 }
                 if (randomBoolean()) {
-                    attachmentBuilder.setText(randomAsciiOfLength(10));
+                    attachmentBuilder.setColor(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setFallback(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setImageUrl(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setPretext(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setThumbUrl(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setTitle(randomAlphaOfLength(10));
+                    if (randomBoolean()) {
+                        attachmentBuilder.setTitleLink(randomAlphaOfLength(10));
+                    }
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setText(randomAlphaOfLength(10));
                 }
                 if (randomBoolean()) {
                     int fieldCount = randomIntBetween(0, 3);
                     for (int j = 0; j < fieldCount; j++) {
-                        attachmentBuilder.addField(randomAsciiOfLength(10), randomAsciiOfLength(10), randomBoolean());
+                        attachmentBuilder.addField(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean());
                     }
                 }
                 templateBuilder.addAttachments(attachmentBuilder);
@@ -518,61 +518,61 @@ public class SlackMessageTests extends ESTestCase {
         SlackMessage.Template.Builder templateBuilder = SlackMessage.Template.builder();
 
         if (randomBoolean()) {
-            templateBuilder.setFrom(randomAsciiOfLength(10));
+            templateBuilder.setFrom(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
-                templateBuilder.addTo(randomAsciiOfLength(10));
+                templateBuilder.addTo(randomAlphaOfLength(10));
             }
         }
         if (randomBoolean()) {
-            templateBuilder.setIcon(randomAsciiOfLength(10));
+            templateBuilder.setIcon(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            templateBuilder.setText(randomAsciiOfLength(10));
+            templateBuilder.setText(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
                 Attachment.Template.Builder attachmentBuilder = Attachment.Template.builder();
                 if (randomBoolean()) {
-                    attachmentBuilder.setAuthorName(randomAsciiOfLength(10));
+                    attachmentBuilder.setAuthorName(randomAlphaOfLength(10));
                     if (randomBoolean()) {
-                        attachmentBuilder.setAuthorIcon(randomAsciiOfLength(10));
+                        attachmentBuilder.setAuthorIcon(randomAlphaOfLength(10));
                     }
                     if (randomBoolean()) {
-                        attachmentBuilder.setAuthorLink(randomAsciiOfLength(10));
-                    }
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setColor(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setFallback(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setImageUrl(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setPretext(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setThumbUrl(randomAsciiOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setTitle(randomAsciiOfLength(10));
-                    if (randomBoolean()) {
-                        attachmentBuilder.setTitleLink(randomAsciiOfLength(10));
+                        attachmentBuilder.setAuthorLink(randomAlphaOfLength(10));
                     }
                 }
                 if (randomBoolean()) {
-                    attachmentBuilder.setText(randomAsciiOfLength(10));
+                    attachmentBuilder.setColor(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setFallback(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setImageUrl(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setPretext(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setThumbUrl(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setTitle(randomAlphaOfLength(10));
+                    if (randomBoolean()) {
+                        attachmentBuilder.setTitleLink(randomAlphaOfLength(10));
+                    }
+                }
+                if (randomBoolean()) {
+                    attachmentBuilder.setText(randomAlphaOfLength(10));
                 }
                 if (randomBoolean()) {
                     int fieldCount = randomIntBetween(0, 3);
                     for (int j = 0; j < fieldCount; j++) {
-                        attachmentBuilder.addField(randomAsciiOfLength(10), randomAsciiOfLength(10), randomBoolean());
+                        attachmentBuilder.addField(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean());
                     }
                 }
                 templateBuilder.addAttachments(attachmentBuilder);

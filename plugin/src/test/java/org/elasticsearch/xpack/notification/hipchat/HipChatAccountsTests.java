@@ -167,9 +167,9 @@ public class HipChatAccountsTests extends ESTestCase {
     private void addAccountSettings(String name, Settings.Builder builder) {
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         builder.put("xpack.notification.hipchat.account." + name + ".profile", profile.value());
-        builder.put("xpack.notification.hipchat.account." + name + ".auth_token", randomAsciiOfLength(50));
+        builder.put("xpack.notification.hipchat.account." + name + ".auth_token", randomAlphaOfLength(50));
         if (profile == HipChatAccount.Profile.INTEGRATION) {
-            builder.put("xpack.notification.hipchat.account." + name + ".room", randomAsciiOfLength(10));
+            builder.put("xpack.notification.hipchat.account." + name + ".room", randomAlphaOfLength(10));
         }
     }
 }

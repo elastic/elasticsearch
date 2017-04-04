@@ -15,13 +15,13 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
 
     @Override
     protected BucketInfluencer createTestInstance() {
-        BucketInfluencer bucketInfluencer = new BucketInfluencer(randomAsciiOfLengthBetween(1, 20), new Date(randomNonNegativeLong()),
+        BucketInfluencer bucketInfluencer = new BucketInfluencer(randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()),
                 randomNonNegativeLong(), randomIntBetween(1, 1000));
         if (randomBoolean()) {
             bucketInfluencer.setAnomalyScore(randomDouble());
         }
         if (randomBoolean()) {
-            bucketInfluencer.setInfluencerFieldName(randomAsciiOfLengthBetween(1, 20));
+            bucketInfluencer.setInfluencerFieldName(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             bucketInfluencer.setInitialAnomalyScore(randomDouble());
@@ -49,11 +49,11 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     public void testEquals_GivenNull() {
-        assertFalse(new BucketInfluencer(randomAsciiOfLengthBetween(1, 20), new Date(), 600, 1).equals(null));
+        assertFalse(new BucketInfluencer(randomAlphaOfLengthBetween(1, 20), new Date(), 600, 1).equals(null));
     }
 
     public void testEquals_GivenDifferentClass() {
-        assertFalse(new BucketInfluencer(randomAsciiOfLengthBetween(1, 20), new Date(), 600, 1).equals("a string"));
+        assertFalse(new BucketInfluencer(randomAlphaOfLengthBetween(1, 20), new Date(), 600, 1).equals("a string"));
     }
 
     public void testEquals_GivenEqualInfluencers() {

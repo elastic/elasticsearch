@@ -287,7 +287,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private SearchResponse createSearchResponse(Aggregations aggregations) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getScrollId()).thenReturn(randomAsciiOfLength(1000));
+        when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }

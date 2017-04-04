@@ -43,7 +43,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSystemUserSwitchWithNonSystemUser() {
-        User user = new User(randomAsciiOfLength(6), new String[] {});
+        User user = new User(randomAlphaOfLength(6), new String[] {});
         Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
@@ -51,7 +51,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSystemUserSwitchWithNonSystemUserAndInternalAction() {
-        User user = new User(randomAsciiOfLength(6), new String[] {});
+        User user = new User(randomAlphaOfLength(6), new String[] {});
         Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));

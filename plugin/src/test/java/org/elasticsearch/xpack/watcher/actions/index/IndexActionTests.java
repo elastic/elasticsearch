@@ -57,7 +57,7 @@ public class IndexActionTests extends ESIntegTestCase {
     public void testIndexActionExecuteSingleDoc() throws Exception {
         boolean customId = randomBoolean();
         boolean docIdAsParam = customId && randomBoolean();
-        String docId = randomAsciiOfLength(5);
+        String docId = randomAlphaOfLength(5);
         String timestampField = randomFrom("@timestamp", null);
         boolean customTimestampField = timestampField != null;
 
@@ -209,7 +209,7 @@ public class IndexActionTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        ExecutableIndexAction executable = actionParser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(3), parser);
+        ExecutableIndexAction executable = actionParser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(3), parser);
 
         assertThat(executable.action().docType, equalTo("test-type"));
         assertThat(executable.action().index, equalTo("test-index"));
@@ -240,7 +240,7 @@ public class IndexActionTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
-            actionParser.parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(5), parser);
+            actionParser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), parser);
             if (!(useIndex && useType)) {
                 fail();
             }

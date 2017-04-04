@@ -78,7 +78,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("_host", 1234);
         builder.path("/path");
         builder.method(randomFrom(HttpMethod.values()));
-        String proxyHost = randomAsciiOfLength(10);
+        String proxyHost = randomAlphaOfLength(10);
         int proxyPort = randomIntBetween(1, 65534);
         builder.proxy(new HttpProxy(proxyHost, proxyPort));
         HttpRequestTemplate template = builder.build();
@@ -129,7 +129,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         }
         boolean enableProxy = randomBoolean();
         if (enableProxy) {
-            builder.proxy(new HttpProxy(randomAsciiOfLength(10), randomIntBetween(1, 65534)));
+            builder.proxy(new HttpProxy(randomAlphaOfLength(10), randomIntBetween(1, 65534)));
         }
 
         HttpRequestTemplate template = builder.build();

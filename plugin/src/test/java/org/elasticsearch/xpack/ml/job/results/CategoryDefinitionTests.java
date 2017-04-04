@@ -16,8 +16,8 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
     public CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
-        categoryDefinition.setTerms(randomAsciiOfLength(10));
-        categoryDefinition.setRegex(randomAsciiOfLength(10));
+        categoryDefinition.setTerms(randomAlphaOfLength(10));
+        categoryDefinition.setRegex(randomAlphaOfLength(10));
         categoryDefinition.setMaxMatchingLength(randomLong());
         categoryDefinition.setExamples(Arrays.asList(generateRandomStringArray(10, 10, false)));
         return categoryDefinition;
@@ -25,7 +25,7 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
 
     @Override
     protected CategoryDefinition createTestInstance() {
-        return createTestInstance(randomAsciiOfLength(10));
+        return createTestInstance(randomAlphaOfLength(10));
     }
 
     @Override
@@ -39,13 +39,13 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
     }
 
     public void testEquals_GivenSameObject() {
-        CategoryDefinition category = new CategoryDefinition(randomAsciiOfLength(10));
+        CategoryDefinition category = new CategoryDefinition(randomAlphaOfLength(10));
 
         assertTrue(category.equals(category));
     }
 
     public void testEquals_GivenObjectOfDifferentClass() {
-        CategoryDefinition category = new CategoryDefinition(randomAsciiOfLength(10));
+        CategoryDefinition category = new CategoryDefinition(randomAlphaOfLength(10));
 
         assertFalse(category.equals("a string"));
     }

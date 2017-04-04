@@ -19,10 +19,10 @@ public class UpdateModelSnapshotActionRequestTests
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20),
-                randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20),
+                randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setDescription(randomAsciiOfLengthBetween(1, 20));
+            request.setDescription(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             request.setRetain(randomBoolean());

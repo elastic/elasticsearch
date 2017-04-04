@@ -140,7 +140,7 @@ public class WebhookActionTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        ExecutableWebhookAction executable = actionParser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), parser);
+        ExecutableWebhookAction executable = actionParser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(5), parser);
 
         assertThat(executable.action().getRequest(), equalTo(request));
     }
@@ -150,7 +150,7 @@ public class WebhookActionTests extends ESTestCase {
         TextTemplate path = new TextTemplate("_url");
         String host = "test.host";
         String watchId = "_watch";
-        String actionId = randomAsciiOfLength(5);
+        String actionId = randomAlphaOfLength(5);
 
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD, null);
 
@@ -177,7 +177,7 @@ public class WebhookActionTests extends ESTestCase {
         String host = "test.host";
 
         String watchId = "_watch";
-        String actionId = randomAsciiOfLength(5);
+        String actionId = randomAlphaOfLength(5);
 
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD,  null);
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
@@ -210,7 +210,7 @@ public class WebhookActionTests extends ESTestCase {
         WebhookActionFactory actionParser = webhookFactory(ExecuteScenario.Success.client());
         //This should fail since we are not supplying a url
         try {
-            actionParser.parseExecutable("_watch", randomAsciiOfLength(5), parser);
+            actionParser.parseExecutable("_watch", randomAlphaOfLength(5), parser);
             fail("expected a WebhookActionException since we only provided either a host or a port but not both");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("failed parsing http request template"));
@@ -235,7 +235,7 @@ public class WebhookActionTests extends ESTestCase {
             WebhookAction action = new WebhookAction(builder.build());
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
-            String watchId = "test_url_encode" + randomAsciiOfLength(10);
+            String watchId = "test_url_encode" + randomAlphaOfLength(10);
             Watch watch = createWatch(watchId, "account1");
             WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
                     new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
@@ -249,7 +249,7 @@ public class WebhookActionTests extends ESTestCase {
         HttpClient client = mock(HttpClient.class);
         when(client.execute(any(HttpRequest.class)))
                 .thenReturn(new HttpResponse(randomIntBetween(200, 399)));
-        String watchId = "test_url_encode" + randomAsciiOfLength(10);
+        String watchId = "test_url_encode" + randomAlphaOfLength(10);
 
         HttpMethod method = HttpMethod.POST;
         TextTemplate path = new TextTemplate("/test_" + watchId);

@@ -66,8 +66,8 @@ public class SecurityFilesTests extends ESTestCase {
             Files.write(tempPath, "bar".getBytes(StandardCharsets.UTF_8));
 
             PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class);
-            view.setGroup(fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10)));
-            view.setOwner(fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAsciiOfLength(10)));
+            view.setGroup(fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAlphaOfLength(10)));
+            view.setOwner(fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAlphaOfLength(10)));
 
             PosixFileAttributeView tempPathView = Files.getFileAttributeView(tempPath, PosixFileAttributeView.class);
             assertThat(tempPathView.getOwner(), not(equalTo(view.getOwner())));

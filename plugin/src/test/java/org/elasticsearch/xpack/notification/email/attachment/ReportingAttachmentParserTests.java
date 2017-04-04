@@ -143,9 +143,9 @@ public class ReportingAttachmentParserTests extends ESTestCase {
 
     public void testGoodCase() throws Exception {
         // returns interval HTTP code for five times, then return expected data
-        String content = randomAsciiOfLength(200);
+        String content = randomAlphaOfLength(200);
         String path = "/ovb/api/reporting/jobs/download/iu5zfzvk15oa8990bfas9wy2";
-        String randomContentType = randomAsciiOfLength(20);
+        String randomContentType = randomAlphaOfLength(20);
         Map<String, String[]> headers = new HashMap<>();
         headers.put("Content-Type", new String[] { randomContentType });
         when(httpClient.execute(any(HttpRequest.class)))
@@ -284,7 +284,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     }
 
     public void testWithBasicAuth() throws Exception {
-        String content = randomAsciiOfLength(200);
+        String content = randomAlphaOfLength(200);
         when(httpClient.execute(any(HttpRequest.class)))
                 .thenReturn(new HttpResponse(200, "{\"path\":\"whatever\"}"))
                 .thenReturn(new HttpResponse(503))
@@ -345,7 +345,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         when(httpClient.execute(any(HttpRequest.class)))
                 .thenReturn(new HttpResponse(200, "{\"path\":\"whatever\"}"))
                 .thenReturn(new HttpResponse(503))
-                .thenReturn(new HttpResponse(200, randomAsciiOfLength(10)));
+                .thenReturn(new HttpResponse(200, randomAlphaOfLength(10)));
 
         TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(Settings.EMPTY, null) {
             @Override
@@ -381,7 +381,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
         return mockExecutionContextBuilder("watch1")
-                .wid(new Wid(randomAsciiOfLength(5), now))
+                .wid(new Wid(randomAlphaOfLength(5), now))
                 .payload(new Payload.Simple())
                 .time("watch1", now)
                 .metadata(Collections.emptyMap())

@@ -108,7 +108,7 @@ public class CertificateToolTests extends ESTestCase {
         assertTrue(terminal.getOutput().isEmpty());
 
         // test with empty user input
-        String defaultFilename = randomAsciiOfLengthBetween(1, 10);
+        String defaultFilename = randomAlphaOfLengthBetween(1, 10);
         Path expectedDefaultPath = XPackPlugin.resolveConfigFile(env, defaultFilename);
         terminal.addTextInput("");
         resolvedOutputFile = CertificateTool.getOutputFile(terminal, null, env, defaultFilename);
@@ -373,7 +373,7 @@ public class CertificateToolTests extends ESTestCase {
         assertEquals("my instance", name.filename);
 
         // too long
-        String userProvidedName = randomAsciiOfLength(CertificateTool.MAX_FILENAME_LENGTH + 1);
+        String userProvidedName = randomAlphaOfLength(CertificateTool.MAX_FILENAME_LENGTH + 1);
         name = Name.fromUserProvidedName(userProvidedName, userProvidedName);
         assertEquals(userProvidedName, name.originalName);
         assertThat(name.error, containsString("valid filename"));
@@ -459,7 +459,7 @@ public class CertificateToolTests extends ESTestCase {
         String name;
         boolean valid;
         do {
-            name = randomAsciiOfLengthBetween(1, 32);
+            name = randomAlphaOfLengthBetween(1, 32);
             valid = Name.fromUserProvidedName(name, name).error == null;
         } while (valid == false);
         return name;

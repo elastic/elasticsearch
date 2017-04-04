@@ -36,8 +36,8 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
 
     @Override
     protected MonitoringDoc newMonitoringDoc() {
-        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2),
-                null, null, randomAsciiOfLength(5), 1437580442979L,  // "2015-07-22T15:54:02.979Z"
+        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAlphaOfLength(2),
+                null, null, randomAlphaOfLength(5), 1437580442979L,  // "2015-07-22T15:54:02.979Z"
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
         return doc;
     }

@@ -209,7 +209,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
 
     protected static Object invalidDayOfMonth() {
         return randomBoolean() ?
-                randomAsciiOfLength(5) :
+                randomAlphaOfLength(5) :
                 randomBoolean() ? randomIntBetween(-30, -1) : randomIntBetween(33, 45);
     }
 

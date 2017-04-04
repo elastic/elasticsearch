@@ -27,8 +27,8 @@ public class DataResolverTests extends MonitoringIndexNameResolverTestCase {
 
     @Override
     protected MonitoringDoc newMonitoringDoc() {
-        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2),
-                null, null, randomAsciiOfLength(5), Math.abs(randomLong()),
+        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAlphaOfLength(2),
+                null, null, randomAlphaOfLength(5), Math.abs(randomLong()),
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
         return doc;
     }

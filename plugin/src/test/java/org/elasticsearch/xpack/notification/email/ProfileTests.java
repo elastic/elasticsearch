@@ -31,7 +31,7 @@ public class ProfileTests extends ESTestCase {
                 .id("foo")
                 .from("foo@example.org")
                 .to("bar@example.org")
-                .subject(randomAsciiOfLength(10))
+                .subject(randomAlphaOfLength(10))
                 .attach(attachment)
                 .build();
 

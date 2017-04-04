@@ -20,9 +20,9 @@ public class CreateFilterActionRequestTests extends AbstractStreamableXContentTe
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            items.add(randomAsciiOfLengthBetween(1, 20));
+            items.add(randomAlphaOfLengthBetween(1, 20));
         }
-        MlFilter filter = new MlFilter(randomAsciiOfLengthBetween(1, 20), items);
+        MlFilter filter = new MlFilter(randomAlphaOfLengthBetween(1, 20), items);
         return new PutFilterAction.Request(filter);
     }
 

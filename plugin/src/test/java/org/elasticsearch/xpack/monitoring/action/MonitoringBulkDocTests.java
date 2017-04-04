@@ -84,8 +84,8 @@ public class MonitoringBulkDocTests extends ESTestCase {
         String monitoringVersion = randomVersion(random()).toString();
         MonitoringIndex index = randomBoolean() ? randomFrom(MonitoringIndex.values()) : null;
         String type = randomFrom("type1", "type2", "type3");
-        String id = randomBoolean() ? randomAsciiOfLength(3) : null;
-        String clusterUUID = randomBoolean() ? randomAsciiOfLength(5) : null;
+        String id = randomBoolean() ? randomAlphaOfLength(3) : null;
+        String clusterUUID = randomBoolean() ? randomAlphaOfLength(5) : null;
         long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
         MonitoringDoc.Node sourceNode = randomBoolean() ? newRandomSourceNode() : null;
         BytesReference source =  new BytesArray("{\"key\" : \"value\"}");
@@ -104,13 +104,13 @@ public class MonitoringBulkDocTests extends ESTestCase {
         Map<String, String> attributes = null;
 
         if (frequently()) {
-            uuid = randomAsciiOfLength(5);
-            name = randomAsciiOfLength(5);
+            uuid = randomAlphaOfLength(5);
+            name = randomAlphaOfLength(5);
         }
         if (randomBoolean()) {
-            ip = randomAsciiOfLength(5);
-            transportAddress = randomAsciiOfLength(5);
-            host = randomAsciiOfLength(3);
+            ip = randomAlphaOfLength(5);
+            transportAddress = randomAlphaOfLength(5);
+            host = randomAlphaOfLength(3);
         }
         if (rarely()) {
             int nbAttributes = randomIntBetween(0, 5);

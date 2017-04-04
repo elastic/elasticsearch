@@ -35,7 +35,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             for (int i = 0; i < size; i++) {
                 BucketInfluencer bucketInfluencer = new BucketInfluencer(jobId, new Date(), 600, i + 1);
                 bucketInfluencer.setAnomalyScore(randomDouble());
-                bucketInfluencer.setInfluencerFieldName(randomAsciiOfLengthBetween(1, 20));
+                bucketInfluencer.setInfluencerFieldName(randomAlphaOfLengthBetween(1, 20));
                 bucketInfluencer.setInitialAnomalyScore(randomDouble());
                 bucketInfluencer.setProbability(randomDouble());
                 bucketInfluencer.setRawAnomalyScore(randomDouble());
@@ -56,7 +56,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             int size = randomInt(10);
             List<PartitionScore> partitionScores = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                partitionScores.add(new PartitionScore(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomDouble(),
+                partitionScores.add(new PartitionScore(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20), randomDouble(),
                         randomDouble(), randomDouble()));
             }
             bucket.setPartitionScores(partitionScores);
@@ -65,7 +65,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             int size = randomInt(10);
             Map<String, Double> perPartitionMaxProbability = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                perPartitionMaxProbability.put(randomAsciiOfLengthBetween(1, 20), randomDouble());
+                perPartitionMaxProbability.put(randomAlphaOfLengthBetween(1, 20), randomDouble());
             }
             bucket.setPerPartitionMaxProbability(perPartitionMaxProbability);
         }

@@ -33,12 +33,12 @@ public class IntegrationAccountTests extends ESTestCase {
 
         Settings.Builder sb = Settings.builder();
 
-        String authToken = randomAsciiOfLength(50);
+        String authToken = randomAlphaOfLength(50);
         sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, authToken);
 
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
-            host = randomAsciiOfLength(10);
+            host = randomAlphaOfLength(10);
             sb.put(HipChatServer.HOST_SETTING, host);
         }
         int port = HipChatServer.DEFAULT.port();
@@ -47,7 +47,7 @@ public class IntegrationAccountTests extends ESTestCase {
             sb.put(HipChatServer.PORT_SETTING, port);
         }
 
-        String room = randomAsciiOfLength(10);
+        String room = randomAlphaOfLength(10);
         sb.put(IntegrationAccount.ROOM_SETTING, room);
 
         HipChatMessage.Format defaultFormat = null;
@@ -83,7 +83,7 @@ public class IntegrationAccountTests extends ESTestCase {
 
     public void testSettingsNoAuthToken() throws Exception {
         Settings.Builder sb = Settings.builder();
-        sb.put(IntegrationAccount.ROOM_SETTING, randomAsciiOfLength(10));
+        sb.put(IntegrationAccount.ROOM_SETTING, randomAlphaOfLength(10));
         try {
             new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
@@ -94,7 +94,7 @@ public class IntegrationAccountTests extends ESTestCase {
 
     public void testSettingsWithoutRoom() throws Exception {
         Settings.Builder sb = Settings.builder();
-        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAsciiOfLength(50));
+        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAlphaOfLength(50));
         try {
             new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
@@ -105,7 +105,7 @@ public class IntegrationAccountTests extends ESTestCase {
 
     public void testSettingsWithoutMultipleRooms() throws Exception {
         Settings.Builder sb = Settings.builder();
-        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAsciiOfLength(50));
+        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAlphaOfLength(50));
         sb.put(IntegrationAccount.ROOM_SETTING, "_r1,_r2");
         try {
             new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));

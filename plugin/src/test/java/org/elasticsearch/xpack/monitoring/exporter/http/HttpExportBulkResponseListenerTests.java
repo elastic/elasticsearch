@@ -68,7 +68,7 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
     }
 
     public void testOnSuccessWithInnerErrors() {
-        final String[] expectedErrors = new String[] { randomAsciiOfLengthBetween(4, 10), randomAsciiOfLengthBetween(5, 9) };
+        final String[] expectedErrors = new String[] { randomAlphaOfLengthBetween(4, 10), randomAlphaOfLengthBetween(5, 9) };
         final AtomicInteger counter = new AtomicInteger(0);
         final Response response = mock(Response.class);
         final StringEntity entity = new StringEntity(

@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class UserTests extends ESTestCase {
 
     public void testWriteToAndReadFrom() throws Exception {
-        User user = new User(randomAsciiOfLengthBetween(4, 30),
+        User user = new User(randomAlphaOfLengthBetween(4, 30),
                 generateRandomStringArray(20, 30, false));
         BytesStreamOutput output = new BytesStreamOutput();
 
@@ -36,9 +36,9 @@ public class UserTests extends ESTestCase {
     }
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
-        User runAs = new User(randomAsciiOfLengthBetween(4, 30),
+        User runAs = new User(randomAlphaOfLengthBetween(4, 30),
                 randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
-        User user = new User(randomAsciiOfLengthBetween(4, 30),
+        User user = new User(randomAlphaOfLengthBetween(4, 30),
                 generateRandomStringArray(20, 30, false), runAs);
         BytesStreamOutput output = new BytesStreamOutput();
 
@@ -78,7 +78,7 @@ public class UserTests extends ESTestCase {
     public void testFakeInternalUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeBoolean(true);
-        output.writeString(randomAsciiOfLengthBetween(4, 30));
+        output.writeString(randomAlphaOfLengthBetween(4, 30));
         try {
             User.readFrom(output.bytes().streamInput());
             fail("system user had wrong name");
@@ -89,7 +89,7 @@ public class UserTests extends ESTestCase {
 
     public void testCreateUserRunningAsSystemUser() throws Exception {
         try {
-            new User(randomAsciiOfLengthBetween(3, 10),
+            new User(randomAlphaOfLengthBetween(3, 10),
                     generateRandomStringArray(16, 30, false), SystemUser.INSTANCE);
             fail("should not be able to create a runAs user with the system user");
         } catch (ElasticsearchSecurityException e) {

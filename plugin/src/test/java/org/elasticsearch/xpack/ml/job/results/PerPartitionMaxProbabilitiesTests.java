@@ -21,10 +21,10 @@ public class PerPartitionMaxProbabilitiesTests extends AbstractSerializingTestCa
         int num = randomIntBetween(1, 10);
         List<PerPartitionMaxProbabilities.PartitionProbability> pps = new ArrayList<>();
         for (int i=0; i<num; i++) {
-            pps.add(new PerPartitionMaxProbabilities.PartitionProbability(randomAsciiOfLength(12), randomDouble()));
+            pps.add(new PerPartitionMaxProbabilities.PartitionProbability(randomAlphaOfLength(12), randomDouble()));
         }
 
-        return new PerPartitionMaxProbabilities(randomAsciiOfLength(20), new DateTime(randomDateTimeZone()).toDate(),
+        return new PerPartitionMaxProbabilities(randomAlphaOfLength(20), new DateTime(randomDateTimeZone()).toDate(),
                 randomNonNegativeLong(), pps);
     }
 

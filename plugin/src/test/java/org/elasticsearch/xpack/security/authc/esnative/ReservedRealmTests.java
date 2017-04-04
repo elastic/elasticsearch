@@ -277,7 +277,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
         assertThat(ReservedRealm.isReserved(principal, Settings.EMPTY), is(true));
 
-        final String notExpected = randomFrom("foobar", "", randomAsciiOfLengthBetween(1, 30));
+        final String notExpected = randomFrom("foobar", "", randomAlphaOfLengthBetween(1, 30));
         assertThat(ReservedRealm.isReserved(notExpected, Settings.EMPTY), is(false));
     }
 
@@ -287,7 +287,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
         assertThat(ReservedRealm.isReserved(principal, settings), is(false));
 
-        final String notExpected = randomFrom("foobar", "", randomAsciiOfLengthBetween(1, 30));
+        final String notExpected = randomFrom("foobar", "", randomAlphaOfLengthBetween(1, 30));
         assertThat(ReservedRealm.isReserved(notExpected, settings), is(false));
     }
 

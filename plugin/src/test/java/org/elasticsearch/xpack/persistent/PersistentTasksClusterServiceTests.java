@@ -257,7 +257,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         // add a node if there are unassigned tasks
         if (clusterState.nodes().getNodes().isEmpty()) {
             logger.info("added random node");
-            builder.nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(randomAsciiOfLength(10))));
+            builder.nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(randomAlphaOfLength(10))));
             tasksOrNodesChanged = true;
         }
 
@@ -303,7 +303,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 // we don't have any unassigned tasks - adding a node or changing a routing table shouldn't affect anything
                 if (randomBoolean()) {
                     logger.info("added random node");
-                    builder.nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(randomAsciiOfLength(10))));
+                    builder.nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(randomAlphaOfLength(10))));
                 }
                 if (randomBoolean()) {
                     logger.info("added random unassignable task");
@@ -351,7 +351,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             }
         }
         // Just add a random index - that shouldn't change anything
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAsciiOfLength(10))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
                 .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -381,15 +381,15 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                String node) {
-        return addRandomTask(clusterStateBuilder, metaData, tasks, new Assignment(node, randomAsciiOfLength(10)),
-                randomAsciiOfLength(10));
+        return addRandomTask(clusterStateBuilder, metaData, tasks, new Assignment(node, randomAlphaOfLength(10)),
+                randomAlphaOfLength(10));
     }
 
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                Assignment assignment, String param) {
         return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasksCustomMetaData.TYPE,
-                tasks.addTask(randomAsciiOfLength(10), new TestRequest(param), assignment).build()));
+                tasks.addTask(randomAlphaOfLength(10), new TestRequest(param), assignment).build()));
     }
 
     private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node) {
@@ -423,7 +423,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     private void changeRoutingTable(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAsciiOfLength(10))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
                 .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
                 .numberOfShards(1)
                 .numberOfReplicas(1)

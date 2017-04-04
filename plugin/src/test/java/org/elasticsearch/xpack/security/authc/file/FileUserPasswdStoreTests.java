@@ -170,7 +170,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
-        Path file = createTempDir().resolve(randomAsciiOfLength(10));
+        Path file = createTempDir().resolve(randomAlphaOfLength(10));
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
         assertThat(users, notNullValue());

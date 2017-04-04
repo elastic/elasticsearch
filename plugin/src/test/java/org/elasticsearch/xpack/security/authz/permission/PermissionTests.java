@@ -54,7 +54,7 @@ public class PermissionTests extends ESTestCase {
                 .build();
         assertThat(permission.runAs().check("user1"), is(true));
         assertThat(permission.runAs().check("user"), is(false));
-        assertThat(permission.runAs().check("run" + randomAsciiOfLengthBetween(1, 10)), is(true));
+        assertThat(permission.runAs().check("run" + randomAlphaOfLengthBetween(1, 10)), is(true));
     }
 
     // "baz_*foo", "/fool.*bar/"

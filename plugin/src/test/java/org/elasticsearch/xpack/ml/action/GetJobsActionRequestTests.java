@@ -13,7 +13,7 @@ public class GetJobsActionRequestTests extends AbstractStreamableTestCase<GetJob
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomBoolean() ? Job.ALL : randomAsciiOfLengthBetween(1, 20));
+        return new Request(randomBoolean() ? Job.ALL : randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override

@@ -184,7 +184,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                                         Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState());
         verify(fileRolesStore).addListener(any(Runnable.class)); // adds a listener in ctor
 
-        final String roleName = randomAsciiOfLengthBetween(1, 10);
+        final String roleName = randomAlphaOfLengthBetween(1, 10);
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         compositeRolesStore.roles(Collections.singleton(roleName), fieldPermissionsCache, future);

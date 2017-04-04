@@ -17,9 +17,9 @@ public class FieldPermissionsCacheTests extends ESTestCase {
 
     public void testFieldPermissionsCaching() {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        String[] allowed = new String[]{randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*"};
-        String[] denied = new String[]{allowed[0] + randomAsciiOfLength(5), allowed[1] + randomAsciiOfLength(5),
-                allowed[2] + randomAsciiOfLength(5)};
+        String[] allowed = new String[]{randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*"};
+        String[] denied = new String[]{allowed[0] + randomAlphaOfLength(5), allowed[1] + randomAlphaOfLength(5),
+                allowed[2] + randomAlphaOfLength(5)};
         FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(allowed, denied);
         assertNotNull(fieldPermissions);
         final String[] allowed2 = randomBoolean() ? allowed : Arrays.copyOf(allowed, allowed.length);
@@ -29,8 +29,8 @@ public class FieldPermissionsCacheTests extends ESTestCase {
 
     public void testMergeFieldPermissions() {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        String allowedPrefix1 = randomAsciiOfLength(5);
-        String allowedPrefix2 = randomAsciiOfLength(5);
+        String allowedPrefix1 = randomAlphaOfLength(5);
+        String allowedPrefix2 = randomAlphaOfLength(5);
         String[] allowed1 = new String[]{allowedPrefix1 + "*"};
         String[] allowed2 = new String[]{allowedPrefix2 + "*"};
         String[] denied1 = new String[]{allowedPrefix1 + "a"};
@@ -46,7 +46,7 @@ public class FieldPermissionsCacheTests extends ESTestCase {
         assertFalse(mergedFieldPermissions.grantsAccessTo(denied1[0]));
         assertFalse(mergedFieldPermissions.grantsAccessTo(denied2[0]));
 
-        allowed1 = new String[]{randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*"};
+        allowed1 = new String[]{randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*"};
         allowed2 = null;
         denied1 = new String[]{allowed1[0] + "a", allowed1[1] + "a"};
         denied2 = null;
@@ -59,7 +59,7 @@ public class FieldPermissionsCacheTests extends ESTestCase {
         assertFalse(mergedFieldPermissions.hasFieldLevelSecurity());
 
         allowed1 = new String[]{};
-        allowed2 = new String[]{randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*"};
+        allowed2 = new String[]{randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*"};
         denied1 = new String[]{};
         denied2 = new String[]{allowed2[0] + "a", allowed2[1] + "a"};
         fieldPermissions1 = randomBoolean() ? fieldPermissionsCache.getFieldPermissions(allowed1, denied1) :

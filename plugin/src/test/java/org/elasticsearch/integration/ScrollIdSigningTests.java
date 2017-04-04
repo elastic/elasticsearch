@@ -61,7 +61,7 @@ public class ScrollIdSigningTests extends SecurityIntegTestCase {
                 .setSize(randomIntBetween(1, 10)).get();
         String scrollId = response.getScrollId();
         String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) :
-                scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
+                scrollId + randomAlphaOfLength(randomIntBetween(3, 10));
 
         try {
             assertThrowsAuthorizationException(client().prepareSearchScroll(tamperedScrollId).setScroll(TimeValue.timeValueMinutes(2))::get,
@@ -83,7 +83,7 @@ public class ScrollIdSigningTests extends SecurityIntegTestCase {
                 .setSize(5).get();
         String scrollId = response.getScrollId();
         String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) :
-                scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
+                scrollId + randomAlphaOfLength(randomIntBetween(3, 10));
 
         try {
             assertThrowsAuthorizationException(client().prepareClearScroll().addScrollId(tamperedScrollId)::get,

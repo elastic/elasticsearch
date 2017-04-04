@@ -23,11 +23,11 @@ public class MonitoringDocTests extends ESTestCase {
     public void testFromDiscoveryNode() {
         assertEquals(null, fromDiscoveryNode(null));
 
-        String nodeId = randomAsciiOfLength(5);
+        String nodeId = randomAlphaOfLength(5);
         TransportAddress address = buildNewFakeTransportAddress();
         Version version = randomFrom(Version.V_2_4_1, Version.V_5_0_1, Version.CURRENT);
 
-        String name = randomBoolean() ? randomAsciiOfLength(5) : "";
+        String name = randomBoolean() ? randomAlphaOfLength(5) : "";
         Map<String, String> attributes = new HashMap<>();
         if (randomBoolean()) {
             int nbAttrs = randomIntBetween(1, 5);

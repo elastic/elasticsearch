@@ -61,9 +61,9 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
     }
 
     public static Quantiles createRandomized() {
-        return new Quantiles(randomAsciiOfLengthBetween(1, 20),
+        return new Quantiles(randomAlphaOfLengthBetween(1, 20),
                 new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
-                randomAsciiOfLengthBetween(0, 1000));
+                randomAlphaOfLengthBetween(0, 1000));
     }
 
     @Override

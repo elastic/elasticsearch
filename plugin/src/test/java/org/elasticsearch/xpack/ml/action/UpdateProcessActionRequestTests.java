@@ -18,16 +18,16 @@ public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<
     protected UpdateProcessAction.Request createTestInstance() {
         ModelPlotConfig config = null;
         if (randomBoolean()) {
-            config = new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10));
+            config = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
         }
         List<JobUpdate.DetectorUpdate> updates = null;
         if (randomBoolean()) {
             int detectorUpdateCount = randomIntBetween(0, 5);
             for (int i = 0; i < detectorUpdateCount; i++) {
-                new JobUpdate.DetectorUpdate(randomInt(), randomAsciiOfLength(10), null);
+                new JobUpdate.DetectorUpdate(randomInt(), randomAlphaOfLength(10), null);
             }
         }
-        return new UpdateProcessAction.Request(randomAsciiOfLength(10), config, updates);
+        return new UpdateProcessAction.Request(randomAlphaOfLength(10), config, updates);
     }
 
     @Override

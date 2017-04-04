@@ -21,7 +21,7 @@ public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotC
 
     @Override
     protected ModelPlotConfig createTestInstance() {
-        return new ModelPlotConfig(randomBoolean(), randomAsciiOfLengthBetween(1, 30));
+        return new ModelPlotConfig(randomBoolean(), randomAlphaOfLengthBetween(1, 30));
     }
 
     @Override

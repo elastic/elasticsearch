@@ -17,7 +17,7 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLength(10), randomNonNegativeLong());
+        Request request = new Request(randomAlphaOfLength(10), randomNonNegativeLong());
         if (randomBoolean()) {
             request.setEndTime(randomNonNegativeLong());
         }

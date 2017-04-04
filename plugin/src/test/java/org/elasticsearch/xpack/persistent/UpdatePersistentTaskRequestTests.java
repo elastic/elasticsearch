@@ -17,7 +17,7 @@ public class UpdatePersistentTaskRequestTests extends AbstractStreamableTestCase
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomLong(), randomLong(), new Status(randomAsciiOfLength(10)));
+        return new Request(randomLong(), randomLong(), new Status(randomAlphaOfLength(10)));
     }
 
     @Override

@@ -46,7 +46,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setBucketSpan(bucketSpan);
         }
         if (randomBoolean()) {
-            builder.setCategorizationFieldName(randomAsciiOfLength(10));
+            builder.setCategorizationFieldName(randomAlphaOfLength(10));
             builder.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {

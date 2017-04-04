@@ -33,7 +33,7 @@ public class MonitoredSystemTests extends ESTestCase {
     }
 
     public void testFromUnknownSystem() {
-        final String unknownSystem = randomAsciiOfLengthBetween(3, 4);
+        final String unknownSystem = randomAlphaOfLengthBetween(3, 4);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             MonitoredSystem.fromSystem(unknownSystem);

@@ -25,9 +25,9 @@ public class PutDatafeedActionRequestTests extends AbstractStreamableXContentTes
 
     @Override
     protected Request createTestInstance() {
-        DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, randomAsciiOfLength(10));
-        datafeedConfig.setIndexes(Arrays.asList(randomAsciiOfLength(10)));
-        datafeedConfig.setTypes(Arrays.asList(randomAsciiOfLength(10)));
+        DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, randomAlphaOfLength(10));
+        datafeedConfig.setIndexes(Arrays.asList(randomAlphaOfLength(10)));
+        datafeedConfig.setTypes(Arrays.asList(randomAlphaOfLength(10)));
         return new Request(datafeedConfig.build());
     }
 

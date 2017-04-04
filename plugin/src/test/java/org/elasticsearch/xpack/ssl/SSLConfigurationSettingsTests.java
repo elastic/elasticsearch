@@ -47,7 +47,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.security.authc.realms.ldap1.ssl.");
         assertThat(ssl.keystoreAlgorithm.match("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm"), is(true));
 
-        final String algo = randomAsciiOfLength(16);
+        final String algo = randomAlphaOfLength(16);
         final Settings settings = Settings.builder()
                 .put("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm", algo)
                 .build();
@@ -73,7 +73,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.keystorePassword.match("xpack.ssl.keystore.key_password"), is(false));
         assertThat(ssl.keystoreKeyPassword.match("xpack.ssl.keystore.password"), is(false));
 
-        final String password = randomAsciiOfLength(16);
+        final String password = randomAlphaOfLength(16);
         final Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.password", password)
                 .build();

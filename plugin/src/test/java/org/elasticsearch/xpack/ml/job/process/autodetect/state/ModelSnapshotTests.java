@@ -143,10 +143,10 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     }
 
     public static ModelSnapshot createRandomized() {
-        ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAsciiOfLengthBetween(1, 20));
+        ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
-        modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
-        modelSnapshot.setSnapshotId(randomAsciiOfLengthBetween(1, 20));
+        modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
+        modelSnapshot.setSnapshotId(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotDocCount(randomInt());
         modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
         modelSnapshot.setLatestResultTimeStamp(

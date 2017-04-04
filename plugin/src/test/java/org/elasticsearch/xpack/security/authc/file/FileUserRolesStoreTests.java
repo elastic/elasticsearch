@@ -181,7 +181,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
     }
 
     public void testParseFileWhenFileDoesNotExist() throws Exception {
-        Path file = createTempDir().resolve(randomAsciiOfLength(10));
+        Path file = createTempDir().resolve(randomAlphaOfLength(10));
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, logger);
         assertThat(usersRoles, notNullValue());

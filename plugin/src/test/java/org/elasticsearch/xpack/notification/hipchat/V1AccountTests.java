@@ -30,12 +30,12 @@ public class V1AccountTests extends ESTestCase {
 
         Settings.Builder sb = Settings.builder();
 
-        String authToken = randomAsciiOfLength(50);
+        String authToken = randomAlphaOfLength(50);
         sb.put(V1Account.AUTH_TOKEN_SETTING, authToken);
 
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
-            host = randomAsciiOfLength(10);
+            host = randomAlphaOfLength(10);
             sb.put(HipChatServer.HOST_SETTING, host);
         }
         int port = HipChatServer.DEFAULT.port();
@@ -51,7 +51,7 @@ public class V1AccountTests extends ESTestCase {
         }
         String defaultFrom = null;
         if (randomBoolean()) {
-            defaultFrom = randomAsciiOfLength(10);
+            defaultFrom = randomAlphaOfLength(10);
             sb.put(HipChatAccount.DEFAULT_FROM_SETTING, defaultFrom);
         }
         HipChatMessage.Format defaultFormat = null;

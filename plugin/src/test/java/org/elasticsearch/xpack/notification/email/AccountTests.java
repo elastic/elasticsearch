@@ -98,7 +98,7 @@ public class AccountTests extends ESTestCase {
         smtpProps.put("mail.smtp." + setting, host);
         String user = null;
         if (randomBoolean()) {
-            user = randomAsciiOfLength(5);
+            user = randomAlphaOfLength(5);
             setting = randomFrom("user", "from");
             smtpBuilder.put(setting, user);
             smtpProps.put("mail.smtp." + setting, user);
@@ -115,13 +115,13 @@ public class AccountTests extends ESTestCase {
         }
         String password = null;
         if (randomBoolean()) {
-            password = randomAsciiOfLength(8);
+            password = randomAlphaOfLength(8);
             smtpBuilder.put("password", password);
             smtpProps.put("mail.smtp.password", password);
         }
         for (int i = 0; i < 5; i++) {
-            String name = randomAsciiOfLength(5);
-            String value = randomAsciiOfLength(6);
+            String name = randomAlphaOfLength(5);
+            String value = randomAlphaOfLength(6);
             smtpProps.put("mail.smtp." + name, value);
             smtpBuilder.put(name, value);
         }

@@ -327,7 +327,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         int size = scaledRandomIntBetween(3, 16);
         List<User> users = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            users.add(new User("user_" + i, randomAsciiOfLengthBetween(4, 12)));
+            users.add(new User("user_" + i, randomAlphaOfLengthBetween(4, 12)));
         }
         return users;
     }

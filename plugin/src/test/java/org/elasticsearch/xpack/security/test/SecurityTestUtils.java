@@ -96,7 +96,7 @@ public class SecurityTestUtils {
         Index index = new Index(SecurityLifecycleService.SECURITY_INDEX_NAME, UUID.randomUUID().toString());
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
-        String nodeId = ESTestCase.randomAsciiOfLength(8);
+        String nodeId = ESTestCase.randomAlphaOfLength(8);
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
                 .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
                 .build();

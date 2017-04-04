@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class HttpHostBuilderTests extends ESTestCase {
 
     private final Scheme scheme = randomFrom(Scheme.values());
-    private final String hostname = randomAsciiOfLengthBetween(1, 20);
+    private final String hostname = randomAlphaOfLengthBetween(1, 20);
     private final int port = randomIntBetween(1, 65535);
 
     public void testBuilder() {

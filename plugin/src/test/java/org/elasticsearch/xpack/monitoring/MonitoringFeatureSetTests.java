@@ -85,7 +85,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
             }
         }
         int xCount = randomIntBetween(0, 5);
-        String xType = randomAsciiOfLength(10);
+        String xType = randomAlphaOfLength(10);
         for (int i = 0; i < xCount; i++) {
             Exporter exporter = mockExporter(xType, true);
             exporterList.add(exporter);

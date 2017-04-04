@@ -46,7 +46,7 @@ public class RealmSettingsTests extends ESTestCase {
     public void testRealmWithUnknownTypeAcceptsAllSettings() throws Exception {
         final Settings.Builder settings = baseSettings("tam", true)
                 .put("ip", "8.6.75.309")
-                .put(randomAsciiOfLengthBetween(4, 8), randomTimeValue());
+                .put(randomAlphaOfLengthBetween(4, 8), randomTimeValue());
         assertSuccess(realm("tam", settings));
     }
 
@@ -64,7 +64,7 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     public void testNativeRealmWithUnknownConfigurationDoesNotValidate() throws Exception {
-        final Settings.Builder builder = realm("native2", nativeSettings().put("not-valid", randomAsciiOfLength(10)));
+        final Settings.Builder builder = realm("native2", nativeSettings().put("not-valid", randomAlphaOfLength(10)));
         assertErrorWithCause("native2", "unknown setting [not-valid]", builder.build());
     }
 
@@ -133,12 +133,12 @@ public class RealmSettingsTests extends ESTestCase {
         if (userSearch) {
             builder.put("user_search.base_dn", "o=people, dc=example, dc=com");
             builder.put("user_search.scope", "sub_tree");
-            builder.put("user_search.attribute", randomAsciiOfLengthBetween(2, 5));
+            builder.put("user_search.attribute", randomAlphaOfLengthBetween(2, 5));
             builder.put("user_search.pool.enabled", randomBoolean());
             builder.put("user_search.pool.size", randomIntBetween(10, 100));
             builder.put("user_search.pool.initial_size", randomIntBetween(1, 10));
             builder.put("user_search.pool.health_check.enabled", randomBoolean());
-            builder.put("user_search.pool.health_check.dn", randomAsciiOfLength(32));
+            builder.put("user_search.pool.health_check.dn", randomAlphaOfLength(32));
             builder.put("user_search.pool.health_check.interval", randomPositiveTimeValue());
         } else {
             builder.putArray("user_dn_templates",
@@ -152,7 +152,7 @@ public class RealmSettingsTests extends ESTestCase {
             builder.put("group_search.filter", "userGroup");
             builder.put("group_search.user_attribute", "uid");
         } else {
-            builder.put("user_group_attribute", randomAsciiOfLength(8));
+            builder.put("user_group_attribute", randomAlphaOfLength(8));
         }
         return builder;
     }
@@ -166,7 +166,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("domain_name", "MEGACORP");
         builder.put("user_search.base_dn", "o=people, dc.example, dc.com");
         builder.put("user_search.scope", "sub_tree");
-        builder.put("user_search.filter", randomAsciiOfLength(5) + "={0}");
+        builder.put("user_search.filter", randomAlphaOfLength(5) + "={0}");
         builder.put("group_search.base_dn", "o=groups, dc=example, dc=com");
         builder.put("group_search.scope", "one_level");
         return builder;
@@ -178,7 +178,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("load_balance.type", "round_robin")
                 .put("load_balance.cache_ttl", randomTimeValue())
                 .put("unmapped_groups_as_roles", randomBoolean())
-                .put("files.role_mapping", "x-pack/" + randomAsciiOfLength(8) + ".yml")
+                .put("files.role_mapping", "x-pack/" + randomAlphaOfLength(8) + ".yml")
                 .put("timeout.tcp_connect", randomPositiveTimeValue())
                 .put("timeout.tcp_read", randomPositiveTimeValue())
                 .put("timeout.ldap_search", randomPositiveTimeValue());
@@ -193,12 +193,12 @@ public class RealmSettingsTests extends ESTestCase {
     private Settings.Builder pkiSettings(boolean useTrustStore) {
         final Settings.Builder builder = baseSettings("pki", false)
                 .put("username_pattern", "CN=\\D(\\d+)(?:,\\|$)")
-                .put("files.role_mapping", "x-pack/" + randomAsciiOfLength(8) + ".yml");
+                .put("files.role_mapping", "x-pack/" + randomAlphaOfLength(8) + ".yml");
 
         if (useTrustStore) {
-            builder.put("truststore.path", randomAsciiOfLengthBetween(8, 32));
-            builder.put("truststore.password", randomAsciiOfLengthBetween(4, 12));
-            builder.put("truststore.algorithm", randomAsciiOfLengthBetween(6, 10));
+            builder.put("truststore.path", randomAlphaOfLengthBetween(8, 32));
+            builder.put("truststore.password", randomAlphaOfLengthBetween(4, 12));
+            builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
             builder.putArray("certificate_authorities", generateRandomStringArray(5, 32, false, false));
         }
@@ -207,20 +207,20 @@ public class RealmSettingsTests extends ESTestCase {
 
     private Settings.Builder configureSsl(String prefix, Settings.Builder builder, boolean useKeyStore, boolean useTrustStore) {
         if (useKeyStore) {
-            builder.put(prefix + "keystore.path", "x-pack/ssl/" + randomAsciiOfLength(5) + ".jks");
-            builder.put(prefix + "keystore.password", randomAsciiOfLength(8));
-            builder.put(prefix + "keystore.key_password", randomAsciiOfLength(8));
+            builder.put(prefix + "keystore.path", "x-pack/ssl/" + randomAlphaOfLength(5) + ".jks");
+            builder.put(prefix + "keystore.password", randomAlphaOfLength(8));
+            builder.put(prefix + "keystore.key_password", randomAlphaOfLength(8));
         } else {
-            builder.put(prefix + "key", "x-pack/ssl/" + randomAsciiOfLength(5) + ".key");
-            builder.put(prefix + "key_passphrase", randomAsciiOfLength(32));
-            builder.put(prefix + "certificate", "x-pack/ssl/" + randomAsciiOfLength(5) + ".cert");
+            builder.put(prefix + "key", "x-pack/ssl/" + randomAlphaOfLength(5) + ".key");
+            builder.put(prefix + "key_passphrase", randomAlphaOfLength(32));
+            builder.put(prefix + "certificate", "x-pack/ssl/" + randomAlphaOfLength(5) + ".cert");
         }
 
         if (useTrustStore) {
-            builder.put(prefix + "truststore.path", "x-pack/ssl/" + randomAsciiOfLength(5) + ".jts");
-            builder.put(prefix + "truststore.password", randomAsciiOfLength(8));
+            builder.put(prefix + "truststore.path", "x-pack/ssl/" + randomAlphaOfLength(5) + ".jts");
+            builder.put(prefix + "truststore.password", randomAlphaOfLength(8));
         } else {
-            builder.put(prefix + "certificate_authorities", "x-pack/ssl/" + randomAsciiOfLength(8) + ".ca");
+            builder.put(prefix + "certificate_authorities", "x-pack/ssl/" + randomAlphaOfLength(8) + ".ca");
         }
 
         builder.put(prefix + "verification_mode", "full");

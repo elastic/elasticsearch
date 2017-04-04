@@ -60,7 +60,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
     @Override
     protected NodeStatsMonitoringDoc newMonitoringDoc() {
         NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc(randomMonitoringId(),
-                randomAsciiOfLength(2), randomAsciiOfLength(5),
+                randomAlphaOfLength(2), randomAlphaOfLength(5),
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 randomBoolean(), randomNodeStats(), randomBoolean());
         return doc;

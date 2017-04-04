@@ -27,10 +27,10 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class HipChatMessageTests extends ESTestCase {
     public void testToXContent() throws Exception {
-        String message = randomAsciiOfLength(10);
+        String message = randomAlphaOfLength(10);
         String[] rooms = generateRandomStringArray(3, 10, true);
         String[] users = generateRandomStringArray(3, 10, true);
-        String from = randomBoolean() ? null : randomAsciiOfLength(10);
+        String from = randomBoolean() ? null : randomAlphaOfLength(10);
         HipChatMessage.Format format = rarely() ? null : randomFrom(HipChatMessage.Format.values());
         HipChatMessage.Color color = rarely() ? null : randomFrom(HipChatMessage.Color.values());
         Boolean notify = rarely() ? null : randomBoolean();
@@ -102,10 +102,10 @@ public class HipChatMessageTests extends ESTestCase {
     }
 
     public void testEquals() throws Exception {
-        String message = randomAsciiOfLength(10);
+        String message = randomAlphaOfLength(10);
         String[] rooms = generateRandomStringArray(3, 10, true);
         String[] users = generateRandomStringArray(3, 10, true);
-        String from = randomBoolean() ? null : randomAsciiOfLength(10);
+        String from = randomBoolean() ? null : randomAlphaOfLength(10);
         HipChatMessage.Format format = rarely() ? null : randomFrom(HipChatMessage.Format.values());
         HipChatMessage.Color color = rarely() ? null : randomFrom(HipChatMessage.Color.values());
         Boolean notify = rarely() ? null : randomBoolean();
@@ -160,14 +160,14 @@ public class HipChatMessageTests extends ESTestCase {
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
 
-        TextTemplate body = new TextTemplate(randomAsciiOfLength(200));
+        TextTemplate body = new TextTemplate(randomAlphaOfLength(200));
         jsonBuilder.field("body", body, ToXContent.EMPTY_PARAMS);
         TextTemplate[] rooms = null;
         if (randomBoolean()) {
             jsonBuilder.startArray("room");
             rooms = new TextTemplate[randomIntBetween(1, 3)];
             for (int i = 0; i < rooms.length; i++) {
-                rooms[i] = new TextTemplate(randomAsciiOfLength(10));
+                rooms[i] = new TextTemplate(randomAlphaOfLength(10));
                 rooms[i].toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             }
             jsonBuilder.endArray();
@@ -177,19 +177,19 @@ public class HipChatMessageTests extends ESTestCase {
             jsonBuilder.startArray("user");
             users = new TextTemplate[randomIntBetween(1, 3)];
             for (int i = 0; i < users.length; i++) {
-                users[i] = new TextTemplate(randomAsciiOfLength(10));
+                users[i] = new TextTemplate(randomAlphaOfLength(10));
                 users[i].toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             }
             jsonBuilder.endArray();
         }
         String from = null;
         if (randomBoolean()) {
-            from = randomAsciiOfLength(10);
+            from = randomAlphaOfLength(10);
             jsonBuilder.field("from", from);
         }
         TextTemplate color = null;
         if (randomBoolean()) {
-            color = new TextTemplate(randomAsciiOfLength(10));
+            color = new TextTemplate(randomAlphaOfLength(10));
             jsonBuilder.field("color", color, ToXContent.EMPTY_PARAMS);
         }
         HipChatMessage.Format format = null;
@@ -228,26 +228,26 @@ public class HipChatMessageTests extends ESTestCase {
     }
 
     public void testTemplateParseSelfGenerated() throws Exception {
-        TextTemplate body = new TextTemplate(randomAsciiOfLength(10));
+        TextTemplate body = new TextTemplate(randomAlphaOfLength(10));
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
 
         if (randomBoolean()) {
             int count = randomIntBetween(1, 3);
             for (int i = 0; i < count; i++) {
-                templateBuilder.addRooms(new TextTemplate(randomAsciiOfLength(10)));
+                templateBuilder.addRooms(new TextTemplate(randomAlphaOfLength(10)));
             }
         }
         if (randomBoolean()) {
             int count = randomIntBetween(1, 3);
             for (int i = 0; i < count; i++) {
-                templateBuilder.addUsers(new TextTemplate(randomAsciiOfLength(10)));
+                templateBuilder.addUsers(new TextTemplate(randomAlphaOfLength(10)));
             }
         }
         if (randomBoolean()) {
-            templateBuilder.setFrom(randomAsciiOfLength(10));
+            templateBuilder.setFrom(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            templateBuilder.setColor(new TextTemplate(randomAsciiOfLength(5)));
+            templateBuilder.setColor(new TextTemplate(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
             templateBuilder.setFormat(randomFrom(HipChatMessage.Format.values()));

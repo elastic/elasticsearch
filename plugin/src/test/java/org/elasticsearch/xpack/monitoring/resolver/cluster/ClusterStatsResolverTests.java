@@ -62,7 +62,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
     @Override
     protected ClusterStatsMonitoringDoc newMonitoringDoc() {
         ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(randomMonitoringId(),
-                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                randomAlphaOfLength(2), randomAlphaOfLength(5), 1437580442979L,
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 randomClusterStats());
         return doc;

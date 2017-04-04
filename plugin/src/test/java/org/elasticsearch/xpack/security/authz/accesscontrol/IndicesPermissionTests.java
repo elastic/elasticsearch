@@ -89,7 +89,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // match all fields
         String[] allFields = randomFrom(new String[]{"*"}, new String[]{"foo", "*"},
-        new String[]{randomAsciiOfLengthBetween(1, 10), "*"});
+        new String[]{randomAlphaOfLengthBetween(1, 10), "*"});
         role = Role.builder("_role")
                 .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, "_alias").build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), md, fieldPermissionsCache);
@@ -101,14 +101,14 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testIndicesPrivilegesStreaming() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        String[] allowed = new String[]{randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*"};
-        String[] denied = new String[]{allowed[0] + randomAsciiOfLength(5), allowed[1] + randomAsciiOfLength(5),
-                allowed[2] + randomAsciiOfLength(5)};
+        String[] allowed = new String[]{randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*"};
+        String[] denied = new String[]{allowed[0] + randomAlphaOfLength(5), allowed[1] + randomAlphaOfLength(5),
+                allowed[2] + randomAlphaOfLength(5)};
         RoleDescriptor.IndicesPrivileges.Builder indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder();
         indicesPrivileges.grantedFields(allowed);
         indicesPrivileges.deniedFields(denied);
         indicesPrivileges.query("{match_all:{}}");
-        indicesPrivileges.indices(randomAsciiOfLength(5), randomAsciiOfLength(5), randomAsciiOfLength(5));
+        indicesPrivileges.indices(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
         indicesPrivileges.privileges("all", "read", "priv");
         indicesPrivileges.build().writeTo(out);
         out.close();
@@ -148,7 +148,7 @@ public class IndicesPermissionTests extends ESTestCase {
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
                 core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), metaData, fieldPermissionsCache);
         assertTrue(authzMap.get("a1").getFieldPermissions().grantsAccessTo("denied_field"));
-        assertTrue(authzMap.get("a1").getFieldPermissions().grantsAccessTo(randomAsciiOfLength(5)));
+        assertTrue(authzMap.get("a1").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5)));
         // did not define anything for ba so we allow all
         assertFalse(authzMap.get("ba").getFieldPermissions().hasFieldLevelSecurity());
 
@@ -168,8 +168,8 @@ public class IndicesPermissionTests extends ESTestCase {
         assertFalse(authzMap.get("a1").getFieldPermissions().hasFieldLevelSecurity());
         assertFalse(authzMap.get("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
         assertFalse(authzMap.get("a2").getFieldPermissions().grantsAccessTo("denied_field"));
-        assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAsciiOfLength(5) + "_field"));
-        assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAsciiOfLength(5) + "_field2"));
+        assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field"));
+        assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field2"));
         assertTrue(authzMap.get("a2").getFieldPermissions().hasFieldLevelSecurity());
 
         assertTrue(core.check(SearchAction.NAME));

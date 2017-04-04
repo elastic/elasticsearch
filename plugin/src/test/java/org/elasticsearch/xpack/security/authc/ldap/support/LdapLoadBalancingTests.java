@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.is;
 public class LdapLoadBalancingTests extends ESTestCase {
 
     public void testBadTypeThrowsException() {
-        String badType = randomAsciiOfLengthBetween(3, 12);
+        String badType = randomAlphaOfLengthBetween(3, 12);
         Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
                 LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, badType).build();
         try {

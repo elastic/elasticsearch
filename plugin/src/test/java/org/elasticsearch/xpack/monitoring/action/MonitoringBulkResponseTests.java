@@ -30,7 +30,7 @@ public class MonitoringBulkResponseTests extends ESTestCase {
         assertThat(response.getError(), is(nullValue()));
         assertThat(response.status(), equalTo(RestStatus.OK));
 
-        ExportException exception = new ExportException(randomAsciiOfLength(10));
+        ExportException exception = new ExportException(randomAlphaOfLength(10));
         response = new MonitoringBulkResponse(took, new MonitoringBulkResponse.Error(exception));
 
         assertThat(response.getTookInMillis(), equalTo(took));
@@ -46,9 +46,9 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()));
             } else {
                 Exception exception = randomFrom(
-                        new ExportException(randomAsciiOfLength(5), new IllegalStateException(randomAsciiOfLength(5))),
-                        new IllegalStateException(randomAsciiOfLength(5)),
-                        new IllegalArgumentException(randomAsciiOfLength(5)));
+                        new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
+                        new IllegalStateException(randomAlphaOfLength(5)),
+                        new IllegalArgumentException(randomAlphaOfLength(5)));
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 

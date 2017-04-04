@@ -26,9 +26,9 @@ public class ClusterStateNodeResolverTests extends
     @Override
     protected ClusterStateNodeMonitoringDoc newMonitoringDoc() {
         ClusterStateNodeMonitoringDoc doc = new ClusterStateNodeMonitoringDoc(randomMonitoringId(),
-                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                randomAlphaOfLength(2), randomAlphaOfLength(5), 1437580442979L,
                 new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                UUID.randomUUID().toString(), randomAsciiOfLength(5));
+                UUID.randomUUID().toString(), randomAlphaOfLength(5));
         return doc;
     }
 

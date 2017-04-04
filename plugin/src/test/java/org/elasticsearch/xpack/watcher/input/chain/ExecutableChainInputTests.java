@@ -63,7 +63,7 @@ public class ExecutableChainInputTests extends ESTestCase {
 
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), now);
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
         return mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(new Payload.Simple())

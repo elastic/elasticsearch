@@ -16,7 +16,7 @@ public class GetFiltersActionRequestTests extends AbstractStreamableTestCase<Get
     protected Request createTestInstance() {
         Request request = new Request();
         if (randomBoolean()) {
-            request.setFilterId(randomAsciiOfLengthBetween(1, 20));
+            request.setFilterId(randomAlphaOfLengthBetween(1, 20));
         } else {
             if (randomBoolean()) {
                 int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);

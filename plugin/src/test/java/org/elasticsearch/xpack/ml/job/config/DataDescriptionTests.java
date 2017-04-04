@@ -240,7 +240,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
             dataDescription.setFormat(randomFrom(DataFormat.values()));
         }
         if (randomBoolean()) {
-            dataDescription.setTimeField(randomAsciiOfLengthBetween(1, 20));
+            dataDescription.setTimeField(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             String format;
@@ -254,10 +254,10 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
             dataDescription.setTimeFormat(format);
         }
         if (randomBoolean()) {
-            dataDescription.setFieldDelimiter(randomAsciiOfLength(1).charAt(0));
+            dataDescription.setFieldDelimiter(randomAlphaOfLength(1).charAt(0));
         }
         if (randomBoolean()) {
-            dataDescription.setQuoteCharacter(randomAsciiOfLength(1).charAt(0));
+            dataDescription.setQuoteCharacter(randomAlphaOfLength(1).charAt(0));
         }
         return dataDescription.build();
     }

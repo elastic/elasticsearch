@@ -31,7 +31,7 @@ public class BCryptTests extends ESTestCase {
      */
     @AwaitsFix(bugUrl = "need a better way to test this")
     public void testUnderLoad() throws Exception {
-        final String password = randomAsciiOfLengthBetween(10, 32);
+        final String password = randomAlphaOfLengthBetween(10, 32);
         final String bcrypt = BCrypt.hashpw(SecuredStringTests.build(password), BCrypt.gensalt());
 
         ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(100);

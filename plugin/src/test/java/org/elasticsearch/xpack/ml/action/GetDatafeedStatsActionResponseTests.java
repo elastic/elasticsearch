@@ -27,7 +27,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         int listSize = randomInt(10);
         List<Response.DatafeedStats> datafeedStatsList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            String datafeedId = randomAsciiOfLength(10);
+            String datafeedId = randomAlphaOfLength(10);
             DatafeedState datafeedState = randomFrom(DatafeedState.values());
 
             DiscoveryNode node = null;
@@ -36,7 +36,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
             }
             String explanation = null;
             if (randomBoolean()) {
-                explanation = randomAsciiOfLength(3);
+                explanation = randomAlphaOfLength(3);
             }
             Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState, node, explanation);
             datafeedStatsList.add(datafeedStats);

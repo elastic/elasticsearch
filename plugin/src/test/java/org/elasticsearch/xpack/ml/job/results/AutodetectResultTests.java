@@ -57,7 +57,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             int size = randomInt(10);
             influencers = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                Influencer influencer = new Influencer(jobId, randomAsciiOfLength(10), randomAsciiOfLength(10),
+                Influencer influencer = new Influencer(jobId, randomAlphaOfLength(10), randomAlphaOfLength(10),
                         new Date(randomLong()), randomNonNegativeLong(), i + 1);
                 influencer.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 influencers.add(influencer);
@@ -75,13 +75,13 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         }
         if (randomBoolean()) {
             modelSizeStats = new ModelSizeStats.Builder(jobId);
-            modelSizeStats.setId(randomAsciiOfLengthBetween(1, 20));
+            modelSizeStats.setId(randomAlphaOfLengthBetween(1, 20));
         } else {
             modelSizeStats = null;
         }
         if (randomBoolean()) {
             modelPlot = new ModelPlot(jobId);
-            modelPlot.setId(randomAsciiOfLengthBetween(1, 20));
+            modelPlot.setId(randomAlphaOfLengthBetween(1, 20));
         } else {
             modelPlot = null;
         }
@@ -92,7 +92,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             categoryDefinition = null;
         }
         if (randomBoolean()) {
-            flushAcknowledgement = new FlushAcknowledgement(randomAsciiOfLengthBetween(1, 20));
+            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20));
         } else {
             flushAcknowledgement = null;
         }

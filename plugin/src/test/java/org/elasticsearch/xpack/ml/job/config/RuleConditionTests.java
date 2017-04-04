@@ -21,9 +21,9 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         RuleConditionType r = randomFrom(RuleConditionType.values());
         switch (r) {
         case CATEGORICAL:
-            valueFilter = randomAsciiOfLengthBetween(1, 20);
+            valueFilter = randomAlphaOfLengthBetween(1, 20);
             if (randomBoolean()) {
-                fieldName = randomAsciiOfLengthBetween(1, 20);
+                fieldName = randomAlphaOfLengthBetween(1, 20);
             }
             break;
         default:
@@ -31,8 +31,8 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
             // ConditionTest
             condition = new Condition(Operator.LT, Double.toString(randomDouble()));
             if (randomBoolean()) {
-                fieldName = randomAsciiOfLengthBetween(1, 20);
-                fieldValue = randomAsciiOfLengthBetween(1, 20);
+                fieldName = randomAlphaOfLengthBetween(1, 20);
+                fieldValue = randomAlphaOfLengthBetween(1, 20);
             }
             break;
         }

@@ -97,7 +97,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAsciiOfLength(1))
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAlphaOfLength(1))
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {

@@ -88,11 +88,11 @@ public class PutLicenseResponseTests extends ESTestCase {
         Map<String, String[]> ackMessages = new HashMap<>();
 
         for (int i = 0; i < nFeatures; i++) {
-            String feature = randomAsciiOfLengthBetween(9, 15);
+            String feature = randomAlphaOfLengthBetween(9, 15);
             int nMessages = randomIntBetween(1, 5);
             String[] messages = new String[nMessages];
             for (int j = 0; j < nMessages; j++) {
-                messages[j] = randomAsciiOfLengthBetween(10, 30);
+                messages[j] = randomAlphaOfLengthBetween(10, 30);
             }
             ackMessages.put(feature, messages);
         }

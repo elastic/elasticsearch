@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
@@ -47,7 +46,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
@@ -360,10 +358,7 @@ public class DatafeedManager extends AbstractComponent {
         }
 
         private void closeJob() {
-            Predicate<PersistentTask<?>> predicate = persistentTask -> {
-                return persistentTask == null || persistentTask.getStatus() == DatafeedState.STOPPED;
-            };
-            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, TimeValue.timeValueSeconds(20),
+            persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(20),
                     new WaitForPersistentTaskStatusListener() {
                 @Override
                 public void onResponse(long taskId) {

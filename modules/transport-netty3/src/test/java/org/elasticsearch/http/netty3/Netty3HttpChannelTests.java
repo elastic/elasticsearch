@@ -21,13 +21,19 @@ package org.elasticsearch.http.netty3;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty3.cors.Netty3CorsHandler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +46,7 @@ import org.jboss.netty.channel.ChannelConfig;
 import org.jboss.netty.channel.ChannelFactory;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.DefaultChannelFuture;
 import org.jboss.netty.handler.codec.http.DefaultHttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpMethod;
@@ -49,6 +56,7 @@ import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,7 +67,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ME
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -203,6 +213,35 @@ public class Netty3HttpChannelTests extends ESTestCase {
         assertThat(response.headers().get(HttpHeaders.Names.CONTENT_TYPE), equalTo(resp.contentType()));
     }
 
+    public void testReleaseOnSendToChannelAfterException() throws IOException {
+        final Settings settings = Settings.builder().build();
+        try (Netty3HttpServerTransport httpServerTransport =
+                 new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), new NullDispatcher())) {
+            HttpRequest httpRequest = new TestHttpRequest();
+            WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
+            Netty3HttpRequest request = new Netty3HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            Netty3HttpChannel channel =
+                new Netty3HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
+            final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
+                JsonXContent.contentBuilder().startObject().endObject());
+            assertThat(response.content(), not(instanceOf(Releasable.class)));
+
+            // ensure we have reserved bytes
+            if (randomBoolean()) {
+                BytesStreamOutput out = channel.bytesOutput();
+                assertThat(out, instanceOf(ReleasableBytesStreamOutput.class));
+            } else {
+                try (XContentBuilder builder = channel.newBuilder()) {
+                    // do something builder
+                    builder.startObject().endObject();
+                }
+            }
+
+            channel.sendResponse(response);
+            // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        }
+    }
+
     private HttpResponse execRequestWithCors(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
         httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
@@ -280,13 +319,17 @@ public class Netty3HttpChannelTests extends ESTestCase {
         @Override
         public ChannelFuture write(Object message) {
             writtenObjects.add(message);
-            return null;
+            DefaultChannelFuture channelFuture = new DefaultChannelFuture(this, false);
+            channelFuture.setSuccess();
+            return channelFuture;
         }
 
         @Override
         public ChannelFuture write(Object message, SocketAddress remoteAddress) {
             writtenObjects.add(message);
-            return null;
+            DefaultChannelFuture channelFuture = new DefaultChannelFuture(this, false);
+            channelFuture.setSuccess();
+            return channelFuture;
         }
 
         @Override

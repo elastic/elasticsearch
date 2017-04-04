@@ -1,0 +1,11 @@
+[[ml-getting-started]]
+== Getting Started
+
+To start exploring anomalies in your data:
+
+. Open Kibana in your web browser and log in. If you are running Kibana
+locally, go to `http://localhost:5601/`.
+
+. Click **ML** in the side navigation ...
+
+//image::graph-open.jpg["Accessing Graph"]

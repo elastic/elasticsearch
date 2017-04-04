@@ -1,0 +1,32 @@
+[[ml-limitations]]
+== Machine Learning Limitations
+
+[float]
+=== Misleading High Missing Field Counts
+//See x-pack-elasticsearch/#684
+
+One of the counts associated with a {ml} job is +missingFieldCount+,
+which indicates the number of records that are missing a configured field.
+This information is most useful when your job analyzes CSV data.  In this case,
+missing fields indicate data is not being analyzed and you might receive poor results.
+
+If your job analyzes JSON data, the +missingFieldCount+ might be misleading.
+Missing fields might be expected due to the structure of the data and therefore do
+not generate poor results.
+
+
+//When you refer to a file script in a watch, the watch itself is not updated
+//if you change the script on the filesystem.
+
+//Currently, the only way to reload a file script in a watch is to delete
+//the watch and recreate it.
+
+//=== The _data Endpoint Requires Data to be in JSON Format
+
+//See x-pack-elasticsearch/#777
+
+//=== tBD
+
+//See x-pack-elasticsearch/#601
+//When you use aggregations, you must ensure +size+ is configured correctly.
+//Otherwise, not all data will be analyzed.

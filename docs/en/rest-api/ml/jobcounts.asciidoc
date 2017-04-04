@@ -1,0 +1,120 @@
+[[ml-jobcounts]]
+==== Job Counts
+
+The `data_counts` object provides information about the operational progress of a job.
+It describes the number of records processed and any related error counts.
+
+NOTE: Job count values are cumulative for the lifetime of a job. If a model snapshot is reverted
+or old results are deleted, the job counts are not reset.
+
+[[ml-datacounts]]
+===== Data Counts Objects
+
+A `data_counts` object has the following properties:
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`processed_record_count`::
+  (+long+) The number of records that have been processed by the job.
+  This value includes records with missing fields, since they are nonetheless analyzed.
+  The following records are not processed:
+  * Records not in chronological order and outside the latency window
+  * Records with invalid timestamps
+  * Records filtered by an exclude transform
+
+`processed_field_count`::
+  (+long+) The total number of fields in all the records that have been processed by the job.
+  Only fields that are specified in the detector configuration object contribute to this count.
+  The time stamp is not included in this count.
+
+`input_bytes`::
+  (+long+) The number of raw bytes read by the job.
+
+`input_field_count`::
+  (+long+) The total number of record fields read by the job. This count includes
+  fields that are not used in the analysis.
+
+`invalid_date_count`::
+  (+long+) The number of records with either a missing date field or a date that could not be parsed.
+
+`missing_field_count`::
+  (+long+) The number of records that are missing a field that the job is configured to analyze.
+  Records with missing fields are still processed because it is possible that not all fields are missing.
+  The value of `processed_record_count` includes this count.
+
+`out_of_order_timestamp_count`::
+  (+long+) The number of records that are out of time sequence and outside of the latency window.
+  These records are discarded, since jobs require time series data to be in ascending chronological order.
+
+`empty_bucket_count`::
+  TBD
+
+`sparse_bucket_count`::
+  TBD
+
+`bucket_count`::
+  (+long+) The number of bucket results produced by the job.
+
+`earliest_record_timestamp`::
+  (+string+) The timestamp of the earliest chronologically ordered record.
+  The datetime string is in ISO 8601 format.
+
+`latest_record_timestamp`::
+  (+string+) The timestamp of the last chronologically ordered record.
+  If the records are not in strict chronological order, this value might not be
+  the same as the timestamp of the last record.
+  The datetime string is in ISO 8601 format.
+
+`last_data_time`::
+  TBD
+
+`input_record_count`::
+  (+long+) The number of data records read by the job.
+
+
+[[ml-modelsizestats]]
+===== Model Size Stats Objects
+
+The `model_size_stats` object has the following properties:
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`result_type`::
+  TBD
+
+`model_bytes`::
+  (+long+) The number of bytes of memory used by the models. This is the maximum value since the
+  last time the model was persisted. If the job is closed, this value indicates the latest size.
+
+`total_by_field_count`::
+  (+long+) The number of `by` field values that were analyzed by the models.
+
+NOTE: The `by` field values are counted separately for each detector and partition.
+
+
+`total_over_field_count`::
+  (+long+) The number of `over` field values that were analyzed by the models.
+
+NOTE: The `over` field values are counted separately for each detector and partition.
+
+`total_partition_field_count`::
+  (+long+) The number of `partition` field values that were analyzed by the models.
+
+`bucket_allocation_failures_count`::
+  TBD
+
+`memory_status`::
+  (+string+) The status of the mathematical models. This property can have one of the following values:
+      "ok":: The models stayed below the configured value.
+      "soft_limit":: The models used more than 60% of the configured memory limit and older unused models will
+      be pruned to free up space.
+      "hard_limit":: The models used more space than the configured memory limit. As a result,
+      not all incoming data was processed.
+
+`log_time`::
+  TBD
+
+`timestamp`::
+  TBD

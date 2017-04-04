@@ -1,0 +1,55 @@
+[[ml-delete-job]]
+==== Delete Jobs
+
+The delete job API allows you to delete an existing anomaly detection job.
+
+===== Request
+
+`DELETE _xpack/ml/anomaly_detectors/<job_id>`
+
+===== Description
+
+All job configuration, model state and results are deleted.
+
+IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
+            job directly from the `.ml-*` indices using the Elasticsearch
+            DELETE Document API. When {security} is enabled, make sure no `write`
+            privileges are granted to anyone over the `.ml-*` indices.
+
+Before you can delete a job, you must delete the data feeds that are associated with it.
+//See <<>>.
+
+It is not currently possible to delete multiple jobs using wildcards or a comma separated list.
+
+===== Path Parameters
+
+`job_id` (required)::
+  (+string+)    Identifier for the job
+////
+===== Responses
+
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+////
+
+===== Examples
+
+The following example deletes the `event_rate` job:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/ml/anomaly_detectors/event_rate
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the job is deleted, you receive the following results:
+----
+{
+  "acknowledged": true
+}
+----

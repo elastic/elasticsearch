@@ -1,0 +1,92 @@
+[[ml-get-datafeed]]
+==== Get Data Feeds
+
+The get data feeds API allows you to retrieve configuration information about data feeds.
+
+===== Request
+
+`GET _xpack/ml/datafeeds/` +
+
+`GET _xpack/ml/datafeeds/<feed_id>`
+////
+===== Description
+
+OUTDATED?: The get job API can also be applied to all jobs by using `_all` as the job name.
+////
+===== Path Parameters
+
+`feed_id`::
+  (+string+) Identifier for the data feed. If you do not specify this optional parameter,
+  the API returns information about all data feeds that you have authority to view.
+
+===== Results
+
+The API returns information about the data feed resource.
+//For more information, see <<ml-job-resource,job resources>>.
+
+////
+===== Query Parameters
+
+`_stats`::
+(+boolean+; default: ++true++) If true (default false), will just validate the cluster definition but will not perform the creation
+
+===== Responses
+
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+////
+===== Examples
+
+.Example results for a single data feed
+----
+{
+  "count": 1,
+  "datafeeds": [
+    {
+      "datafeed_id": "datafeed-it-ops",
+      "job_id": "it-ops",
+      "query_delay": "60s",
+      "frequency": "150s",
+      "indexes": [
+        "it_ops_metrics"
+      ],
+      "types": [
+        "network",
+        "kpi",
+        "sql"
+      ],
+      "query": {
+        "match_all": {
+          "boost": 1
+        }
+      },
+      "aggregations": {
+        "@timestamp": {
+          "histogram": {
+            "field": "@timestamp",
+            "interval": 30000,
+            "offset": 0,
+            "order": {
+              "_key": "asc"
+            },
+            "keyed": false,
+            "min_doc_count": 0
+          },
+          "aggregations": {
+            "events_per_min": {
+              "sum": {
+                "field": "events_per_min"
+              }
+            }
+          }
+        }
+      },
+      "scroll_size": 1000
+    }
+  ]
+}
+----

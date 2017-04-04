@@ -1,0 +1,56 @@
+[[ml-post-data]]
+==== Post Data to Jobs
+
+The post data API allows you to send data to an anomaly detection job for analysis.
+The job must have been opened prior to sending data.
+
+===== Request
+
+`POST _xpack/ml/anomaly_detectors/<job_id> --data-binary @{data-file.json}`
+
+===== Description
+
+File sizes are limited to 100 Mb, so if your file is larger,
+then split it into multiple files and upload each one separately in sequential time order.
+When running in real-time, it is generally recommended to arrange to perform
+many small uploads, rather than queueing data to upload larger files.
+
+
+IMPORTANT:  Data can only be accepted from a single connection.
+			Do not attempt to access the data endpoint from different threads at the same time.
+			Use a single connection synchronously to send data, close, flush or delete a single job.
+			+
+			It is not currently possible to post data to multiple jobs using wildcards or a comma separated list.
+
+===== Path Parameters
+
+`job_id` (required)::
+		(+string+)    Identifier for the job
+
+===== Request Body
+
+`reset_start`::
+		(+string+; default: ++null++) Specifies the start of the bucket resetting range
+
+`reset_end`::
+		(+string+; default: ++null++) Specifies the end of the bucket resetting range"
+
+////
+===== Responses
+
+
+			200
+			(EmptyResponse) The cluster has been successfully deleted
+			404
+			(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+			412
+			(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+
+			The following example sends data from file `data-file.json` to a job called `my_analysis`.
+////
+===== Examples
+
+[source,js]
+--------------------------------------------------
+$ curl -s -XPOST localhost:9200/_xpack/ml/anomaly_detectors/my_analysis --data-binary @data-file.json
+--------------------------------------------------

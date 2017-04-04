@@ -1,0 +1,86 @@
+[[ml-get-category]]
+==== Get Categories
+
+The get categories API allows you to retrieve information about the categories in the results for a job.
+
+===== Request
+
+`GET _xpack/ml/anomaly_detectors/<job_id>/results/categories` +
+
+`GET _xpack/ml/anomaly_detectors/<job_id>/results/categories/<category_id>`
+////
+===== Description
+
+OUTDATED?: The get job API can also be applied to all jobs by using `_all` as the job name.
+////
+===== Path Parameters
+
+`job_id`::
+  (+string+) Identifier for the job.
+
+`category_id`::
+  (+string+) Identifier for the category. If you do not specify this optional parameter,
+  the API returns information about all categories that you have authority to view.
+
+////
+===== Results
+
+The API returns information about the job resource. For more information, see
+<<ml-job-resource,job resources>>.
+
+===== Query Parameters
+
+`_stats`::
+(+boolean+; default: ++true++) If true (default false), will just validate the cluster definition but will not perform the creation
+
+===== Responses
+
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+
+===== Examples
+
+.Example results for a single job
+----
+{
+  "count": 1,
+  "jobs": [
+      {
+      "job_id": "it-ops-kpi",
+      "description": "First simple job",
+      "create_time": 1491007356077,
+      "finished_time": 1491007365347,
+      "analysis_config": {
+        "bucket_span": "5m",
+        "latency": "0ms",
+        "summary_count_field_name": "doc_count",
+        "detectors": [
+          {
+            "detector_description": "low_sum(events_per_min)",
+            "function": "low_sum",
+            "field_name": "events_per_min",
+            "detector_rules": []
+          }
+        ],
+        "influencers": [],
+        "use_per_partition_normalization": false
+      },
+      "data_description": {
+        "time_field": "@timestamp",
+        "time_format": "epoch_ms"
+      },
+      "model_plot_config": {
+        "enabled": true
+      },
+      "model_snapshot_retention_days": 1,
+      "model_snapshot_id": "1491007364",
+      "results_index_name": "shared"
+    }
+  ]
+}
+----
+////

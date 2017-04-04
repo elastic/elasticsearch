@@ -1,0 +1,243 @@
+[[ml-job-resource]]
+==== Job Resources
+
+A job resource has the following properties:
+
+`analysis_config`::
+  (+object+) The analysis configuration, which specifies how to analyze the data. See <<ml-analysisconfig, analysis configuration objects>>.
+
+`analysis_limits`::
+  (+object+) Defines limits on the number of field values and time buckets to be analyzed.
+  See <<ml-apilimits,analysis limits>>.
+
+`create_time`::
+  (+string+) The time the job was created, in ISO 8601 format. For example, `1491007356077`.
+
+`data_description`::
+  (+object+) Describes the data format and how APIs parse timestamp fields. See <<ml-datadescription,data description objects>>.
+
+`description`::
+  (+string+) An optional description of the job.
+
+`finished_time`::
+  (+string+) If the job closed of failed, this is the time the job finished, in ISO 8601 format.
+  Otherwise, it is `null`. For example, `1491007365347`.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`model_plot_config`:: TBD
+  `enabled`:: TBD. For example, `true`.
+
+`model_snapshot_id`::
+  TBD.  For example, `1491007364`.
+
+
+`model_snapshot_retention_days`::
+  (+long+) The time in days that model snapshots are retained for the job. Older snapshots are deleted.
+  The default value is 1 day.
+
+`results_index_name`::
+  TBD.  For example, `shared`.
+
+[[ml-analysisconfig]]
+===== Analysis Configuration Objects
+
+An analysis configuration object has the following properties:
+
+`batch_span`::
+  (+unsigned integer+) The interval into which to batch seasonal data, measured in seconds.
+  This is an advanced option which is usually left as the default value.
+////
+  Requires `period` to be specified
+////
+
+`bucket_span`::
+  (+unsigned integer+, required) The size of the interval that the analysis is aggregated into, measured in seconds.
+  The default value is 300 seconds (5 minutes).
+
+`categorization_field_name`::
+  (+string+) If not null, the values of the specified field will be categorized.
+  The resulting categories can be used in a detector by setting `by_field_name`,
+  `over_field_name`, or `partition_field_name` to the keyword `prelertcategory`.
+
+`categorization_filters`::
+  (+array of strings+) If `categorization_field_name` is specified, you can also define optional filters.
+  This property expects an array of regular expressions.
+  The expressions are used to filter out matching sequences off the categorization field values.
+  This functionality is useful to fine tune categorization by excluding sequences
+  that should not be taken into consideration for defining categories.
+  For example, you can exclude SQL statements that appear in your log files.
+
+`detectors`::
+  (+array+, required) An array of detector configuration objects,
+  which describe the anomaly detectors that are used in the job.
+  See <<ml-detectorconfig,detector configuration objects>>.
+
+NOTE: If the `detectors` array does not contain at least one detector, no analysis can occur
+and an error is returned.
+
+`influencers`::
+  (+array of strings+) A comma separated list of influencer field names.
+  Typically these can be the by, over, or partition fields that are used in the detector configuration.
+  You might also want to use a field name that is not specifically named in a detector,
+  but is available as part of the input data. When you use multiple detectors,
+  the use of influencers is recommended as it aggregates results for each influencer entity.
+
+`latency`::
+  (+unsigned integer+) The size of the window, in seconds, in which to expect data that is out of time order.
+  The default value is 0 seconds (no latency).
+
+NOTE: Latency is only applicable when you send data by using the <<ml-post-data, Post Data to Jobs>> API.
+
+`multivariate_by_fields`::
+  (+boolean+) If set to `true`, the analysis will automatically find correlations
+  between metrics for a given `by` field value and report anomalies when those
+  correlations cease to hold. For example, suppose CPU and memory usage on host A
+  is usually highly correlated with the same metrics on host B. Perhaps this
+  correlation occurs because they are running a load-balanced application.
+  If you enable this property, then anomalies will be reported when, for example,
+  CPU usage on host A is high and the value of CPU usage on host B is low.
+  That is to say, you'll see an anomaly when the CPU of host A is unusual given the CPU of host B.
+
+NOTE: To use the `multivariate_by_fields` property, you must also specify `by_field_name` in your detector.
+
+`overlapping_buckets`::
+  (+boolean+) If set to `true`, an additional analysis occurs that runs out of phase by half a bucket length.
+  This requires more system resources and enhances detection of anomalies that span bucket boundaries.
+
+`period`::
+  (+unsigned integer+) The repeat interval for periodic data in multiples of `batch_span`.
+  If this property is not specified, daily and weekly periodicity are automatically determined.
+  This is an advanced option which is usually left as the default value.
+
+`summary_count_field_name`::
+  (+string+) If not null, the data fed to the job is expected to be pre-summarized.
+  This property value is the name of the field that contains the count of raw data points that have been summarized.
+  The same `summary_count_field_name` applies to all detectors in the job.
+
+NOTE: The `summary_count_field_name` property cannot be used with the `metric` function.
+
+
+`use_per_partition_normalization`::
+  TBD
+
+[[ml-detectorconfig]]
+===== Detector Configuration Objects
+
+Detector configuration objects specify which data fields a job analyzes.
+They also specify which analytical functions are used.
+You can specify multiple detectors for a job.
+Each detector has the following properties:
+
+`by_field_name`::
+  (+string+) The field used to split the data.
+  In particular, this property is used for analyzing the splits with respect to their own history.
+  It is used for finding unusual values in the context of the split.
+
+`detector_description`::
+  (+string+) A description of the detector. For example, `low_sum(events_per_min)`.
+
+`detector_rules`::
+  TBD
+
+`exclude_frequent`::
+  (+string+) Contains one of the following values: `all`, `none`, `by`, or `over`.
+  If set, frequent entities are excluded from influencing the anomaly results.
+  Entities can be considered frequent over time or frequent in a population.
+  If you are working with both over and by fields, then you can set `exclude_frequent`
+  to `all` for both fields, or to `by` or `over` for those specific fields.
+
+`field_name`::
+  (+string+) The field that the detector uses in the function. If you use an event rate
+  function such as `count` or `rare`, do not specify this field.
+
+NOTE: The `field_name` cannot contain double quotes or backslashes.
+
+`function`::
+  (+string+, required) The analysis function that is used.
+  For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`.
+  The default function is `metric`, which looks for anomalies in all of `min`, `max`,
+  and `mean`.
+
+NOTE: You cannot use the `metric` function with pre-summarized input. If `summary_count_field_name`
+  is not null, you must specify a function other than `metric`.
+
+`over_field_name`::
+  (+string+) The field used to split the data.
+  In particular, this property is used for analyzing the splits with respect to the history of all splits.
+  It is used for finding unusual values in the population of all splits.
+
+`partition_field_name`::
+  (+string+) The field used to segment the analysis.
+  When you use this property, you have completely independent baselines for each value of this field.
+
+`use_null`::
+  (+boolean+) Defines whether a new series is used as the null series
+  when there is no value for the by or partition fields. The default value is `false`
+
+IMPORTANT: Field names are case sensitive, for example a field named 'Bytes' is different to one named 'bytes'.
+
+[[ml-datadescription]]
+===== Data Description Objects
+
+The data description settings define the format of the input data.
+
+When data is read from Elasticsearch, the datafeed must be configured.
+This defines which index data will be taken from, and over what time period.
+
+When data is received via the <<ml-post-data, Post Data to Jobs>> API,
+you must specify the data format (for example, JSON or CSV). In this scenario,
+the data posted is not stored in Elasticsearch. Only the results for anomaly detection are retained.
+
+When you create a job, by default it accepts data in tab-separated-values format and expects
+an Epoch time value in a field named `time`. The `time` field must be measured in seconds from the Epoch.
+If, however, your data is not in this format, you can provide a data description object that specifies the
+format of your data.
+
+A data description object has the following properties:
+
+`fieldDelimiter`::
+  TBD
+
+`format`::
+  TBD
+
+`time_field`::
+  (+string+) The name of the field that contains the timestamp.
+  The default value is `time`.
+
+`time_format`::
+  (+string+) The time format, which can be `epoch`, `epoch_ms`, or a custom pattern.
+  The default value is `epoch`, which refers to UNIX or Epoch time (the number of seconds
+  since 1 Jan 1970) and corresponds to the time_t type in C and C++.
+  The value `epoch_ms` indicates that time is measured in milliseconds since the epoch.
+  The `epoch` and `epoch_ms` time formats accept either integer or real values. +
+
+NOTE: Custom patterns must conform to the Java `DateTimeFormatter` class. When you use date-time formatting patterns, it is recommended that you provide the full date, time and time zone. For example: `yyyy-MM-ddTHH:mm:ssX`. If the pattern that you specify is not sufficient to produce a complete timestamp, job creation fails.
+
+`quotecharacter`::
+  TBD
+
+[[ml-apilimits]]
+===== Analysis Limits
+
+Limits can be applied for the size of the mathematical models that are held in memory.
+These limits can be set per job and do not control the memory used by other processes.
+If necessary, the limits can also be updated after the job is created.
+
+The `analysis_limits` object has the following properties:
+
+`categorization_examples_limit`::
+  (+long+) The maximum number of examples stored per category in memory and
+  in the results data store. The default value is 4.  If you increase this value,
+  more examples are available, however it requires that you have more storage available.
+  If you set this value to `0`, no examples are stored.
+
+////
+NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
+////
+`model_memory_limit`::
+  (+long+) The maximum amount of memory, in MiB, that the mathematical models can use.
+  Once this limit is approached, data pruning becomes more aggressive.
+  Upon exceeding this limit, new entities are not modeled. The default value is 4096.

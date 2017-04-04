@@ -1,0 +1,23 @@
+[[xpack-ml]]
+= Machine Learning in the Elastic Stack
+
+[partintro]
+--
+Data stored in {es} contains valuable insights into the behavior and
+performance of your business and systems. However, the following questions can
+be difficult to answer:
+
+* Is the response time of my website unusual?
+* Are users exfiltrating data unusually?
+
+The good news is that the {xpack} machine learning capabilities enable you to
+easily answer these types of questions.
+--
+
+include::introduction.asciidoc[]
+include::getting-started.asciidoc[]
+include::ml-scenarios.asciidoc[]
+include::api-quickref.asciidoc[]
+
+//include::troubleshooting.asciidoc[]  Referenced from x-pack/docs/public/xpack-troubleshooting.asciidoc
+//include::release-notes.asciidoc[] Referenced from x-pack/docs/public/xpack-release-notes.asciidoc

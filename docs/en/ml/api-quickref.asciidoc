@@ -1,0 +1,84 @@
+[[ml-api-quickref]]
+== API Quick Reference
+
+All {ml} endpoints have the following base:
+
+----
+/_xpack/ml/
+----
+
+The main {ml} resources can be accessed with a variety of endpoints:
+
+* <<ml-api-jobs,+/anomaly_detectors/+>>: Create and manage {ml} jobs.
+* <<ml-api-datafeeds,+/datafeeds/+>>: Update data to be analyzed.
+* <<ml-api-results,+/results/+>>: Access the results of a {ml} job.
+* <<ml-api-snapshots,+/modelsnapshots/+>>: Manage model snapshots.
+* <<ml-api-validate,+/validate/+>>: Validate subsections of job configurations.
+
+[float]
+[[ml-api-jobs]]
+=== /anomaly_detectors/
+
+* <<ml-put-job,POST /anomaly_detectors>>: Create job
+* <<ml-open-job,POST /anomaly_detectors/<job_id>/_open>>: Open a job
+* <<ml-post-data,POST anomaly_detectors/<job_id+++>+++>>: Send data to a job
+* <<ml-get-job,GET /anomaly_detectors>>: List jobs
+* <<ml-get-job,GET /anomaly_detectors/<job_id+++>+++>>: Get job details
+* <<ml-get-job-stats,GET /anomaly_detectors/<job_id>/_stats>>: Get job statistics
+* <<ml-update-job,POST /anomaly_detectors/<job_id>/_update>>: Update certain properties of the job configuration
+* <<ml-flush-job,POST anomaly_detectors/<job_id>/_flush>>: Force a job to analyze buffered data
+* <<ml-close-job,POST /anomaly_detectors/<job_id>/_close>>: Close a job
+* <<ml-delete-job,DELETE /anomaly_detectors/<job_id+++>+++>>: Delete job
+
+[float]
+[[ml-api-datafeeds]]
+=== /datafeeds/
+
+* <<ml-put-datafeed,PUT /datafeeds/<datafeedID+++>+++>>: Create a data feed
+* <<ml-start-datafeed,POST /datafeeds/<feed_id>/_start>>: Start a data feed
+* <<ml-get-datafeed,GET /datafeeds>>: List data feeds
+* <<ml-get-datafeed,GET /datafeeds/<feed_id+++>+++>>: Get data feed details
+* <<ml-get-datafeed-stats,GET /datafeeds/<feed_id>/_stats>>: Get statistical information for data feeds
+* <<ml-preview-datafeed,GET /datafeeds/<feed_id>/_preview>>: Get a preview of a data feed
+* <<ml-update-datafeed,POST /datafeeds/<feedid>/_update>>: Update certain settings for a data feed
+* <<ml-stop-datafeed,POST /datafeeds/<feed_id>/_stop>>: Stop a data feed
+* <<ml-delete-datafeed,DELETE /datafeeds/<feed_id+++>+++>>: Delete data feed
+
+[float]
+[[ml-api-results]]
+=== /results/
+
+* <<ml-get-bucket,GET /results/buckets>>: List the buckets in the results
+* <<ml-get-bucket,GET /results/buckets/<bucket_id+++>+++>>: Get bucket details
+* <<ml-get-influencer,GET /results/categories>>: List the categories in the results
+* <<ml-get-influencer,GET /results/categories/<category_id+++>+++>>: Get category details
+* <<ml-get-influencer,GET /results/influencers>>: Get influencer details
+* <<ml-get-record,GET /results/records>>: Get records from the results
+
+[float]
+[[ml-api-snapshots]]
+=== /model_snapshots/
+
+* <<ml-get-snapshot,GET /model_snapshots>>: List model snapshots
+* <<ml-get-snapshot,GET /model_snapshots/<snapshot_id+++>+++>>: Get model snapshot details
+* <<ml-revert-snapshot,POST /model_snapshots/<snapshot_id>/_revert>>: Revert a model snapshot
+* <<ml-update-snapshot,POST /model_snapshots/<snapshot_id>/_update>>: Update certain settings for a model snapshot
+* <<ml-delete-snapshot,DELETE /model_snapshots/<snapshot_id+++>+++>>: Delete a model snapshot
+
+[float]
+[[ml-api-validate]]
+=== /validate/
+
+* <<ml-valid-detector,POST /anomaly_detectors/_validate/detector>>: Validate a detector
+* <<ml-valid-job, POST /anomaly_detectors/_validate>>: Validate a job
+//[float]
+//== Where to Go Next
+
+//<<ml-getting-started, Getting Started>> :: Enable machine learning and start
+//discovering anomalies in your data.
+
+//[float]
+//== Have Comments, Questions, or Feedback?
+
+//Head over to our {forum}[Graph Discussion Forum] to share your experience, questions, and
+//suggestions.

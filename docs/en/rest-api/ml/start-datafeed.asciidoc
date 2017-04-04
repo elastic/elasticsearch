@@ -1,0 +1,64 @@
+[[ml-start-datafeed]]
+==== Start Data Feeds
+
+A data feed must be started in order for it to be ready to receive and analyze data.
+A data feed can be opened and closed multiple times throughout its lifecycle.
+
+===== Request
+
+`POST _xpack/ml/datafeeds/<feed_id>/_start`
+
+////
+===== Description
+
+A job must be open in order to it to accept and analyze data.
+
+When you open a new job, it starts with an empty model.
+
+When you open an existing job, the most recent model state is automatically loaded.
+The job is ready to resume its analysis from where it left off, once new data is received.
+////
+===== Path Parameters
+
+`feed_id` (required)::
+(+string+)    Identifier for the data feed
+////
+===== Request Body
+
+`open_timeout`::
+  (+time+; default: ++30 min++) Controls the time to wait until a job has opened
+
+`ignore_downtime`::
+  (+boolean+; default: ++true++) If true (default), any gap in data since it was
+  last closed is treated as a maintenance window. That is to say, it is not an anomaly
+
+===== Responses
+
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+
+===== Examples
+
+The following example opens the `event_rate` job:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/ml/anomaly_detectors/event_rate/_open
+{
+  "ignore_downtime":false
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the job opens, you receive the following results:
+----
+{
+  "opened": true
+}
+----
+////

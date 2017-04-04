@@ -1,0 +1,10 @@
+[[ml-snapshot-resource]]
+==== Model Snapshot Resources
+
+A model snapshot resource has the following properties:
+
+TBD
+////
+`analysis_config`::
+  (+object+) The analysis configuration, which specifies how to analyze the data. See <<ml-analysisconfig, analysis configuration objects>>.
+////

@@ -1,0 +1,34 @@
+[[ml-introduction]]
+== Introduction
+
+Machine learning in {xpack} automates the analysis of time-series data by
+creating accurate baselines of normal behaviors in the data, and identifying
+anomalous patterns in that data.
+
+Driven by proprietary machine learning algorithms, anomalies related to temporal
+deviations in values/counts/frequencies, statistical rarity, and unusual
+behaviors for a member of a population are detected, scored and linked with
+statistically significant influencers in the data.
+
+Automated periodicity detection and quick adaptation to changing data ensure
+that you don’t need to specify algorithms, models, or other data
+science-related configurations in order to get the benefits of {ml}.
+//image::graph-network.jpg["Graph network"]
+
+=== Integration with the Elastic Stack
+
+Machine learning is tightly integrated with the Elastic Stack.
+Data is pulled from {es} for analysis and anomaly results are displayed in
+{kb} dashboards.
+
+//[float]
+//== Where to Go Next
+
+//<<ml-getting-started, Getting Started>> :: Enable machine learning and start
+//discovering anomalies in your data.
+
+//[float]
+//== Have Comments, Questions, or Feedback?
+
+//Head over to our {forum}[Graph Discussion Forum] to share your experience, questions, and
+//suggestions.

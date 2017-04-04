@@ -1,0 +1,70 @@
+[[ml-apis]]
+== Machine Learning APIs
+
+Use machine learning to detect anomalies in time series data.
+
+* <<ml-api-datafeed-endpoint,Datafeeds>>
+* <<ml-api-job-endpoint,Jobs>>
+* <<ml-api-snapshot-endpoint, Model Snapshots>>
+* <<ml-api-result-endpoint,Results>>
+* <<ml-api-definitions, Definitions>>
+
+[[ml-api-datafeed-endpoint]]
+=== Datafeeds
+
+include::ml/put-datafeed.asciidoc[]
+include::ml/delete-datafeed.asciidoc[]
+include::ml/get-datafeed.asciidoc[]
+include::ml/get-datafeed-stats.asciidoc[]
+include::ml/preview-datafeed.asciidoc[]
+include::ml/start-datafeed.asciidoc[]
+include::ml/stop-datafeed.asciidoc[]
+include::ml/update-datafeed.asciidoc[]
+
+[[ml-api-job-endpoint]]
+=== Jobs
+
+include::ml/close-job.asciidoc[]
+include::ml/put-job.asciidoc[]
+include::ml/delete-job.asciidoc[]
+include::ml/get-job.asciidoc[]
+include::ml/get-job-stats.asciidoc[]
+include::ml/flush-job.asciidoc[]
+include::ml/open-job.asciidoc[]
+include::ml/post-data.asciidoc[]
+include::ml/update-job.asciidoc[]
+include::ml/validate-job.asciidoc[]
+include::ml/validate-detector.asciidoc[]
+
+[[ml-api-snapshot-endpoint]]
+=== Model Snapshots
+
+include::ml/delete-snapshot.asciidoc[]
+include::ml/get-snapshot.asciidoc[]
+include::ml/revert-snapshot.asciidoc[]
+include::ml/update-snapshot.asciidoc[]
+
+[[ml-api-result-endpoint]]
+=== Results
+
+include::ml/get-bucket.asciidoc[]
+include::ml/get-category.asciidoc[]
+include::ml/get-influencer.asciidoc[]
+include::ml/get-record.asciidoc[]
+
+[[ml-api-definitions]]
+=== Definitions
+
+include::ml/datafeedresource.asciidoc[]
+include::ml/jobresource.asciidoc[]
+include::ml/jobcounts.asciidoc[]
+include::ml/snapshotresource.asciidoc[]
+include::ml/resultsresource.asciidoc[]
+
+
+//* <<ml-put-job>>
+//* <<ml-delete-job>>
+//* <<ml-get-job>>
+//* <<ml-open-close-job>>
+//* <<ml-flush-job>>
+//* <<ml-post-data>>

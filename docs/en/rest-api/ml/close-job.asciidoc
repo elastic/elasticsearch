@@ -1,0 +1,63 @@
+[[ml-close-job]]
+==== Close Jobs
+
+An anomaly detection job must be opened in order for it to be ready to receive and analyze data.
+A job may be opened and closed multiple times throughout its lifecycle.
+
+===== Request
+
+`POST _xpack/ml/anomaly_detectors/<job_id>/_close`
+
+===== Description
+
+A job can be closed once all data has been analyzed.
+
+When you close a job, it runs housekeeping tasks such as pruning the model history,
+flushing buffers, calculating final results and persisting the internal models.
+Depending upon the size of the job, it could take several minutes to close and
+the equivalent time to re-open.
+
+Once closed, the anomaly detection job has almost no overhead on the cluster
+(except for maintaining its meta data). A closed job is blocked for receiving
+data and analysis operations, however you can still explore and navigate results.
+
+//NOTE:
+//OUTDATED?: If using the {prelert} UI, the job will be automatically closed when stopping a datafeed job.
+
+===== Path Parameters
+
+`job_id` (required)::
+  (+string+)    Identifier for the job
+
+===== Query Parameters
+
+`close_timeout`::
+  (+time+; default: ++30 min++)  Controls the time to wait until a job has closed
+
+////
+===== Responses
+
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+////
+===== Examples
+
+The following example closes the `event_rate` job:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/ml/anomaly_detectors/event_rate/_close
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the job is closed, you receive the following results:
+----
+{
+  "closed": true
+}
+----

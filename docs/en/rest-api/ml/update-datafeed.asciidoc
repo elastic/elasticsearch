@@ -1,0 +1,84 @@
+[[ml-update-datafeed]]
+==== Update Data Feeds
+
+The update data feed API allows you to update certain properties of a data feed.
+
+===== Request
+
+`POST _xpack/ml/datafeeds/<feed_id>/_update`
+
+////
+===== Description
+
+Important:: Updates do not take effect until after then job is closed and new
+data is sent to it.
+////
+===== Path Parameters
+
+`feed_id` (required)::
+  (+string+) Identifier for the data feed
+
+////
+===== Request Body
+
+The following properties can be updated after the job is created:
+
+`analysis_config`::
+  (+object+) The analysis configuration, which specifies how to analyze the data.
+  See <<ml-analysisconfig, analysis configuration objects>>.  In particular, the following properties can be updated: `categorization_filters`, `detector_description`, TBD.
+
+`analysis_limits`::
+  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
+
+[NOTE]
+* You can update the `analysis_limits` only while the job is closed.
+* The `model_memory_limit` property value cannot be decreased.
+* If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
+increasing the `model_memory_limit` is not recommended.
+
+`description`::
+  (+string+) An optional description of the job.
+
+This expects data to be sent in JSON format using the POST `_data` API.
+
+===== Responses
+
+TBD
+////
+////
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+
+===== Examples
+
+The following example updates the `it-ops-kpi` job:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/ml/anomaly_detectors/it-ops-kpi/_update
+{
+    "description":"New description",
+    "analysis_limits":{
+      "model_memory_limit": 8192
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the job is updated, you receive the following results:
+----
+{
+  "job_id": "it-ops-kpi",
+  "description": "New description",
+  ...
+  "analysis_limits": {
+    "model_memory_limit": 8192
+  ...
+}
+----
+////

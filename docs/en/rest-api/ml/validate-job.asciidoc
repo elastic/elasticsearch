@@ -1,0 +1,61 @@
+[[ml-valid-job]]
+==== Validate Jobs
+
+TBD
+
+===== Request
+
+`POST _xpack/ml/anomaly_detectors/_validate`
+
+===== Description
+
+TBD
+
+////
+===== Path Parameters
+
+`job_id` (required)::
+(+string+)    Identifier for the job
+////
+===== Request Body
+
+TBD
+////
+`open_timeout`::
+  (+time+; default: ++30 min++) Controls the time to wait until a job has opened
+
+`ignore_downtime`::
+  (+boolean+; default: ++true++) If true (default), any gap in data since it was
+  last closed is treated as a maintenance window. That is to say, it is not an anomaly
+
+
+===== Responses
+
+200
+(EmptyResponse) The cluster has been successfully deleted
+404
+(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
+412
+(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+
+===== Examples
+
+The following example opens the `event_rate` job:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/ml/anomaly_detectors/event_rate/_open
+{
+  "ignore_downtime":false
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the job opens, you receive the following results:
+----
+{
+  "opened": true
+}
+----
+////

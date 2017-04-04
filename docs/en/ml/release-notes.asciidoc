@@ -1,0 +1,12 @@
+[[ml-release-notes]]
+== Machine Learning Release Notes
+
+[[ml-change-list]]
+=== Change List
+
+[float]
+==== 5.4.0
+
+May 2017
+
+* Introduces Machine Learning in the Elastic Stack.

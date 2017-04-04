@@ -404,6 +404,33 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString(byFieldName2));
     }
 
+    public void testCreateJob_WithClashingFieldMappingsFails() throws Exception {
+        String jobTemplate = "{\n" +
+                "  \"analysis_config\" : {\n" +
+                "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"metric\", \"by_field_name\":\"%s\"}]\n" +
+                "    }" +
+                "}";
+
+        String jobId1 = "job-with-response-field";
+        String byFieldName1 = "response";
+        String jobId2 = "job-will-fail-with-mapping-error-on-response-field";
+        String byFieldName2 = "response.time";
+        String jobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName1);
+
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH
+                + "anomaly_detectors/" + jobId1, Collections.emptyMap(), new StringEntity(jobConfig, ContentType.APPLICATION_JSON));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        final String failingJobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName2);
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2,
+                        Collections.emptyMap(), new StringEntity(failingJobConfig, ContentType.APPLICATION_JSON)));
+
+        assertThat(e.getMessage(),
+                containsString("A field has a different mapping type to an existing field with the same name. " +
+                        "Use the 'results_index_name' setting to assign the job to another index"));
+    }
+
     public void testDeleteJob() throws Exception {
         String jobId = "foo";
         String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;

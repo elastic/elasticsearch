@@ -166,37 +166,36 @@ public class JobManager extends AbstractComponent {
     public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJob().build(new Date());
 
-        ActionListener<Boolean> createResultsIndexListener = ActionListener.wrap(jobSaved ->
-                jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
+        jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
                 auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
 
-                // Also I wonder if we need to audit log infra
-                // structure in ml as when we merge into xpack
-                // we can use its audit trailing. See:
-                // https://github.com/elastic/prelert-legacy/issues/48
-                actionListener.onResponse(new PutJobAction.Response(jobSaved && indicesCreated, job));
+                clusterService.submitStateUpdateTask("put-job-" + job.getId(),
+                        new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
+                            @Override
+                            protected PutJobAction.Response newResponse(boolean acknowledged) {
+                                return new PutJobAction.Response(acknowledged, job);
+                            }
+
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                return updateClusterState(job, false, currentState);
+                            }
+                        });
             }
 
             @Override
             public void onFailure(Exception e) {
-                actionListener.onFailure(e);
+                if (e instanceof IllegalArgumentException
+                        && e.getMessage().matches("mapper \\[.*\\] of different type, current_type \\[.*\\], merged_type \\[.*\\]")) {
+                    actionListener.onFailure(new IllegalArgumentException(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, e));
+                } else {
+                    actionListener.onFailure(e);
+                }
+
             }
-        }), actionListener::onFailure);
-
-        clusterService.submitStateUpdateTask("put-job-" + job.getId(),
-                new AckedClusterStateUpdateTask<Boolean>(request, createResultsIndexListener) {
-                    @Override
-                    protected Boolean newResponse(boolean acknowledged) {
-                        return acknowledged;
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return updateClusterState(job, false, currentState);
-                    }
-                });
+        });
     }
 
     public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {

@@ -57,11 +57,11 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         int numberOfTasks = randomInt(10);
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         for (int i = 0; i < numberOfTasks; i++) {
-            tasks.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)),
+            tasks.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)),
                     randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
-                tasks.updateTaskStatus(tasks.getCurrentId(), new Status(randomAsciiOfLength(10)));
+                tasks.updateTaskStatus(tasks.getCurrentId(), new Status(randomAlphaOfLength(10)));
             }
         }
         return tasks.build();
@@ -101,7 +101,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 if (tasksInProgress.tasks().isEmpty()) {
                     addRandomTask(builder);
                 } else {
-                    builder.updateTaskStatus(pickRandomTask(tasksInProgress), randomBoolean() ? new Status(randomAsciiOfLength(10)) : null);
+                    builder.updateTaskStatus(pickRandomTask(tasksInProgress), randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
                 }
                 break;
             case 3:
@@ -148,7 +148,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     }
 
     private Builder addRandomTask(Builder builder) {
-        builder.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)), randomAssignment());
+        builder.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)), randomAssignment());
         return builder;
     }
 
@@ -247,7 +247,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                         if (builder.hasTask(lastKnownTask)) {
                             changed = true;
                         }
-                        builder.updateTaskStatus(lastKnownTask, randomBoolean() ? new Status(randomAsciiOfLength(10)) : null);
+                        builder.updateTaskStatus(lastKnownTask, randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
                         break;
                     case 4:
                         if (builder.hasTask(lastKnownTask)) {
@@ -274,9 +274,9 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             if (randomBoolean()) {
                 return NO_NODE_FOUND;
             } else {
-                return new Assignment(null, randomAsciiOfLength(10));
+                return new Assignment(null, randomAlphaOfLength(10));
             }
         }
-        return new Assignment(randomAsciiOfLength(10), randomAsciiOfLength(10));
+        return new Assignment(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 }

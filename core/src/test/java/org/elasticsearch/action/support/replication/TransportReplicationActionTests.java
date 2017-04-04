@@ -64,7 +64,6 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -626,7 +625,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(captures, arrayWithSize(1));
         if (randomBoolean()) {
             final TransportReplicationAction.ReplicaResponse response =
-                new TransportReplicationAction.ReplicaResponse(randomAsciiOfLength(10), randomLong());
+                new TransportReplicationAction.ReplicaResponse(randomAlphaOfLength(10), randomLong());
             transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));

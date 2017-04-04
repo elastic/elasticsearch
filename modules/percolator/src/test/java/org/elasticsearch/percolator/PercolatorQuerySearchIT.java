@@ -467,7 +467,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
 
     public void testManyPercolatorFields() throws Exception {
-        String queryFieldName = randomAsciiOfLength(8);
+        String queryFieldName = randomAlphaOfLength(8);
         createIndex("test", client().admin().indices().prepareCreate("test")
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type1", queryFieldName, "type=percolator")
@@ -487,7 +487,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
     }
 
     public void testWithMultiplePercolatorFields() throws Exception {
-        String queryFieldName = randomAsciiOfLength(8);
+        String queryFieldName = randomAlphaOfLength(8);
         createIndex("test1", client().admin().indices().prepareCreate("test1")
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type", queryFieldName, "type=percolator"));

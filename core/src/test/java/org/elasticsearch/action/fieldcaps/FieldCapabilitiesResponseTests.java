@@ -32,11 +32,11 @@ public class FieldCapabilitiesResponseTests extends ESTestCase {
         Map<String, Map<String, FieldCapabilities> > fieldMap = new HashMap<> ();
         int numFields = randomInt(10);
         for (int i = 0; i < numFields; i++) {
-            String fieldName = randomAsciiOfLengthBetween(5, 10);
+            String fieldName = randomAlphaOfLengthBetween(5, 10);
             int numIndices = randomIntBetween(1, 5);
             Map<String, FieldCapabilities> indexFieldMap = new HashMap<> ();
             for (int j = 0; j < numIndices; j++) {
-                String index = randomAsciiOfLengthBetween(10, 20);
+                String index = randomAlphaOfLengthBetween(10, 20);
                 indexFieldMap.put(index, FieldCapabilitiesTests.randomFieldCaps());
             }
             fieldMap.put(fieldName, indexFieldMap);

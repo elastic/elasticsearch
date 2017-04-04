@@ -51,7 +51,7 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
-            searchProfileResults.put(randomAsciiOfLengthBetween(5, 10), new ProfileShardResult(queryProfileResults, aggProfileShardResult));
+            searchProfileResults.put(randomAlphaOfLengthBetween(5, 10), new ProfileShardResult(queryProfileResults, aggProfileShardResult));
         }
         return new SearchProfileShardResults(searchProfileResults);
     }

@@ -43,13 +43,13 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         List<BulkItemResponse.Failure> allBulkFailures = new ArrayList<>();
         List<SearchFailure> allSearchFailures = new ArrayList<>();
         boolean timedOut = false;
-        String reasonCancelled = rarely() ? randomAsciiOfLength(5) : null;
+        String reasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
 
         for (int i = 0; i < mergeCount; i++) {
             // One of the merged responses gets the expected value for took, the others get a smaller value
             TimeValue thisTook = timeValueMillis(i == tookIndex ? took : between(0, took));
             // The actual status doesn't matter too much - we test merging those elsewhere
-            String thisReasonCancelled = rarely() ? randomAsciiOfLength(5) : null;
+            String thisReasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
             BulkByScrollTask.Status status = new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f,
                     thisReasonCancelled, timeValueMillis(0));
             List<BulkItemResponse.Failure> bulkFailures = frequently() ? emptyList()

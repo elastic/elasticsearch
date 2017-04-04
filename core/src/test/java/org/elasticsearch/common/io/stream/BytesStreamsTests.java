@@ -339,8 +339,8 @@ public class BytesStreamsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10),
-                    randomAsciiOfLengthBetween(1, 10));
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10));
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
 
@@ -360,7 +360,7 @@ public class BytesStreamsTests extends ESTestCase {
         int size = between(0, 100);
         List<BaseNamedWriteable> expected = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            expected.add(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+            expected.add(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -386,8 +386,8 @@ public class BytesStreamsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10),
-                    randomAsciiOfLengthBetween(1, 10));
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10));
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
@@ -400,7 +400,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testOptionalWriteableReaderReturnsNull() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeOptionalWriteable(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+            out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
             IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
             assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
@@ -417,8 +417,8 @@ public class BytesStreamsTests extends ESTestCase {
                                     return "intentionally-broken";
                                 }
                             })));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10),
-                    randomAsciiOfLengthBetween(1, 10));
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10));
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
@@ -461,7 +461,7 @@ public class BytesStreamsTests extends ESTestCase {
         final int size = randomIntBetween(0, 100);
         final Map<String, String> expected = new HashMap<>(randomIntBetween(0, 100));
         for (int i = 0; i < size; ++i) {
-            expected.put(randomAsciiOfLength(2), randomAsciiOfLength(5));
+            expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -482,10 +482,10 @@ public class BytesStreamsTests extends ESTestCase {
             List<String> list = new ArrayList<>(listSize);
 
             for (int j = 0; j < listSize; ++j) {
-                list.add(randomAsciiOfLength(5));
+                list.add(randomAlphaOfLength(5));
             }
 
-            expected.put(randomAsciiOfLength(2), list);
+            expected.put(randomAlphaOfLength(2), list);
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -633,8 +633,8 @@ public class BytesStreamsTests extends ESTestCase {
     public void testWriteMapWithConsistentOrder() throws IOException {
         Map<String, String> map =
             randomMap(new TreeMap<>(), randomIntBetween(2, 20),
-                () -> randomAsciiOfLength(5),
-                () -> randomAsciiOfLength(5));
+                () -> randomAlphaOfLength(5),
+                () -> randomAlphaOfLength(5));
 
         Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
         reverseMap.putAll(map);
@@ -655,8 +655,8 @@ public class BytesStreamsTests extends ESTestCase {
     public void testReadMapByUsingWriteMapWithConsistentOrder() throws IOException {
         Map<String, String> streamOutMap =
             randomMap(new HashMap<>(), randomIntBetween(2, 20),
-                () -> randomAsciiOfLength(5),
-                () -> randomAsciiOfLength(5));
+                () -> randomAlphaOfLength(5),
+                () -> randomAlphaOfLength(5));
         try (BytesStreamOutput streamOut = new BytesStreamOutput()) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));

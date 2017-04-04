@@ -43,7 +43,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
@@ -63,7 +63,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));

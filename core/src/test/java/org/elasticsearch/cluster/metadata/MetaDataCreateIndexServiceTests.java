@@ -152,7 +152,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testShrinkIndexSettings() {
-        String indexName = randomAsciiOfLength(10);
+        String indexName = randomAlphaOfLength(10);
         List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()),
             VersionUtils.randomVersion(random()));
         versions.sort((l, r) -> Long.compare(l.id, r.id));

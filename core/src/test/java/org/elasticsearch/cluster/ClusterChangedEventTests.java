@@ -529,7 +529,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             default: throw new AssertionError("Unhandled mode [" + deletionQuantity + "]");
         }
         final boolean changeClusterUUID = randomBoolean();
-        final List<Index> addedIndices = addIndices(numAdd, randomAsciiOfLengthBetween(5, 10));
+        final List<Index> addedIndices = addIndices(numAdd, randomAlphaOfLengthBetween(5, 10));
         List<Index> delIndices;
         if (changeClusterUUID) {
             delIndices = new ArrayList<>();

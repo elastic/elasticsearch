@@ -174,7 +174,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
                                                               randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
         AllocateUnassignedDecision decision;
         if (finalDecision == Decision.Type.YES) {
-            decision = AllocateUnassignedDecision.yes(assignedNode, randomBoolean() ? randomAsciiOfLength(5) : null,
+            decision = AllocateUnassignedDecision.yes(assignedNode, randomBoolean() ? randomAlphaOfLength(5) : null,
                 nodeDecisions, randomBoolean());
         } else {
             decision = AllocateUnassignedDecision.no(randomFrom(

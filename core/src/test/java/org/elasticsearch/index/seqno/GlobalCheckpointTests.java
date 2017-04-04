@@ -115,7 +115,7 @@ public class GlobalCheckpointTests extends ESTestCase {
         allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId, allocations.get(aId)));
 
         // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
-        final String extraId = "extra_" + randomAsciiOfLength(5);
+        final String extraId = "extra_" + randomAlphaOfLength(5);
 
         // first check that adding it without the master blessing doesn't change anything.
         tracker.updateLocalCheckpoint(extraId, maxLocalCheckpoint + 1 + randomInt(4));

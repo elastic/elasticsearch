@@ -258,7 +258,7 @@ public class TranslogTests extends ESTestCase {
 
         final long seqNo = randomNonNegativeLong();
         final long primaryTerm = randomNonNegativeLong();
-        final String reason = randomAsciiOfLength(16);
+        final String reason = randomAlphaOfLength(16);
         addToTranslogAndList(translog, ops, new Translog.NoOp(seqNo, primaryTerm, reason));
 
         snapshot = translog.newSnapshot();
@@ -338,7 +338,7 @@ public class TranslogTests extends ESTestCase {
 
         final long seqNo = 1;
         final long primaryTerm = 1;
-        translog.add(new Translog.NoOp(seqNo, primaryTerm, randomAsciiOfLength(16)));
+        translog.add(new Translog.NoOp(seqNo, primaryTerm, randomAlphaOfLength(16)));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
@@ -563,7 +563,7 @@ public class TranslogTests extends ESTestCase {
 
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
-            String ascii = randomAsciiOfLengthBetween(1, 50);
+            String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, ascii.getBytes("UTF-8"))));
         }
         translog.sync();
@@ -589,7 +589,7 @@ public class TranslogTests extends ESTestCase {
 
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
-            String ascii = randomAsciiOfLengthBetween(1, 50);
+            String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, ascii.getBytes("UTF-8"))));
         }
         translog.sync();
@@ -1406,7 +1406,7 @@ public class TranslogTests extends ESTestCase {
                                 randomFrom(VersionType.values()));
                             break;
                         case NO_OP:
-                            op = new Translog.NoOp(randomNonNegativeLong(), randomNonNegativeLong(), randomAsciiOfLength(16));
+                            op = new Translog.NoOp(randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(16));
                             break;
                         default:
                             throw new AssertionError("unsupported operation type [" + type + "]");

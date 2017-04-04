@@ -54,7 +54,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-        QueryBuilder filter = QueryBuilders.termQuery("field", randomAsciiOfLength(5));
+        QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
         InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);

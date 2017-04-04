@@ -31,7 +31,7 @@ public class FieldCapabilitiesRequestTests extends ESTestCase {
         int size = randomIntBetween(1, 20);
         String[] randomFields = new String[size];
         for (int i = 0; i < size; i++) {
-            randomFields[i] = randomAsciiOfLengthBetween(5, 10);
+            randomFields[i] = randomAlphaOfLengthBetween(5, 10);
         }
         request.fields(randomFields);
         return request;

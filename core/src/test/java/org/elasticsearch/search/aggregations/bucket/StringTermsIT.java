@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -1095,10 +1093,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevelsSpecialChars() throws Exception {
         StringBuilder filter2NameBuilder = new StringBuilder("filt.er2");
-        filter2NameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        filter2NameBuilder.append(randomAlphaOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
         String filter2Name = filter2NameBuilder.toString();
         StringBuilder statsNameBuilder = new StringBuilder("st.ats");
-        statsNameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        statsNameBuilder.append(randomAlphaOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
         String statsName = statsNameBuilder.toString();
         boolean asc = randomBoolean();
         SearchResponse response = client()
@@ -1158,10 +1156,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevelsSpecialCharsNoDotNotation() throws Exception {
         StringBuilder filter2NameBuilder = new StringBuilder("filt.er2");
-        filter2NameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        filter2NameBuilder.append(randomAlphaOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
         String filter2Name = filter2NameBuilder.toString();
         StringBuilder statsNameBuilder = new StringBuilder("st.ats");
-        statsNameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        statsNameBuilder.append(randomAlphaOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
         String statsName = statsNameBuilder.toString();
         boolean asc = randomBoolean();
         SearchResponse response = client()

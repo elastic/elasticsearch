@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +48,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
 
     public void testUnrecognizedMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        final String metric = randomAsciiOfLength(64);
+        final String metric = randomAlphaOfLength(64);
         params.put("metric", metric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
@@ -86,7 +85,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
     public void testUnrecognizedIndexMetric() {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "indices");
-        final String indexMetric = randomAsciiOfLength(64);
+        final String indexMetric = randomAlphaOfLength(64);
         params.put("index_metric", indexMetric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(

@@ -33,13 +33,13 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     }
 
     public static PhraseSuggestionBuilder randomPhraseSuggestionBuilder() {
-        PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         maybeSet(testBuilder::maxErrors, randomFloat());
-        maybeSet(testBuilder::separator, randomAsciiOfLengthBetween(1, 10));
+        maybeSet(testBuilder::separator, randomAlphaOfLengthBetween(1, 10));
         maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
         maybeSet(testBuilder::confidence, randomFloat());
-        maybeSet(testBuilder::collateQuery, randomAsciiOfLengthBetween(3, 20));
+        maybeSet(testBuilder::collateQuery, randomAlphaOfLengthBetween(3, 20));
         // collate query prune and parameters will only be used when query is set
         if (testBuilder.collateQuery() != null) {
             maybeSet(testBuilder::collatePrune, randomBoolean());
@@ -47,14 +47,14 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
                 Map<String, Object> collateParams = new HashMap<>();
                 int numParams = randomIntBetween(1, 5);
                 for (int i = 0; i < numParams; i++) {
-                    collateParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                    collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
                 }
                 testBuilder.collateParams(collateParams );
             }
         }
         if (randomBoolean()) {
             // preTag, postTag
-            testBuilder.highlight(randomAsciiOfLengthBetween(3, 20), randomAsciiOfLengthBetween(3, 20));
+            testBuilder.highlight(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20));
         }
         maybeSet(testBuilder::gramSize, randomIntBetween(1, 5));
         maybeSet(testBuilder::forceUnigrams, randomBoolean());
@@ -106,14 +106,14 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomIntBetween(1, 20)));
             break;
         case 5:
-            builder.separator(randomValueOtherThan(builder.separator(), () -> randomAsciiOfLengthBetween(1, 10)));
+            builder.separator(randomValueOtherThan(builder.separator(), () -> randomAlphaOfLengthBetween(1, 10)));
             break;
         case 6:
             Script collateQuery = builder.collateQuery();
             if (collateQuery != null) {
-                builder.collateQuery(randomValueOtherThan(collateQuery.getIdOrCode(), () -> randomAsciiOfLengthBetween(3, 20)));
+                builder.collateQuery(randomValueOtherThan(collateQuery.getIdOrCode(), () -> randomAlphaOfLengthBetween(3, 20)));
             } else {
-                builder.collateQuery(randomAsciiOfLengthBetween(3, 20));
+                builder.collateQuery(randomAlphaOfLengthBetween(3, 20));
             }
             break;
         case 7:
@@ -126,7 +126,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
                 // simply double both values
                 builder.highlight(builder.preTag() + builder.preTag(), builder.postTag() + builder.postTag());
             } else {
-                builder.highlight(randomAsciiOfLengthBetween(3, 20), randomAsciiOfLengthBetween(3, 20));
+                builder.highlight(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20));
             }
             break;
         case 9:
@@ -134,7 +134,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             break;
         case 10:
             Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
-            collateParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             builder.collateParams(collateParams);
             break;
         case 11:
@@ -155,7 +155,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         e = expectThrows(IllegalArgumentException.class, () -> new PhraseSuggestionBuilder(""));
         assertEquals("suggestion field name is empty", e.getMessage());
 
-        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
 
         e = expectThrows(IllegalArgumentException.class, () -> builder.gramSize(0));
         assertEquals("gramSize must be >= 1", e.getMessage());

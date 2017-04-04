@@ -80,7 +80,7 @@ public class ESTestCaseTests extends ESTestCase {
         Map<String, Object> result = new HashMap<>();
         int entries = randomInt(10);
         for (int i = 0; i < entries; i++) {
-            String key = randomAsciiOfLengthBetween(5, 15);
+            String key = randomAlphaOfLengthBetween(5, 15);
             int suprise = randomIntBetween(0, 4);
             switch (suprise) {
             case 0:
@@ -108,7 +108,7 @@ public class ESTestCaseTests extends ESTestCase {
             }
         }
         if (depth > 0) {
-            result.put(randomAsciiOfLengthBetween(5, 15), randomStringObjectMap(depth - 1));
+            result.put(randomAlphaOfLengthBetween(5, 15), randomStringObjectMap(depth - 1));
         }
         return result;
     }
@@ -123,6 +123,6 @@ public class ESTestCaseTests extends ESTestCase {
     }
 
     public void testRandomUniqueNormalUsageAlwayMoreThanOne() {
-        assertThat(randomUnique(() -> randomAsciiOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
+        assertThat(randomUnique(() -> randomAlphaOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 }

@@ -62,7 +62,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     public void testOneArg() {
         Object rando = randomInt();
         assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).execute(rando));
-        rando = randomAsciiOfLength(5);
+        rando = randomAlphaOfLength(5);
         assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).execute(rando));
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -79,7 +79,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(String[] arg);
     }
     public void testArrayArg() {
-        String rando = randomAsciiOfLength(5);
+        String rando = randomAlphaOfLength(5);
         assertEquals(rando, scriptEngine.compile(ArrayArg.class, null, "arg[0]", emptyMap()).execute(new String[] {rando, "foo"}));
     }
 
@@ -99,7 +99,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     public void testDefArrayArg() {
         Object rando = randomInt();
         assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).execute(new Object[] {rando, 10}));
-        rando = randomAsciiOfLength(5);
+        rando = randomAlphaOfLength(5);
         assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).execute(new Object[] {rando, 10}));
         assertEquals(5, scriptEngine.compile(DefArrayArg.class, null, "arg[0].length()", emptyMap()).execute(new Object[] {rando, 10}));
     }

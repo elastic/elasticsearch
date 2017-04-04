@@ -176,8 +176,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * select the second node as target
      */
     public void testShardLockObtainFailedExceptionPreferOtherValidCopies() {
-        String allocId1 = randomAsciiOfLength(10);
-        String allocId2 = randomAsciiOfLength(10);
+        String allocId1 = randomAlphaOfLength(10);
+        String allocId2 = randomAlphaOfLength(10);
         final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED,
             allocId1, allocId2);;
         testAllocator.addData(node1, allocId1, randomBoolean(),

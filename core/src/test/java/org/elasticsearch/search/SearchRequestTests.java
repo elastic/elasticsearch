@@ -87,12 +87,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     private SearchRequest mutate(SearchRequest searchRequest) throws IOException {
         SearchRequest mutation = copyRequest(searchRequest);
         List<Runnable> mutators = new ArrayList<>();
-        mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAsciiOfLength(10) })));
+        mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
-        mutators.add(() -> mutation.types(ArrayUtils.concat(searchRequest.types(), new String[] { randomAsciiOfLength(10) })));
-        mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAsciiOfLengthBetween(3, 10))));
-        mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAsciiOfLengthBetween(3, 10))));
+        mutators.add(() -> mutation.types(ArrayUtils.concat(searchRequest.types(), new String[] { randomAlphaOfLength(10) })));
+        mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
+        mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), () -> randomBoolean()))));
         mutators.add(() -> mutation
                 .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))));

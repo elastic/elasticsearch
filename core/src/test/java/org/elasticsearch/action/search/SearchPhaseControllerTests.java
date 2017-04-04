@@ -70,7 +70,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testSort() throws Exception {
         List<CompletionSuggestion> suggestions = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            suggestions.add(new CompletionSuggestion(randomAsciiOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20)));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20)));
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
@@ -99,7 +99,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testMerge() throws IOException {
         List<CompletionSuggestion> suggestions = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            suggestions.add(new CompletionSuggestion(randomAsciiOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20)));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20)));
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);

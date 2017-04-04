@@ -43,7 +43,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
+        ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAlphaOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
                 builder.order(randomFrom(SortOrder.values()));
@@ -63,7 +63,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             builder.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
-            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
+            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
         }
         return builder;
     }

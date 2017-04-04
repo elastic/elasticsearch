@@ -191,7 +191,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         int excludeNodesSize = randomIntBetween(0, numAddedNodes - 1);
         final Set<String> excludeNodes = new HashSet<>();
         for (int i = 0; i < numAddedNodes; i++) {
-            DiscoveryNode discoveryNode = newNode(randomAsciiOfLength(7));
+            DiscoveryNode discoveryNode = newNode(randomAlphaOfLength(7));
             nodesBuilder.add(discoveryNode);
             if (i < excludeNodesSize) {
                 excludeNodes.add(discoveryNode.getId());
@@ -331,7 +331,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     private ClusterState addNodesToClusterState(ClusterState clusterState, int numNodesToAdd) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
         for (int i = 0; i < numNodesToAdd; i++) {
-            DiscoveryNode discoveryNode = newNode(randomAsciiOfLength(7));
+            DiscoveryNode discoveryNode = newNode(randomAlphaOfLength(7));
             nodesBuilder.add(discoveryNode);
         }
         return ClusterState.builder(clusterState).nodes(nodesBuilder).build();
@@ -352,7 +352,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", 2, numShards);
         // add a new node so shards can be rebalanced there
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        nodesBuilder.add(newNode(randomAsciiOfLength(7)));
+        nodesBuilder.add(newNode(randomAlphaOfLength(7)));
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
         ShardRouting shard = clusterState.routingTable().index("idx").shard(0).primaryShard();
         RoutingAllocation routingAllocation = newRoutingAllocation(

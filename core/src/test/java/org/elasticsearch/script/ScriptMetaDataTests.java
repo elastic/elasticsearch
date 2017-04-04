@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -103,10 +102,10 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
         int numScripts = scaledRandomIntBetween(0, 32);
         for (int i = 0; i < numScripts; i++) {
-            String lang = randomAsciiOfLength(4);
+            String lang = randomAlphaOfLength(4);
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
-            sourceBuilder.startObject().field("script", randomAsciiOfLength(4)).endObject();
-            builder.storeScript(randomAsciiOfLength(i + 1),
+            sourceBuilder.startObject().field("script", randomAlphaOfLength(4)).endObject();
+            builder.storeScript(randomAlphaOfLength(i + 1),
                 StoredScriptSource.parse(lang, sourceBuilder.bytes(), sourceBuilder.contentType()));
         }
         return builder.build();

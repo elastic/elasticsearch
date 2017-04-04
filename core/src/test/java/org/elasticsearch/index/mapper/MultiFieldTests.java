@@ -30,15 +30,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -174,7 +165,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     public void testMultiFieldsInConsistentOrder() throws Exception {
         String[] multiFieldNames = new String[randomIntBetween(2, 10)];
         for (int i = 0; i < multiFieldNames.length; i++) {
-            multiFieldNames[i] = randomAsciiOfLength(4);
+            multiFieldNames[i] = randomAlphaOfLength(4);
         }
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")

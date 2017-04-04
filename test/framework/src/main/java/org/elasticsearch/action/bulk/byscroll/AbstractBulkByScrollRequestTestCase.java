@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk.byscroll;
 
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.tasks.TaskId;
@@ -45,7 +44,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
                 randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
         original.setSize(randomBoolean() ? AbstractBulkByScrollRequest.SIZE_ALL_MATCHES : between(0, Integer.MAX_VALUE));
 
-        TaskId slicingTask = new TaskId(randomAsciiOfLength(5), randomLong());
+        TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();
         R forSliced = original.forSlice(slicingTask, sliceRequest);
         assertEquals(original.isAbortOnVersionConflict(), forSliced.isAbortOnVersionConflict());

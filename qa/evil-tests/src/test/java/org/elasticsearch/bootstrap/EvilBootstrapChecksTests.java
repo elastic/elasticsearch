@@ -92,7 +92,7 @@ public class EvilBootstrapChecksTests extends ESTestCase {
     }
 
     public void testInvalidValue() {
-        final String value = randomAsciiOfLength(8);
+        final String value = randomAlphaOfLength(8);
         setEsEnforceBootstrapChecks(value);
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(

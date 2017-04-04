@@ -51,7 +51,7 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
-                key = randomAsciiOfLengthBetween(1, 20);
+                key = randomAlphaOfLengthBetween(1, 20);
             }
             switch (randomInt(3)) {
             case 0:

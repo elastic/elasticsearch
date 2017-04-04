@@ -81,7 +81,7 @@ public class RestIndicesActionTests extends ESTestCase {
         final int numIndices = randomIntBetween(0, 5);
         Index[] indices = new Index[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indices[i] = new Index(randomAsciiOfLength(5), UUIDs.randomBase64UUID());
+            indices[i] = new Index(randomAlphaOfLength(5), UUIDs.randomBase64UUID());
         }
 
         final MetaData.Builder metaDataBuilder = MetaData.builder();

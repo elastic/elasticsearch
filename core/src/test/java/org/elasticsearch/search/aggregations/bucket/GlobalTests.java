@@ -26,7 +26,7 @@ public class GlobalTests extends BaseAggregationTestCase<GlobalAggregationBuilde
 
     @Override
     protected GlobalAggregationBuilder createTestAggregatorBuilder() {
-        return new GlobalAggregationBuilder(randomAsciiOfLengthBetween(3, 20));
+        return new GlobalAggregationBuilder(randomAlphaOfLengthBetween(3, 20));
     }
 
 }

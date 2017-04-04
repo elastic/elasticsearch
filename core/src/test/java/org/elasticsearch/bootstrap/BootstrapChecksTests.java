@@ -488,7 +488,7 @@ public class BootstrapChecksTests extends ESTestCase {
             }
         };
 
-        final String command = randomAsciiOfLength(16);
+        final String command = randomAlphaOfLength(16);
         runMightForkTest(
             check,
             isSystemCallFilterInstalled,
@@ -516,7 +516,7 @@ public class BootstrapChecksTests extends ESTestCase {
             }
         };
 
-        final String command = randomAsciiOfLength(16);
+        final String command = randomAlphaOfLength(16);
         runMightForkTest(
             check,
             isSystemCallFilterInstalled,
@@ -652,7 +652,7 @@ public class BootstrapChecksTests extends ESTestCase {
 
             @Override
             String jvmVendor() {
-                return randomAsciiOfLength(8);
+                return randomAlphaOfLength(8);
             }
 
         };

@@ -66,12 +66,12 @@ public class ConstructingObjectParserTests extends ESTestCase {
      * Builds the object in random order and parses it.
      */
     public void testRandomOrder() throws Exception {
-        HasCtorArguments expected = new HasCtorArguments(randomAsciiOfLength(5), randomInt());
+        HasCtorArguments expected = new HasCtorArguments(randomAlphaOfLength(5), randomInt());
         expected.setMineral(randomInt());
         expected.setFruit(randomInt());
-        expected.setA(randomBoolean() ? null : randomAsciiOfLength(5));
-        expected.setB(randomBoolean() ? null : randomAsciiOfLength(5));
-        expected.setC(randomBoolean() ? null : randomAsciiOfLength(5));
+        expected.setA(randomBoolean() ? null : randomAlphaOfLength(5));
+        expected.setB(randomBoolean() ? null : randomAlphaOfLength(5));
+        expected.setC(randomBoolean() ? null : randomAlphaOfLength(5));
         expected.setD(randomBoolean());
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         expected.toXContent(builder, ToXContent.EMPTY_PARAMS);

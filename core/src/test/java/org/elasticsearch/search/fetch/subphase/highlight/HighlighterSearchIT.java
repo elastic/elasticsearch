@@ -2761,7 +2761,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < COUNT; i++) {
             //generating text with word to highlight in a different position
             //(https://github.com/elastic/elasticsearch/issues/4103)
-            String prefix = randomAsciiOfLengthBetween(5, 30);
+            String prefix = randomAlphaOfLengthBetween(5, 30);
             prefixes.put(String.valueOf(i), prefix);
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix
                     + " test. Sentence two.");

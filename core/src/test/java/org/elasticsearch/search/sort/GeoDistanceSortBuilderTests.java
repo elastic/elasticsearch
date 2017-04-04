@@ -50,7 +50,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     public static GeoDistanceSortBuilder randomGeoDistanceSortBuilder() {
-        String fieldName = randomAsciiOfLengthBetween(1, 10);
+        String fieldName = randomAlphaOfLengthBetween(1, 10);
         GeoDistanceSortBuilder result = null;
 
         int id = randomIntBetween(0, 2);
@@ -94,7 +94,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedPath(
                     randomValueOtherThan(
                             result.getNestedPath(),
-                            () -> randomAsciiOfLengthBetween(1, 10)));
+                            () -> randomAlphaOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
@@ -166,7 +166,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         case 7:
             result.setNestedPath(randomValueOtherThan(
                     result.getNestedPath(),
-                    () -> randomAsciiOfLengthBetween(1, 10)));
+                    () -> randomAlphaOfLengthBetween(1, 10)));
             break;
         case 8:
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));

@@ -53,8 +53,8 @@ public class MultiGetRequestTests extends ESTestCase {
         final ParsingException e = expectThrows(
                 ParsingException.class,
                 () -> {
-                    final String defaultIndex = randomAsciiOfLength(5);
-                    final String defaultType = randomAsciiOfLength(3);
+                    final String defaultIndex = randomAlphaOfLength(5);
+                    final String defaultType = randomAlphaOfLength(3);
                     final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
                     mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
                 });
@@ -80,8 +80,8 @@ public class MultiGetRequestTests extends ESTestCase {
         final ParsingException e = expectThrows(
                 ParsingException.class,
                 () -> {
-                    final String defaultIndex = randomAsciiOfLength(5);
-                    final String defaultType = randomAsciiOfLength(3);
+                    final String defaultIndex = randomAlphaOfLength(5);
+                    final String defaultType = randomAlphaOfLength(3);
                     final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
                     mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
                 });
@@ -105,7 +105,7 @@ public class MultiGetRequestTests extends ESTestCase {
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add(
-            randomAsciiOfLength(5), randomAsciiOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+            randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
 
         assertEquals(1, multiGetRequest.getItems().size());
         assertWarnings("Expected a boolean [true/false] for property [_source] but got ["+ sourceValue  + "]");
@@ -127,7 +127,7 @@ public class MultiGetRequestTests extends ESTestCase {
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add(
-            randomAsciiOfLength(5), randomAsciiOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+            randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
 
         assertEquals(2, multiGetRequest.getItems().size());
     }

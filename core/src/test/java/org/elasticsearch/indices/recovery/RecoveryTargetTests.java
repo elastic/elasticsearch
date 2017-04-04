@@ -522,7 +522,7 @@ public class RecoveryTargetTests extends ESTestCase {
             @Override
             public void run() {
                 for (int i = 0; i < 1000; i++) {
-                    index.addFileDetail(randomAsciiOfLength(10), 100, true);
+                    index.addFileDetail(randomAlphaOfLength(10), 100, true);
                 }
                 stop.set(true);
             }

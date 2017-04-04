@@ -112,7 +112,7 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testPlainTextSupport() {
-        ContentRestRequest restRequest = new ContentRestRequest(randomAsciiOfLengthBetween(1, 30), Collections.emptyMap(),
+        ContentRestRequest restRequest = new ContentRestRequest(randomAlphaOfLengthBetween(1, 30), Collections.emptyMap(),
             Collections.singletonMap("Content-Type",
                 Collections.singletonList(randomFrom("text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8"))));
         assertNull(restRequest.getXContentType());
@@ -131,7 +131,7 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testMultipleContentTypeHeaders() {
-        List<String> headers = new ArrayList<>(randomUnique(() -> randomAsciiOfLengthBetween(1, 16), randomIntBetween(2, 10)));
+        List<String> headers = new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 16), randomIntBetween(2, 10)));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ContentRestRequest("", Collections.emptyMap(),
             Collections.singletonMap("Content-Type", headers)));
         assertEquals("only one Content-Type header should be provided", e.getMessage());

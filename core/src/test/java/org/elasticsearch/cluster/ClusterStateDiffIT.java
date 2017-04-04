@@ -201,14 +201,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.add(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
+                    nodes.add(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAlphaOfLength(10)), emptyMap(),
                             emptySet(), randomVersion(random())));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(new DiscoveryNode("node-" + randomAsciiOfLength(10), new LocalTransportAddress(randomAsciiOfLength(10)),
+            nodes.add(new DiscoveryNode("node-" + randomAlphaOfLength(10), new LocalTransportAddress(randomAlphaOfLength(10)),
                     emptyMap(), emptySet(), randomVersion(random())));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
@@ -251,7 +251,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
-                    unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
+                    unassignedInfo = new UnassignedInfo(randomReason(), randomAlphaOfLength(10));
                 }
                 if (availableNodeIds.isEmpty()) {
                     break;
@@ -421,7 +421,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
         int settingsCount = randomInt(10);
         for (int i = 0; i < settingsCount; i++) {
-            builder.put(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            builder.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
         return builder.build();
 
@@ -542,7 +542,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         if (randomBoolean() && part.getAliases().isEmpty() == false) {
                             builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
                         } else {
-                            builder.putAlias(AliasMetaData.builder(randomAsciiOfLength(10)));
+                            builder.putAlias(AliasMetaData.builder(randomAlphaOfLength(10)));
                         }
                         break;
                     case 2:
@@ -607,7 +607,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             builder.filter(QueryBuilders.termQuery("test", randomRealisticUnicodeOfCodepointLength(10)).toString());
         }
         if (randomBoolean()) {
-            builder.routing(randomAsciiOfLength(10));
+            builder.routing(randomAlphaOfLength(10));
         }
         return builder.build();
     }

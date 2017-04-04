@@ -53,7 +53,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                     fieldName = STRING_FIELD_NAME;
                 }
                 if (frequently()) {
-                    value = randomAsciiOfLengthBetween(1, 10);
+                    value = randomAlphaOfLengthBetween(1, 10);
                 } else {
                     // generate unicode string in 10% of cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -77,7 +77,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         }
 
         if (fieldName == null) {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
+            fieldName = randomAlphaOfLengthBetween(1, 10);
         }
         return createQueryBuilder(fieldName, value);
     }

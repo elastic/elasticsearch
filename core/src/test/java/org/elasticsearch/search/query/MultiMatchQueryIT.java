@@ -683,7 +683,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     private static List<String> fillRandom(List<String> list, int times) {
         for (int i = 0; i < times; i++) {
-            list.add(randomAsciiOfLength(5));
+            list.add(randomAlphaOfLength(5));
         }
         return list;
     }

@@ -297,16 +297,16 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     public static InnerHitBuilder randomInnerHits(boolean recursive, boolean includeQueryTypeOrPath) {
         InnerHitBuilder innerHits = new InnerHitBuilder();
-        innerHits.setName(randomAsciiOfLengthBetween(1, 16));
+        innerHits.setName(randomAlphaOfLengthBetween(1, 16));
         innerHits.setFrom(randomIntBetween(0, 128));
         innerHits.setSize(randomIntBetween(0, 128));
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
         if (randomBoolean()) {
-            innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+            innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
-        innerHits.setDocValueFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        innerHits.setDocValueFields(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -325,7 +325,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setFetchSourceContext(randomFetchSourceContext);
         if (randomBoolean()) {
             innerHits.setSorts(randomListStuff(16,
-                    () -> SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())))
+                    () -> SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())))
             );
         }
         innerHits.setHighlightBuilder(HighlightBuilderTests.randomHighlighterBuilder());
@@ -337,11 +337,11 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
 
         if (includeQueryTypeOrPath) {
-            QueryBuilder query = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16));
+            QueryBuilder query = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(1, 16));
             if (randomBoolean()) {
-                return new InnerHitBuilder(innerHits, randomAsciiOfLength(8), query, randomBoolean());
+                return new InnerHitBuilder(innerHits, randomAlphaOfLength(8), query, randomBoolean());
             } else {
-                return new InnerHitBuilder(innerHits, query, randomAsciiOfLength(8), randomBoolean());
+                return new InnerHitBuilder(innerHits, query, randomAlphaOfLength(8), randomBoolean());
             }
         } else {
             return innerHits;
@@ -366,14 +366,14 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setExplain(!copy.isExplain()));
         modifiers.add(() -> copy.setVersion(!copy.isVersion()));
         modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
-        modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAsciiOfLengthBetween(1, 16))));
+        modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
             if (randomBoolean()) {
                 copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(), () -> {
-                    return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
+                    return randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16));
                 }));
             } else {
-                copy.addDocValueField(randomAsciiOfLengthBetween(1, 16));
+                copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
             }
         });
         modifiers.add(() -> {
@@ -400,12 +400,12 @@ public class InnerHitBuilderTests extends ESTestCase {
                 if (randomBoolean()) {
                     final List<SortBuilder<?>> sortBuilders = randomValueOtherThan(copy.getSorts(), () -> {
                         List<SortBuilder<?>> builders = randomListStuff(16,
-                                () -> SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
+                                () -> SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
                         return builders;
                     });
                     copy.setSorts(sortBuilders);
                 } else {
-                    copy.addSort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)));
+                    copy.addSort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)));
                 }
         });
         modifiers.add(() -> copy
@@ -415,10 +415,10 @@ public class InnerHitBuilderTests extends ESTestCase {
                     List<String> previous = copy.getStoredFieldsContext() == null ?
                         Collections.emptyList() : copy.getStoredFieldsContext().fieldNames();
                     List<String> newValues = randomValueOtherThan(previous,
-                            () -> randomListStuff(1, 16, () -> randomAsciiOfLengthBetween(1, 16)));
+                            () -> randomListStuff(1, 16, () -> randomAlphaOfLengthBetween(1, 16)));
                     copy.setStoredFieldNames(newValues);
                 } else {
-                    copy.getStoredFieldsContext().addFieldName(randomAsciiOfLengthBetween(1, 16));
+                    copy.getStoredFieldsContext().addFieldName(randomAlphaOfLengthBetween(1, 16));
                 }
         });
         randomFrom(modifiers).run();
@@ -431,12 +431,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             int numEntries = randomIntBetween(0, 32);
             for (int i = 0; i < numEntries; i++) {
-                randomMap.put(String.valueOf(i), randomAsciiOfLength(16));
+                randomMap.put(String.valueOf(i), randomAlphaOfLength(16));
             }
         }
-        Script script = new Script(randomScriptType, randomScriptType == ScriptType.STORED ? null : randomAsciiOfLengthBetween(1, 4),
-            randomAsciiOfLength(128), randomMap);
-        return new SearchSourceBuilder.ScriptField(randomAsciiOfLengthBetween(1, 32), script, randomBoolean());
+        Script script = new Script(randomScriptType, randomScriptType == ScriptType.STORED ? null : randomAlphaOfLengthBetween(1, 4),
+            randomAlphaOfLength(128), randomMap);
+        return new SearchSourceBuilder.ScriptField(randomAlphaOfLengthBetween(1, 32), script, randomBoolean());
     }
 
     static <T> List<T> randomListStuff(int maxSize, Supplier<T> valueSupplier) {

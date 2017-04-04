@@ -71,14 +71,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.DOCS, docs);
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
-            String index = randomAsciiOfLengthBetween(1, 10);
-            String type = randomAsciiOfLengthBetween(1, 10);
-            String id = randomAsciiOfLengthBetween(1, 10);
+            String index = randomAlphaOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
+            String id = randomAlphaOfLengthBetween(1, 10);
             doc.put(INDEX.getFieldName(), index);
             doc.put(TYPE.getFieldName(), type);
             doc.put(ID.getFieldName(), id);
-            String fieldName = randomAsciiOfLengthBetween(1, 10);
-            String fieldValue = randomAsciiOfLengthBetween(1, 10);
+            String fieldName = randomAlphaOfLengthBetween(1, 10);
+            String fieldValue = randomAlphaOfLengthBetween(1, 10);
             doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
@@ -116,14 +116,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.DOCS, docs);
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
-            String index = randomAsciiOfLengthBetween(1, 10);
-            String type = randomAsciiOfLengthBetween(1, 10);
-            String id = randomAsciiOfLengthBetween(1, 10);
+            String index = randomAlphaOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
+            String id = randomAlphaOfLengthBetween(1, 10);
             doc.put(INDEX.getFieldName(), index);
             doc.put(TYPE.getFieldName(), type);
             doc.put(ID.getFieldName(), id);
-            String fieldName = randomAsciiOfLengthBetween(1, 10);
-            String fieldValue = randomAsciiOfLengthBetween(1, 10);
+            String fieldName = randomAlphaOfLengthBetween(1, 10);
+            String fieldValue = randomAlphaOfLengthBetween(1, 10);
             doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
@@ -190,7 +190,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
     }
 
     public void testNonExistentPipelineId() {
-        String pipelineId = randomAsciiOfLengthBetween(1, 10);
+        String pipelineId = randomAlphaOfLengthBetween(1, 10);
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         requestContent.put(Fields.DOCS, docs);

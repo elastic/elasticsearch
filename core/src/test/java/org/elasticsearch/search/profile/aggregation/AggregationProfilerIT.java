@@ -28,8 +28,6 @@ import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
-import org.elasticsearch.search.profile.aggregation.AggregationTimingType;
 import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +66,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
         String[] randomStrings = new String[randomIntBetween(2, 10)];
         for (int i = 0; i < randomStrings.length; i++) {
-            randomStrings[i] = randomAsciiOfLength(10);
+            randomStrings[i] = randomAlphaOfLength(10);
         }
 
         for (int i = 0; i < 5; i++) {

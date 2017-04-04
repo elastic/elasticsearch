@@ -175,7 +175,7 @@ public class ReplicationOperationTests extends ESTestCase {
         }
         // add in-sync allocation id that doesn't have a corresponding routing entry
         state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).put(IndexMetaData.builder(indexMetaData)
-            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), Sets.newHashSet(randomAsciiOfLength(10))))))
+            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), Sets.newHashSet(randomAlphaOfLength(10))))))
             .build();
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);

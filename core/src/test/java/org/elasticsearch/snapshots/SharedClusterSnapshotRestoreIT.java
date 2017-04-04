@@ -629,7 +629,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_control_io_exception_rate", 0.2))
                 .setVerify(false));
 
@@ -679,7 +679,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
 
         createIndex("test-idx");
@@ -764,7 +764,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
 
         // Test restore after index deletion
@@ -805,7 +805,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setType("mock").setSettings(
                 Settings.builder()
                     .put("location", repositoryLocation)
-                    .put("random", randomAsciiOfLength(10))
+                    .put("random", randomAlphaOfLength(10))
                     .put("use_lucene_corruption", true)
                     .put("max_failure_number", Long.MAX_VALUE)
                     .put("random_data_file_io_exception_rate", 1.0)));
@@ -851,7 +851,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_data_file_io_exception_rate", 1.0) // Fail completely
                 ));
 
@@ -1284,7 +1284,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)));
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
@@ -1345,7 +1345,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -1598,7 +1598,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -2573,7 +2573,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> take {} snapshot(s)", numSnapshots - 1);
         final String[] snapshotNames = new String[numSnapshots];
         for (int i = 0; i < numSnapshots - 1; i++) {
-            final String snapshotName = randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+            final String snapshotName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
             CreateSnapshotResponse createSnapshotResponse = client.admin()
                                                                   .cluster()
                                                                   .prepareCreateSnapshot(repositoryName, snapshotName)
@@ -2590,7 +2590,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
         refresh();
 
-        final String inProgressSnapshot = randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        final String inProgressSnapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         snapshotNames[numSnapshots - 1] = inProgressSnapshot;
         // block a node so the create snapshot operation can remain in progress
         final String blockedNode = blockNodeWithIndex(repositoryName, indexName);
@@ -2684,7 +2684,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         PutRepositoryResponse putRepositoryResponse =
             client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
-                .put("random", randomAsciiOfLength(10))
+                .put("random", randomAlphaOfLength(10))
                 .put("wait_after_unblock", 200)
             ).get();
         assertTrue(putRepositoryResponse.isAcknowledged());
@@ -2728,7 +2728,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
                     // test that we can take a snapshot after a failed one, even if a partial index-N was written
                     .put("atomic_move", false)
-                    .put("random", randomAsciiOfLength(10))));
+                    .put("random", randomAlphaOfLength(10))));
 
         logger.info("--> indexing some data");
         assertAcked(prepareCreate("test-idx").setSettings(

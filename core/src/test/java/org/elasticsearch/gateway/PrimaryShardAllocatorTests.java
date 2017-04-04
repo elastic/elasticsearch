@@ -221,8 +221,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     public void testShardLockObtainFailedExceptionPreferOtherValidCopies() {
         final RoutingAllocation allocation;
         boolean useAllocationIds = randomBoolean();
-        String allocId1 = randomAsciiOfLength(10);
-        String allocId2 = randomAsciiOfLength(10);
+        String allocId1 = randomAlphaOfLength(10);
+        String allocId2 = randomAlphaOfLength(10);
         if (useAllocationIds) {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED,
                 randomFrom(Version.V_2_0_0, Version.CURRENT), allocId1, allocId2);

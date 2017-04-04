@@ -179,25 +179,25 @@ public class FieldCapabilitiesTests extends ESTestCase {
         if (randomBoolean()) {
             indices = new String[randomIntBetween(1, 5)];
             for (int i = 0; i < indices.length; i++) {
-                indices[i] = randomAsciiOfLengthBetween(5, 20);
+                indices[i] = randomAlphaOfLengthBetween(5, 20);
             }
         }
         String[] nonSearchableIndices = null;
         if (randomBoolean()) {
             nonSearchableIndices = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < nonSearchableIndices.length; i++) {
-                nonSearchableIndices[i] = randomAsciiOfLengthBetween(5, 20);
+                nonSearchableIndices[i] = randomAlphaOfLengthBetween(5, 20);
             }
         }
         String[] nonAggregatableIndices = null;
         if (randomBoolean()) {
             nonAggregatableIndices = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < nonAggregatableIndices.length; i++) {
-                nonAggregatableIndices[i] = randomAsciiOfLengthBetween(5, 20);
+                nonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
             }
         }
-        return new FieldCapabilities(randomAsciiOfLengthBetween(5, 20),
-            randomAsciiOfLengthBetween(5, 20), randomBoolean(), randomBoolean(),
+        return new FieldCapabilities(randomAlphaOfLengthBetween(5, 20),
+            randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(),
             indices, nonSearchableIndices, nonAggregatableIndices);
     }
 }

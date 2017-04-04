@@ -32,7 +32,7 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
 
     @Override
     protected ScriptedMetricAggregationBuilder createTestAggregatorBuilder() {
-        ScriptedMetricAggregationBuilder factory = new ScriptedMetricAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        ScriptedMetricAggregationBuilder factory = new ScriptedMetricAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.initScript(randomScript("initScript"));
         }

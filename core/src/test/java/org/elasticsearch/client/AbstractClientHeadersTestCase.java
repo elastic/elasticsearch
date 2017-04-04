@@ -40,8 +40,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -125,7 +123,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     }
 
     public void testOverrideHeader() throws Exception {
-        String key1Val = randomAsciiOfLength(5);
+        String key1Val = randomAlphaOfLength(5);
         Map<String, String> expected = new HashMap<>();
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");

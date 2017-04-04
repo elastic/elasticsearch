@@ -80,17 +80,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         String query = "";
         for (int i = 0; i < numTerms; i++) {
             //min length 4 makes sure that the text is not an operator (AND/OR) so toQuery won't break
-            query += (randomBoolean() ? STRING_FIELD_NAME + ":" : "") + randomAsciiOfLengthBetween(4, 10) + " ";
+            query += (randomBoolean() ? STRING_FIELD_NAME + ":" : "") + randomAlphaOfLengthBetween(4, 10) + " ";
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         if (randomBoolean()) {
             queryStringQueryBuilder.defaultField(randomBoolean() ?
-                STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10));
+                STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
             int numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
-                String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+                String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
                 if (randomBoolean()) {
                     queryStringQueryBuilder.field(fieldName);
                 } else {
@@ -148,7 +148,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.rewrite(getRandomRewriteMethod());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.quoteFieldSuffix(randomAsciiOfLengthBetween(1, 3));
+            queryStringQueryBuilder.quoteFieldSuffix(randomAlphaOfLengthBetween(1, 3));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.tieBreaker(randomFloat());

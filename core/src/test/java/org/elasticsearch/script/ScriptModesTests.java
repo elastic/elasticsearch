@@ -56,8 +56,8 @@ public class ScriptModesTests extends ESTestCase {
         //prevent duplicates using map
         Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
         for (int i = 0; i < randomInt; i++) {
-            String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
-            String operation = randomAsciiOfLength(randomIntBetween(1, 30));
+            String plugin = randomAlphaOfLength(randomIntBetween(1, 10));
+            String operation = randomAlphaOfLength(randomIntBetween(1, 30));
             String context = plugin + "-" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }

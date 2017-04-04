@@ -114,9 +114,9 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int availableProcessors = randomIntBetween(1, 64);
             int allocatedProcessors = randomIntBetween(1, availableProcessors);
             long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
-            String name = randomAsciiOfLengthBetween(3, 10);
-            String arch = randomAsciiOfLengthBetween(3, 10);
-            String version = randomAsciiOfLengthBetween(3, 10);
+            String name = randomAlphaOfLengthBetween(3, 10);
+            String arch = randomAlphaOfLengthBetween(3, 10);
+            String version = randomAlphaOfLengthBetween(3, 10);
             osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
         }
         ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomNonNegativeLong());
@@ -126,7 +126,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numThreadPools = randomIntBetween(1, 10);
             List<ThreadPool.Info> threadPoolInfos = new ArrayList<>(numThreadPools);
             for (int i = 0; i < numThreadPools; i++) {
-                threadPoolInfos.add(new ThreadPool.Info(randomAsciiOfLengthBetween(3, 10),
+                threadPoolInfos.add(new ThreadPool.Info(randomAlphaOfLengthBetween(3, 10),
                         randomFrom(ThreadPool.ThreadPoolType.values()), randomInt()));
             }
             threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
@@ -143,14 +143,14 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginInfo> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
-                plugins.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
-                        randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10), randomBoolean()));
+                plugins.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
+                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomBoolean()));
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginInfo> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
-                modules.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
-                        randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10), randomBoolean()));
+                modules.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
+                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomBoolean()));
             }
             pluginsAndModules = new PluginsAndModules(plugins, modules);
         }
@@ -160,7 +160,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numProcessors = randomIntBetween(0, 5);
             List<ProcessorInfo> processors = new ArrayList<>(numProcessors);
             for (int i = 0; i < numProcessors; i++) {
-                processors.add(new ProcessorInfo(randomAsciiOfLengthBetween(3, 10)));
+                processors.add(new ProcessorInfo(randomAlphaOfLengthBetween(3, 10)));
             }
             ingestInfo = new IngestInfo(processors);
         }

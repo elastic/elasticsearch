@@ -712,7 +712,7 @@ public class CacheTests extends ESTestCase {
 
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
 
-        final String key = randomAsciiOfLengthBetween(2, 32);
+        final String key = randomAlphaOfLengthBetween(2, 32);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
                 try {

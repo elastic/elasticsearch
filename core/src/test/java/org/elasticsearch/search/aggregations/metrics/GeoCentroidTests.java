@@ -27,7 +27,7 @@ public class GeoCentroidTests extends BaseAggregationTestCase<GeoCentroidAggrega
 
     @Override
     protected GeoCentroidAggregationBuilder createTestAggregatorBuilder() {
-        GeoCentroidAggregationBuilder factory = new GeoCentroidAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        GeoCentroidAggregationBuilder factory = new GeoCentroidAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

@@ -59,7 +59,7 @@ public class RetryTests extends ESTestCase {
         // Stash some random headers so we can assert that we preserve them
         bulkClient.threadPool().getThreadContext().stashContext();
         expectedHeaders.clear();
-        expectedHeaders.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+        expectedHeaders.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         bulkClient.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 

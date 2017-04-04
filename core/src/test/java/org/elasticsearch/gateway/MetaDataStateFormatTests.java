@@ -327,12 +327,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
         MetaData.Builder mdBuilder = MetaData.builder();
         mdBuilder.generateClusterUuidIfNeeded();
         for (int i = 0; i < numIndices; i++) {
-            mdBuilder.put(indexBuilder(randomAsciiOfLength(10) + "idx-"+i));
+            mdBuilder.put(indexBuilder(randomAlphaOfLength(10) + "idx-"+i));
         }
         int numDelIndices = randomIntBetween(0, 5);
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         for (int i = 0; i < numDelIndices; i++) {
-            graveyard.addTombstone(new Index(randomAsciiOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
+            graveyard.addTombstone(new Index(randomAlphaOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
         }
         mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();

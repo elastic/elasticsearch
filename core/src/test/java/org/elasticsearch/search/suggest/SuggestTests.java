@@ -125,9 +125,9 @@ public class SuggestTests extends ESTestCase {
 
     public void testFilter() throws Exception {
         List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions;
-        CompletionSuggestion completionSuggestion = new CompletionSuggestion(randomAsciiOfLength(10), 2);
-        PhraseSuggestion phraseSuggestion = new PhraseSuggestion(randomAsciiOfLength(10), 2);
-        TermSuggestion termSuggestion = new TermSuggestion(randomAsciiOfLength(10), 2, SortBy.SCORE);
+        CompletionSuggestion completionSuggestion = new CompletionSuggestion(randomAlphaOfLength(10), 2);
+        PhraseSuggestion phraseSuggestion = new PhraseSuggestion(randomAlphaOfLength(10), 2);
+        TermSuggestion termSuggestion = new TermSuggestion(randomAlphaOfLength(10), 2, SortBy.SCORE);
         suggestions = Arrays.asList(completionSuggestion, phraseSuggestion, termSuggestion);
         Suggest suggest = new Suggest(suggestions);
         List<PhraseSuggestion> phraseSuggestions = suggest.filter(PhraseSuggestion.class);
@@ -146,7 +146,7 @@ public class SuggestTests extends ESTestCase {
         suggestions = new ArrayList<>();
         int n = randomIntBetween(2, 5);
         for (int i = 0; i < n; i++) {
-            suggestions.add(new CompletionSuggestion(randomAsciiOfLength(10), randomIntBetween(3, 5)));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(10), randomIntBetween(3, 5)));
         }
         Collections.shuffle(suggestions, random());
         Suggest suggest = new Suggest(suggestions);

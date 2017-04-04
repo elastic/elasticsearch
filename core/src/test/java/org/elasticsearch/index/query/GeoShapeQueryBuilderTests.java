@@ -70,15 +70,15 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         } else {
             indexedShapeToReturn = shape;
-            indexedShapeId = randomAsciiOfLengthBetween(3, 20);
-            indexedShapeType = randomAsciiOfLengthBetween(3, 20);
+            indexedShapeId = randomAlphaOfLengthBetween(3, 20);
+            indexedShapeType = randomAlphaOfLengthBetween(3, 20);
             builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeId, indexedShapeType);
             if (randomBoolean()) {
-                indexedShapeIndex = randomAsciiOfLengthBetween(3, 20);
+                indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapeIndex(indexedShapeIndex);
             }
             if (randomBoolean()) {
-                indexedShapePath = randomAsciiOfLengthBetween(3, 20);
+                indexedShapePath = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapePath(indexedShapePath);
             }
         }

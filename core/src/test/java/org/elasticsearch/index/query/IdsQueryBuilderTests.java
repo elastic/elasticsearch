@@ -44,7 +44,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 if (frequently()) {
                     types[i] = randomFrom(getCurrentTypes());
                 } else {
-                    types[i] = randomAsciiOfLengthBetween(1, 10);
+                    types[i] = randomAlphaOfLengthBetween(1, 10);
                 }
             }
         } else {
@@ -57,7 +57,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
         for (int i = 0; i < numberOfIds; i++) {
-            ids[i] = randomAsciiOfLengthBetween(1, 10);
+            ids[i] = randomAlphaOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
         if (types.length > 0 || randomBoolean()) {

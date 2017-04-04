@@ -41,10 +41,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class MainResponseTests extends ESTestCase {
 
     public static MainResponse createTestItem() {
-        String clusterUuid = randomAsciiOfLength(10);
-        ClusterName clusterName = new ClusterName(randomAsciiOfLength(10));
-        String nodeName = randomAsciiOfLength(10);
-        Build build = new Build(randomAsciiOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
+        String clusterUuid = randomAlphaOfLength(10);
+        ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
+        String nodeName = randomAlphaOfLength(10);
+        Build build = new Build(randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
         boolean available = randomBoolean();
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
@@ -108,10 +108,10 @@ public class MainResponseTests extends ESTestCase {
         ClusterName clusterName = o.getClusterName();
         switch (randomIntBetween(0, 5)) {
         case 0:
-            clusterUuid = clusterUuid + randomAsciiOfLength(5);
+            clusterUuid = clusterUuid + randomAlphaOfLength(5);
             break;
         case 1:
-            nodeName = nodeName + randomAsciiOfLength(5);
+            nodeName = nodeName + randomAlphaOfLength(5);
             break;
         case 2:
             available = !available;
@@ -124,7 +124,7 @@ public class MainResponseTests extends ESTestCase {
             version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
             break;
         case 5:
-            clusterName = new ClusterName(clusterName + randomAsciiOfLength(5));
+            clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
             break;
         }
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);

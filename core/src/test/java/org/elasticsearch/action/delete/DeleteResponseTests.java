@@ -90,11 +90,11 @@ public class DeleteResponseTests extends ESTestCase {
      * expected {@link DeleteResponse} after parsing.
      */
     public static Tuple<DeleteResponse, DeleteResponse> randomDeleteResponse() {
-        String index = randomAsciiOfLength(5);
-        String indexUUid = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
+        String indexUUid = randomAlphaOfLength(5);
         int shardId = randomIntBetween(0, 5);
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String id = randomAlphaOfLength(5);
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean found = randomBoolean();
         boolean forcedRefresh = randomBoolean();

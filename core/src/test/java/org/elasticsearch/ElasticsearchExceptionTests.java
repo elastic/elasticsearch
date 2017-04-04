@@ -919,7 +919,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
                     int nbValues = randomIntBetween(1, 3);
                     for (int j = 0; j < nbValues; j++) {
-                        values.add(frequently() ? randomAsciiOfLength(5) : "");
+                        values.add(frequently() ? randomAlphaOfLength(5) : "");
                     }
                     randomHeaders.put("header_" + i, values);
                 }
@@ -944,7 +944,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
                     int nbValues = randomIntBetween(1, 3);
                     for (int j = 0; j < nbValues; j++) {
-                        values.add(frequently() ? randomAsciiOfLength(5) : "");
+                        values.add(frequently() ? randomAlphaOfLength(5) : "");
                     }
                     randomMetadata.put("es.metadata_" + i, values);
                 }
@@ -966,7 +966,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     String resourceType = "type_" + i;
                     String[] resourceIds = new String[randomIntBetween(1, 3)];
                     for (int j = 0; j < resourceIds.length; j++) {
-                        resourceIds[j] = frequently() ? randomAsciiOfLength(5) : "";
+                        resourceIds[j] = frequently() ? randomAlphaOfLength(5) : "";
                     }
                     actualException.setResources(resourceType, resourceIds);
                     expected.setResources(resourceType, resourceIds);

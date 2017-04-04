@@ -38,7 +38,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
         SimulatePipelineRequest request = new SimulatePipelineRequest(new BytesArray(""), XContentType.JSON);
         // Sometimes we set an id
         if (randomBoolean()) {
-            request.setId(randomAsciiOfLengthBetween(1, 10));
+            request.setId(randomAlphaOfLengthBetween(1, 10));
         }
 
         // Sometimes we explicitly set a boolean (with whatever value)

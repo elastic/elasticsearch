@@ -62,7 +62,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         int numFilters = randomIntBetween(1, 10);
         QueryBuilder[] filters = new QueryBuilder[numFilters];
         for (int i = 0; i < filters.length; i++) {
-            filters[i] = QueryBuilders.termQuery("field", randomAsciiOfLength(5));
+            filters[i] = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");

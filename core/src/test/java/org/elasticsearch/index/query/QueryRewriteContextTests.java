@@ -40,7 +40,7 @@ public class QueryRewriteContextTests extends ESTestCase {
     }
 
     public void testNewParseContextWithLegacyScriptLanguage() throws Exception {
-        String defaultLegacyScriptLanguage = randomAsciiOfLength(4);
+        String defaultLegacyScriptLanguage = randomAlphaOfLength(4);
         IndexMetaData.Builder indexMetadata = new IndexMetaData.Builder("index");
         indexMetadata.settings(Settings.builder().put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)

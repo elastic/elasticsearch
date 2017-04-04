@@ -32,7 +32,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
-                key = randomAsciiOfLengthBetween(1, 20);
+                key = randomAlphaOfLengthBetween(1, 20);
             }
             double from = randomBoolean() ? Double.NEGATIVE_INFINITY : randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE - 1000);
             double to = randomBoolean() ? Double.POSITIVE_INFINITY

@@ -119,7 +119,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh(INDEX).get();
 
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10).contexts(
             new CompletionSuggestionBuilder.Contexts2x().addGeoLocation("st", 52.52, 13.4));
 
@@ -161,7 +161,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh(INDEX).get();
 
         for (int precision = 1; precision <= 12; precision++) {
-            String suggestionName = randomAsciiOfLength(10);
+            String suggestionName = randomAlphaOfLength(10);
             CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(FIELD).text("h").size(10)
                 .contexts(new CompletionSuggestionBuilder.Contexts2x().addGeoLocation("st", 52.529172, 13.407333, precision));
 
@@ -269,7 +269,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
 
         refresh();
 
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10)
             .contexts(new CompletionSuggestionBuilder.Contexts2x()
             .addGeoLocation("st", 52.52, 13.4));
@@ -878,7 +878,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
     }
 
     public void assertGeoSuggestionsInRange(String location, String suggest, double precision) throws IOException {
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text(suggest).size(10)
             .contexts(new CompletionSuggestionBuilder.Contexts2x().addGeoLocation("st", location));
         SearchRequestBuilder suggestionRequest = client().prepareSearch(INDEX)
@@ -902,7 +902,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
     }
 
     public void assertPrefixSuggestions(long prefix, String suggest, String... hits) throws IOException {
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text(suggest)
             .size(hits.length + 1).contexts(new CompletionSuggestionBuilder.Contexts2x()
                 .addCategory("st", Long.toString(prefix)));
@@ -929,7 +929,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
 
     public void assertContextWithFuzzySuggestions(String[] prefix1, String[] prefix2, String suggest, String... hits)
         throws IOException {
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).prefix(suggest, Fuzziness.TWO)
             .size(hits.length + 10).contexts(
                 new CompletionSuggestionBuilder.Contexts2x().addContextField("st", prefix1).addContextField("nd", prefix2));
@@ -959,7 +959,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
     }
 
     public void assertFieldSuggestions(String value, String suggest, String... hits) throws IOException {
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text(suggest).size(10)
             .contexts(new CompletionSuggestionBuilder.Contexts2x().addContextField("st", value));
         SearchRequestBuilder suggestionRequest = client().prepareSearch(INDEX).suggest(
@@ -985,7 +985,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
     }
 
     public void assertDoubleFieldSuggestions(String field1, String field2, String suggest, String... hits) throws IOException {
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text(suggest).size(10)
             .contexts(new CompletionSuggestionBuilder.Contexts2x()
             .addContextField("st", field1).addContextField("nd", field2));
@@ -1011,7 +1011,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
     }
 
     public void assertMultiContextSuggestions(String value1, String value2, String suggest, String... hits) throws IOException {
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text(suggest).size(10)
             .contexts(new CompletionSuggestionBuilder.Contexts2x()
             .addContextField("st", value1).addContextField("nd", value2));

@@ -90,7 +90,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         iw = new IndexWriter(dir, conf);
         terms = new String[scaledRandomIntBetween(10, 300)];
         for (int i = 0; i < terms.length; i++) {
-            terms[i] = randomAsciiOfLength(5);
+            terms[i] = randomAlphaOfLength(5);
         }
 
         int numberOfDocs = scaledRandomIntBetween(30, 300);

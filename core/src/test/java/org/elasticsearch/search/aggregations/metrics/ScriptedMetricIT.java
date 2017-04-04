@@ -205,7 +205,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("idx", "type", "" + i).setSource(
-                    jsonBuilder().startObject().field("value", randomAsciiOfLengthBetween(5, 15))
+                    jsonBuilder().startObject().field("value", randomAlphaOfLengthBetween(5, 15))
                             .field("l_value", i).endObject()));
         }
         indexRandom(true, builders);

@@ -20,13 +20,10 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +64,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final String hostname = randomAsciiOfLength(16);
+        final String hostname = randomAlphaOfLength(16);
         final Settings implicitEnvSettings = Settings.builder()
             .put("setting1", "${HOSTNAME}")
             .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)

@@ -69,11 +69,11 @@ public class RestRecoveryActionTests extends ESTestCase {
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {
-                when(sourceNode.getHostName()).thenReturn(randomAsciiOfLength(8));
+                when(sourceNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             }
             when(state.getSourceNode()).thenReturn(sourceNode);
             final DiscoveryNode targetNode = mock(DiscoveryNode.class);
-            when(targetNode.getHostName()).thenReturn(randomAsciiOfLength(8));
+            when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             when(state.getTargetNode()).thenReturn(targetNode);
 
             RecoveryState.Index index = mock(RecoveryState.Index.class);

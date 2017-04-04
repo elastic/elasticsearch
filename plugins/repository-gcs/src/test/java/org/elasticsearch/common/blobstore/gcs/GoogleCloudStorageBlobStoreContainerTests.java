@@ -29,7 +29,7 @@ import java.util.Locale;
 public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     @Override
     protected BlobStore newBlobStore() throws IOException {
-        String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, MockHttpTransport.newStorage(bucket, getTestName()));
     }
 }

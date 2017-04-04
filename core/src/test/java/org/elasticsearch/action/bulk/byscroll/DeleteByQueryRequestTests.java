@@ -60,7 +60,7 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
 
     @Override
     protected DeleteByQueryRequest newRequest() {
-        return new DeleteByQueryRequest(new SearchRequest(randomAsciiOfLength(5)));
+        return new DeleteByQueryRequest(new SearchRequest(randomAlphaOfLength(5)));
     }
 
     @Override

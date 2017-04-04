@@ -132,9 +132,9 @@ public class RestControllerTests extends ESTestCase {
         RestController controller = mock(RestController.class);
 
         RestRequest.Method method = randomFrom(RestRequest.Method.values());
-        String path = "/_" + randomAsciiOfLengthBetween(1, 6);
+        String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = mock(RestHandler.class);
-        String deprecationMessage = randomAsciiOfLengthBetween(1, 10);
+        String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
         DeprecationLogger logger = mock(DeprecationLogger.class);
 
         // don't want to test everything -- just that it actually wraps the handler
@@ -149,10 +149,10 @@ public class RestControllerTests extends ESTestCase {
         final RestController controller = mock(RestController.class);
 
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
-        final String path = "/_" + randomAsciiOfLengthBetween(1, 6);
+        final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = mock(RestHandler.class);
         final RestRequest.Method deprecatedMethod = randomFrom(RestRequest.Method.values());
-        final String deprecatedPath = "/_" + randomAsciiOfLengthBetween(1, 6);
+        final String deprecatedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final DeprecationLogger logger = mock(DeprecationLogger.class);
 
         final String deprecationMessage = "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" +
@@ -208,7 +208,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
-        String content = randomAsciiOfLength(contentLength);
+        String content = randomAlphaOfLength(contentLength);
         TestRestRequest request = new TestRestRequest("/", content, XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
 
@@ -220,7 +220,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchRequestAddsAndFreesBytesOnError() {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
-        String content = randomAsciiOfLength(contentLength);
+        String content = randomAlphaOfLength(contentLength);
         TestRestRequest request = new TestRestRequest("/error", content, XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
 
@@ -232,7 +232,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchRequestAddsAndFreesBytesOnlyOnceOnError() {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
-        String content = randomAsciiOfLength(contentLength);
+        String content = randomAlphaOfLength(contentLength);
         // we will produce an error in the rest handler and one more when sending the error response
         TestRestRequest request = new TestRestRequest("/error", content, XContentType.JSON);
         ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, true);
@@ -245,7 +245,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchRequestLimitsBytes() {
         int contentLength = BREAKER_LIMIT.bytesAsInt() + 1;
-        String content = randomAsciiOfLength(contentLength);
+        String content = randomAlphaOfLength(contentLength);
         TestRestRequest request = new TestRestRequest("/", content, XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.SERVICE_UNAVAILABLE);
 
@@ -256,7 +256,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchRequiresContentTypeForRequestsWithContent() {
-        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         TestRestRequest request = new TestRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
         restController = new RestController(
@@ -281,7 +281,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWorksWithPlainText() {
-        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
@@ -342,7 +342,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchWorksWithNewlineDelimitedJson() {
         final String mimeType = "application/x-ndjson";
-        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
@@ -366,7 +366,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchWorksWithLineDelimitedJsonDeprecated() {
         final String mimeType = "application/x-ldjson";
-        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
@@ -396,7 +396,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchWithContentStream() {
         final String mimeType = randomFrom("application/json", "application/smile");
-        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
@@ -560,7 +560,7 @@ public class RestControllerTests extends ESTestCase {
 
         @Override
         public BoundTransportAddress boundAddress() {
-            TransportAddress transportAddress = new LocalTransportAddress(randomAsciiOfLengthBetween(1, 5));
+            TransportAddress transportAddress = new LocalTransportAddress(randomAlphaOfLengthBetween(1, 5));
             return new BoundTransportAddress(new TransportAddress[] {transportAddress} ,transportAddress);
         }
 

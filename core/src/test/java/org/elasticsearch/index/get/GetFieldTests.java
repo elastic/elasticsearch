@@ -89,10 +89,10 @@ public class GetFieldTests extends ESTestCase {
     public static Tuple<GetField, GetField> randomGetField(XContentType xContentType) {
         if (randomBoolean()) {
             String fieldName = randomFrom(ParentFieldMapper.NAME, RoutingFieldMapper.NAME, UidFieldMapper.NAME);
-            GetField getField = new GetField(fieldName, Collections.singletonList(randomAsciiOfLengthBetween(3, 10)));
+            GetField getField = new GetField(fieldName, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
             return Tuple.tuple(getField, getField);
         }
-        String fieldName = randomAsciiOfLengthBetween(3, 10);
+        String fieldName = randomAlphaOfLengthBetween(3, 10);
         Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
         GetField input = new GetField(fieldName, tuple.v1());
         GetField expected = new GetField(fieldName, tuple.v2());

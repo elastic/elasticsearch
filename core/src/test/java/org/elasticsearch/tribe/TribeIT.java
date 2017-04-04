@@ -47,7 +47,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCustomMetaData;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.tribe.TribeServiceTests.MergableCustomMetaData1;
 import org.elasticsearch.tribe.TribeServiceTests.MergableCustomMetaData2;
 import org.junit.After;
@@ -504,8 +503,8 @@ public class TribeIT extends ESIntegTestCase {
     public void testMergingCustomMetaData() throws Exception {
         removeCustomMetaData(cluster1, MergableCustomMetaData1.TYPE);
         removeCustomMetaData(cluster2, MergableCustomMetaData1.TYPE);
-        MergableCustomMetaData1 customMetaData1 = new MergableCustomMetaData1(randomAsciiOfLength(10));
-        MergableCustomMetaData1 customMetaData2 = new MergableCustomMetaData1(randomAsciiOfLength(10));
+        MergableCustomMetaData1 customMetaData1 = new MergableCustomMetaData1(randomAlphaOfLength(10));
+        MergableCustomMetaData1 customMetaData2 = new MergableCustomMetaData1(randomAlphaOfLength(10));
         List<MergableCustomMetaData1> customMetaDatas = Arrays.asList(customMetaData1, customMetaData2);
         Collections.sort(customMetaDatas, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));
         final MergableCustomMetaData1 tribeNodeCustomMetaData = customMetaDatas.get(0);
@@ -521,10 +520,10 @@ public class TribeIT extends ESIntegTestCase {
     public void testMergingMultipleCustomMetaData() throws Exception {
         removeCustomMetaData(cluster1, MergableCustomMetaData1.TYPE);
         removeCustomMetaData(cluster2, MergableCustomMetaData1.TYPE);
-        MergableCustomMetaData1 firstCustomMetaDataType1 = new MergableCustomMetaData1(randomAsciiOfLength(10));
-        MergableCustomMetaData1 secondCustomMetaDataType1 = new MergableCustomMetaData1(randomAsciiOfLength(10));
-        MergableCustomMetaData2 firstCustomMetaDataType2 = new MergableCustomMetaData2(randomAsciiOfLength(10));
-        MergableCustomMetaData2 secondCustomMetaDataType2 = new MergableCustomMetaData2(randomAsciiOfLength(10));
+        MergableCustomMetaData1 firstCustomMetaDataType1 = new MergableCustomMetaData1(randomAlphaOfLength(10));
+        MergableCustomMetaData1 secondCustomMetaDataType1 = new MergableCustomMetaData1(randomAlphaOfLength(10));
+        MergableCustomMetaData2 firstCustomMetaDataType2 = new MergableCustomMetaData2(randomAlphaOfLength(10));
+        MergableCustomMetaData2 secondCustomMetaDataType2 = new MergableCustomMetaData2(randomAlphaOfLength(10));
         List<MergableCustomMetaData1> mergedCustomMetaDataType1 = Arrays.asList(firstCustomMetaDataType1, secondCustomMetaDataType1);
         List<MergableCustomMetaData2> mergedCustomMetaDataType2 = Arrays.asList(firstCustomMetaDataType2, secondCustomMetaDataType2);
         Collections.sort(mergedCustomMetaDataType1, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));

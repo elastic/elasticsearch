@@ -118,7 +118,7 @@ public class ShardRoutingTests extends ESTestCase {
             switch (changeId) {
                 case 0:
                     // change index
-                    ShardId shardId = new ShardId(new Index("blubb", randomAsciiOfLength(10)), otherRouting.id());
+                    ShardId shardId = new ShardId(new Index("blubb", randomAlphaOfLength(10)), otherRouting.id());
                     otherRouting = new ShardRouting(shardId, otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
                             otherRouting.allocationId(), otherRouting.getExpectedShardSize());

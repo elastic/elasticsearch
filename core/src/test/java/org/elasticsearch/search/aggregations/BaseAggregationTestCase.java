@@ -85,7 +85,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
     }

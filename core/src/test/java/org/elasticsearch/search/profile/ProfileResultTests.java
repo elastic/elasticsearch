@@ -41,8 +41,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class ProfileResultTests extends ESTestCase {
 
     public static ProfileResult createTestItem(int depth) {
-        String type = randomAsciiOfLengthBetween(5, 10);
-        String description = randomAsciiOfLengthBetween(5, 10);
+        String type = randomAlphaOfLengthBetween(5, 10);
+        String description = randomAlphaOfLengthBetween(5, 10);
         int timingsSize = randomIntBetween(0, 5);
         Map<String, Long> timings = new HashMap<>(timingsSize);
         for (int i = 0; i < timingsSize; i++) {
@@ -51,7 +51,7 @@ public class ProfileResultTests extends ESTestCase {
                 // also often use "small" values in tests
                 time = randomNonNegativeLong() % 10000;
             }
-            timings.put(randomAsciiOfLengthBetween(5, 10), time); // don't overflow Long.MAX_VALUE;
+            timings.put(randomAlphaOfLengthBetween(5, 10), time); // don't overflow Long.MAX_VALUE;
         }
         int childrenSize = depth > 0 ? randomIntBetween(0, 1) : 0;
         List<ProfileResult> children = new ArrayList<>(childrenSize);

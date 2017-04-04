@@ -812,12 +812,12 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed")
                 .startObject("norms")
                     .field("enabled", true)
-                    .field("loading", randomAsciiOfLength(5)) // Totally ignored even though it used to be eager/lazy
+                    .field("loading", randomAlphaOfLength(5)) // Totally ignored even though it used to be eager/lazy
                 .endObject());
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword")
                 .startObject("norms")
                     .field("enabled", true)
-                    .field("loading", randomAsciiOfLength(5))
+                    .field("loading", randomAlphaOfLength(5))
                 .endObject());
     }
 

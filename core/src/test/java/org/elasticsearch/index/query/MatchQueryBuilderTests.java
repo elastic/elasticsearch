@@ -70,7 +70,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -130,7 +130,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected Map<String, MatchQueryBuilder> getAlternateVersions() {
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
-        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"match\" : {\n" +
                 "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +

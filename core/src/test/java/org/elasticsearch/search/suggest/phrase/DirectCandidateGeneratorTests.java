@@ -172,7 +172,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
      * create random {@link DirectCandidateGeneratorBuilder}
      */
     public static DirectCandidateGeneratorBuilder randomCandidateGenerator() {
-        DirectCandidateGeneratorBuilder generator = new DirectCandidateGeneratorBuilder(randomAsciiOfLength(10));
+        DirectCandidateGeneratorBuilder generator = new DirectCandidateGeneratorBuilder(randomAlphaOfLength(10));
         maybeSet(generator::accuracy, randomFloat());
         maybeSet(generator::maxEdits, randomIntBetween(1, 2));
         maybeSet(generator::maxInspections, randomIntBetween(1, 20));
@@ -180,8 +180,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         maybeSet(generator::minDocFreq, randomFloat());
         maybeSet(generator::minWordLength, randomIntBetween(1, 20));
         maybeSet(generator::prefixLength, randomIntBetween(1, 20));
-        maybeSet(generator::preFilter, randomAsciiOfLengthBetween(1, 20));
-        maybeSet(generator::postFilter, randomAsciiOfLengthBetween(1, 20));
+        maybeSet(generator::preFilter, randomAlphaOfLengthBetween(1, 20));
+        maybeSet(generator::postFilter, randomAlphaOfLengthBetween(1, 20));
         maybeSet(generator::size, randomIntBetween(1, 20));
         maybeSet(generator::sort, randomFrom("score", "frequency"));
         maybeSet(generator::stringDistance, randomFrom("internal", "damerau_levenshtein", "levenstein", "jarowinkler", "ngram"));

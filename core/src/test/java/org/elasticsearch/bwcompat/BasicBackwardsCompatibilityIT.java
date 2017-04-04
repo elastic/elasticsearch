@@ -461,13 +461,13 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs - 2; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i))
-                    .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
+                    .setRouting(randomAlphaOfLength(randomIntBetween(1, 10))).setSource("field", "value");
         }
         String firstDocId = Integer.toString(numDocs - 2);
         indexRequestBuilders[numDocs - 2] = client().prepareIndex("test", "test", firstDocId)
                 .setRouting("routing").setSource("field", "value");
         String secondDocId = Integer.toString(numDocs - 1);
-        String secondRouting = randomAsciiOfLength(randomIntBetween(1, 10));
+        String secondRouting = randomAlphaOfLength(randomIntBetween(1, 10));
         indexRequestBuilders[numDocs - 1] = client().prepareIndex("test", "test", secondDocId)
                 .setRouting(secondRouting).setSource("field", "value");
 

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -58,7 +57,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         // stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
         xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, false, emptyList()).getNamedXContents());
@@ -170,7 +169,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testSameAggregationName() throws Exception {
-        final String name = randomAsciiOfLengthBetween(1, 10);
+        final String name = randomAlphaOfLengthBetween(1, 10);
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject(name)

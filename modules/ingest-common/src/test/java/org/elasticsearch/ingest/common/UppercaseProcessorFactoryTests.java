@@ -33,7 +33,7 @@ public class UppercaseProcessorFactoryTests extends ESTestCase {
         UppercaseProcessor.Factory factory = new UppercaseProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         UppercaseProcessor uppercaseProcessor = (UppercaseProcessor)factory.create(null, processorTag, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));

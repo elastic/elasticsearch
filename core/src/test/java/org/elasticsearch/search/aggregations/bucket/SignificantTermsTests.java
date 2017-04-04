@@ -51,9 +51,9 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
 
     @Override
     protected SignificantTermsAggregationBuilder createTestAggregatorBuilder() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
         SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(name, null);
-        String field = randomAsciiOfLengthBetween(3, 20);
+        String field = randomAlphaOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {
         case 0:
@@ -131,7 +131,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 SortedSet<BytesRef> includeValues = new TreeSet<>();
                 int numIncs = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs; i++) {
-                    includeValues.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 SortedSet<BytesRef> excludeValues = null;
                 incExc = new IncludeExclude(includeValues, excludeValues);
@@ -141,7 +141,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
                 int numExcs2 = randomIntBetween(1, 20);
                 for (int i = 0; i < numExcs2; i++) {
-                    excludeValues2.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues2, excludeValues2);
                 break;
@@ -149,12 +149,12 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 SortedSet<BytesRef> includeValues3 = new TreeSet<>();
                 int numIncs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs3; i++) {
-                    includeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    includeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
                 int numExcs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numExcs3; i++) {
-                    excludeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues3, excludeValues3);
                 break;

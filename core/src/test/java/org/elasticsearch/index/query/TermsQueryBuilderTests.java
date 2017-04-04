@@ -66,7 +66,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             }
         }
         this.randomTerms = randomTerms;
-        termsPath = randomAsciiOfLength(10).replace('.', '_');
+        termsPath = randomAlphaOfLength(10).replace('.', '_');
     }
 
     @Override
@@ -87,14 +87,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             query = new TermsQueryBuilder(fieldName, values);
         } else {
             // right now the mock service returns us a list of strings
-            query = new TermsQueryBuilder(randomBoolean() ? randomAsciiOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
+            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
         }
         return query;
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomBoolean() ? randomAsciiOfLength(10) : null, randomAsciiOfLength(10), randomAsciiOfLength(10),
-                termsPath).routing(randomBoolean() ? randomAsciiOfLength(10) : null);
+        return new TermsLookup(randomBoolean() ? randomAlphaOfLength(10) : null, randomAlphaOfLength(10), randomAlphaOfLength(10),
+                termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 
     @Override

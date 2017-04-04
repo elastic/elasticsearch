@@ -82,7 +82,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (int i = 0; i < NUM_DOCS; i++) {
             XContentBuilder builder = jsonBuilder();
             builder.startObject();
-            builder.field("invalid_random_kw", randomAsciiOfLengthBetween(5, 20));
+            builder.field("invalid_random_kw", randomAlphaOfLengthBetween(5, 20));
             builder.field("random_int", randomInt());
             builder.field("static_int", 0);
             builder.field("invalid_random_int", randomInt());

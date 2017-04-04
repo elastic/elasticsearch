@@ -466,12 +466,12 @@ public class UpdateRequestTests extends ESTestCase {
             updateRequest.docAsUpsert(randomBoolean());
         } else {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            String scriptLang = (scriptType != ScriptType.STORED) ? randomAsciiOfLength(10) : null;
-            String scriptIdOrCode = randomAsciiOfLength(10);
+            String scriptLang = (scriptType != ScriptType.STORED) ? randomAlphaOfLength(10) : null;
+            String scriptIdOrCode = randomAlphaOfLength(10);
             int nbScriptParams = randomIntBetween(0, 5);
             Map<String, Object> scriptParams = new HashMap<>(nbScriptParams);
             for (int i = 0; i < nbScriptParams; i++) {
-                scriptParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                scriptParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             updateRequest.script(new Script(scriptType, scriptLang, scriptIdOrCode, scriptParams));
             updateRequest.scriptedUpsert(randomBoolean());
@@ -484,7 +484,7 @@ public class UpdateRequestTests extends ESTestCase {
         if (randomBoolean()) {
             String[] fields = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = randomAsciiOfLength(5);
+                fields[i] = randomAlphaOfLength(5);
             }
             updateRequest.fields(fields);
         }
@@ -494,11 +494,11 @@ public class UpdateRequestTests extends ESTestCase {
             } else {
                 String[] includes = new String[randomIntBetween(0, 5)];
                 for (int i = 0; i < includes.length; i++) {
-                    includes[i] = randomAsciiOfLength(5);
+                    includes[i] = randomAlphaOfLength(5);
                 }
                 String[] excludes = new String[randomIntBetween(0, 5)];
                 for (int i = 0; i < excludes.length; i++) {
-                    excludes[i] = randomAsciiOfLength(5);
+                    excludes[i] = randomAlphaOfLength(5);
                 }
                 if (randomBoolean()) {
                     updateRequest.fetchSource(includes, excludes);

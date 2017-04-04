@@ -149,9 +149,9 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testAllExternalValues() throws Exception {
         String originalText = "This is an elasticsearch mapper attachment test.";
-        String forcedName = randomAsciiOfLength(20);
-        String forcedLanguage = randomAsciiOfLength(20);
-        String forcedContentType = randomAsciiOfLength(20);
+        String forcedName = randomAlphaOfLength(20);
+        String forcedLanguage = randomAlphaOfLength(20);
+        String forcedContentType = randomAlphaOfLength(20);
 
         String bytes = Base64.getEncoder().encodeToString(originalText.getBytes(StandardCharsets.ISO_8859_1));
 

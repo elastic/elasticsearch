@@ -357,7 +357,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -405,7 +405,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repo)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

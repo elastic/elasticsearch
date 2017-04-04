@@ -18,28 +18,20 @@
  */
 package org.elasticsearch.indexing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -206,7 +198,7 @@ public class IndexActionIT extends ESIntegTestCase {
         int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
         int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;
         try {
-            createIndex(randomAsciiOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
+            createIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
@@ -214,7 +206,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex(randomAsciiOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
+            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
@@ -223,7 +215,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
+            client().prepareIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
                             "Ϟ".toLowerCase(Locale.ROOT),
                     "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
@@ -233,7 +225,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         // we can create an index of max length
-        createIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
+        createIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
     }
 
     public void testInvalidIndexName() {

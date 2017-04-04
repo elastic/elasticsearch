@@ -84,7 +84,7 @@ public class RestSearchScrollActionTests extends ESTestCase {
     public void testParseSearchScrollPlaintext() throws Exception {
         RestSearchScrollAction action = new RestSearchScrollAction(Settings.EMPTY, mock(RestController.class));
         NodeClient mockNodeClient = mock(NodeClient.class);
-        final String scrollId = randomAsciiOfLengthBetween(1, 30);
+        final String scrollId = randomAlphaOfLengthBetween(1, 30);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(scrollId), null)
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain")))

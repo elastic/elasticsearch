@@ -93,9 +93,9 @@ public class BulkItemResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         int itemId = randomIntBetween(0, 100);
-        String index = randomAsciiOfLength(5);
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String id = randomAlphaOfLength(5);
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();

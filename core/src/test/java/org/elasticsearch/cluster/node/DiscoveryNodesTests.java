@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -173,7 +172,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
             if (frequently()) {
-                attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
+                attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes,
                 new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));

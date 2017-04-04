@@ -208,7 +208,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAsciiOfLength(10));
+        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder()
             .put(IndexMetaData.SETTING_DATA_PATH, idxPath)
@@ -241,10 +241,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testIndexCanChangeCustomDataPath() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAsciiOfLength(10));
+        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         final String INDEX = "idx";
-        Path startDir = idxPath.resolve("start-" + randomAsciiOfLength(10));
-        Path endDir = idxPath.resolve("end-" + randomAsciiOfLength(10));
+        Path startDir = idxPath.resolve("start-" + randomAlphaOfLength(10));
+        Path endDir = idxPath.resolve("end-" + randomAlphaOfLength(10));
         logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());
         logger.info("-->   end dir: [{}]", endDir.toAbsolutePath().toString());
         // temp dirs are automatically created, but the end dir is what

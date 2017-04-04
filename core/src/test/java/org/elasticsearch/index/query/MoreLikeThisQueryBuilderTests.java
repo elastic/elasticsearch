@@ -96,7 +96,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         // indexed item or artificial document
         Item item;
         if (randomBoolean()) {
-            item = new Item(index, type, randomAsciiOfLength(10));
+            item = new Item(index, type, randomAlphaOfLength(10));
         } else {
             item = new Item(index, type, randomArtificialDoc());
         }
@@ -109,7 +109,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             item.perFieldAnalyzer(randomPerFieldAnalyzer());
         }
         if (randomBoolean()) {
-            item.routing(randomAsciiOfLength(10));
+            item.routing(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             item.version(randomInt(5));
@@ -125,7 +125,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         try {
             doc = XContentFactory.jsonBuilder().startObject();
             for (String field : randomFields) {
-                doc.field(field, randomAsciiOfLength(10));
+                doc.field(field, randomAlphaOfLength(10));
             }
             doc.endObject();
         } catch (IOException e) {

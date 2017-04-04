@@ -91,8 +91,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             case 2:
             default:
                 query = new RangeQueryBuilder(STRING_FIELD_NAME);
-                query.from("a" + randomAsciiOfLengthBetween(1, 10));
-                query.to("z" + randomAsciiOfLengthBetween(1, 10));
+                query.from("a" + randomAlphaOfLengthBetween(1, 10));
+                query.to("z" + randomAlphaOfLengthBetween(1, 10));
                 break;
         }
         query.includeLower(randomBoolean()).includeUpper(randomBoolean());
@@ -500,7 +500,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToMatchAll() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
@@ -521,7 +521,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
@@ -546,7 +546,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToMatchNone() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
@@ -563,7 +563,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToSame() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
@@ -580,7 +580,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteOpenBoundsToSame() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {

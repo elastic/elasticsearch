@@ -379,7 +379,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testThreadContextRestored() throws Exception {
-        String header = randomAsciiOfLength(5);
+        String header = randomAlphaOfLength(5);
         threadPool.getThreadContext().putHeader("test", header);
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {

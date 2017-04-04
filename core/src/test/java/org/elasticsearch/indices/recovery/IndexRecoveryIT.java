@@ -534,7 +534,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex(name, INDEX_TYPE).
                     setSource("foo-int", randomInt(),
-                            "foo-string", randomAsciiOfLength(32),
+                            "foo-string", randomAlphaOfLength(32),
                             "foo-float", randomFloat());
         }
 

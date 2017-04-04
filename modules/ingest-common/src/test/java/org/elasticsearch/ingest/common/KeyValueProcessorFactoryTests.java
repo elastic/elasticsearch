@@ -39,7 +39,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("field_split", "&");
         config.put("value_split", "=");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("field1"));
@@ -59,7 +59,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "target");
         config.put("include_keys", Arrays.asList("a", "b"));
         config.put("ignore_missing", true);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("field1"));
@@ -73,7 +73,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
     public void testCreateWithMissingField() {
         KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
@@ -83,7 +83,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("[field_split] required property is missing"));
@@ -94,7 +94,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("[value_split] required property is missing"));

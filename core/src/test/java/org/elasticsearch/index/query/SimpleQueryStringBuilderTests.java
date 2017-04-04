@@ -55,7 +55,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -89,9 +89,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
+                fields.put(randomAlphaOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
@@ -199,7 +199,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
                 "      \"query\" : \"" + query + "\"" +

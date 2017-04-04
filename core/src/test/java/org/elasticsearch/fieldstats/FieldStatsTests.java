@@ -651,7 +651,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 } else {
                     return new FieldStats.Text(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                         randomNonNegativeLong(), randomBoolean(), randomBoolean(),
-                        new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
+                        new BytesRef(randomAlphaOfLength(10)), new BytesRef(randomAlphaOfLength(20)));
                 }
             case 4:
                 if (withNullMinMax && randomBoolean()) {

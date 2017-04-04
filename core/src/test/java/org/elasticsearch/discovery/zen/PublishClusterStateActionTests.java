@@ -613,7 +613,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         logger.info("--> testing acceptances of any master when having no master");
         ClusterState state = ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId(randomAsciiOfLength(10))).incrementVersion().build();
+                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId(randomAlphaOfLength(10))).incrementVersion().build();
         node.action.validateIncomingState(state, null);
 
         // now set a master node
@@ -634,7 +634,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         logger.info("--> testing rejection of another cluster name");
         try {
-            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10)))
+            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
                 .nodes(node.nodes()).build(), node.clusterState);
             fail("node accepted state with another cluster name");
         } catch (IllegalStateException OK) {

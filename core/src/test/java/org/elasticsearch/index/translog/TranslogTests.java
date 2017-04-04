@@ -47,7 +47,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
@@ -478,7 +477,7 @@ public class TranslogTests extends ESTestCase {
 
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
-            String ascii = randomAsciiOfLengthBetween(1, 50);
+            String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, ascii.getBytes("UTF-8"))));
         }
         translog.sync();
@@ -504,7 +503,7 @@ public class TranslogTests extends ESTestCase {
 
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
-            String ascii = randomAsciiOfLengthBetween(1, 50);
+            String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, ascii.getBytes("UTF-8"))));
         }
         translog.sync();

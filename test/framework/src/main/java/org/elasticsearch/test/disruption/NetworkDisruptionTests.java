@@ -48,10 +48,10 @@ public class NetworkDisruptionTests extends ESTestCase {
             assertTrue(topology.disrupt(randomFrom(partition2), randomFrom(partition1)));
             assertFalse(topology.disrupt(randomFrom(partition1), randomFrom(partition1)));
             assertFalse(topology.disrupt(randomFrom(partition2), randomFrom(partition2)));
-            assertFalse(topology.disrupt(randomAsciiOfLength(10), randomFrom(partition1)));
-            assertFalse(topology.disrupt(randomAsciiOfLength(10), randomFrom(partition2)));
-            assertFalse(topology.disrupt(randomFrom(partition1), randomAsciiOfLength(10)));
-            assertFalse(topology.disrupt(randomFrom(partition2), randomAsciiOfLength(10)));
+            assertFalse(topology.disrupt(randomAlphaOfLength(10), randomFrom(partition1)));
+            assertFalse(topology.disrupt(randomAlphaOfLength(10), randomFrom(partition2)));
+            assertFalse(topology.disrupt(randomFrom(partition1), randomAlphaOfLength(10)));
+            assertFalse(topology.disrupt(randomFrom(partition2), randomAlphaOfLength(10)));
         }
         assertTrue(topology.getMajoritySide().size() >= topology.getMinoritySide().size());
     }
@@ -74,7 +74,7 @@ public class NetworkDisruptionTests extends ESTestCase {
     public void testBridge() {
         Set<String> partition1 = generateRandomStringSet(1, 10);
         Set<String> partition2 = generateRandomStringSet(1, 10);
-        String bridgeNode = randomAsciiOfLength(10);
+        String bridgeNode = randomAlphaOfLength(10);
         Bridge topology = new Bridge(bridgeNode, partition1, partition2);
         checkBridge(topology, bridgeNode, partition1, partition2);
     }
@@ -97,12 +97,12 @@ public class NetworkDisruptionTests extends ESTestCase {
             assertFalse(topology.disrupt(randomFrom(partition2), randomFrom(partition2)));
             assertFalse(topology.disrupt(randomFrom(partition2), bridgeNode));
             assertFalse(topology.disrupt(bridgeNode, randomFrom(partition2)));
-            assertFalse(topology.disrupt(randomAsciiOfLength(10), randomFrom(partition1)));
-            assertFalse(topology.disrupt(randomAsciiOfLength(10), randomFrom(partition2)));
-            assertFalse(topology.disrupt(randomAsciiOfLength(10), bridgeNode));
-            assertFalse(topology.disrupt(randomFrom(partition1), randomAsciiOfLength(10)));
-            assertFalse(topology.disrupt(randomFrom(partition2), randomAsciiOfLength(10)));
-            assertFalse(topology.disrupt(bridgeNode, randomAsciiOfLength(10)));
+            assertFalse(topology.disrupt(randomAlphaOfLength(10), randomFrom(partition1)));
+            assertFalse(topology.disrupt(randomAlphaOfLength(10), randomFrom(partition2)));
+            assertFalse(topology.disrupt(randomAlphaOfLength(10), bridgeNode));
+            assertFalse(topology.disrupt(randomFrom(partition1), randomAlphaOfLength(10)));
+            assertFalse(topology.disrupt(randomFrom(partition2), randomAlphaOfLength(10)));
+            assertFalse(topology.disrupt(bridgeNode, randomAlphaOfLength(10)));
         }
     }
 
@@ -110,7 +110,7 @@ public class NetworkDisruptionTests extends ESTestCase {
         assert maxSize >= minSize;
         Set<String> result = new HashSet<>();
         for (int i = 0; i < minSize + randomInt(maxSize - minSize); i++) {
-            result.add(randomAsciiOfLength(10));
+            result.add(randomAlphaOfLength(10));
         }
         return result;
     }

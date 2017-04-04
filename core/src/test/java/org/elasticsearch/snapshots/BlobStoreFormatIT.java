@@ -220,7 +220,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     public void testBlobCorruption() throws IOException {
         BlobStore blobStore = createTestBlobStore();
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        String testString = randomAsciiOfLength(randomInt(10000));
+        String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
             xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
@@ -240,7 +240,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     public void testAtomicWrite() throws Exception {
         final BlobStore blobStore = createTestBlobStore();
         final BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        String testString = randomAsciiOfLength(randomInt(10000));
+        String testString = randomAlphaOfLength(randomInt(10000));
         final CountDownLatch block = new CountDownLatch(1);
         final CountDownLatch unblock = new CountDownLatch(1);
         final BlobObj blobObj = new BlobObj(testString) {

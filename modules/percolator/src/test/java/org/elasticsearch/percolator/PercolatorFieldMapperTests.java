@@ -132,8 +132,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void addQueryMapping() throws Exception {
-        typeName = randomAsciiOfLength(4);
-        fieldName = randomAsciiOfLength(4);
+        typeName = randomAlphaOfLength(4);
+        fieldName = randomAlphaOfLength(4);
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(typeName)
                 .startObject("properties").startObject(fieldName).field("type", "percolator").endObject().endObject()
                 .endObject().endObject().string();

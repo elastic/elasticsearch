@@ -50,7 +50,7 @@ public class FileInfoTests extends ESTestCase {
             for (int i = 0; i < hash.length; i++) {
                 hash.bytes[i] = randomByte();
             }
-            StoreFileMetaData meta = new StoreFileMetaData("foobar", Math.abs(randomLong()), randomAsciiOfLengthBetween(1, 10), Version.LATEST, hash);
+            StoreFileMetaData meta = new StoreFileMetaData("foobar", Math.abs(randomLong()), randomAlphaOfLengthBetween(1, 10), Version.LATEST, hash);
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();

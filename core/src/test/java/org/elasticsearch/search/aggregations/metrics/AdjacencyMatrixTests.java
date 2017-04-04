@@ -36,10 +36,10 @@ public class AdjacencyMatrixTests extends BaseAggregationTestCase<AdjacencyMatri
         int size = randomIntBetween(1, 20);
         AdjacencyMatrixAggregationBuilder factory;
         Map<String, QueryBuilder> filters = new HashMap<>(size);
-        for (String key : randomUnique(() -> randomAsciiOfLengthBetween(1, 20), size)) {
-            filters.put(key, QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
+        for (String key : randomUnique(() -> randomAlphaOfLengthBetween(1, 20), size)) {
+            filters.put(key, QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }
-        factory = new AdjacencyMatrixAggregationBuilder(randomAsciiOfLengthBetween(1, 20), filters)
+        factory = new AdjacencyMatrixAggregationBuilder(randomAlphaOfLengthBetween(1, 20), filters)
                 .separator(randomFrom("&","+","\t"));       
         return factory;
     }

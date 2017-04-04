@@ -22,7 +22,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -37,8 +36,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,7 +47,7 @@ import java.util.Objects;
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
 public class CompletionPersistentTaskAction extends Action<CompletionPersistentTaskAction.Request,
-        CompletionPersistentTaskAction.Response,
+        PersistentTaskResponse,
         CompletionPersistentTaskAction.RequestBuilder> {
 
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
@@ -64,8 +63,8 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public PersistentTaskResponse newResponse() {
+        return new PersistentTaskResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -117,49 +116,15 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AcknowledgedResponse that = (AcknowledgedResponse) o;
-            return isAcknowledged() == that.isAcknowledged();
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-    }
-
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CompletionPersistentTaskAction.Request,
-            CompletionPersistentTaskAction.Response, CompletionPersistentTaskAction.RequestBuilder> {
+            PersistentTaskResponse, CompletionPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, CompletionPersistentTaskAction action) {
             super(client, action, new Request());
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -179,8 +144,8 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected PersistentTaskResponse newResponse() {
+            return new PersistentTaskResponse();
         }
 
         @Override
@@ -190,18 +155,20 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTasksClusterService.completePersistentTask(request.taskId, request.exception, new ActionListener<Empty>() {
-                @Override
-                public void onResponse(Empty empty) {
-                    listener.onResponse(newResponse());
-                }
+        protected final void masterOperation(final Request request, ClusterState state,
+                                             final ActionListener<PersistentTaskResponse> listener) {
+            persistentTasksClusterService.completePersistentTask(request.taskId, request.exception,
+                    new ActionListener<PersistentTask<?>>() {
+                        @Override
+                        public void onResponse(PersistentTask<?> task) {
+                            listener.onResponse(new PersistentTaskResponse(task));
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
         }
     }
 }

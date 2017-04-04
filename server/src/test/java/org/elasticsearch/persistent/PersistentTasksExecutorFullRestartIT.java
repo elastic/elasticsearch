@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.persistent.PersistentTasksExecutorIT.PersistentTaskOperationFuture;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
@@ -58,16 +58,16 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
         int numberOfTasks = randomIntBetween(1, 10);
         long[] taskIds = new long[numberOfTasks];
-        List<PersistentTaskOperationFuture> futures = new ArrayList<>(numberOfTasks);
+        List<PlainActionFuture<PersistentTask<TestRequest>>> futures = new ArrayList<>(numberOfTasks);
 
         for (int i = 0; i < numberOfTasks; i++) {
-            PersistentTaskOperationFuture future = new PersistentTaskOperationFuture();
+            PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
             futures.add(future);
-            service.createPersistentActionTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
+            service.startPersistentTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
         }
 
         for (int i = 0; i < numberOfTasks; i++) {
-            taskIds[i] = futures.get(i).get();
+            taskIds[i] = futures.get(i).get().getId();
         }
 
         PersistentTasksCustomMetaData tasksInProgress = internalCluster().clusterService().state().getMetaData()

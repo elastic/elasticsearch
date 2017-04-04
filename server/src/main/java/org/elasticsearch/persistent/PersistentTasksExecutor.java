@@ -24,9 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 
 import java.util.function.Predicate;
@@ -39,14 +37,11 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
 
     private final String executor;
     private final String taskName;
-    private final PersistentTasksService persistentTasksService;
 
-    protected PersistentTasksExecutor(Settings settings, String taskName, PersistentTasksService persistentTasksService,
-                                      String executor) {
+    protected PersistentTasksExecutor(Settings settings, String taskName, String executor) {
         super(settings);
         this.taskName = taskName;
         this.executor = executor;
-        this.persistentTasksService = persistentTasksService;
     }
 
     public String getTaskName() {

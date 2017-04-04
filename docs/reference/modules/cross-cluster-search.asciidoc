@@ -1,24 +1,31 @@
 [[modules-cross-cluster-search]]
-== Cross cluster search
+== Cross Cluster Search
 
-experimental[]
+beta[]
 
 The _cross cluster search_ feature allows any node to act as a federated client across
-multiple clusters. In contrast to the _tribe_ feature, a  _cross cluster search_ node won't
+multiple clusters. In contrast to the <<modules-tribe,tribe node>> feature, a  cross cluster search node won't
 join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
 federated search requests.
 
-The _cross cluster search_ feature works by configuring a remote cluster in the cluster state and connects only to a
+Cross cluster search works by configuring a remote cluster in the cluster state and connecting only to a
 limited number of nodes in the remote cluster. Each remote cluster is referenced by a name and a list of seed nodes.
-Those seed nodes are used to discover other nodes eligible as so-called _gateway nodes_. Each node in a cluster that
-has remote clusters configured connects to one or more _gateway nodes_ and uses them to federate search requests to
-the remote cluster.
+Those seed nodes are used to discover nodes in the remote cluster which are eligible as _gateway nodes_.
+Each node in a cluster that has remote clusters configured connects to one or more _gateway nodes_ and uses
+them to federate search requests to the remote cluster.
 
-Remote clusters can either be configured as part of the `elasticsearch.yml` file or be dynamically updated via
-the <<cluster-update-settings,cluster settings API>>. If a remote cluster is configured via `elasticsearch.yml` only
-the nodes with the configuration set will be connecting to the remote cluster in which case federated search requests
-will have to be sent specifically to those nodes. Remote clusters set via the
-<<cluster-update-settings,cluster settings API>> will be available on every node in the cluster.
+[float]
+=== Configuring Cross Cluster Search
+
+Remote clusters can be specified globally using <<cluster-update-settings,cluster settings>>
+(which can be updated dynamically), or local to individual nodes using the
+`elasticsearch.yml` file.
+
+If a remote cluster is configured via `elasticsearch.yml` only the nodes with
+that configuration will be able to connect to the remote cluster. In other
+words, federated search requests will have to be sent specifically to those
+nodes. Remote clusters set via the <<cluster-update-settings,cluster settings API>>
+will be available on every node in the cluster.
 
 [WARNING]
 This feature was added in Elasticsearch `v5.3` and requires gateway eligible nodes to be on `v5.3` onwards.
@@ -38,6 +45,55 @@ search:
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary cluster aliases representing the connection to each cluster.
 These names are subsequently used to distinguish between local and remote indices.
+
+The equivalent example using the <<cluster-update-settings,cluster settings API>>
+to add remote clusters to all nodes in the cluster would look like the
+following:
+
+[source,js]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "search": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "seeds": [
+            "127.0.0.1:9301"
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+
+A remote cluster can be deleted from the cluster settings by setting its seeds to `null`:
+
+[source,js]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "search": {
+      "remote": {
+        "cluster_one": {
+          "seeds": null <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+<1> `cluster_one` would be removed from the cluster settings, leaving `cluster_two` intact.
+
 
 [float]
 === Using cross cluster search
@@ -129,9 +185,11 @@ will be prefixed with their remote cluster name:
   connected to if `search.remote.node.attr` is set to `gateway`.
 
 `search.remote.connect`::
- By default, any node in the cluster can act as a cross-cluster client and connect to remote clusters.
- The `search.remote.connect` setting can be set to `false` (defaults to `true`) to prevent certain nodes from
- connecting to remote clusters. Cross-cluster search requests must be sent to a node that is allowed to act as a
- cross-cluster client.
+
+  By default, any node in the cluster can act as a cross-cluster client and
+  connect to remote clusters. The `search.remote.connect` setting can be set
+  to `false` (defaults to `true`) to prevent certain nodes from connecting to
+  remote clusters. Cross-cluster search requests must be sent to a node that
+  is allowed to act as a cross-cluster client.
 
 

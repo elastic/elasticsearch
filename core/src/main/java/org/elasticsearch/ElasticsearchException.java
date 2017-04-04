@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -712,7 +713,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
      * ExceptionSerializationTests.testIds.ids.
      */
-    enum ElasticsearchExceptionHandle {
+    private enum ElasticsearchExceptionHandle {
         INDEX_SHARD_SNAPSHOT_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new, 0, UNKNOWN_VERSION_ADDED),
         DFS_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.dfs.DfsPhaseExecutionException.class,
@@ -1007,6 +1008,30 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             this.versionAdded = versionAdded;
             this.id = id;
         }
+    }
+
+    /**
+     * Returns an array of all registered handle IDs. These are the IDs for every registered
+     * exception.
+     *
+     * @return an array of all registered handle IDs
+     */
+    static int[] ids() {
+        return Arrays.stream(ElasticsearchExceptionHandle.values()).mapToInt(h -> h.id).toArray();
+    }
+
+    /**
+     * Returns an array of all registered pairs of handle IDs and exception classes. These pairs are
+     * provided for every registered exception.
+     *
+     * @return an array of all registered pairs of handle IDs and exception classes
+     */
+    static Tuple<Integer, Class<? extends ElasticsearchException>>[] classes() {
+        @SuppressWarnings("unchecked")
+        final Tuple<Integer, Class<? extends ElasticsearchException>>[] ts =
+                Arrays.stream(ElasticsearchExceptionHandle.values())
+                        .map(h -> Tuple.tuple(h.id, h.exceptionClass)).toArray(Tuple[]::new);
+        return ts;
     }
 
     static {

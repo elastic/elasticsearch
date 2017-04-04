@@ -10,7 +10,6 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
-  setting 'http.port', '9400'
   setting 'script.inline', 'true'
   setting 'script.stored', 'true'
   // Need to allow more compilations per minute because of the integration tests

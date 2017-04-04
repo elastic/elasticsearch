@@ -22,7 +22,6 @@ integTestCluster {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
-  setting 'http.port', '9400'
   // Need to allow more compilations per minute because of the integration tests
   setting 'script.max_compilations_per_minute', '100'
 

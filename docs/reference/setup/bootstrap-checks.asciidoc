@@ -79,7 +79,8 @@ or virtual lock (Windows). This is done via the Elasticsearch setting
 <<bootstrap.memory_lock,`bootstrap.memory_lock`>>. However, there are cases
 where this setting can be passed to Elasticsearch but Elasticsearch is
 not able to lock the heap (e.g., if the `elasticsearch` user does not
-have `memlock unlimited`). The memory lock check verifies that *if* the
+have `memlock unlimited` in <<limits.conf,`/etc/security/limits.conf`>>). 
+The memory lock check verifies that *if* the
 `bootstrap.memory_lock` setting is enabled, that the JVM was successfully
 able to lock the heap. To pass the memory lock check, you might have to
 configure <<mlockall,`mlockall`>>.
@@ -95,7 +96,7 @@ that the Elasticsearch process has the rights to create enough threads
 under normal use. This check is enforced only on Linux. If you are on
 Linux, to pass the maximum number of threads check, you must configure
 your system to allow the Elasticsearch process the ability to create at
-least 2048 threads. This can be done via `/etc/security/limits.conf`
+least 2048 threads. This can be done via <<limits.conf,`/etc/security/limits.conf`>>
 using the `nproc` setting (note that you might have to increase the
 limits for the `root` user too).
 
@@ -110,8 +111,8 @@ maximum size virtual memory check enforces that the Elasticsearch
 process has unlimited address space and is enforced only on Linux. To
 pass the maximum size virtual memory check, you must configure your
 system to allow the Elasticsearch process the ability to have unlimited
-address space. This can be done via `/etc/security/limits.conf` using
-the `as` setting to `unlimited` (note that you might have to increase
+address space. This can be done via <<limits.conf,`/etc/security/limits.conf`>> 
+using the `as` setting to `unlimited` (note that you might have to increase
 the limits for the `root` user too).
 
 === Maximum map count check

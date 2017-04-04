@@ -38,19 +38,48 @@ You can consult all currently applied limits with `ulimit -a`.
 
 
 [[limits.conf]]
-==== `/etc/security/limits.conf`
+==== `/etc/security/limits.d/elasticsearch.conf`
 
 On Linux systems, persistent limits can be set for a particular user by
-editing the `/etc/security/limits.conf` file. To set the maximum number of
+creating a conf file in `/etc/security/limits.d/` folder (e.g. elasticsearch.conf). 
+
+To set the maximum number of
 open files for the `elasticsearch` user to 65,536, add the following line to
-the `limits.conf` file:
+the `elasticsearch.conf` file mentioned above:
 
 [source,sh]
 --------------------------------
 elasticsearch  -  nofile  65536
 --------------------------------
 
-This change will only take effect the next time the `elasticsearch` user opens
+If you want to enable Elasticsearch to lock memory to avoid swapping, you need
+to set <<bootstrap.memory_lock,`bootstrap.memory_lock`>> in the elasticsearch.yml
+file and add the following line to the `elasticsearch.conf` file above:
+
+[source,sh]
+------------------------------------
+elasticsearch  -  memlock  unlimited
+------------------------------------
+
+Elasticsearch will need to create lots of threads to carry out various 
+actions. To allow Elasticsearch to do this, add the following line to 
+the `elasticsearch.conf` file above:
+
+[source,sh]
+--------------------------------
+elasticsearch  - nproc unlimited
+--------------------------------
+
+Elasticsearch benefits from keeping large portions of an index in off-heap
+memory for fast access. To allow Elasticsearch to do this, add the following
+line to the `elasticsearch.conf` file above:
+
+[source,sh]
+--------------------------------
+elasticsearch  - as unlimited
+--------------------------------
+
+The changes above will only take effect the next time the `elasticsearch` user opens
 a new session.
 
 [NOTE]

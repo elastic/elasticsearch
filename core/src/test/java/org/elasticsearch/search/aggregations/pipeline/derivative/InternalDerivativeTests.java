@@ -46,9 +46,12 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"),
                 DocValueFormat.BOOLEAN, DocValueFormat.RAW);
-        double value = frequently() ? randomDoubleBetween(0, 100000, true) : randomFrom(valueEdgeCases);
-        double normalizationFactor = frequently() ? randomDoubleBetween(0, 100000, true) : randomFrom(valueEdgeCases);
-        return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
+        double value = frequently() ? randomDoubleBetween(0, 100000, true) :
+            randomFrom(valueEdgeCases);
+        double normalizationFactor = frequently() ? randomDoubleBetween(0, 100000, true) :
+            randomFrom(valueEdgeCases);
+        return new InternalDerivative(name, value, normalizationFactor, formatter,
+                pipelineAggregators, metaData);
     }
 
     @Override

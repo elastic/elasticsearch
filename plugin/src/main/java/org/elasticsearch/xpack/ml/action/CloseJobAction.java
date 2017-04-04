@@ -249,8 +249,13 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             ClusterState currentState = clusterService.state();
             if (request.isForce()) {
                 PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                PersistentTask<?> jobTask = MlMetadata.getJobTask(request.getJobId(), tasks);
-                forceCloseJob(jobTask.getId(), request.getJobId(), listener);
+                String jobId = request.getJobId();
+                PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+                if (jobTask == null) {
+                    throw new ElasticsearchStatusException("cannot force close job, because job [" + jobId + "] is not open",
+                            RestStatus.CONFLICT);
+                }
+                forceCloseJob(jobTask.getId(), jobId, listener);
             } else {
                 PersistentTask<?> jobTask = validateAndReturnJobTask(request.getJobId(), currentState);
                 normalCloseJob(task, jobTask.getId(), request, listener);

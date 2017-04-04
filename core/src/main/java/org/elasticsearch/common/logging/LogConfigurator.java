@@ -58,12 +58,14 @@ public class LogConfigurator {
      * Configure logging without reading a log4j2.properties file, effectively configuring the
      * status logger and all loggers to the console.
      *
-     * @param settings for configuring logger.level and individual loggers
+     * @param loggerLevel for configuring logger.level
      */
-    public static void configureWithoutConfig(final Settings settings) {
-        Objects.requireNonNull(settings);
+    public static void configureWithoutConfig(final String loggerLevel) {
+        Objects.requireNonNull(loggerLevel);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
         configureStatusLogger();
+
+        Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         configureLoggerLevels(settings);
     }
 

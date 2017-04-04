@@ -430,7 +430,7 @@ You can also use Gradle to prepare the test environment and then starts a single
 gradle vagrantFedora24#up
 -------------------------------------------------
 
-Or any of vagrantCentos6#up, vagrantDebian8#up, vagrantFedora24#up, vagrantOel6#up,
+Or any of vagrantCentos6#up, vagrantDebian8#up, vagrantCentos7#up, vagrantOel6#up,
 vagrantOel7#up, vagrantOpensuse13#up, vagrantSles12#up, vagrantUbuntu1204#up,
 vagrantUbuntu1604#up.
 

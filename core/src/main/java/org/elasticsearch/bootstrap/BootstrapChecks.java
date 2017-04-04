@@ -165,6 +165,7 @@ final class BootstrapChecks {
      * Tests if the checks should be enforced.
      *
      * @param boundTransportAddress the node network bindings
+     * @param discoveryType the discovery type
      * @return {@code true} if the checks should be enforced
      */
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {

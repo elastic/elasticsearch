@@ -75,7 +75,7 @@ requests with a queue (optionally bounded) for pending requests that
 have no threads to service them.
 
 The `size` parameter controls the number of threads, and defaults to the
-number of cores.
+number of cores times 5.
 
 The `queue_size` allows to control the size of the queue of pending
 requests that have no threads to execute them. By default, it is set to

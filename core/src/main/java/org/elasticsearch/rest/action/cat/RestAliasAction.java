@@ -78,7 +78,7 @@ public class RestAliasAction extends AbstractCatAction {
         return table;
     }
 
-   private Table buildTable(RestRequest request, GetAliasesResponse response) {
+    private Table buildTable(RestRequest request, GetAliasesResponse response) {
         Table table = getTableWithHeader(request);
 
         for (ObjectObjectCursor<String, List<AliasMetaData>> cursor : response.getAliases()) {

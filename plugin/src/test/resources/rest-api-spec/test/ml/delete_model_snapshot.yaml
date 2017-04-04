@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      features: ["headers"]
-
   - do:
       xpack.ml.put_job:
         job_id: foo
@@ -29,9 +26,6 @@ setup:
         job_id: foo
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
@@ -68,9 +62,6 @@ setup:
           }
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot

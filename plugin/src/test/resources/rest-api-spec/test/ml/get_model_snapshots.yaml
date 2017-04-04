@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      features: ["headers"]
-
   - do:
       indices.create:
         index:  .ml-anomalies-foo
@@ -13,9 +10,6 @@ setup:
                   type: date
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
@@ -23,9 +17,6 @@ setup:
         body:   { "job_id": "foo", "snapshot_id": "1", "timestamp": "2016-06-02T00:00:00Z" }
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot

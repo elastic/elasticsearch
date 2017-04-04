@@ -11,6 +11,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.joda.time.DateTime;
@@ -39,6 +40,9 @@ public final class AggregationTestUtils {
     static Aggregations createAggs(List<Aggregation> aggsList) {
         Aggregations aggs = mock(Aggregations.class);
         when(aggs.asList()).thenReturn(aggsList);
+        for (Aggregation agg: aggsList) {
+            when(aggs.get(agg.getName())).thenReturn(agg);
+        }
         return aggs;
     }
 
@@ -54,6 +58,14 @@ public final class AggregationTestUtils {
         when(bucket.getKey()).thenReturn(timestamp);
         when(bucket.getDocCount()).thenReturn(docCount);
         return bucket;
+    }
+
+    static Max createMax(String name, double value) {
+        Max max = mock(Max.class);
+        when(max.getName()).thenReturn(name);
+        when(max.value()).thenReturn(value);
+        when(max.getValue()).thenReturn(value);
+        return max;
     }
 
     static NumericMetricsAggregation.SingleValue createSingleValue(String name, double value) {

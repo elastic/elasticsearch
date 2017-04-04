@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -13,10 +14,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.joda.time.base.BaseDateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,18 +27,24 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Processes {@link Aggregation} objects and writes flat JSON documents for each leaf aggregation.
+ * In order to ensure that datafeeds can restart without duplicating data, we require that
+ * each histogram bucket has a nested max aggregation matching the time_field.
  */
 class AggregationToJsonProcessor implements Releasable {
 
+    private final String timeField;
     private final boolean includeDocCount;
     private final XContentBuilder jsonBuilder;
     private final Map<String, Object> keyValuePairs;
     private long keyValueWrittenCount;
 
-    AggregationToJsonProcessor(boolean includeDocCount, OutputStream outputStream) throws IOException {
+    AggregationToJsonProcessor(String timeField, boolean includeDocCount, OutputStream outputStream)
+            throws IOException {
+        this.timeField = Objects.requireNonNull(timeField);
         this.includeDocCount = includeDocCount;
         jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
         keyValuePairs = new LinkedHashMap<>();
@@ -53,17 +60,28 @@ class AggregationToJsonProcessor implements Releasable {
      *       <li>{@link Percentiles}</li>
      *   </ul>
      */
-    public void process(String timeField, Histogram.Bucket bucket) throws IOException {
-        Object timestamp = bucket.getKey();
-        if (timestamp instanceof BaseDateTime) {
-            timestamp = ((BaseDateTime) timestamp).getMillis();
+    public void process(Histogram.Bucket bucket) throws IOException {
+        if (bucket.getDocCount() == 0) {
+            return;
         }
+
+        Aggregations aggs = bucket.getAggregations();
+        Aggregation timeAgg = aggs == null ? null : aggs.get(timeField);
+        if (timeAgg instanceof Max == false) {
+            throw new IllegalArgumentException("Missing max aggregation for time_field [" + timeField + "]");
+        }
+
+        // We want to handle the max time aggregation only at the bucket level.
+        // So, we add the value here and then remove the aggregation before
+        // processing the rest of the sub aggs.
+        long timestamp = (long) ((Max) timeAgg).value();
         keyValuePairs.put(timeField, timestamp);
-        processNestedAggs(bucket.getDocCount(), bucket.getAggregations());
+        List<Aggregation> subAggs = new ArrayList<>(aggs.asList());
+        subAggs.remove(timeAgg);
+        processNestedAggs(bucket.getDocCount(), subAggs);
     }
 
-    private void processNestedAggs(long docCount, Aggregations subAggs) throws IOException {
-        List<Aggregation> aggs = subAggs == null ? Collections.emptyList() : subAggs.asList();
+    private void processNestedAggs(long docCount, List<Aggregation> aggs) throws IOException {
         if (aggs.isEmpty()) {
             writeJsonObject(docCount);
             return;
@@ -92,7 +110,7 @@ class AggregationToJsonProcessor implements Releasable {
     private void processTerms(Terms termsAgg) throws IOException {
         for (Terms.Bucket bucket : termsAgg.getBuckets()) {
             keyValuePairs.put(termsAgg.getName(), bucket.getKey());
-            processNestedAggs(bucket.getDocCount(), bucket.getAggregations());
+            processNestedAggs(bucket.getDocCount(), asList(bucket.getAggregations()));
             keyValuePairs.remove(termsAgg.getName());
         }
     }
@@ -136,5 +154,9 @@ class AggregationToJsonProcessor implements Releasable {
      */
     public long getKeyValueCount() {
         return keyValueWrittenCount;
+    }
+
+    private static List<Aggregation> asList(@Nullable Aggregations aggs) {
+        return aggs == null ? Collections.emptyList() : aggs.asList();
     }
 }

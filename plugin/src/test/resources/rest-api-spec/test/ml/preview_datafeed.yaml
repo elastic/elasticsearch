@@ -142,12 +142,17 @@ setup:
             "indexes":"airline-data",
             "types":"response",
             "aggregations": {
-              "time": {
+              "buckets": {
                 "histogram": {
                   "field": "time",
                   "interval": 3600000
                 },
                 "aggregations": {
+                  "time": {
+                    "max": {
+                      "field": "time"
+                    }
+                  },
                   "airline": {
                     "terms": {
                       "field": "airline",
@@ -170,15 +175,15 @@ setup:
       xpack.ml.preview_datafeed:
         datafeed_id: aggregation-doc-count-feed
   - length: { $body: 3 }
-  - match: { 0.time: 1.487376E12 }
+  - match: { 0.time: 1487377800000 }
   - match: { 0.airline: foo }
   - match: { 0.responsetime: 2.0 }
   - match: { 0.doc_count: 2 }
-  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.time: 1487379660000 }
   - match: { 1.airline: bar }
   - match: { 1.responsetime: 42.0 }
   - match: { 1.doc_count: 1 }
-  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.time: 1487379660000 }
   - match: { 2.airline: foo }
   - match: { 2.responsetime: 42.0 }
   - match: { 2.doc_count: 1 }
@@ -210,12 +215,17 @@ setup:
             "indexes":"airline-data",
             "types":"response",
             "aggregations": {
-              "time": {
+              "buckets": {
                 "histogram": {
                   "field": "time",
                   "interval": 3600000
                 },
                 "aggregations": {
+                  "time": {
+                    "max": {
+                      "field": "time"
+                    }
+                  },
                   "dc_airline": {
                     "cardinality": {
                       "field": "airline"
@@ -230,10 +240,10 @@ setup:
       xpack.ml.preview_datafeed:
         datafeed_id: aggregation-custom-single-metric-summary-feed
   - length: { $body: 2 }
-  - match: { 0.time: 1.487376E12 }
+  - match: { 0.time: 1487377800000 }
   - match: { 0.dc_airline: 1 }
   - is_false: 0.doc_count
-  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.time: 1487379660000 }
   - match: { 1.dc_airline: 2 }
   - is_false: 1.doc_count
 
@@ -264,12 +274,17 @@ setup:
             "indexes":"airline-data",
             "types":"response",
             "aggregations": {
-              "time": {
+              "buckets": {
                 "histogram": {
                   "field": "time",
                   "interval": 3600000
                 },
                 "aggregations": {
+                  "time": {
+                    "max": {
+                      "field": "time"
+                    }
+                  },
                   "airline": {
                     "terms": {
                         "field": "airline"
@@ -296,17 +311,17 @@ setup:
       xpack.ml.preview_datafeed:
         datafeed_id: aggregation-custom-multi-metric-summary-feed
   - length: { $body: 3 }
-  - match: { 0.time: 1.487376E12 }
+  - match: { 0.time: 1487377800000 }
   - match: { 0.airline: foo }
   - match: { 0.responsetime: 2.0 }
   - match: { 0.event_rate: 11 }
   - is_false: 0.doc_count
-  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.time: 1487379660000 }
   - match: { 1.airline: bar }
   - match: { 1.responsetime: 42.0 }
   - match: { 1.event_rate: 8 }
   - is_false: 1.doc_count
-  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.time: 1487379660000 }
   - match: { 2.airline: foo }
   - match: { 2.responsetime: 42.0 }
   - match: { 2.event_rate: 7 }

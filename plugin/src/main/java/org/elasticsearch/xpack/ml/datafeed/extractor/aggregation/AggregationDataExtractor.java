@@ -132,10 +132,6 @@ class AggregationDataExtractor implements DataExtractor {
 
         Aggregation topAgg = aggsAsList.get(0);
         if (topAgg instanceof Histogram) {
-            if (context.timeField.equals(topAgg.getName()) == false) {
-                throw new IllegalArgumentException("Histogram name [" + topAgg.getName()
-                        + "] does not match time field [" + context.timeField + "]");
-            }
             return ((Histogram) topAgg).getBuckets();
         } else {
             throw new IllegalArgumentException("Top level aggregation should be [histogram]");
@@ -149,9 +145,10 @@ class AggregationDataExtractor implements DataExtractor {
         }
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(context.includeDocCount, outputStream)) {
+        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(
+                context.timeField, context.includeDocCount, outputStream)) {
             while (histogramBuckets.isEmpty() == false && processor.getKeyValueCount() < BATCH_KEY_VALUE_PAIRS) {
-                processor.process(context.timeField, histogramBuckets.removeFirst());
+                processor.process(histogramBuckets.removeFirst());
             }
             if (histogramBuckets.isEmpty()) {
                 hasNext = false;

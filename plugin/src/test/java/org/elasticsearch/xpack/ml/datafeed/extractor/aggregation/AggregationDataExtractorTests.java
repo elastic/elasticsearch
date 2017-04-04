@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createMax;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createTerms;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,9 +91,11 @@ public class AggregationDataExtractorTests extends ESTestCase {
     public void testExtraction() throws IOException {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
             createHistogramBucket(1000L, 3, Arrays.asList(
+                    createMax("time", 1999),
                     createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0)))),
             createHistogramBucket(2000L, 0, Arrays.asList()),
             createHistogramBucket(3000L, 7, Arrays.asList(
+                    createMax("time", 3999),
                     createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))))
         );
 
@@ -104,10 +107,10 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1000,\"airline\":\"a\",\"responsetime\":11.0,\"doc_count\":1} "
-                + "{\"time\":1000,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
-                + "{\"time\":3000,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
-                + "{\"time\":3000,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
+        String expectedStream = "{\"time\":1999,\"airline\":\"a\",\"responsetime\":11.0,\"doc_count\":1} "
+                + "{\"time\":1999,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
+                + "{\"time\":3999,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
+                + "{\"time\":3999,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -128,7 +131,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3));
+            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp))));
             timestamp += 1000L;
         }
 
@@ -222,7 +225,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3));
+            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp))));
             timestamp += 1000L;
         }
 

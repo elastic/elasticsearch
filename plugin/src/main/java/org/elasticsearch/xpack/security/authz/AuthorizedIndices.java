@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.security.authz.AuthorizationService.isSuperuser;
+
 /**
  * Abstraction used to make sure that we lazily load authorized indices only when requested and only maximum once per request. Also
  * makes sure that authorized indices don't get updated throughout the same request for the same user.
@@ -57,7 +59,7 @@ class AuthorizedIndices {
             }
         }
 
-        if (XPackUser.is(user) == false && Arrays.binarySearch(user.roles(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) < 0) {
+        if (isSuperuser(user) == false) {
             // we should filter out the .security index from wildcards
             indicesAndAliases.remove(SecurityLifecycleService.SECURITY_INDEX_NAME);
         }

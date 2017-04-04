@@ -134,7 +134,10 @@ public class ValidationTests extends ESTestCase {
             char first;
             while (true) {
                 first = randomUnicodeOfLength(1).charAt(0);
-                if (Arrays.binarySearch(allowedFirstChars, first) < 0) {
+                final char finalChar = first;
+                if (new String(allowedFirstChars).chars()
+                        .mapToObj(c -> (char) c)
+                        .anyMatch(c -> c.equals(finalChar)) == false) {
                     break;
                 }
             }
@@ -152,7 +155,10 @@ public class ValidationTests extends ESTestCase {
             char c;
             while (true) {
                 c = randomUnicodeOfLength(1).charAt(0);
-                if (Arrays.binarySearch(allowedSubsequent, c) < 0) {
+                final char finalChar = c;
+                if (new String(allowedSubsequent).chars()
+                        .mapToObj(c1 -> (char) c1)
+                        .anyMatch(c1 -> c1.equals(finalChar)) == false) {
                     break;
                 }
             }

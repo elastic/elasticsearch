@@ -440,11 +440,11 @@ public class CertificateToolTests extends ESTestCase {
         for (GeneralName generalName : subjAltNames.getNames()) {
             if (generalName.getTagNo() == GeneralName.dNSName) {
                 String dns = ((ASN1String)generalName.getName()).getString();
-                assertThat(Collections.binarySearch(certInfo.dnsNames, dns), greaterThanOrEqualTo(0));
+                assertTrue(certInfo.dnsNames.stream().anyMatch(dns::equals));
             } else if (generalName.getTagNo() == GeneralName.iPAddress) {
                 byte[] ipBytes = DEROctetString.getInstance(generalName.getName()).getOctets();
                 String ip = NetworkAddress.format(InetAddress.getByAddress(ipBytes));
-                assertThat(Collections.binarySearch(certInfo.ipAddresses, ip), greaterThanOrEqualTo(0));
+                assertTrue(certInfo.ipAddresses.stream().anyMatch(ip::equals));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

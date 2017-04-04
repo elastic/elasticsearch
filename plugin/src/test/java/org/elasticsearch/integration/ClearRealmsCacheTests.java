@@ -79,7 +79,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void assertEviction(User prevUser, User newUser) {
-                if (Arrays.binarySearch(evicted_usernames, prevUser.principal()) >= 0) {
+                if (Arrays.stream(evicted_usernames).anyMatch(prevUser.principal()::equals)) {
                     assertThat(prevUser, not(sameInstance(newUser)));
                 } else {
                     assertThat(prevUser, sameInstance(newUser));
@@ -115,7 +115,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void assertEviction(User prevUser, User newUser) {
-                if (Arrays.binarySearch(evicted_usernames, prevUser.principal()) >= 0) {
+                if (Arrays.stream(evicted_usernames).anyMatch(prevUser.principal()::equals)) {
                     assertThat(prevUser, not(sameInstance(newUser)));
                 } else {
                     assertThat(prevUser, sameInstance(newUser));

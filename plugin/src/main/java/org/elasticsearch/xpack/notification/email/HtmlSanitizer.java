@@ -57,7 +57,7 @@ public class HtmlSanitizer {
     static PolicyFactory createCommonPolicy(String[] allow, String[] disallow) {
         HtmlPolicyBuilder policyBuilder = new HtmlPolicyBuilder();
 
-        if (Arrays.binarySearch(allow, "_all") > -1) {
+        if (Arrays.stream(allow).anyMatch("_all"::equals)) {
             return policyBuilder
                     .allowElements(TABLE_TAGS)
                     .allowAttributes("span").onElements("col")

@@ -151,8 +151,7 @@ public class SecurityIpFilterRule implements IpFilterRule {
     static IpFilterRule getRule(boolean isAllowRule, String value) {
         IpFilterRuleType filterRuleType = isAllowRule ? IpFilterRuleType.ACCEPT : IpFilterRuleType.REJECT;
         String[] values = value.split(",");
-        int allRuleIndex = Arrays.binarySearch(values, 0, values.length, "_all");
-        if (allRuleIndex >= 0) {
+        if (Arrays.stream(values).anyMatch("_all"::equals)) {
             // all rule was found. It should be the only rule!
             if (values.length != 1) {
                 throw new IllegalArgumentException("rules that specify _all may not have other values!");

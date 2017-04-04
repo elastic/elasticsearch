@@ -242,7 +242,7 @@ public class AuthorizationService extends AbstractComponent {
                 && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
                 && XPackUser.is(authentication.getRunAsUser()) == false
                 && MONITOR_INDEX_PREDICATE.test(action) == false
-                && Arrays.binarySearch(authentication.getRunAsUser().roles(), ReservedRolesStore.SUPERUSER_ROLE.name()) < 0) {
+                && isSuperuser(authentication.getRunAsUser()) == false) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
@@ -435,6 +435,11 @@ public class AuthorizationService extends AbstractComponent {
                     authentication.getRunAsUser().principal());
         }
         return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
+    }
+
+    static boolean isSuperuser(User user) {
+        return Arrays.stream(user.roles())
+                .anyMatch(ReservedRolesStore.SUPERUSER_ROLE.name()::equals);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

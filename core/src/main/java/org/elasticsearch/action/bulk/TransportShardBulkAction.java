@@ -386,7 +386,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (primaryResponse.isFailed()) {
             return primaryResponse.getFailure().getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO;
         } else {
-            // NOTE: for bwc as pre-6.0 write requests has unassigned seq no
+            // NOTE: pre-6.0 write requests has unassigned seq no
+            // and in case of failure, requests don't reach the replica
+            // so we execute on replica when the primary execution is not a noop
             return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP;
         }
     }

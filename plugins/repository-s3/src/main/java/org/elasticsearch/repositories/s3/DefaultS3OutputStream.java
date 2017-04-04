@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
@@ -61,7 +61,7 @@ import java.util.List;
  * See http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
  * See http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html
  */
-public class DefaultS3OutputStream extends S3OutputStream {
+class DefaultS3OutputStream extends S3OutputStream {
 
     private static final ByteSizeValue MULTIPART_MAX_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
     private static final Logger logger = Loggers.getLogger("cloud.aws");
@@ -72,7 +72,7 @@ public class DefaultS3OutputStream extends S3OutputStream {
     private int multipartChunks;
     private List<PartETag> multiparts;
 
-    public DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, int numberOfRetries, boolean serverSideEncryption) {
+    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, int numberOfRetries, boolean serverSideEncryption) {
         super(blobStore, bucketName, blobName, bufferSizeInBytes, numberOfRetries, serverSideEncryption);
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -26,6 +26,8 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.s3.AwsS3Service;
+import org.elasticsearch.repositories.s3.InternalAwsS3Service;
 import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
 

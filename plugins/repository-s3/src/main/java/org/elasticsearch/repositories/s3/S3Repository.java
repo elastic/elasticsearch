@@ -22,10 +22,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_S3;
-import org.elasticsearch.cloud.aws.InternalAwsS3Service;
-import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
+import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -59,7 +56,7 @@ import java.util.Locale;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class S3Repository extends BlobStoreRepository {
+class S3Repository extends BlobStoreRepository {
 
     public static final String TYPE = "s3";
 
@@ -303,7 +300,7 @@ public class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    public S3Repository(RepositoryMetaData metadata, Settings settings,
+    S3Repository(RepositoryMetaData metadata, Settings settings,
                         NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
         super(metadata, settings, namedXContentRegistry);
 

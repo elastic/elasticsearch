@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.repositories.s3;
 
 import java.util.Locale;
 import java.util.function.Function;
@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
-public interface AwsS3Service extends LifecycleComponent {
+interface AwsS3Service extends LifecycleComponent {
 
     // Legacy global AWS settings (shared between discovery-ec2 and repository-s3)
     // Each setting starting with `cloud.aws` also exists in discovery-ec2 project. Don't forget to update

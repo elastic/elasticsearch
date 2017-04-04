@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -221,5 +223,26 @@ public class FieldPermissionsTests extends ESTestCase {
         for (int i = 0; i < numThreads; i++) {
             assertEquals((Integer) hashCode, hashCodes.get(i));
         }
+    }
+
+    public void testAllFieldIsAutomaticallyExcludedIfNotExplicitlyGranted() throws Exception {
+        final FieldPermissions fieldPermissions = new FieldPermissions(
+                new FieldPermissionsDefinition(new String[] { "_a*" }, new String[0]));
+        assertTrue(fieldPermissions.grantsAccessTo("_animal"));
+        assertFalse(fieldPermissions.grantsAccessTo("_all"));
+    }
+
+    public void testAllFieldIsNotExcludedIfExplicitlyGranted() throws Exception {
+        final String[] grant = { "foo", "bar", "baz", "_all" };
+        Collections.shuffle(Arrays.asList(grant), random());
+
+        final FieldPermissions fieldPermissions = new FieldPermissions(
+                new FieldPermissionsDefinition(grant, new String[0]));
+
+        assertTrue(fieldPermissions.grantsAccessTo("_all"));
+        assertTrue(fieldPermissions.grantsAccessTo("foo"));
+        assertTrue(fieldPermissions.grantsAccessTo("bar"));
+        assertTrue(fieldPermissions.grantsAccessTo("baz"));
+        assertFalse(fieldPermissions.grantsAccessTo(randomAlphaOfLengthBetween(5, 8)));
     }
 }

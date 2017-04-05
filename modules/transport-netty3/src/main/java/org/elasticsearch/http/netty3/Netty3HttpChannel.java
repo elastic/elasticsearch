@@ -108,8 +108,7 @@ public final class Netty3HttpChannel extends AbstractRestChannel {
 
         BytesReference content = response.content();
         ChannelBuffer buffer;
-        boolean releaseContent = content instanceof Releasable;
-        boolean releaseBytesStreamOutput = bytesOutputOrNull() instanceof ReleasableBytesStreamOutput;
+        boolean addedReleaseListener = false;
         try {
             buffer = Netty3Utils.toChannelBuffer(content);
             if (HttpMethod.HEAD.equals(nettyRequest.getMethod())) {
@@ -136,26 +135,18 @@ public final class Netty3HttpChannel extends AbstractRestChannel {
                 future = channel.write(resp);
             }
 
-            if (releaseContent) {
+            if (content instanceof Releasable) {
                 future.addListener((x) -> ((Releasable)content).close());
-            }
-
-            if (releaseBytesStreamOutput) {
-                final BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
-                future.addListener((x) -> bytesStreamOutput.close());
+                addedReleaseListener = true;
             }
 
             if (isCloseConnection()) {
                 future.addListener(ChannelFutureListener.CLOSE);
             }
-            releaseContent = false;
-            releaseBytesStreamOutput = false;
+
         } finally {
-            if (releaseContent) {
+            if (!addedReleaseListener && content instanceof Releasable) {
                 ((Releasable) content).close();
-            }
-            if (releaseBytesStreamOutput) {
-                bytesOutputOrNull().close();
             }
         }
     }

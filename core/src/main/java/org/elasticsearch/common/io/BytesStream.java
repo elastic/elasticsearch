@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io.stream;
+package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.bytes.BytesReference;
 
-public abstract class BytesStream extends StreamOutput {
+public interface BytesStream {
 
-    public abstract BytesReference bytes();
+    BytesReference bytes();
 }

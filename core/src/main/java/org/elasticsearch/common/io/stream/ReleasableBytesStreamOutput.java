@@ -20,56 +20,29 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.io.ReleasableBytesStream;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance
  * expecting it to require releasing its content ({@link #bytes()}) once done.
  * <p>
- * Please note, closing this stream will release the bytes that are in use by any
- * {@link ReleasablePagedBytesReference} returned from {@link #bytes()}, so this
- * stream should only be closed after the bytes have been output or copied
- * elsewhere.
+ * Please note, its is the responsibility of the caller to make sure the bytes
+ * reference do not "escape" and are released only once.
  */
-public class ReleasableBytesStreamOutput extends BytesStreamOutput
-    implements Releasable {
-
-    private Releasable releasable;
+public class ReleasableBytesStreamOutput extends BytesStreamOutput implements ReleasableBytesStream {
 
     public ReleasableBytesStreamOutput(BigArrays bigarrays) {
-        this(BigArrays.PAGE_SIZE_IN_BYTES, bigarrays);
+        super(BigArrays.PAGE_SIZE_IN_BYTES, bigarrays);
     }
 
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         super(expectedSize, bigArrays);
-        this.releasable = Releasables.releaseOnce(this.bytes);
     }
 
-    /**
-     * Returns a {@link Releasable} implementation of a
-     * {@link org.elasticsearch.common.bytes.BytesReference} that represents the current state of
-     * the bytes in the stream.
-     */
     @Override
     public ReleasablePagedBytesReference bytes() {
-        return new ReleasablePagedBytesReference(bigArrays, bytes, count, releasable);
+        return new ReleasablePagedBytesReference(bigArrays, bytes, count);
     }
 
-    @Override
-    public void close() {
-        Releasables.close(releasable);
-    }
-
-    @Override
-    void ensureCapacity(long offset) {
-        final ByteArray prevBytes = this.bytes;
-        super.ensureCapacity(offset);
-        if (prevBytes != this.bytes) {
-            // re-create the releasable with the new reference
-            releasable = Releasables.releaseOnce(this.bytes);
-        }
-    }
 }

@@ -17,26 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 
 /**
- * An extension to {@link PagedBytesReference} that requires releasing its content. This
- * class exists to make it explicit when a bytes reference needs to be released, and when not.
+ * A bytes stream that requires its bytes to be released once no longer used.
  */
-public final class ReleasablePagedBytesReference extends PagedBytesReference implements Releasable {
-
-    public ReleasablePagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int length) {
-        super(bigarrays, byteArray, length);
-    }
+public interface ReleasableBytesStream extends BytesStream {
 
     @Override
-    public void close() {
-        Releasables.close(byteArray);
-    }
+    ReleasablePagedBytesReference bytes();
 
 }

@@ -219,14 +219,8 @@ public final class SearchPhaseController extends AbstractComponent {
         final TopDocs topDocs = results.stream().findFirst().get();
         final TopDocs mergedTopDocs;
         final int numShards = results.size();
-        if (numShards == 1) { // only one shard we can just return the topDocs as we got them.
-            if (from == 0) {
-                return topDocs.scoreDocs;
-            } else {
-                final ScoreDoc[] scoreDocs = new ScoreDoc[topN];
-                System.arraycopy(topDocs.scoreDocs, from, scoreDocs, 0, topN);
-                return scoreDocs;
-            }
+        if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
+            return topDocs.scoreDocs;
         } else if (topDocs instanceof CollapseTopFieldDocs) {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);

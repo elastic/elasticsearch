@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -55,6 +56,10 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testGetNotFoundOnNonExistingIndex() throws Exception {
+        // ensure index/alias is deleted, test infra might have created it automatically
+        try {
+            client().admin().indices().prepareDelete(Watch.INDEX).get();
+        } catch (IndexNotFoundException e) {}
         Exception e = expectThrows(Exception.class, () -> watcherClient().getWatch(new GetWatchRequest("_name")).get());
         assertThat(e.getMessage(), containsString("no such index"));
     }

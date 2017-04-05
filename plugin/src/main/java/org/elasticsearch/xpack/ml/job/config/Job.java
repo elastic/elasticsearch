@@ -43,10 +43,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public static final String TYPE = "job";
 
+    public static final String ANOMALY_DETECTOR_JOB_TYPE = "anomaly_detector";
+
     /*
      * Field names used in serialization
      */
     public static final ParseField ID = new ParseField("job_id");
+    public static final ParseField JOB_TYPE = new ParseField("job_type");
     public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
     public static final ParseField ANALYSIS_LIMITS = new ParseField("analysis_limits");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
@@ -76,6 +79,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     static {
         PARSER.declareString(Builder::setId, ID);
+        PARSER.declareString(Builder::setJobType, JOB_TYPE);
         PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
         PARSER.declareField(Builder::setCreateTime, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
@@ -119,6 +123,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     }
 
     private final String jobId;
+    private final String jobType;
     private final String description;
     // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
@@ -137,13 +142,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final String resultsIndexName;
     private final boolean deleted;
 
-    private Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
+    private Job(String jobId, String jobType, String description, Date createTime,
+            Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
                String modelSnapshotId, String resultsIndexName, boolean deleted) {
 
         this.jobId = jobId;
+        this.jobType = jobType;
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
@@ -164,6 +171,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public Job(StreamInput in) throws IOException {
         jobId = in.readString();
+        jobType = in.readString();
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -189,6 +197,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      */
     public String getId() {
         return jobId;
+    }
+
+    String getJobType() {
+        return jobType;
     }
 
     /**
@@ -359,6 +371,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
+        out.writeString(jobType);
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
         if (finishedTime != null) {
@@ -399,6 +412,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         final String humanReadableSuffix = "_string";
 
         builder.field(ID.getPreferredName(), jobId);
+        builder.field(JOB_TYPE.getPreferredName(), jobType);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
@@ -497,6 +511,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static class Builder implements Writeable, ToXContent  {
 
         private String id;
+        private String jobType = ANOMALY_DETECTOR_JOB_TYPE;
         private String description;
         private AnalysisConfig analysisConfig;
         private AnalysisLimits analysisLimits;
@@ -543,6 +558,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         public Builder(StreamInput in) throws IOException {
             id = in.readOptionalString();
+            jobType = in.readString();
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -568,6 +584,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         public String getId() {
             return id;
+        }
+
+        private void setJobType(String jobType) {
+            this.jobType = jobType;
         }
 
         public Date getCreateTime() {
@@ -670,6 +690,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
+            out.writeString(jobType);
             out.writeOptionalString(description);
             if (createTime != null) {
                 out.writeBoolean(true);
@@ -709,6 +730,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             if (id != null) {
                 builder.field(ID.getPreferredName(), id);
             }
+            builder.field(JOB_TYPE.getPreferredName(), jobType);
             if (description != null) {
                 builder.field(DESCRIPTION.getPreferredName(), description);
             }
@@ -841,7 +863,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             }
 
             return new Job(
-                    id, description, createTime, finishedTime, lastDataTime, analysisConfig, analysisLimits,
+                    id, jobType, description, createTime, finishedTime, lastDataTime,
+                    analysisConfig, analysisLimits,
                     dataDescription, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     resultsIndexName, deleted);

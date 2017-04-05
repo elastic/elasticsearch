@@ -29,11 +29,13 @@ import org.apache.lucene.util.Sorter;
 public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValues {
 
     private int count;
+    private int valuesCursor;
     protected double[] values;
     private final Sorter sorter;
 
     protected SortingNumericDoubleValues() {
         values = new double[1];
+        valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {
 
             @Override
@@ -57,6 +59,7 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
     protected final void resize(int newSize) {
         count = newSize;
         values = ArrayUtil.grow(values, count);
+        valuesCursor = 0;
     }
 
     /**
@@ -68,12 +71,12 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
     }
 
     @Override
-    public final int count() {
+    public final int docValueCount() {
         return count;
     }
 
     @Override
-    public final double valueAt(int index) {
-        return values[index];
+    public final double nextValue() {
+        return values[valuesCursor++];
     }
 }

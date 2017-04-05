@@ -22,14 +22,15 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.script.LeafSearchScript;
@@ -84,25 +84,25 @@ public abstract class ValuesSource {
             public static final WithOrdinals EMPTY = new WithOrdinals() {
 
                 @Override
-                public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
+                public SortedSetDocValues ordinalsValues(LeafReaderContext context) {
                     return DocValues.emptySortedSet();
                 }
 
                 @Override
-                public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
+                public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
                     return DocValues.emptySortedSet();
                 }
 
                 @Override
                 public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                    return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+                    return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
                 }
 
             };
 
             @Override
             public Bits docsWithValue(LeafReaderContext context) {
-                final RandomAccessOrds ordinals = ordinalsValues(context);
+                final SortedSetDocValues ordinals = ordinalsValues(context);
                 if (DocValues.unwrapSingleton(ordinals) != null) {
                     return DocValues.docsWithValue(DocValues.unwrapSingleton(ordinals), context.reader().maxDoc());
                 } else {
@@ -110,9 +110,9 @@ public abstract class ValuesSource {
                 }
             }
 
-            public abstract RandomAccessOrds ordinalsValues(LeafReaderContext context);
+            public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context);
 
-            public abstract RandomAccessOrds globalOrdinalsValues(LeafReaderContext context);
+            public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context);
 
             public long globalMaxOrd(IndexSearcher indexSearcher) {
                 IndexReader indexReader = indexSearcher.getIndexReader();
@@ -120,7 +120,7 @@ public abstract class ValuesSource {
                     return 0;
                 } else {
                     LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-                    RandomAccessOrds values = globalOrdinalsValues(atomicReaderContext);
+                    SortedSetDocValues values = globalOrdinalsValues(atomicReaderContext);
                     return values.getValueCount();
                 }
             }
@@ -140,13 +140,13 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
+                public SortedSetDocValues ordinalsValues(LeafReaderContext context) {
                     final AtomicOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
 
                 @Override
-                public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
+                public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
@@ -240,12 +240,12 @@ public abstract class ValuesSource {
 
             @Override
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles(context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles();
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
         };
@@ -313,7 +313,7 @@ public abstract class ValuesSource {
                 return new DoubleValues(delegate.doubleValues(context), script.getLeafSearchScript(context));
             }
 
-            static class LongValues extends SortingNumericDocValues implements ScorerAware {
+            static class LongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
                 private final SortedNumericDocValues longValues;
                 private final LeafSearchScript script;
@@ -324,20 +324,24 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public void setDocument(int doc) {
-                    longValues.setDocument(doc);
-                    resize(longValues.count());
-                    script.setDocument(doc);
-                    for (int i = 0; i < count(); ++i) {
-                        script.setNextAggregationValue(longValues.valueAt(i));
-                        values[i] = script.runAsLong();
-                    }
-                    sort();
+                public void setScorer(Scorer scorer) {
+                    script.setScorer(scorer);
                 }
 
                 @Override
-                public void setScorer(Scorer scorer) {
-                    script.setScorer(scorer);
+                public boolean advanceExact(int target) throws IOException {
+                    if (longValues.advanceExact(target)) {
+                        resize(longValues.docValueCount());
+                        script.setDocument(target);
+                        for (int i = 0; i < docValueCount(); ++i) {
+                            script.setNextAggregationValue(longValues.nextValue());
+                            values[i] = script.runAsLong();
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }
 
@@ -352,20 +356,24 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public void setDocument(int doc) {
-                    doubleValues.setDocument(doc);
-                    resize(doubleValues.count());
-                    script.setDocument(doc);
-                    for (int i = 0; i < count(); ++i) {
-                        script.setNextAggregationValue(doubleValues.valueAt(i));
-                        values[i] = script.runAsDouble();
-                    }
-                    sort();
+                public void setScorer(Scorer scorer) {
+                    script.setScorer(scorer);
                 }
 
                 @Override
-                public void setScorer(Scorer scorer) {
-                    script.setScorer(scorer);
+                public boolean advanceExact(int target) throws IOException {
+                    if (doubleValues.advanceExact(target)) {
+                        resize(doubleValues.docValueCount());
+                        script.setDocument(target);
+                        for (int i = 0; i < docValueCount(); ++i) {
+                            script.setNextAggregationValue(doubleValues.nextValue());
+                            values[i] = script.runAsLong();
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }
         }
@@ -468,21 +476,27 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public void setDocument(int docId) {
-                bytesValues.setDocument(docId);
-                count = bytesValues.count();
-                grow();
-                for (int i = 0; i < count; ++i) {
-                    final BytesRef value = bytesValues.valueAt(i);
-                    script.setNextAggregationValue(value.utf8ToString());
-                    values[i].copyChars(script.run().toString());
-                }
-                sort();
+            public void setScorer(Scorer scorer) {
+                script.setScorer(scorer);
             }
 
             @Override
-            public void setScorer(Scorer scorer) {
-                script.setScorer(scorer);
+            public boolean advanceExact(int doc) throws IOException {
+                if (bytesValues.advanceExact(doc)) {
+                    count = bytesValues.docValueCount();
+                    grow();
+                    for (int i = 0; i < count; ++i) {
+                        final BytesRef value = bytesValues.nextValue();
+                        script.setNextAggregationValue(value.utf8ToString());
+                        values[i].copyChars(script.run().toString());
+                    }
+                    sort();
+                    return true;
+                } else {
+                    count = 0;
+                    grow();
+                    return false;
+                }
             }
         }
     }
@@ -493,12 +507,12 @@ public abstract class ValuesSource {
 
             @Override
             public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints(context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
         };

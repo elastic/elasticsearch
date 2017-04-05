@@ -27,7 +27,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -233,15 +233,31 @@ public class IpFieldMapper extends FieldMapper {
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
-            private final RandomAccessOrds values;
+            private final SortedSetDocValues values;
+            private int count;
+            private int lastIndex;
+            private int doc;
 
-            public IpScriptDocValues(RandomAccessOrds values) {
+            public IpScriptDocValues(SortedSetDocValues values) {
                 this.values = values;
             }
 
             @Override
             public void setNextDocId(int docId) {
-                values.setDocument(docId);
+                count = 0;
+                try {
+                    if (values.advanceExact(docId)) {
+                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                            count++;
+                        }
+                        boolean hasValue = values.advanceExact(docId);
+                        assert hasValue;
+                        doc = docId;
+                        lastIndex = -1;
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             public String getValue() {
@@ -254,15 +270,27 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public String get(int index) {
-                BytesRef encoded = values.lookupOrd(values.ordAt(0));
-                InetAddress address = InetAddressPoint.decode(
-                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
-                return InetAddresses.toAddrString(address);
+                try {
+                    if (index <= lastIndex) {
+                        boolean hasValue = values.advanceExact(doc);
+                        assert hasValue;
+                        lastIndex = -1;
+                    }
+                    for (int i = lastIndex + 1; i < index; ++i) {
+                        values.nextOrd();
+                    }
+                    BytesRef encoded = values.lookupOrd(values.nextOrd());
+                    InetAddress address = InetAddressPoint.decode(
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+                    return InetAddresses.toAddrString(address);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
             public int size() {
-                return values.cardinality();
+                return count;
             }
         }
 

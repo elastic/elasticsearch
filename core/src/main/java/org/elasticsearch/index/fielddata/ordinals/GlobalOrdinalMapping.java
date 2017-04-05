@@ -20,22 +20,23 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
-import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
+
+import java.io.IOException;
 
 /**
  * A {@link RandomAccessOrds} implementation that returns ordinals that are global.
  */
-public class GlobalOrdinalMapping extends AbstractRandomAccessOrds {
+public class GlobalOrdinalMapping extends SortedSetDocValues {
 
-    private final RandomAccessOrds values;
+    private final SortedSetDocValues values;
     private final OrdinalMap ordinalMap;
     private final LongValues mapping;
-    private final RandomAccessOrds[] bytesValues;
+    private final SortedSetDocValues[] bytesValues;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, RandomAccessOrds[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues[] bytesValues, int segmentIndex) {
         super();
         this.values = bytesValues[segmentIndex];
         this.bytesValues = bytesValues;
@@ -53,25 +54,45 @@ public class GlobalOrdinalMapping extends AbstractRandomAccessOrds {
     }
 
     @Override
-    public long ordAt(int index) {
-        return getGlobalOrd(values.ordAt(index));
+    public boolean advanceExact(int target) throws IOException {
+        return values.advanceExact(target);
     }
 
     @Override
-    public void doSetDocument(int docId) {
-        values.setDocument(docId);
+    public long nextOrd() throws IOException {
+        long segmentOrd = values.nextOrd();
+        if (segmentOrd == SortedSetDocValues.NO_MORE_ORDS) {
+            return SortedSetDocValues.NO_MORE_ORDS;
+        } else {
+            return getGlobalOrd(segmentOrd);
+        }
     }
 
     @Override
-    public int cardinality() {
-        return values.cardinality();
-    }
-
-    @Override
-    public BytesRef lookupOrd(long globalOrd) {
+    public BytesRef lookupOrd(long globalOrd) throws IOException {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
         int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
         return bytesValues[readerIndex].lookupOrd(segmentOrd);
+    }
+
+    @Override
+    public int docID() {
+        return values.docID();
+    }
+
+    @Override
+    public int nextDoc() throws IOException {
+        return values.nextDoc();
+    }
+
+    @Override
+    public int advance(int target) throws IOException {
+        return values.advance(target);
+    }
+
+    @Override
+    public long cost() {
+        return values.cost();
     }
 
 }

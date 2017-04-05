@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -75,14 +76,14 @@ public abstract class DocValuesIndexFieldData {
         private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(UidFieldMapper.NAME, IdFieldMapper.NAME));
 
         private NumericType numericType;
-        private Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction = AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
+        private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
 
         public Builder numericType(NumericType type) {
             this.numericType = type;
             return this;
         }
 
-        public Builder scriptFunction(Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
+        public Builder scriptFunction(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
             this.scriptFunction = scriptFunction;
             return this;
         }

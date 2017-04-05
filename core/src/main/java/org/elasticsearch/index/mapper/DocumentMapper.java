@@ -277,7 +277,7 @@ public class DocumentMapper implements ToXContent {
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false, 1f);
             Scorer scorer = nestedWeight.scorer(context);
             if (scorer == null) {
                 continue;

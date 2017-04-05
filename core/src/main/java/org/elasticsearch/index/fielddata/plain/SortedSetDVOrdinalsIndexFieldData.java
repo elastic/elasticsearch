@@ -21,10 +21,10 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.SortedSetSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -46,10 +46,10 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
-    private final Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction;
+    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
     public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName,
-            CircuitBreakerService breakerService, Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
+            CircuitBreakerService breakerService, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         super(indexSettings.getIndex(), fieldName);
         this.indexSettings = indexSettings;
         this.cache = cache;

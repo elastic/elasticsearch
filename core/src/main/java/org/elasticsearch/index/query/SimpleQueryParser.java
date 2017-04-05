@@ -169,17 +169,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         return super.simplify(bq.build());
     }
 
-    @Override
-    protected Query analyzeGraphBoolean(String field, TokenStream source, BooleanClause.Occur operator) throws IOException {
-        if (source.hasAttribute(DisableGraphAttribute.class)) {
-            /**
-             * we disable the graph analysis on this token stream because it may produce very big graph.
-             */
-            return super.analyzeMultiBoolean(field, source, operator);
-        }
-        return super.analyzeGraphBoolean(field, source, operator);
-    }
-
     /**
      * Checks if graph analysis should be enabled for the field depending
      * on the provided {@link Analyzer}

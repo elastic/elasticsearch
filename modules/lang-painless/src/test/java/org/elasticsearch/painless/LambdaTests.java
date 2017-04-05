@@ -78,7 +78,7 @@ public class LambdaTests extends ScriptTestCase {
     public void testPrimitiveLambdasConvertible() {
 
         assertEquals(2, exec("List l = new ArrayList(); l.add((short)1); l.add(1); "
-                           + "return l.stream().mapToInt(long x -> (int)1).sum();"));
+                           + "return l.stream().mapToInt(byte x -> (int)1).sum();"));
     }
 
     public void testPrimitiveArgs() {

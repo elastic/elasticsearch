@@ -149,6 +149,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         response = client().performRequest("post", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop");
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("stopped", true), responseEntityToMap(response));
+        assertBusy(this::assertSameClusterStateOnAllNodes);
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
                 Collections.singletonMap("timeout", "20s"));

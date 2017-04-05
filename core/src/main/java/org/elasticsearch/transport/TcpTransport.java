@@ -41,7 +41,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.ReleasableBytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1025,8 +1025,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        boolean addedReleaseListener = false;
-        StreamOutput stream = Streams.flushOnCloseStream(bStream);
+        // we wrap this in a release once since if the onRequestSent callback throws an exception
+        // we might release things twice and this should be prevented
+        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
+        StreamOutput stream = bStream;
         try {
             // only compress if asked, and, the request is not bytes, since then only
             // the header part is compressed, and the "body" can't be extracted as compressed
@@ -1045,17 +1047,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.writeString(action);
             BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream, bStream);
             final TransportRequestOptions finalOptions = options;
-            final StreamOutput finalStream = stream;
             // this might be called in a different thread
-            SendListener onRequestSent = new SendListener(
-                () -> IOUtils.closeWhileHandlingException(finalStream, bStream),
+            SendListener onRequestSent = new SendListener(toRelease,
                 () -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions));
             internalSendMessage(targetChannel, message, onRequestSent);
-            addedReleaseListener = true;
         } finally {
-            if (!addedReleaseListener) {
-                IOUtils.close(stream, bStream);
-            }
+            IOUtils.close(stream);
         }
     }
 
@@ -1117,8 +1114,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        boolean addedReleaseListener = false;
-        StreamOutput stream = Streams.flushOnCloseStream(bStream);
+        // we wrap this in a release once since if the onRequestSent callback throws an exception
+        // we might release things twice and this should be prevented
+        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
+        StreamOutput stream = bStream;
         try {
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
@@ -1129,16 +1128,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             BytesReference reference = buildMessage(requestId, status, nodeVersion, response, stream, bStream);
 
             final TransportResponseOptions finalOptions = options;
-            final StreamOutput finalStream = stream;
             // this might be called in a different thread
-            SendListener listener = new SendListener(() -> IOUtils.closeWhileHandlingException(finalStream, bStream),
+            SendListener listener = new SendListener(toRelease,
                 () -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions));
             internalSendMessage(channel, reference, listener);
-            addedReleaseListener = true;
         } finally {
-            if (!addedReleaseListener) {
-                IOUtils.close(stream, bStream);
-            }
+            IOUtils.close(stream);
         }
     }
 
@@ -1166,7 +1161,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * Serializes the given message into a bytes representation
      */
     private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message, StreamOutput stream,
-                                        ReleasableBytesStreamOutput writtenBytes) throws IOException {
+                                        ReleasableBytesStream writtenBytes) throws IOException {
         final BytesReference zeroCopyBuffer;
         if (message instanceof BytesTransportRequest) { // what a shitty optimization - we should use a direct send method instead
             BytesTransportRequest bRequest = (BytesTransportRequest) message;

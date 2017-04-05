@@ -17,19 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress;
+package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 
-import java.io.IOException;
+/**
+ * A bytes stream that requires its bytes to be released once no longer used.
+ */
+public interface ReleasableBytesStream extends BytesStream {
 
-public interface Compressor {
+    @Override
+    ReleasablePagedBytesReference bytes();
 
-    boolean isCompressed(BytesReference bytes);
-
-    StreamInput streamInput(StreamInput in) throws IOException;
-
-    StreamOutput streamOutput(StreamOutput out) throws IOException;
 }

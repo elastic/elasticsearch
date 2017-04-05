@@ -178,9 +178,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 sendContentTypeErrorMessage(request, responseChannel);
             } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
                 request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
-                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
-                    RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
-                        "] does not support stream parsing. Use JSON or SMILE instead"));
+                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(RestStatus.NOT_ACCEPTABLE, "Content-Type [" +
+                    request.getXContentType() + "] does not support stream parsing. Use JSON or SMILE instead"));
             } else {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -230,8 +229,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
                          final RestHandler handler) throws Exception {
         if (checkRequestParameters(request, channel) == false) {
-            channel
-                .sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,BAD_REQUEST, "error traces in responses are disabled."));
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
         } else {
             for (String key : headersToCopy) {
                 String httpHeader = request.header(key);
@@ -285,7 +283,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
         }
 
-        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));
+        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(NOT_ACCEPTABLE, errorMessage));
     }
 
     /**

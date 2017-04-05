@@ -439,7 +439,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
-            Releasables.close(out);
+            Releasables.close(out.bytes());
         }
     }
 
@@ -1332,7 +1332,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 bytes.writeTo(outStream);
             }
         } finally {
-            Releasables.close(out);
+            Releasables.close(out.bytes());
         }
 
     }

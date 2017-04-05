@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -83,8 +82,8 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                     // computed
                     if (prevCounts > 0) {
                         final long mortonCode = centroids.get(bucket);
-                        pt[0] = GeoPointField.decodeLongitude(mortonCode);
-                        pt[1] = GeoPointField.decodeLatitude(mortonCode);
+                        pt[0] = InternalGeoCentroid.decodeLongitude(mortonCode);
+                        pt[1] = InternalGeoCentroid.decodeLatitude(mortonCode);
                     }
                     // update the moving average
                     for (int i = 0; i < valueCount; ++i) {
@@ -95,7 +94,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                     // TODO: we do not need to interleave the lat and lon
                     // bits here
                     // should we just store them contiguously?
-                    centroids.set(bucket, GeoPointField.encodeLatLon(pt[1], pt[0]));
+                    centroids.set(bucket, InternalGeoCentroid.encodeLatLon(pt[1], pt[0]));
                 }
             }
         };
@@ -109,7 +108,8 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         final long bucketCount = counts.get(bucket);
         final long mortonCode = centroids.get(bucket);
         final GeoPoint bucketCentroid = (bucketCount > 0)
-                ? new GeoPoint(GeoPointField.decodeLatitude(mortonCode), GeoPointField.decodeLongitude(mortonCode))
+                ? new GeoPoint(InternalGeoCentroid.decodeLatitude(mortonCode),
+                        InternalGeoCentroid.decodeLongitude(mortonCode))
                 : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }

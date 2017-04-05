@@ -78,27 +78,29 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                // SortedBinaryDocValues don't guarantee uniqueness so we need to take care of dups
-                previous.clear();
-                for (int i = 0; i < valuesCount; ++i) {
-                    final BytesRef bytes = values.valueAt(i);
-                    if (includeExclude != null && !includeExclude.accept(bytes)) {
-                        continue;
+                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // need to take care of dups
+                    previous.clear();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        final BytesRef bytes = values.nextValue();
+                        if (includeExclude != null && !includeExclude.accept(bytes)) {
+                            continue;
+                        }
+                        if (previous.get().equals(bytes)) {
+                            continue;
+                        }
+                        long bucketOrdinal = bucketOrds.add(bytes);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = -1 - bucketOrdinal;
+                            collectExistingBucket(sub, doc, bucketOrdinal);
+                        } else {
+                            collectBucket(sub, doc, bucketOrdinal);
+                        }
+                        previous.copyBytes(bytes);
                     }
-                    if (previous.get().equals(bytes)) {
-                        continue;
-                    }
-                    long bucketOrdinal = bucketOrds.add(bytes);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = - 1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, doc, bucketOrdinal);
-                    }
-                    previous.copyBytes(bytes);
                 }
             }
         };
@@ -114,12 +116,13 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                 final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 // brute force
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    values.setDocument(docId);
-                    final int valueCount = values.count();
-                    for (int i = 0; i < valueCount; ++i) {
-                        final BytesRef term = values.valueAt(i);
-                        if (includeExclude == null || includeExclude.accept(term)) {
-                            bucketOrds.add(term);
+                    if (values.advanceExact(docId)) {
+                        final int valueCount = values.docValueCount();
+                        for (int i = 0; i < valueCount; ++i) {
+                            final BytesRef term = values.nextValue();
+                            if (includeExclude == null || includeExclude.accept(term)) {
+                                bucketOrds.add(term);
+                            }
                         }
                     }
                 }

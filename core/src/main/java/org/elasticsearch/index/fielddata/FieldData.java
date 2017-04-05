@@ -22,15 +22,14 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,8 +42,8 @@ public enum FieldData {
     /**
      * Return a {@link SortedBinaryDocValues} that doesn't contain any value.
      */
-    public static SortedBinaryDocValues emptySortedBinary(int maxDoc) {
-        return singleton(DocValues.emptyBinary(), new Bits.MatchNoBits(maxDoc));
+    public static SortedBinaryDocValues emptySortedBinary() {
+        return singleton(DocValues.emptyBinary());
     }
 
     /**
@@ -53,8 +52,13 @@ public enum FieldData {
     public static NumericDoubleValues emptyNumericDouble() {
         return new NumericDoubleValues() {
             @Override
-            public double get(int docID) {
-                return 0;
+            public boolean advanceExact(int doc) throws IOException {
+                return false;
+            }
+
+            @Override
+            public double doubleValue() throws IOException {
+                throw new UnsupportedOperationException();
             }
 
         };
@@ -63,16 +67,20 @@ public enum FieldData {
     /**
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
-    public static SortedNumericDoubleValues emptySortedNumericDoubles(int maxDoc) {
-        return singleton(emptyNumericDouble(), new Bits.MatchNoBits(maxDoc));
+    public static SortedNumericDoubleValues emptySortedNumericDoubles() {
+        return singleton(emptyNumericDouble());
     }
 
     public static GeoPointValues emptyGeoPoint() {
-        final GeoPoint point = new GeoPoint();
         return new GeoPointValues() {
             @Override
-            public GeoPoint get(int docID) {
-                return point;
+            public boolean advanceExact(int doc) throws IOException {
+                return false;
+            }
+
+            @Override
+            public GeoPoint geoPointValue() {
+                throw new UnsupportedOperationException();
             }
         };
     }
@@ -80,62 +88,71 @@ public enum FieldData {
     /**
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
-    public static MultiGeoPointValues emptyMultiGeoPoints(int maxDoc) {
-        return singleton(emptyGeoPoint(), new Bits.MatchNoBits(maxDoc));
+    public static MultiGeoPointValues emptyMultiGeoPoints() {
+        return singleton(emptyGeoPoint());
     }
 
     /**
      * Returns a {@link Bits} representing all documents from <code>dv</code> that have a value.
      */
     public static Bits docsWithValue(final SortedBinaryDocValues dv, final int maxDoc) {
-      return new Bits() {
-        @Override
-        public boolean get(int index) {
-          dv.setDocument(index);
-          return dv.count() != 0;
-        }
+        return new Bits() {
+            @Override
+            public boolean get(int index) {
+                try {
+                    return dv.advanceExact(index);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
 
-        @Override
-        public int length() {
-          return maxDoc;
-        }
-      };
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
     }
 
     /**
      * Returns a Bits representing all documents from <code>dv</code> that have a value.
      */
     public static Bits docsWithValue(final MultiGeoPointValues dv, final int maxDoc) {
-      return new Bits() {
-        @Override
-        public boolean get(int index) {
-          dv.setDocument(index);
-          return dv.count() != 0;
-        }
+        return new Bits() {
+            @Override
+            public boolean get(int index) {
+                try {
+                    return dv.advanceExact(index);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
 
-        @Override
-        public int length() {
-          return maxDoc;
-        }
-      };
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
     }
 
     /**
      * Returns a Bits representing all documents from <code>dv</code> that have a value.
      */
     public static Bits docsWithValue(final SortedNumericDoubleValues dv, final int maxDoc) {
-      return new Bits() {
-        @Override
-        public boolean get(int index) {
-          dv.setDocument(index);
-          return dv.count() != 0;
-        }
+        return new Bits() {
+            @Override
+            public boolean get(int index) {
+                try {
+                    return dv.advanceExact(index);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
 
-        @Override
-        public int length() {
-          return maxDoc;
-        }
-      };
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
     }
 
     /**
@@ -152,8 +169,7 @@ public enum FieldData {
             } else {
                 longBits = new SortableLongBitsNumericDocValues(singleton);
             }
-            final Bits docsWithField = unwrapSingletonBits(values);
-            return DocValues.singleton(longBits, docsWithField);
+            return DocValues.singleton(longBits);
         } else {
             if (values instanceof SortableLongBitsToSortedNumericDoubleValues) {
                 return ((SortableLongBitsToSortedNumericDoubleValues) values).getLongValues();
@@ -177,8 +193,7 @@ public enum FieldData {
             } else {
                 doubles = new SortableLongBitsToNumericDoubleValues(singleton);
             }
-            final Bits docsWithField = DocValues.unwrapSingletonBits(values);
-            return singleton(doubles, docsWithField);
+            return singleton(doubles);
         } else {
             if (values instanceof SortableLongBitsSortedNumericDocValues) {
                 return ((SortableLongBitsSortedNumericDocValues) values).getDoubleValues();
@@ -194,8 +209,7 @@ public enum FieldData {
     public static SortedNumericDoubleValues castToDouble(final SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            final Bits docsWithField = DocValues.unwrapSingletonBits(values);
-            return singleton(new DoubleCastedValues(singleton), docsWithField);
+            return singleton(new DoubleCastedValues(singleton));
         } else {
             return new SortedDoubleCastedValues(values);
         }
@@ -207,8 +221,7 @@ public enum FieldData {
     public static SortedNumericDocValues castToLong(final SortedNumericDoubleValues values) {
         final NumericDoubleValues singleton = unwrapSingleton(values);
         if (singleton != null) {
-            final Bits docsWithField = unwrapSingletonBits(values);
-            return DocValues.singleton(new LongCastedValues(singleton), docsWithField);
+            return DocValues.singleton(new LongCastedValues(singleton));
         } else {
             return new SortedLongCastedValues(values);
         }
@@ -217,8 +230,8 @@ public enum FieldData {
     /**
      * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
      */
-    public static SortedNumericDoubleValues singleton(NumericDoubleValues values, Bits docsWithField) {
-        return new SingletonSortedNumericDoubleValues(values, docsWithField);
+    public static SortedNumericDoubleValues singleton(NumericDoubleValues values) {
+        return new SingletonSortedNumericDoubleValues(values);
     }
 
     /**
@@ -235,23 +248,10 @@ public enum FieldData {
     }
 
     /**
-     * Returns the documents with a value for the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link #singleton(NumericDoubleValues, Bits)},
-     * or null.
-     */
-    public static Bits unwrapSingletonBits(SortedNumericDoubleValues dv) {
-      if (dv instanceof SingletonSortedNumericDoubleValues) {
-        return ((SingletonSortedNumericDoubleValues)dv).getDocsWithField();
-      } else {
-        return null;
-      }
-    }
-
-    /**
      * Returns a multi-valued view over the provided {@link GeoPointValues}.
      */
-    public static MultiGeoPointValues singleton(GeoPointValues values, Bits docsWithField) {
-        return new SingletonMultiGeoPointValues(values, docsWithField);
+    public static MultiGeoPointValues singleton(GeoPointValues values) {
+        return new SingletonMultiGeoPointValues(values);
     }
 
     /**
@@ -268,22 +268,10 @@ public enum FieldData {
     }
 
     /**
-     * Returns the documents with a value for the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues, Bits)},
-     * or null.
-     */
-    public static Bits unwrapSingletonBits(MultiGeoPointValues values) {
-        if (values instanceof SingletonMultiGeoPointValues) {
-            return ((SingletonMultiGeoPointValues) values).getDocsWithField();
-        }
-        return null;
-    }
-
-    /**
      * Returns a multi-valued view over the provided {@link BinaryDocValues}.
      */
-    public static SortedBinaryDocValues singleton(BinaryDocValues values, Bits docsWithField) {
-        return new SingletonSortedBinaryDocValues(values, docsWithField);
+    public static SortedBinaryDocValues singleton(BinaryDocValues values) {
+        return new SingletonSortedBinaryDocValues(values);
     }
 
     /**
@@ -295,18 +283,6 @@ public enum FieldData {
     public static BinaryDocValues unwrapSingleton(SortedBinaryDocValues values) {
         if (values instanceof SingletonSortedBinaryDocValues) {
             return ((SingletonSortedBinaryDocValues) values).getBinaryDocValues();
-        }
-        return null;
-    }
-
-    /**
-     * Returns the documents with a value for the {@link SortedBinaryDocValues},
-     * if it was previously wrapped with {@link #singleton(BinaryDocValues, Bits)},
-     * or null.
-     */
-    public static Bits unwrapSingletonBits(SortedBinaryDocValues values) {
-        if (values instanceof SingletonSortedBinaryDocValues) {
-            return ((SingletonSortedBinaryDocValues) values).getDocsWithField();
         }
         return null;
     }
@@ -359,10 +335,13 @@ public enum FieldData {
     public static SortedBinaryDocValues toString(final SortedNumericDocValues values) {
         return toString(new ToStringValues() {
             @Override
-            public void get(int docID, List<CharSequence> list) {
-                values.setDocument(docID);
-                for (int i = 0, count = values.count(); i < count; ++i) {
-                    list.add(Long.toString(values.valueAt(i)));
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+            @Override
+            public void get(List<CharSequence> list) throws IOException {
+                for (int i = 0, count = values.docValueCount(); i < count; ++i) {
+                    list.add(Long.toString(values.nextValue()));
                 }
             }
         });
@@ -376,10 +355,13 @@ public enum FieldData {
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
         return toString(new ToStringValues() {
             @Override
-            public void get(int docID, List<CharSequence> list) {
-                values.setDocument(docID);
-                for (int i = 0, count = values.count(); i < count; ++i) {
-                    list.add(Double.toString(values.valueAt(i)));
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+            @Override
+            public void get(List<CharSequence> list) throws IOException {
+                for (int i = 0, count = values.docValueCount(); i < count; ++i) {
+                    list.add(Double.toString(values.nextValue()));
                 }
             }
         });
@@ -390,23 +372,37 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is slow!
      */
-    public static SortedBinaryDocValues toString(final RandomAccessOrds values) {
+    public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
         return new SortedBinaryDocValues() {
+            private int count = 0;
 
             @Override
-            public BytesRef valueAt(int index) {
-                return values.lookupOrd(values.ordAt(index));
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc) == false) {
+                    return false;
+                }
+                for (int i = 0; ; ++i) {
+                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
+                        count = i;
+                        break;
+                    }
+                }
+                // reset the iterator on the current doc
+                boolean advanced = values.advanceExact(doc);
+                assert advanced;
+                return true;
             }
 
             @Override
-            public void setDocument(int docId) {
-                values.setDocument(docId);
+            public int docValueCount() {
+                return count;
+            }
+            
+            @Override
+            public BytesRef nextValue() throws IOException {
+                return values.lookupOrd(values.nextOrd());
             }
 
-            @Override
-            public int count() {
-                return values.cardinality();
-            }
         };
     }
 
@@ -418,67 +414,16 @@ public enum FieldData {
     public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
         return toString(new ToStringValues() {
             @Override
-            public void get(int docID, List<CharSequence> list) {
-                values.setDocument(docID);
-                for (int i = 0, count = values.count(); i < count; ++i) {
-                    list.add(values.valueAt(i).toString());
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+            @Override
+            public void get(List<CharSequence> list) {
+                for (int i = 0, count = values.docValueCount(); i < count; ++i) {
+                    list.add(values.nextValue().toString());
                 }
             }
         });
-    }
-
-    /**
-     * If <code>dv</code> is an instance of {@link RandomAccessOrds}, then return
-     * it, otherwise wrap it into a slow wrapper that implements random access.
-     */
-    public static RandomAccessOrds maybeSlowRandomAccessOrds(final SortedSetDocValues dv) {
-        if (dv instanceof RandomAccessOrds) {
-            return (RandomAccessOrds) dv;
-        } else {
-            assert DocValues.unwrapSingleton(dv) == null : "this method expect singleton to return random-access ords";
-            return new RandomAccessOrds() {
-
-                int cardinality;
-                long[] ords = new long[0];
-                int ord;
-
-                @Override
-                public void setDocument(int docID) {
-                    cardinality = 0;
-                    dv.setDocument(docID);
-                    for (long ord = dv.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = dv.nextOrd()) {
-                        ords = ArrayUtil.grow(ords, cardinality + 1);
-                        ords[cardinality++] = ord;
-                    }
-                    ord = 0;
-                }
-
-                @Override
-                public long nextOrd() {
-                    return ords[ord++];
-                }
-
-                @Override
-                public BytesRef lookupOrd(long ord) {
-                    return dv.lookupOrd(ord);
-                }
-
-                @Override
-                public long getValueCount() {
-                    return dv.getValueCount();
-                }
-
-                @Override
-                public long ordAt(int index) {
-                    return ords[index];
-                }
-
-                @Override
-                public int cardinality() {
-                    return cardinality;
-                }
-            };
-        }
     }
 
     private static SortedBinaryDocValues toString(final ToStringValues toStringValues) {
@@ -487,9 +432,12 @@ public enum FieldData {
             final List<CharSequence> list = new ArrayList<>();
 
             @Override
-            public void setDocument(int docID) {
+            public boolean advanceExact(int docID) throws IOException {
+                if (toStringValues.advanceExact(docID) == false) {
+                    return false;
+                }
                 list.clear();
-                toStringValues.get(docID, list);
+                toStringValues.get(list);
                 count = list.size();
                 grow();
                 for (int i = 0; i < count; ++i) {
@@ -497,6 +445,7 @@ public enum FieldData {
                     values[i].copyChars(s);
                 }
                 sort();
+                return true;
             }
 
         };
@@ -504,7 +453,14 @@ public enum FieldData {
 
     private interface ToStringValues {
 
-        void get(int docID, List<CharSequence> values);
+        /**
+         * Advance this instance to the given document id
+         * @return true if there is a value for this document
+         */
+        public abstract boolean advanceExact(int doc) throws IOException;
+
+        /** Fill the list of charsquences with the list of values for the current document. */
+        void get(List<CharSequence> values) throws IOException;
 
     }
 
@@ -517,8 +473,13 @@ public enum FieldData {
         }
 
         @Override
-        public double get(int docID) {
-            return values.get(docID);
+        public double doubleValue() throws IOException {
+            return values.longValue();
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            return values.advanceExact(doc);
         }
 
     }
@@ -532,18 +493,18 @@ public enum FieldData {
         }
 
         @Override
-        public double valueAt(int index) {
-            return values.valueAt(index);
+        public boolean advanceExact(int target) throws IOException {
+            return values.advanceExact(target);
         }
 
         @Override
-        public void setDocument(int doc) {
-            values.setDocument(doc);
+        public double nextValue() throws IOException {
+            return values.nextValue();
         }
 
         @Override
-        public int count() {
-            return values.count();
+        public int docValueCount() {
+            return values.docValueCount();
         }
 
     }
@@ -557,10 +518,34 @@ public enum FieldData {
         }
 
         @Override
-        public long get(int docID) {
-            return (long) values.get(docID);
+        public boolean advanceExact(int target) throws IOException {
+            return values.advanceExact(target);
         }
 
+        @Override
+        public long longValue() throws IOException {
+            return (long) values.doubleValue();
+        }
+
+        @Override
+        public int docID() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static class SortedLongCastedValues extends SortedNumericDocValues {
@@ -572,18 +557,38 @@ public enum FieldData {
         }
 
         @Override
-        public long valueAt(int index) {
-            return (long) values.valueAt(index);
+        public boolean advanceExact(int target) throws IOException {
+            return values.advanceExact(target);
         }
 
         @Override
-        public void setDocument(int doc) {
-            values.setDocument(doc);
+        public int docValueCount() {
+            return values.docValueCount();
         }
 
         @Override
-        public int count() {
-            return values.count();
+        public long nextValue() throws IOException {
+            return (long) values.nextValue();
+        }
+
+        @Override
+        public int docID() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            throw new UnsupportedOperationException();
         }
 
     }

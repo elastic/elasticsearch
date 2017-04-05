@@ -20,49 +20,35 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.Bits.MatchAllBits;
 import org.apache.lucene.util.BytesRef;
+
+import java.io.IOException;
 
 final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
 
     private final BinaryDocValues in;
-    private final Bits docsWithField;
-    private BytesRef value;
-    private int count;
 
-    SingletonSortedBinaryDocValues(BinaryDocValues in, Bits docsWithField) {
+    SingletonSortedBinaryDocValues(BinaryDocValues in) {
         this.in = in;
-        this.docsWithField = docsWithField instanceof MatchAllBits ? null : docsWithField;
     }
 
     @Override
-    public void setDocument(int docID) {
-        value = in.get(docID);
-        if (value.length == 0 && docsWithField != null && !docsWithField.get(docID)) {
-            count = 0;
-        } else {
-            count = 1;
-        }
+    public boolean advanceExact(int doc) throws IOException {
+        return in.advanceExact(doc);
     }
 
     @Override
-    public int count() {
-        return count;
+    public int docValueCount() {
+        return 1;
     }
 
     @Override
-    public BytesRef valueAt(int index) {
-        assert index == 0;
-        return value;
+    public BytesRef nextValue() throws IOException {
+        return in.binaryValue();
     }
 
     public BinaryDocValues getBinaryDocValues() {
         return in;
-    }
-
-    public Bits getDocsWithField() {
-        return docsWithField;
     }
 
 }

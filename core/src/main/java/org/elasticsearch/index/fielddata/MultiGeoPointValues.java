@@ -20,6 +20,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoPoint;
 
+import java.io.IOException;
+
 /**
  * A stateful lightweight per document set of {@link GeoPoint} values.
  * To iterate over values in a document use the following pattern:
@@ -44,28 +46,24 @@ public abstract class MultiGeoPointValues {
     }
 
     /**
-     * Sets iteration to the specified docID.
-     * @param docId document ID
-     *
-     * @see #valueAt(int)
-     * @see #count()
+     * Advance this instance to the given document id
+     * @return true if there is a value for this document
      */
-    public abstract void setDocument(int docId);
+    public abstract boolean advanceExact(int doc) throws IOException;
 
     /**
      * Return the number of geo points the current document has.
      */
-    public abstract int count();
+    public abstract int docValueCount();
 
     /**
-     * Return the <code>i-th</code> value associated with the current document.
-     * Behavior is undefined when <code>i</code> is undefined or greater than
-     * or equal to {@link #count()}.
+     * Return the next value associated with the current document. This must not be
+     * called more than {@link #docValueCount()} times.
      *
      * Note: the returned {@link GeoPoint} might be shared across invocations.
      *
      * @return the next value for the current docID set to {@link #setDocument(int)}.
      */
-    public abstract GeoPoint valueAt(int i);
+    public abstract GeoPoint nextValue();
 
 }

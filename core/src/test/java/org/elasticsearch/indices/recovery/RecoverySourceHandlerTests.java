@@ -35,7 +35,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;

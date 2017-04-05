@@ -551,7 +551,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
+                logger.trace("index [{}][{}] (v# [{}])",  index.type(), index.id(), index.version());
             }
             result = engine.index(index);
         } catch (Exception e) {

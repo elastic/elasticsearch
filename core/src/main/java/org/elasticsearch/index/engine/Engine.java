@@ -55,6 +55,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.lucene.uid.VersionsResolver;
+import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -393,9 +395,9 @@ public abstract class Engine implements Closeable {
             this.found = found;
         }
 
-        public DeleteResult(Exception failure, long version) {
+        public DeleteResult(Exception failure, long version, boolean found) {
             super(Operation.TYPE.DELETE, failure, version);
-            this.found = false;
+            this.found = found;
         }
 
         public boolean isFound() {
@@ -421,9 +423,9 @@ public abstract class Engine implements Closeable {
 
     protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
         final Searcher searcher = searcherFactory.apply("get");
-        final Versions.DocIdAndVersion docIdAndVersion;
+        final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
+            docIdAndVersion = VersionsResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -1133,12 +1135,12 @@ public abstract class Engine implements Closeable {
     public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
-        private final Versions.DocIdAndVersion docIdAndVersion;
+        private final DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
         public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        private GetResult(boolean exists, long version, Versions.DocIdAndVersion docIdAndVersion, Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Searcher searcher) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
@@ -1148,7 +1150,7 @@ public abstract class Engine implements Closeable {
         /**
          * Build a non-realtime get result from the searcher.
          */
-        public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
+        public GetResult(Searcher searcher, DocIdAndVersion docIdAndVersion) {
             this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
@@ -1164,7 +1166,7 @@ public abstract class Engine implements Closeable {
             return this.searcher;
         }
 
-        public Versions.DocIdAndVersion docIdAndVersion() {
+        public DocIdAndVersion docIdAndVersion() {
             return docIdAndVersion;
         }
 

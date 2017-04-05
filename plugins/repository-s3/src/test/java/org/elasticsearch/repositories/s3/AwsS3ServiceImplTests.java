@@ -26,9 +26,6 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.s3.AwsS3Service;
-import org.elasticsearch.repositories.s3.InternalAwsS3Service;
-import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -37,8 +34,8 @@ import static org.hamcrest.Matchers.is;
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        AWSCredentialsProvider credentialsProvider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
+        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, deprecationLogger, clientSettings, Settings.EMPTY);
         assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -145,8 +142,12 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-         assertSettingDeprecationsAndWarnings(
-                 new Setting<?>[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
+            S3Repository.Repositories.KEY_SETTING,
+            S3Repository.Repositories.SECRET_SETTING,
+            S3Repository.Repository.KEY_SETTING,
+            S3Repository.Repository.SECRET_SETTING},
+            "Using s3 access/secret key from repository settings. Instead store these in named clients and the elasticsearch keystore for secure settings.");
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -158,8 +159,14 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-         assertSettingDeprecationsAndWarnings(
-                 new Setting<?>[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
+            AwsS3Service.KEY_SETTING,
+            AwsS3Service.SECRET_SETTING,
+            S3Repository.Repositories.KEY_SETTING,
+            S3Repository.Repositories.SECRET_SETTING,
+            S3Repository.Repository.KEY_SETTING,
+            S3Repository.Repository.SECRET_SETTING},
+            "Using s3 access/secret key from repository settings. Instead store these in named clients and the elasticsearch keystore for secure settings.");
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -173,15 +180,25 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-         assertSettingDeprecationsAndWarnings(
-                 new Setting<?>[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
+            AwsS3Service.KEY_SETTING,
+            AwsS3Service.SECRET_SETTING,
+            AwsS3Service.CLOUD_S3.KEY_SETTING,
+            AwsS3Service.CLOUD_S3.SECRET_SETTING,
+            S3Repository.Repositories.KEY_SETTING,
+            S3Repository.Repositories.SECRET_SETTING,
+            S3Repository.Repository.KEY_SETTING,
+            S3Repository.Repository.SECRET_SETTING},
+            "Using s3 access/secret key from repository settings. Instead store these in named clients and the elasticsearch keystore for secure settings.");
     }
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
                                                                      String expectedKey, String expectedSecret) {
         String configName = InternalAwsS3Service.CLIENT_NAME.get(singleRepositorySettings);
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, deprecationLogger, settings,
-            singleRepositorySettings, configName).getCredentials();
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
+        AWSCredentials credentials = InternalAwsS3Service
+            .buildCredentials(logger, deprecationLogger, clientSettings, singleRepositorySettings)
+            .getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }
@@ -297,8 +314,9 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         Boolean useThrottleRetries = S3Repository.getValue(singleRepositorySettings, settings,
             S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING, S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
 
-        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(logger, singleRepositorySettings, settings,
-            "default", maxRetries, null, useThrottleRetries);
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
+        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(logger, clientSettings,
+            singleRepositorySettings, maxRetries, null, useThrottleRetries);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));
@@ -355,7 +373,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     private void assertEndpoint(Settings repositorySettings, Settings settings,
                                   String expectedEndpoint) {
         String configName = InternalAwsS3Service.CLIENT_NAME.get(repositorySettings);
-        String foundEndpoint = InternalAwsS3Service.findEndpoint(logger, repositorySettings, settings, configName);
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
+        String foundEndpoint = InternalAwsS3Service.findEndpoint(logger, clientSettings, repositorySettings);
         assertThat(foundEndpoint, is(expectedEndpoint));
     }
 

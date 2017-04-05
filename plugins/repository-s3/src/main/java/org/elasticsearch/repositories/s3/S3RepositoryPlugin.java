@@ -57,9 +57,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         });
     }
 
+    private final Map<String, S3ClientSettings> clientsSettings;
+
+    public S3RepositoryPlugin(Settings settings) {
+        // eagerly load client settings so that secure settings are read
+        clientsSettings = S3ClientSettings.load(settings);
+        assert clientsSettings.isEmpty() == false; // always at least have "default"
+    }
+
     // overridable for tests
     protected AwsS3Service createStorageService(Settings settings) {
-        return new InternalAwsS3Service(settings);
+        return new InternalAwsS3Service(settings, clientsSettings);
     }
 
     @Override
@@ -80,15 +88,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         return Arrays.asList(
 
             // named s3 client configuration settings
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING,
-            S3Repository.ENDPOINT_SETTING,
-            S3Repository.PROTOCOL_SETTING,
-            S3Repository.PROXY_HOST_SETTING,
-            S3Repository.PROXY_PORT_SETTING,
-            S3Repository.PROXY_USERNAME_SETTING,
-            S3Repository.PROXY_PASSWORD_SETTING,
-            S3Repository.READ_TIMEOUT_SETTING,
+            S3ClientSettings.ACCESS_KEY_SETTING,
+            S3ClientSettings.SECRET_KEY_SETTING,
+            S3ClientSettings.ENDPOINT_SETTING,
+            S3ClientSettings.PROTOCOL_SETTING,
+            S3ClientSettings.PROXY_HOST_SETTING,
+            S3ClientSettings.PROXY_PORT_SETTING,
+            S3ClientSettings.PROXY_USERNAME_SETTING,
+            S3ClientSettings.PROXY_PASSWORD_SETTING,
+            S3ClientSettings.READ_TIMEOUT_SETTING,
 
             // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
             AwsS3Service.KEY_SETTING,

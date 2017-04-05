@@ -60,45 +60,6 @@ class S3Repository extends BlobStoreRepository {
 
     public static final String TYPE = "s3";
 
-    // prefix for s3 client settings
-    private static final String PREFIX = "s3.client.";
-
-    /** The access key (ie login id) for connecting to s3. */
-    public static final AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
-        key -> SecureSetting.secureString(key, Repositories.KEY_SETTING, false));
-
-    /** The secret key (ie password) for connecting to s3. */
-    public static final AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
-        key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING, false));
-
-    /** An override for the s3 endpoint to connect to. */
-    public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
-        key -> new Setting<>(key, Repositories.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), Property.NodeScope));
-
-    /** The protocol to use to connec to to s3. */
-    public static final AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(PREFIX, "protocol",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope));
-
-    /** The host name of a proxy to connect to s3 through. */
-    public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(PREFIX, "proxy.host",
-        key -> Setting.simpleString(key, Property.NodeScope));
-
-    /** The port of a proxy to connect to s3 through. */
-    public static final AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(PREFIX, "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 1<<16, Property.NodeScope));
-
-    /** The username of a proxy to connect to s3 through. */
-    public static final AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING, false));
-
-    /** The password of a proxy to connect to s3 through. */
-    public static final AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING, false));
-
-    /** The socket timeout for connecting to s3. */
-    public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope));
-
     /**
      * Global S3 repositories settings. Starting with: repositories.s3
      * NOTE: These are legacy settings. Use the named client config settings above.

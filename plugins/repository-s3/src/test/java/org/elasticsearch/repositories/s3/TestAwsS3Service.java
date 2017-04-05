@@ -27,6 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends S3RepositoryPlugin {
+        public TestPlugin(Settings settings) {
+            super(settings);
+        }
         @Override
         protected AwsS3Service createStorageService(Settings settings) {
             return new TestAwsS3Service(settings);
@@ -36,9 +39,8 @@ public class TestAwsS3Service extends InternalAwsS3Service {
     IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<AmazonS3, TestAmazonS3>();
 
     public TestAwsS3Service(Settings settings) {
-        super(settings);
+        super(settings, S3ClientSettings.load(settings));
     }
-
 
     @Override
     public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,

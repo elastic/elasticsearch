@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.AwsSigner;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -35,7 +36,7 @@ public class AWSSignersTests extends ESTestCase {
      */
     @BeforeClass
     public static void instantiatePlugin() {
-        new S3RepositoryPlugin();
+        new S3RepositoryPlugin(Settings.EMPTY);
     }
 
     public void testSigners() {

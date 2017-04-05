@@ -338,13 +338,12 @@ final class Bootstrap {
 
             INSTANCE.setup(true, environment);
 
-            /* TODO: close this once s3 repository doesn't try to read during repository construction
             try {
                 // any secure settings must be read during node construction
                 IOUtils.close(keystore);
             } catch (IOException e) {
                 throw new BootstrapException(e);
-            }*/
+            }
 
             INSTANCE.start();
 

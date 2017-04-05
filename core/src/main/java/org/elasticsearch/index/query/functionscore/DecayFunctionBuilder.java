@@ -348,18 +348,18 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
             return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
                 @Override
-                public int count() {
-                    return geoPointValues.count();
+                public int docValueCount() {
+                    return geoPointValues.docValueCount();
                 }
 
                 @Override
-                public void setDocument(int docId) {
-                    geoPointValues.setDocument(docId);
+                public boolean advanceExact(int docId) throws IOException {
+                    return geoPointValues.advanceExact(docId);
                 }
 
                 @Override
-                public double valueAt(int index) {
-                    GeoPoint other = geoPointValues.valueAt(index);
+                public double nextValue() {
+                    GeoPoint other = geoPointValues.nextValue();
                     return Math.max(0.0d,
                             distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);
                 }
@@ -367,15 +367,14 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
 
         @Override
-        protected String getDistanceString(LeafReaderContext ctx, int docId) {
+        protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
             StringBuilder values = new StringBuilder(mode.name());
             values.append(" of: [");
             final MultiGeoPointValues geoPointValues = fieldData.load(ctx).getGeoPointValues();
-            geoPointValues.setDocument(docId);
-            final int num = geoPointValues.count();
-            if (num > 0) {
+            if (geoPointValues.advanceExact(docId)) {
+                final int num = geoPointValues.docValueCount();
                 for (int i = 0; i < num; i++) {
-                    GeoPoint value = geoPointValues.valueAt(i);
+                    GeoPoint value = geoPointValues.nextValue();
                     values.append("Math.max(arcDistance(");
                     values.append(value).append("(=doc value),");
                     values.append(origin).append("(=origin)) - ").append(offset).append("(=offset), 0)");
@@ -430,33 +429,32 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
             return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
                 @Override
-                public int count() {
-                    return doubleValues.count();
+                public int docValueCount() {
+                    return doubleValues.docValueCount();
                 }
 
                 @Override
-                public void setDocument(int docId) {
-                    doubleValues.setDocument(docId);
+                public boolean advanceExact(int doc) throws IOException {
+                    return doubleValues.advanceExact(doc);
                 }
 
                 @Override
-                public double valueAt(int index) {
-                    return Math.max(0.0d, Math.abs(doubleValues.valueAt(index) - origin) - offset);
+                public double nextValue() throws IOException {
+                    return Math.max(0.0d, Math.abs(doubleValues.nextValue() - origin) - offset);
                 }
             }, 0.0);
         }
 
         @Override
-        protected String getDistanceString(LeafReaderContext ctx, int docId) {
+        protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
 
             StringBuilder values = new StringBuilder(mode.name());
             values.append("[");
             final SortedNumericDoubleValues doubleValues = fieldData.load(ctx).getDoubleValues();
-            doubleValues.setDocument(docId);
-            final int num = doubleValues.count();
-            if (num > 0) {
+            if (doubleValues.advanceExact(docId)) {
+                final int num = doubleValues.docValueCount();
                 for (int i = 0; i < num; i++) {
-                    double value = doubleValues.valueAt(i);
+                    double value = doubleValues.nextValue();
                     values.append("Math.max(Math.abs(");
                     values.append(value).append("(=doc value) - ");
                     values.append(origin).append("(=origin))) - ");
@@ -531,21 +529,28 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             return new LeafScoreFunction() {
 
                 @Override
-                public double score(int docId, float subQueryScore) {
-                    return func.evaluate(distance.get(docId), scale);
+                public double score(int docId, float subQueryScore) throws IOException {
+                    if (distance.advanceExact(docId)) {
+                        return func.evaluate(distance.doubleValue(), scale);
+                    } else {
+                        return 0;
+                    }
                 }
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                    if (distance.advanceExact(docId) == false) {
+                        return Explanation.noMatch("No value for the distance");
+                    }
                     return Explanation.match(
                             CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
                             "Function for field " + getFieldName() + ":",
-                            func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
+                            func.explainFunction(getDistanceString(ctx, docId), distance.doubleValue(), scale));
                 }
             };
         }
 
-        protected abstract String getDistanceString(LeafReaderContext ctx, int docId);
+        protected abstract String getDistanceString(LeafReaderContext ctx, int docId) throws IOException;
 
         protected abstract String getFieldName();
 

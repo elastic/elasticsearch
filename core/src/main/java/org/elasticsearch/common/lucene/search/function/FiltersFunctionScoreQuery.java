@@ -271,7 +271,7 @@ public class FiltersFunctionScoreQuery extends Query {
             return scoreCombiner.combine(subQueryScore, factor, maxBoost);
         }
 
-        protected double computeScore(int docId, float subQueryScore) {
+        protected double computeScore(int docId, float subQueryScore) throws IOException {
             double factor = 1d;
             switch(scoreMode) {
                 case FIRST:

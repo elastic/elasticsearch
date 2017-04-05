@@ -121,7 +121,6 @@ public class Queries {
         if (isNegativeQuery(q)) {
             BooleanQuery bq = (BooleanQuery) q;
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.setDisableCoord(bq.isCoordDisabled());
             for (BooleanClause clause : bq) {
                 builder.add(clause);
             }
@@ -154,7 +153,6 @@ public class Queries {
         int msm = calculateMinShouldMatch(optionalClauses, minimumShouldMatch);
         if (0 < msm) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.setDisableCoord(query.isCoordDisabled());
             for (BooleanClause clause : query) {
                 builder.add(clause);
             }

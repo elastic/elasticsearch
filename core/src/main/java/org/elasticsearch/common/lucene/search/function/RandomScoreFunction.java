@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -68,14 +69,16 @@ public class RandomScoreFunction extends ScoreFunction {
         return new LeafScoreFunction() {
 
             @Override
-            public double score(int docId, float subQueryScore) {
-                uidByteData.setDocument(docId);
-                int hash = StringHelper.murmurhash3_x86_32(uidByteData.valueAt(0), saltedSeed);
+            public double score(int docId, float subQueryScore) throws IOException {
+                if (uidByteData.advanceExact(docId) == false) {
+                    throw new AssertionError("Document without a _uid");
+                }
+                int hash = StringHelper.murmurhash3_x86_32(uidByteData.nextValue(), saltedSeed);
                 return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
             }
 
             @Override
-            public Explanation explainScore(int docId, Explanation subQueryScore) {
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 return Explanation.match(
                         CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
                         "random score function (seed: " + originalSeed + ")");

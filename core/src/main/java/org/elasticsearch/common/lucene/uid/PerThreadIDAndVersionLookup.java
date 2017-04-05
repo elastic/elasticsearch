@@ -49,8 +49,6 @@ final class PerThreadIDAndVersionLookup {
 
     /** terms enum for uid field */
     private final TermsEnum termsEnum;
-    /** _version data */
-    private final NumericDocValues versions;
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
 
@@ -59,7 +57,6 @@ final class PerThreadIDAndVersionLookup {
      */
     PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
         TermsEnum termsEnum = null;
-        NumericDocValues versions = null;
 
         Fields fields = reader.fields();
         if (fields != null) {
@@ -67,12 +64,10 @@ final class PerThreadIDAndVersionLookup {
             if (terms != null) {
                 termsEnum = terms.iterator();
                 assert termsEnum != null;
-                versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
-                assert versions != null;
+                assert reader.getNumericDocValues(VersionFieldMapper.NAME) != null;
             }
         }
 
-        this.versions = versions;
         this.termsEnum = termsEnum;
     }
 
@@ -90,7 +85,14 @@ final class PerThreadIDAndVersionLookup {
             }
 
             if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                return new DocIdAndVersion(docID, versions.get(docID), context);
+                final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
+                if (versions == null) {
+                    throw new AssertionError("Segment misses the _version field: " + context.reader());
+                }
+                if (versions.advanceExact(docID) == false) {
+                    throw new AssertionError("Document misses the _version field: " + docID + " in segment " + context.reader());
+                }
+                return new DocIdAndVersion(docID, versions.longValue(), context);
             }
         }
 

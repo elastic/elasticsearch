@@ -62,7 +62,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedNumericDoubleValues values;
         if(indexFieldData == null) {
-            values = FieldData.emptySortedNumericDoubles(ctx.reader().maxDoc());
+            values = FieldData.emptySortedNumericDoubles();
         } else {
             values = this.indexFieldData.load(ctx).getDoubleValues();
         }
@@ -70,12 +70,10 @@ public class FieldValueFactorFunction extends ScoreFunction {
         return new LeafScoreFunction() {
 
             @Override
-            public double score(int docId, float subQueryScore) {
-                values.setDocument(docId);
-                final int numValues = values.count();
+            public double score(int docId, float subQueryScore) throws IOException {
                 double value;
-                if (numValues > 0) {
-                    value = values.valueAt(0);
+                if (values.advanceExact(docId)) {
+                    value = values.nextValue();
                 } else if (missing != null) {
                     value = missing;
                 } else {
@@ -91,7 +89,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
             }
 
             @Override
-            public Explanation explainScore(int docId, Explanation subQueryScore) {
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String modifierStr = modifier != null ? modifier.toString() : "";
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue());

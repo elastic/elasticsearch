@@ -140,16 +140,6 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         }
 
         @Override
-        public float getValueForNormalization() throws IOException {
-            return in.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float topLevelBoost) {
-            in.normalize(norm, topLevelBoost);
-        }
-
-        @Override
         public Scorer scorer(LeafReaderContext context) throws IOException {
             shardKeyMap.add(context.reader());
             return in.scorer(context);

@@ -245,7 +245,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         }
     }
 
-    private class CleanupKey implements IndexReader.ReaderClosedListener {
+    private class CleanupKey implements IndexReader.ClosedListener {
         final CacheEntity entity;
         final long readerVersion; // use the reader version to now keep a reference to a "short" lived reader until its reaped
 
@@ -255,7 +255,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         }
 
         @Override
-        public void onClose(IndexReader reader) {
+        public void onClose(IndexReader.CacheKey cacheKey) {
             Boolean remove = registeredClosedListeners.remove(this);
             if (remove != null) {
                 keysToClean.add(this);

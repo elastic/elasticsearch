@@ -74,9 +74,9 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false);
-        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false, boost);
+        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false, boost);
         return new Weight(this) {
             @Override
             public void extractTerms(Set<Term> set) {
@@ -102,16 +102,6 @@ final class PercolateQuery extends Query implements Accountable {
                     }
                 }
                 return Explanation.noMatch("PercolateQuery");
-            }
-
-            @Override
-            public float getValueForNormalization() throws IOException {
-                return candidateMatchesWeight.getValueForNormalization();
-            }
-
-            @Override
-            public void normalize(float v, float v1) {
-                candidateMatchesWeight.normalize(v, v1);
             }
 
             @Override

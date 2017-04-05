@@ -135,9 +135,9 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false && minScore == null) {
-            return subQuery.createWeight(searcher, needsScores);
+            return subQuery.createWeight(searcher, needsScores, boost);
         }
 
         boolean subQueryNeedsScores = combineFunction != CombineFunction.REPLACE;
@@ -146,7 +146,7 @@ public class FiltersFunctionScoreQuery extends Query {
             subQueryNeedsScores |= filterFunctions[i].function.needsScores();
             filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
         }
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores, boost);
         return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryNeedsScores);
     }
 
@@ -166,16 +166,6 @@ public class FiltersFunctionScoreQuery extends Query {
         @Override
         public void extractTerms(Set<Term> terms) {
             subQueryWeight.extractTerms(terms);
-        }
-
-        @Override
-        public float getValueForNormalization() throws IOException {
-            return subQueryWeight.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float boost) {
-            subQueryWeight.normalize(norm, boost);
         }
 
         private FiltersFunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {

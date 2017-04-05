@@ -105,26 +105,16 @@ public final class AllTermQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false) {
-            return new TermQuery(term).createWeight(searcher, needsScores);
+            return new TermQuery(term).createWeight(searcher, needsScores, boost);
         }
         final TermContext termStates = TermContext.build(searcher.getTopReaderContext(), term);
         final CollectionStatistics collectionStats = searcher.collectionStatistics(term.field());
         final TermStatistics termStats = searcher.termStatistics(term, termStates);
         final Similarity similarity = searcher.getSimilarity(needsScores);
-        final SimWeight stats = similarity.computeWeight(collectionStats, termStats);
+        final SimWeight stats = similarity.computeWeight(boost, collectionStats, termStats);
         return new Weight(this) {
-
-            @Override
-            public float getValueForNormalization() throws IOException {
-                return stats.getValueForNormalization();
-            }
-
-            @Override
-            public void normalize(float norm, float topLevelBoost) {
-                stats.normalize(norm, topLevelBoost);
-            }
 
             @Override
             public void extractTerms(Set<Term> terms) {

@@ -50,9 +50,8 @@ final class EmptyMemberValueSource extends ValueSource {
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
         return new DoubleDocValues(this) {
             @Override
-            public double doubleVal(int doc) {
-                values.setDocument(doc);
-                if (values.count() == 0) {
+            public double doubleVal(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
                     return 1;
                 } else {
                     return 0;

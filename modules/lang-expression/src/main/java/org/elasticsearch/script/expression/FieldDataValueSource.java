@@ -71,8 +71,12 @@ class FieldDataValueSource extends ValueSource {
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
         return new DoubleDocValues(this) {
           @Override
-          public double doubleVal(int doc) {
-            return docValues.get(doc);
+          public double doubleVal(int doc) throws IOException {
+            if (docValues.advanceExact(doc)) {
+                return docValues.doubleValue();
+            } else {
+                return 0;
+            }
           }
         };
     }

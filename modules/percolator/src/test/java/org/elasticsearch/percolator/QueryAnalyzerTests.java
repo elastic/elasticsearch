@@ -276,7 +276,7 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     public void testExtractQueryMetadata_blendedTermQuery() {
         Term[] termsArr = new Term[]{new Term("_field", "_term1"), new Term("_field", "_term2")};
-        BlendedTermQuery commonTermsQuery = BlendedTermQuery.booleanBlendedQuery(termsArr, false);
+        BlendedTermQuery commonTermsQuery = BlendedTermQuery.booleanBlendedQuery(termsArr);
         Result result = analyze(commonTermsQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);

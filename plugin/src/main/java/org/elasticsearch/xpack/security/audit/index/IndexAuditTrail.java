@@ -310,7 +310,10 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 });
             } else if (master) {
                 putTemplate(customAuditIndexSettings(settings), ActionListener.wrap((v) -> innerStart(),
-                        (e) -> state.set(State.FAILED)));
+                        (e) -> {
+                            logger.error("failed to put audit trail template", e);
+                            state.set(State.FAILED);
+                        }));
             } else {
                 innerStart();
             }

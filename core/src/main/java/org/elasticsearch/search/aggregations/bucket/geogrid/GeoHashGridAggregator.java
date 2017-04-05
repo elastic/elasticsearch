@@ -69,21 +69,22 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                long previous = Long.MAX_VALUE;
-                for (int i = 0; i < valuesCount; ++i) {
-                    final long val = values.valueAt(i);
-                    if (previous != val || i == 0) {
-                        long bucketOrdinal = bucketOrds.add(val);
-                        if (bucketOrdinal < 0) { // already seen
-                            bucketOrdinal = - 1 - bucketOrdinal;
-                            collectExistingBucket(sub, doc, bucketOrdinal);
-                        } else {
-                            collectBucket(sub, doc, bucketOrdinal);
+                    long previous = Long.MAX_VALUE;
+                    for (int i = 0; i < valuesCount; ++i) {
+                        final long val = values.nextValue();
+                        if (previous != val || i == 0) {
+                            long bucketOrdinal = bucketOrds.add(val);
+                            if (bucketOrdinal < 0) { // already seen
+                                bucketOrdinal = -1 - bucketOrdinal;
+                                collectExistingBucket(sub, doc, bucketOrdinal);
+                            } else {
+                                collectBucket(sub, doc, bucketOrdinal);
+                            }
+                            previous = val;
                         }
-                        previous = val;
                     }
                 }
             }

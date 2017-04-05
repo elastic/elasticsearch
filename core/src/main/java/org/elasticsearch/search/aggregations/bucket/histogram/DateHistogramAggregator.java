@@ -97,25 +97,26 @@ class DateHistogramAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                long previousRounded = Long.MIN_VALUE;
-                for (int i = 0; i < valuesCount; ++i) {
-                    long value = values.valueAt(i);
-                    long rounded = rounding.round(value - offset) + offset;
-                    assert rounded >= previousRounded;
-                    if (rounded == previousRounded) {
-                        continue;
+                    long previousRounded = Long.MIN_VALUE;
+                    for (int i = 0; i < valuesCount; ++i) {
+                        long value = values.nextValue();
+                        long rounded = rounding.round(value - offset) + offset;
+                        assert rounded >= previousRounded;
+                        if (rounded == previousRounded) {
+                            continue;
+                        }
+                        long bucketOrd = bucketOrds.add(rounded);
+                        if (bucketOrd < 0) { // already seen
+                            bucketOrd = -1 - bucketOrd;
+                            collectExistingBucket(sub, doc, bucketOrd);
+                        } else {
+                            collectBucket(sub, doc, bucketOrd);
+                        }
+                        previousRounded = rounded;
                     }
-                    long bucketOrd = bucketOrds.add(rounded);
-                    if (bucketOrd < 0) { // already seen
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        collectBucket(sub, doc, bucketOrd);
-                    }
-                    previousRounded = rounded;
                 }
             }
         };

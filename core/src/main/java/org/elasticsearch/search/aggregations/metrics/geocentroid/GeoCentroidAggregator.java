@@ -72,15 +72,15 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                 centroids = bigArrays.grow(centroids, bucket + 1);
                 counts = bigArrays.grow(counts, bucket + 1);
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                if (valueCount > 0) {
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
                     double[] pt = new double[2];
                     // get the previously accumulated number of counts
                     long prevCounts = counts.get(bucket);
                     // increment by the number of points for this document
                     counts.increment(bucket, valueCount);
-                    // get the previous GeoPoint if a moving avg was computed
+                    // get the previous GeoPoint if a moving avg was
+                    // computed
                     if (prevCounts > 0) {
                         final long mortonCode = centroids.get(bucket);
                         pt[0] = GeoPointField.decodeLongitude(mortonCode);
@@ -88,11 +88,12 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                     }
                     // update the moving average
                     for (int i = 0; i < valueCount; ++i) {
-                        GeoPoint value = values.valueAt(i);
+                        GeoPoint value = values.nextValue();
                         pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
                         pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
                     }
-                    // TODO: we do not need to interleave the lat and lon bits here
+                    // TODO: we do not need to interleave the lat and lon
+                    // bits here
                     // should we just store them contiguously?
                     centroids.set(bucket, GeoPointField.encodeLatLon(pt[1], pt[0]));
                 }

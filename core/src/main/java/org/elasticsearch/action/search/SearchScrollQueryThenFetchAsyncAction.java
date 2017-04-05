@@ -171,7 +171,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void executeFetchPhase() throws Exception {
-        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults.asList(), queryResults.length());
+        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults.asList());
         if (sortedShardDocs.length == 0) {
             finishHim(searchPhaseController.reducedQueryPhase(queryResults.asList()));
             return;

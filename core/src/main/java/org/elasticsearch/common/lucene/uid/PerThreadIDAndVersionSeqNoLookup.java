@@ -29,9 +29,12 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.uid.Versions.DocIdAndVersion;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 
@@ -43,7 +46,7 @@ import java.io.IOException;
  *  in more than one document!  It will only return the first one it
  *  finds. */
 
-final class PerThreadIDAndVersionLookup {
+final class PerThreadIDAndVersionSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
@@ -51,49 +54,73 @@ final class PerThreadIDAndVersionLookup {
     private final TermsEnum termsEnum;
     /** _version data */
     private final NumericDocValues versions;
+    /** _seq_no data */
+    private final NumericDocValues seqNos;
+    /** _primary_term data */
+    private final NumericDocValues primaryTerms;
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
+
+    private final Object readerKey;
 
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
-        TermsEnum termsEnum = null;
-        NumericDocValues versions = null;
-
+    PerThreadIDAndVersionSeqNoLookup(LeafReader reader) throws IOException {
         Fields fields = reader.fields();
-        if (fields != null) {
-            Terms terms = fields.terms(UidFieldMapper.NAME);
-            if (terms != null) {
-                termsEnum = terms.iterator();
-                assert termsEnum != null;
-                versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
-                assert versions != null;
-            }
-        }
-
-        this.versions = versions;
-        this.termsEnum = termsEnum;
+        Terms terms = fields.terms(UidFieldMapper.NAME);
+        termsEnum = terms.iterator();
+        assert termsEnum != null;
+        versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
+        assert versions != null;
+        seqNos = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+        primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        readerKey = reader.getCoreCacheKey();
     }
 
     /** Return null if id is not found. */
-    public DocIdAndVersion lookup(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+        assert context.reader().getCoreCacheKey().equals(readerKey);
+        int docID = getDocID(id, liveDocs);
+
+        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+            return new DocIdAndVersion(docID, versions.get(docID), context);
+        } else {
+            return null;
+        }
+    }
+
+    /** returns the internal lucene doc id for the given id bytes. {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found */
+    private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
         if (termsEnum.seekExact(id)) {
+            int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             docsEnum = termsEnum.postings(docsEnum, 0);
-            int docID = DocIdSetIterator.NO_MORE_DOCS;
             for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
                 if (liveDocs != null && liveDocs.get(d) == false) {
                     continue;
                 }
                 docID = d;
             }
-
-            if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                return new DocIdAndVersion(docID, versions.get(docID), context);
-            }
+            return docID;
+        } else {
+            return DocIdSetIterator.NO_MORE_DOCS;
         }
+    }
 
-        return null;
+    /** Return null if id is not found. */
+    public DocIdAndSeqNo lookupSequenceNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+        assert context.reader().getCoreCacheKey().equals(readerKey);
+        int docID = getDocID(id, liveDocs);
+        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+            return new DocIdAndSeqNo(docID, seqNos == null ? SequenceNumbersService.UNASSIGNED_SEQ_NO : seqNos.get(docID), context);
+        } else {
+            return null;
+        }
+    }
+
+    /** returns 0 if the primary term is not found */
+    public long lookUpPrimaryTerm(int docID) throws IOException {
+            return primaryTerms == null ? 0  : primaryTerms.get(docID);
     }
 }

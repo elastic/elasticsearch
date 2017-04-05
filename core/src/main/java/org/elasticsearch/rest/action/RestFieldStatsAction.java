@@ -45,10 +45,19 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 public class RestFieldStatsAction extends BaseRestHandler {
     public RestFieldStatsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_field_stats", this);
-        controller.registerHandler(POST, "/_field_stats", this);
-        controller.registerHandler(GET, "/{index}/_field_stats", this);
-        controller.registerHandler(POST, "/{index}/_field_stats", this);
+        controller.registerAsDeprecatedHandler(GET, "/_field_stats", this,
+             deprecationMessage(), deprecationLogger);
+        controller.registerAsDeprecatedHandler(POST, "/_field_stats", this,
+            deprecationMessage(), deprecationLogger);
+        controller.registerAsDeprecatedHandler(GET, "/{index}/_field_stats", this,
+            deprecationMessage(), deprecationLogger);
+        controller.registerAsDeprecatedHandler(POST, "/{index}/_field_stats", this,
+            deprecationMessage(), deprecationLogger);
+    }
+
+    static String deprecationMessage() {
+        return "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or " +
+            "run a min/max aggregations on the desired fields.";
     }
 
     @Override

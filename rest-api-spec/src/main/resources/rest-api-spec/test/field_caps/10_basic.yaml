@@ -76,8 +76,8 @@ setup:
 ---
 "Get simple field caps":
   - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
+      version: " - 5.3.99"
+      reason:  this uses a new API that has been added in 5.4.0
 
   - do:
       field_caps:
@@ -117,8 +117,8 @@ setup:
 ---
 "Get nested field caps":
   - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
+      version: " - 5.3.99"
+      reason:  this uses a new API that has been added in 5.4.0
 
   - do:
       field_caps:
@@ -148,8 +148,8 @@ setup:
 ---
 "Get prefix field caps":
   - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
+      version: " - 5.3.99"
+      reason:  this uses a new API that has been added in 5.4.0
 
   - do:
       field_caps:

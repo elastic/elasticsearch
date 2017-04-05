@@ -3,6 +3,8 @@
 
 experimental[]
 
+deprecated[5.4.0, `_field_stats` is deprecated, use `_field_caps` instead or run an min/max aggregation on the desired fields]
+
 The field stats api allows one to find statistical properties of a field
 without executing a search, but looking up measurements that are natively
 available in the Lucene index. This can be useful to explore a dataset which
@@ -19,6 +21,7 @@ All indices:
 GET _field_stats?fields=rating
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 Specific indices:
 
@@ -27,6 +30,7 @@ Specific indices:
 GET twitter/_field_stats?fields=rating
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 // TEST[setup:twitter]
 
 Supported request options:
@@ -47,6 +51,7 @@ POST _field_stats?level=indices
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 This is equivalent to the previous request.
 
@@ -122,6 +127,7 @@ Request:
 GET _field_stats?fields=rating,answer_count,creation_date,display_name
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 Response:
 
@@ -235,6 +241,7 @@ Request:
 GET _field_stats?fields=rating,answer_count,creation_date,display_name&level=indices
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 Response:
 
@@ -330,6 +337,7 @@ POST _field_stats?level=indices
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 <1> The fields to compute and return field stats for.
 <2> The set index constraints. Note that index constrains can be defined for fields that aren't defined in the `fields` option.
@@ -368,5 +376,6 @@ POST _field_stats?level=indices
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 <1> Custom date format

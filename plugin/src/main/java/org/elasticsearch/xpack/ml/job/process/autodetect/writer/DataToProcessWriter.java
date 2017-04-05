@@ -13,7 +13,8 @@ import java.io.InputStream;
 import java.util.function.BiConsumer;
 
 /**
- * Interface defining writers to a {@link org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess}
+ * Interface defining writers to a
+ * {@link org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess}
  */
 public interface DataToProcessWriter {
 
@@ -30,7 +31,8 @@ public interface DataToProcessWriter {
      * <code>DataDescription</code>s timeField is missing from the CSV header
      * a <code>MissingFieldException</code> is thrown
      */
-    void write(InputStream inputStream, XContentType xContentType, BiConsumer<DataCounts, Exception> handler) throws IOException;
+    void write(InputStream inputStream, XContentType xContentType,
+               BiConsumer<DataCounts, Exception> handler) throws IOException;
 
     /**
      * Flush the outputstream

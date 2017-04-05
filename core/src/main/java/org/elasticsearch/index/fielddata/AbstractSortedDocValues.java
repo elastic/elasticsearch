@@ -19,30 +19,37 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+
+import java.io.IOException;
 
 /**
- * Base implementation of a {@link RandomAccessOrds} instance.
+ * Base implementation that throws an {@link IOException} for the
+ * {@link DocIdSetIterator} APIs. This impl is safe to use for sorting and
+ * aggregations, which only use {@link #advanceExact(int)} and
+ * {@link #ordValue()}.
  */
-public abstract class AbstractRandomAccessOrds extends RandomAccessOrds {
-
-    int i = 0;
-
-    protected abstract void doSetDocument(int docID);
+public abstract class AbstractSortedDocValues extends SortedDocValues {
 
     @Override
-    public final void setDocument(int docID) {
-        doSetDocument(docID);
-        i = 0;
+    public int docID() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public long nextOrd() {
-        if (i < cardinality()) {
-            return ordAt(i++);
-        } else {
-            return NO_MORE_ORDS;
-        }
+    public int nextDoc() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int advance(int target) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long cost() {
+        throw new UnsupportedOperationException();
     }
 
 }

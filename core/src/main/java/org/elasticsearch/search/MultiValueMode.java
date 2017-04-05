@@ -23,17 +23,19 @@ package org.elasticsearch.search;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
+import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -52,86 +54,65 @@ public enum MultiValueMode implements Writeable {
      */
     SUM {
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            if (count > 0) {
-                long total = 0;
-                for (int index = 0; index < count; ++index) {
-                    total += values.valueAt(index);
-                }
-                return total;
-            } else {
-                return missingValue;
+        protected long pick(SortedNumericDocValues values) throws IOException {
+            final int count = values.docValueCount();
+            long total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
             }
+            return total;
         }
 
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                long totalValue = 0;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int totalCount = 0;
+            long totalValue = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
                     for (int index = 0; index < count; ++index) {
-                        totalValue += values.valueAt(index);
+                        totalValue += values.nextValue();
                     }
                     totalCount += count;
                 }
-                return totalCount > 0 ? totalValue : missingValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return totalCount > 0 ? totalValue : missingValue;
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            if (count > 0) {
-                double total = 0;
-                for (int index = 0; index < count; ++index) {
-                    total += values.valueAt(index);
-                }
-                return total;
-            } else {
-                return missingValue;
+        protected double pick(SortedNumericDoubleValues values) throws IOException {
+            final int count = values.docValueCount();
+            double total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
             }
+            return total;
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                double totalValue = 0;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int totalCount = 0;
+            double totalValue = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
                     for (int index = 0; index < count; ++index) {
-                        totalValue += values.valueAt(index);
+                        totalValue += values.nextValue();
                     }
                     totalCount += count;
                 }
-                return totalCount > 0 ? totalValue : missingValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return totalCount > 0 ? totalValue : missingValue;
         }
 
         @Override
-        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            if (count > 0) {
-                double total = 0;
-                for (int index = 0; index < count; ++index) {
-                    total += values.valueAt(index);
-                }
-                return total;
-            } else {
-                return missingValue;
+        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
+            final int count = values.docValueCount();
+            double total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
             }
+            return total;
         }
     },
 
@@ -140,92 +121,71 @@ public enum MultiValueMode implements Writeable {
      */
     AVG {
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            if (count > 0) {
-                long total = 0;
-                for (int index = 0; index < count; ++index) {
-                    total += values.valueAt(index);
-                }
-                return count > 1 ? Math.round((double)total/(double)count) : total;
-            } else {
-                return missingValue;
+        protected long pick(SortedNumericDocValues values) throws IOException {
+            final int count = values.docValueCount();
+            long total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
             }
+            return count > 1 ? Math.round((double)total/(double)count) : total;
         }
 
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                long totalValue = 0;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int totalCount = 0;
+            long totalValue = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
                     for (int index = 0; index < count; ++index) {
-                        totalValue += values.valueAt(index);
+                        totalValue += values.nextValue();
                     }
                     totalCount += count;
                 }
-                if (totalCount < 1) {
-                    return missingValue;
-                }
-                return totalCount > 1 ? Math.round((double)totalValue/(double)totalCount) : totalValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
-        }
-
-        @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            if (count > 0) {
-                double total = 0;
-                for (int index = 0; index < count; ++index) {
-                    total += values.valueAt(index);
-                }
-                return total/count;
-            } else {
+            if (totalCount < 1) {
                 return missingValue;
             }
+            return totalCount > 1 ? Math.round((double)totalValue/(double)totalCount) : totalValue;
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                double totalValue = 0;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
+        protected double pick(SortedNumericDoubleValues values) throws IOException {
+            final int count = values.docValueCount();
+            double total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
+            }
+            return total/count;
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int totalCount = 0;
+            double totalValue = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
                     for (int index = 0; index < count; ++index) {
-                        totalValue += values.valueAt(index);
+                        totalValue += values.nextValue();
                     }
                     totalCount += count;
                 }
-                if (totalCount < 1) {
-                    return missingValue;
-                }
-                return totalValue/totalCount;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            if (totalCount < 1) {
+                return missingValue;
+            }
+            return totalValue/totalCount;
         }
 
         @Override
-        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            if (count > 0) {
-                double total = 0;
-                for (int index = 0; index < count; ++index) {
-                    total += values.valueAt(index);
-                }
-                return total/count;
-            } else {
-                return missingValue;
+        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
+            final int count = values.docValueCount();
+            double total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
             }
+            return total/count;
         }
     },
 
@@ -234,36 +194,28 @@ public enum MultiValueMode implements Writeable {
      */
     MEDIAN {
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
-            values.setDocument(doc);
-            int count = values.count();
-            if (count > 0) {
-                if (count % 2 == 0) {
-                    count /= 2;
-                    return Math.round((values.valueAt(count - 1) + values.valueAt(count))/2.0);
-                } else {
-                    count /= 2;
-                    return values.valueAt(count);
-                }
+        protected long pick(SortedNumericDocValues values) throws IOException {
+            int count = values.docValueCount();
+            for (int i = 0; i < count / 2; ++i) {
+                values.nextValue();
+            }
+            if (count % 2 == 0) {
+                return Math.round(((double) values.nextValue() + values.nextValue()) / 2);
             } else {
-                return missingValue;
+                return values.nextValue();
             }
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            int count = values.count();
-            if (count > 0) {
-                if (count % 2 == 0) {
-                    count /= 2;
-                    return (values.valueAt(count - 1) + values.valueAt(count))/2.0;
-                } else {
-                    count /= 2;
-                    return values.valueAt(count);
-                }
+        protected double pick(SortedNumericDoubleValues values) throws IOException {
+            int count = values.docValueCount();
+            for (int i = 0; i < count / 2; ++i) {
+                values.nextValue();
+            }
+            if (count % 2 == 0) {
+                return Math.round((values.nextValue() + values.nextValue()) / 2);
             } else {
-                return missingValue;
+                return values.nextValue();
             }
         }
     },
@@ -273,119 +225,93 @@ public enum MultiValueMode implements Writeable {
      */
     MIN {
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            return count > 0 ? values.valueAt(0) : missingValue;
+        protected long pick(SortedNumericDocValues values) throws IOException {
+            return values.nextValue();
         }
 
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                long minValue = Long.MAX_VALUE;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    if (count > 0) {
-                        minValue = Math.min(minValue, values.valueAt(0));
-                    }
-                    totalCount += count;
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            boolean hasValue = false;
+            long minValue = Long.MAX_VALUE;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    minValue = Math.min(minValue, values.nextValue());
+                    hasValue = true;
                 }
-                return totalCount > 0 ? minValue : missingValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return hasValue ? minValue : missingValue;
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            int count = values.count();
-            return count > 0 ? values.valueAt(0) : missingValue;
+        protected double pick(SortedNumericDoubleValues values) throws IOException {
+            return values.nextValue();
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                double minValue = Double.MAX_VALUE;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    if (count > 0) {
-                        minValue = Math.min(minValue, values.valueAt(0));
-                    }
-                    totalCount += count;
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            boolean hasValue = false;
+            double minValue = Double.POSITIVE_INFINITY;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    minValue = Math.min(minValue, values.nextValue());
+                    hasValue = true;
                 }
-                return totalCount > 0 ? minValue : missingValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return hasValue ? minValue : missingValue;
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            return count > 0 ? values.valueAt(0) : missingValue;
+        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+            return values.nextValue();
         }
 
         @Override
-        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                BytesRefBuilder value = null;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    final BytesRef innerValue = values.get(doc);
-                    if (innerValue != null) {
-                        if (value == null) {
-                            builder.copyBytes(innerValue);
-                            value = builder;
-                        } else {
-                            final BytesRef min = value.get().compareTo(innerValue) <= 0 ? value.get() : innerValue;
-                            if (min == innerValue) {
-                                value.copyBytes(min);
-                            }
+        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            BytesRefBuilder value = null;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final BytesRef innerValue = values.binaryValue();
+                    if (value == null) {
+                        builder.copyBytes(innerValue);
+                        value = builder;
+                    } else {
+                        final BytesRef min = value.get().compareTo(innerValue) <= 0 ? value.get() : innerValue;
+                        if (min == innerValue) {
+                            value.copyBytes(min);
                         }
                     }
                 }
-                return value == null ? null : value.get();
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return value == null ? null : value.get();
         }
 
         @Override
-        protected int pick(RandomAccessOrds values, int doc) {
-            values.setDocument(doc);
-            return values.cardinality() > 0 ? (int)values.ordAt(0) : -1;
+        protected int pick(SortedSetDocValues values) throws IOException {
+            return Math.toIntExact(values.nextOrd());
         }
 
         @Override
-        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int ord = -1;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    final int innerOrd = values.getOrd(doc);
-                    if (innerOrd != -1) {
-                        ord = ord == -1  ? innerOrd : Math.min(ord, innerOrd);
-                    }
+        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int ord = Integer.MAX_VALUE;
+            boolean hasValue = false;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int innerOrd = values.ordValue();
+                    ord = Math.min(ord, innerOrd);
+                    hasValue = true;
                 }
-                return ord;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return hasValue ? ord : -1;
         }
 
         @Override
-        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            int count = values.count();
-            double min = Double.MAX_VALUE;
+        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
+            int count = values.docValueCount();
+            double min = Double.POSITIVE_INFINITY;
             for (int index = 0; index < count; ++index) {
-                min = Math.min(values.valueAt(index), min);
+                min = Math.min(values.nextValue(), min);
             }
-            return count > 0 ? min : missingValue;
+            return min;
         }
     },
 
@@ -394,120 +320,114 @@ public enum MultiValueMode implements Writeable {
      */
     MAX {
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            return count > 0 ? values.valueAt(count - 1) : missingValue;
-        }
-
-        @Override
-        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                long maxValue = Long.MIN_VALUE;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    if (count > 0) {
-                        maxValue = Math.max(maxValue, values.valueAt(count - 1));
-                    }
-                    totalCount += count;
-                }
-                return totalCount > 0 ? maxValue : missingValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
+        protected long pick(SortedNumericDocValues values) throws IOException {
+            final int count = values.docValueCount();
+            for (int i = 0; i < count - 1; ++i) {
+                values.nextValue();
             }
+            return values.nextValue();
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            return count > 0 ? values.valueAt(count - 1) : missingValue;
-        }
-
-        @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int totalCount = 0;
-                double maxValue = Double.MIN_VALUE;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    if (count > 0) {
-                        maxValue = Math.max(maxValue, values.valueAt(count - 1));
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            boolean hasValue = false;
+            long maxValue = Long.MIN_VALUE;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
+                    for (int i = 0; i < count - 1; ++i) {
+                        values.nextValue();
                     }
-                    totalCount += count;
+                    maxValue = Math.max(maxValue, values.nextValue());
+                    hasValue = true;
                 }
-                return totalCount > 0 ? maxValue : missingValue;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return hasValue ? maxValue : missingValue;
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue, int doc) {
-            values.setDocument(doc);
-            final int count = values.count();
-            return count > 0 ? values.valueAt(count - 1) : missingValue;
+        protected double pick(SortedNumericDoubleValues values) throws IOException {
+            final int count = values.docValueCount();
+            for (int i = 0; i < count - 1; ++i) {
+                values.nextValue();
+            }
+            return values.nextValue();
         }
 
         @Override
-        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                BytesRefBuilder value = null;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    final BytesRef innerValue = values.get(doc);
-                    if (innerValue != null) {
-                        if (value == null) {
-                            builder.copyBytes(innerValue);
-                            value = builder;
-                        } else {
-                            final BytesRef max = value.get().compareTo(innerValue) > 0 ? value.get() : innerValue;
-                            if (max == innerValue) {
-                                value.copyBytes(max);
-                            }
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            boolean hasValue = false;
+            double maxValue = Double.NEGATIVE_INFINITY;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
+                    for (int i = 0; i < count - 1; ++i) {
+                        values.nextValue();
+                    }
+                    maxValue = Math.max(maxValue, values.nextValue());
+                    hasValue = true;
+                }
+            }
+            return hasValue ? maxValue : missingValue;
+        }
+
+        @Override
+        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+            int count = values.docValueCount();
+            for (int i = 0; i < count - 1; ++i) {
+                values.nextValue();
+            }
+            return values.nextValue();
+        }
+
+        @Override
+        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            BytesRefBuilder value = null;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final BytesRef innerValue = values.binaryValue();
+                    if (value == null) {
+                        builder.copyBytes(innerValue);
+                        value = builder;
+                    } else {
+                        final BytesRef max = value.get().compareTo(innerValue) > 0 ? value.get() : innerValue;
+                        if (max == innerValue) {
+                            value.copyBytes(max);
                         }
                     }
                 }
-                return value == null ? null : value.get();
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return value == null ? null : value.get();
         }
 
         @Override
-        protected int pick(RandomAccessOrds values, int doc) {
-            values.setDocument(doc);
-            final int count = values.cardinality();
-            return count > 0 ? (int)values.ordAt(count - 1) : -1;
+        protected int pick(SortedSetDocValues values) throws IOException {
+            long maxOrd = -1;
+            for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                maxOrd = ord;
+            }
+            return Math.toIntExact(maxOrd);
         }
 
         @Override
-        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) {
-            try {
-                int ord = -1;
-                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
-                    final int innerOrd = values.getOrd(doc);
-                    if (innerOrd != -1) {
-                        ord = Math.max(ord, innerOrd);
-                    }
+        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int ord = -1;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    ord = Math.max(ord, values.ordValue());
                 }
-                return ord;
-            } catch (IOException ioException) {
-                throw new RuntimeException(ioException);
             }
+            return ord;
         }
 
         @Override
-        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
-            values.setDocument(doc);
-            int count = values.count();
-            double max = Double.MIN_VALUE;
+        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
+            int count = values.docValueCount();
+            double max = Double.NEGATIVE_INFINITY;
             for (int index = 0; index < count; ++index) {
-                max = Math.max(values.valueAt(index), max);
+                max = Math.max(values.nextValue(), max);
             }
-            return count > 0 ? max : missingValue;
+            return max;
         }
     };
 
@@ -534,32 +454,41 @@ public enum MultiValueMode implements Writeable {
     public NumericDocValues select(final SortedNumericDocValues values, final long missingValue) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            final Bits docsWithField = DocValues.unwrapSingletonBits(values);
-            if (docsWithField == null || missingValue == 0) {
-                return singleton;
-            } else {
-                return new NumericDocValues() {
-                    @Override
-                    public long get(int docID) {
-                        final long value = singleton.get(docID);
-                        if (value == 0 && docsWithField.get(docID) == false) {
-                            return missingValue;
-                        }
-                        return value;
-                    }
-                };
-            }
-        } else {
-            return new NumericDocValues() {
+            return new AbstractNumericDocValues() {
+
+                private boolean hasValue;
+
                 @Override
-                public long get(int docID) {
-                    return pick(values, missingValue, docID);
+                public boolean advanceExact(int target) throws IOException {
+                    hasValue = singleton.advanceExact(target);
+                    return true;
+                }
+
+                @Override
+                public long longValue() throws IOException {
+                    return hasValue ? singleton.longValue() : missingValue;
+                }
+            };
+        } else {
+            return new AbstractNumericDocValues() {
+
+                private boolean hasValue;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    hasValue = values.advanceExact(target);
+                    return true;
+                }
+
+                @Override
+                public long longValue() throws IOException {
+                    return hasValue ? pick(values) : missingValue;
                 }
             };
         }
     }
 
-    protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+    protected long pick(SortedNumericDocValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -580,38 +509,39 @@ public enum MultiValueMode implements Writeable {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
 
-        return new NumericDocValues() {
+        return new AbstractNumericDocValues() {
 
             int lastSeenRootDoc = 0;
             long lastEmittedValue = missingValue;
 
             @Override
-            public long get(int rootDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
-                    return lastEmittedValue;
+                    return true;
                 }
-                try {
-                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc;
-                    if (innerDocs.docID() > prevRootDoc) {
-                        firstNestedDoc = innerDocs.docID();
-                    } else {
-                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
-                    }
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
+                } else {
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                }
 
-                    lastSeenRootDoc = rootDoc;
-                    lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
-                    return lastEmittedValue;
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                lastSeenRootDoc = rootDoc;
+                lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
+                return true;
+            }
+
+            @Override
+            public long longValue() {
+                return lastEmittedValue;
             }
         };
     }
 
-    protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+    protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -625,32 +555,42 @@ public enum MultiValueMode implements Writeable {
     public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue) {
         final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
-            final Bits docsWithField = FieldData.unwrapSingletonBits(values);
-            if (docsWithField == null || missingValue == 0) {
-                return singleton;
-            } else {
-                return new NumericDoubleValues() {
-                    @Override
-                    public double get(int docID) {
-                        final double value = singleton.get(docID);
-                        if (value == 0 && docsWithField.get(docID) == false) {
-                            return missingValue;
-                        }
-                        return value;
-                    }
-                };
-            }
+            return new NumericDoubleValues() {
+
+                private boolean hasValue;
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    hasValue = singleton.advanceExact(doc);
+                    return true;
+                }
+
+                @Override
+                public double doubleValue() throws IOException {
+                    return hasValue ? singleton.doubleValue() : missingValue;
+                }
+
+            };
         } else {
             return new NumericDoubleValues() {
+
+                private boolean hasValue;
+
                 @Override
-                public double get(int docID) {
-                    return pick(values, missingValue, docID);
+                public boolean advanceExact(int target) throws IOException {
+                    hasValue = values.advanceExact(target);
+                    return true;
+                }
+
+                @Override
+                public double doubleValue() throws IOException {
+                    return hasValue ? pick(values) : missingValue;
                 }
             };
         }
     }
 
-    protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+    protected double pick(SortedNumericDoubleValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -668,7 +608,7 @@ public enum MultiValueMode implements Writeable {
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
         if (rootDocs == null || innerDocs == null) {
-            return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
+            return select(FieldData.emptySortedNumericDoubles(), missingValue);
         }
 
         return new NumericDoubleValues() {
@@ -677,32 +617,33 @@ public enum MultiValueMode implements Writeable {
             double lastEmittedValue = missingValue;
 
             @Override
-            public double get(int rootDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
-                    return lastEmittedValue;
+                    return true;
                 }
-                try {
-                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc;
-                    if (innerDocs.docID() > prevRootDoc) {
-                        firstNestedDoc = innerDocs.docID();
-                    } else {
-                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
-                    }
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
+                } else {
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                }
 
-                    lastSeenRootDoc = rootDoc;
-                    lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
-                    return lastEmittedValue;
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                lastSeenRootDoc = rootDoc;
+                lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
+                return true;
+            }
+
+            @Override
+            public double doubleValue() throws IOException {
+                return lastEmittedValue;
             }
         };
     }
 
-    protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+    protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -716,32 +657,41 @@ public enum MultiValueMode implements Writeable {
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
-            final Bits docsWithField = FieldData.unwrapSingletonBits(values);
-            if (docsWithField == null) {
-                return singleton;
-            } else {
-                return new BinaryDocValues() {
-                    @Override
-                    public BytesRef get(int docID) {
-                        final BytesRef value = singleton.get(docID);
-                        if (value.length == 0 && docsWithField.get(docID) == false) {
-                            return missingValue;
-                        }
-                        return value;
-                    }
-                };
-            }
-        } else {
-            return new BinaryDocValues() {
+            return new AbstractBinaryDocValues() {
+
+                private boolean hasValue;
+
                 @Override
-                public BytesRef get(int docID) {
-                    return pick(values, missingValue, docID);
+                public boolean advanceExact(int target) throws IOException {
+                    hasValue = singleton.advanceExact(target);
+                    return true;
+                }
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return hasValue ? singleton.binaryValue() : missingValue;
+                }
+            };
+        } else {
+            return new AbstractBinaryDocValues() {
+
+                private boolean hasValue;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    hasValue = values.advanceExact(target);
+                    return true;
+                }
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return hasValue ? pick(values) : missingValue;
                 }
             };
         }
     }
 
-    protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue, int doc) {
+    protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -759,11 +709,11 @@ public enum MultiValueMode implements Writeable {
      */
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
         if (rootDocs == null || innerDocs == null) {
-            return select(FieldData.emptySortedBinary(maxDoc), missingValue);
+            return select(FieldData.emptySortedBinary(), missingValue);
         }
         final BinaryDocValues selectedValues = select(values, null);
 
-        return new BinaryDocValues() {
+        return new AbstractBinaryDocValues() {
 
             final BytesRefBuilder builder = new BytesRefBuilder();
 
@@ -771,36 +721,37 @@ public enum MultiValueMode implements Writeable {
             BytesRef lastEmittedValue = missingValue;
 
             @Override
-            public BytesRef get(int rootDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
-                    return lastEmittedValue;
+                    return true;
                 }
 
-                try {
-                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc;
-                    if (innerDocs.docID() > prevRootDoc) {
-                        firstNestedDoc = innerDocs.docID();
-                    } else {
-                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
-                    }
-
-                    lastSeenRootDoc = rootDoc;
-                    lastEmittedValue = pick(selectedValues, builder, innerDocs, firstNestedDoc, rootDoc);
-                    if (lastEmittedValue == null) {
-                        lastEmittedValue = missingValue;
-                    }
-                    return lastEmittedValue;
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
+                } else {
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
+
+                lastSeenRootDoc = rootDoc;
+                lastEmittedValue = pick(selectedValues, builder, innerDocs, firstNestedDoc, rootDoc);
+                if (lastEmittedValue == null) {
+                    lastEmittedValue = missingValue;
+                }
+                return true;
+            }
+
+            @Override
+            public BytesRef binaryValue() throws IOException {
+                return lastEmittedValue;
             }
         };
     }
 
-    protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) {
+    protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -810,7 +761,7 @@ public enum MultiValueMode implements Writeable {
      *
      * Allowed Modes: MIN, MAX
      */
-    public SortedDocValues select(final RandomAccessOrds values) {
+    public SortedDocValues select(final SortedSetDocValues values) {
         if (values.getValueCount() >= Integer.MAX_VALUE) {
             throw new UnsupportedOperationException("fields containing more than " + (Integer.MAX_VALUE-1) + " unique terms are unsupported");
         }
@@ -819,26 +770,37 @@ public enum MultiValueMode implements Writeable {
         if (singleton != null) {
             return singleton;
         } else {
-            return new SortedDocValues() {
+            return new AbstractSortedDocValues() {
+
                 @Override
-                public int getOrd(int docID) {
-                    return pick(values, docID);
+                public boolean advanceExact(int target) throws IOException {
+                    return values.advanceExact(target);
                 }
 
                 @Override
-                public BytesRef lookupOrd(int ord) {
+                public int ordValue() {
+                    try {
+                        return pick(values);
+                    } catch (IOException e) {
+                        // https://issues.apache.org/jira/browse/LUCENE-7767
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public BytesRef lookupOrd(int ord) throws IOException {
                     return values.lookupOrd(ord);
                 }
 
                 @Override
                 public int getValueCount() {
-                    return (int)values.getValueCount();
+                    return (int) values.getValueCount();
                 }
             };
         }
     }
 
-    protected int pick(RandomAccessOrds values, int doc) {
+    protected int pick(SortedSetDocValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -853,19 +815,19 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSetIterator innerDocs) throws IOException {
+    public SortedDocValues select(final SortedSetDocValues values, final BitSet rootDocs, final DocIdSetIterator innerDocs) throws IOException {
         if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedSet());
         }
         final SortedDocValues selectedValues = select(values);
 
-        return new SortedDocValues() {
+        return new AbstractSortedDocValues() {
 
             int lastSeenRootDoc = 0;
             int lastEmittedOrd = -1;
 
             @Override
-            public BytesRef lookupOrd(int ord) {
+            public BytesRef lookupOrd(int ord) throws IOException {
                 return selectedValues.lookupOrd(ord);
             }
 
@@ -875,32 +837,34 @@ public enum MultiValueMode implements Writeable {
             }
 
             @Override
-            public int getOrd(int rootDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
-                    return lastEmittedOrd;
+                    return true;
                 }
 
-                try {
-                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                    final int firstNestedDoc;
-                    if (innerDocs.docID() > prevRootDoc) {
-                        firstNestedDoc = innerDocs.docID();
-                    } else {
-                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
-                    }
-
-                    lastSeenRootDoc = rootDoc;
-                    return lastEmittedOrd = pick(selectedValues, innerDocs, firstNestedDoc, rootDoc);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
+                } else {
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
+
+                lastSeenRootDoc = rootDoc;
+                lastEmittedOrd = pick(selectedValues, innerDocs, firstNestedDoc, rootDoc);
+                return true;
+            }
+
+            @Override
+            public int ordValue() {
+                return lastEmittedOrd;
             }
         };
     }
 
-    protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) {
+    protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -913,24 +877,32 @@ public enum MultiValueMode implements Writeable {
      */
     public NumericDoubleValues select(final UnsortedNumericDoubleValues values, final double missingValue) {
         return new NumericDoubleValues() {
+            private boolean hasValue;
+
             @Override
-            public double get(int docID) {
-                return pick(values, missingValue, docID);
+            public boolean advanceExact(int doc) throws IOException {
+                hasValue = values.advanceExact(doc);
+                return true;
+            }
+            @Override
+            public double doubleValue() throws IOException {
+                return hasValue ? pick(values) : missingValue;
             }
         };
     }
 
-    protected double pick(UnsortedNumericDoubleValues values, final double missingValue, int doc) {
+    protected double pick(UnsortedNumericDoubleValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
      * Interface allowing custom value generators to be used in MultiValueMode.
      */
+    // TODO: why do we need it???
     public interface UnsortedNumericDoubleValues {
-        int count();
-        void setDocument(int docId);
-        double valueAt(int index);
+        boolean advanceExact(int doc) throws IOException;
+        int docValueCount() throws IOException;
+        double nextValue() throws IOException;
     }
 
     @Override

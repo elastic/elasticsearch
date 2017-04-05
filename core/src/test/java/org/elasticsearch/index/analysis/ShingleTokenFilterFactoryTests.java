@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -79,5 +80,26 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(source));
         TokenStream stream = new StopFilter(tokenizer, StopFilter.makeStopSet("the"));
         assertTokenStreamContents(tokenFilter.create(stream), expected);
+    }
+
+    public void testDisableGraph() throws IOException {
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        TokenFilterFactory shingleFiller = analysis.tokenFilter.get("shingle_filler");
+        TokenFilterFactory shingleInverse = analysis.tokenFilter.get("shingle_inverse");
+
+        String source = "hello world";
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        try (TokenStream stream = shingleFiller.create(tokenizer)) {
+            // This config uses different size of shingles so graph analysis is disabled
+            assertTrue(stream.hasAttribute(DisableGraphAttribute.class));
+        }
+
+        tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        try (TokenStream stream = shingleInverse.create(tokenizer)) {
+            // This config uses a single size of shingles so graph analysis is enabled
+            assertFalse(stream.hasAttribute(DisableGraphAttribute.class));
+        }
     }
 }

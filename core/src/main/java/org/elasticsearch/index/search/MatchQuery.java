@@ -20,6 +20,8 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -318,6 +320,17 @@ public class MatchQuery {
         @Override
         protected Query newSynonymQuery(Term[] terms) {
             return blendTermsQuery(terms, mapper);
+        }
+
+        @Override
+        protected Query analyzeGraphBoolean(String field, TokenStream source, BooleanClause.Occur operator) throws IOException {
+            if (source.hasAttribute(DisableGraphAttribute.class)) {
+                /**
+                 * we disable the graph analysis on this token stream because it may produce very big graph.
+                 */
+                return super.analyzeMultiBoolean(field, source, operator);
+            }
+            return super.analyzeGraphBoolean(field, source, operator);
         }
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {

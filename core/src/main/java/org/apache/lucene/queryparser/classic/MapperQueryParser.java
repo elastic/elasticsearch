@@ -20,6 +20,7 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -56,7 +57,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -804,5 +804,16 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             return new MatchNoDocsQuery();
         }
         return super.parse(query);
+    }
+
+    @Override
+    protected Query analyzeGraphBoolean(String field, TokenStream source, BooleanClause.Occur operator) throws IOException {
+        if (source.hasAttribute(DisableGraphAttribute.class)) {
+            /**
+             * we disable the graph analysis on this token stream because it may produce very big graph.
+             */
+            return super.analyzeMultiBoolean(field, source, operator);
+        }
+        return super.analyzeGraphBoolean(field, source, operator);
     }
 }

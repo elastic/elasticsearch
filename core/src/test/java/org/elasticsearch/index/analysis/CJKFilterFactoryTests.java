@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
@@ -68,5 +70,26 @@ public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testDisableGraph() throws IOException {
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        TokenFilterFactory allFlagsFactory = analysis.tokenFilter.get("cjk_all_flags");
+        TokenFilterFactory hanOnlyFactory = analysis.tokenFilter.get("cjk_han_only");
+
+        String source = "多くの学生が試験に落ちた。";
+        Tokenizer tokenizer = new StandardTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        try (TokenStream tokenStream = allFlagsFactory.create(tokenizer)) {
+            // This config outputs different size of ngrams so graph analysis is disabled
+            assertTrue(tokenStream.hasAttribute(DisableGraphAttribute.class));
+        }
+
+        tokenizer = new StandardTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        try (TokenStream tokenStream = hanOnlyFactory.create(tokenizer)) {
+            // This config uses only bigrams so graph analysis is enabled
+            assertFalse(tokenStream.hasAttribute(DisableGraphAttribute.class));
+        }
     }
 }

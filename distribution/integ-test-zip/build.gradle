@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 
 task buildZip(type: Zip) {
   dependsOn createPluginsDir
@@ -58,6 +59,13 @@ publishing {
         scmNode.appendNode('url', project.scminfo.origin)
       }
     }
+  }
+}
+
+integTestRunner {
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
+    systemProperty 'tests.timeoutSuite', '1800000!'
   }
 }
 

@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -168,8 +168,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 for (int i = 0; i < rollbackDocs; i++) {
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
-                    final TransportShardBulkAction.BulkShardResult bulkShardResult = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(bulkShardResult, replica);
+                    final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                    indexOnReplica(bulkShardRequest, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));

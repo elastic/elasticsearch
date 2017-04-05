@@ -108,26 +108,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     public WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(
             BulkShardRequest request, IndexShard primary) throws Exception {
-        final BulkShardResult shardResult = performOnPrimary(request, primary, updateHelper,
-                threadPool::absoluteTimeInMillis, new ConcreteMappingUpdatePerformer());
-        return new WritePrimaryResult<>(shardResult.request, shardResult.response,
-                shardResult.location, null, primary, logger);
+        return performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, new ConcreteMappingUpdatePerformer());
     }
 
-    /** Result holder of executing shard bulk on primary */
-    public static class BulkShardResult {
-        public final BulkShardRequest request;
-        public final BulkShardResponse response;
-        public final Translog.Location location;
-
-        private BulkShardResult(BulkShardRequest request, BulkShardResponse response, Translog.Location location) {
-            this.request = request;
-            this.response = response;
-            this.location = location;
-        }
-    }
-
-    public static BulkShardResult performOnPrimary(
+    public static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
             BulkShardRequest request,
             IndexShard primary,
             UpdateHelper updateHelper,
@@ -145,7 +129,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             responses[i] = items[i].getPrimaryResponse();
         }
         BulkShardResponse response = new BulkShardResponse(request.shardId(), responses);
-        return new BulkShardResult(request, response, location);
+        return new WritePrimaryResult<>(request, response, location, null, primary, logger);
     }
 
     private static BulkItemResultHolder executeIndexRequest(final IndexRequest indexRequest,

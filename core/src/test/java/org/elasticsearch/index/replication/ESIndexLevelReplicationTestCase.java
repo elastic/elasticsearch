@@ -29,7 +29,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.bulk.TransportShardBulkAction.BulkShardResult;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,6 +36,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -527,8 +527,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
-            final BulkShardResult result = executeShardBulkOnPrimary(primary, request);
-            return new PrimaryResult(result.request, result.response);
+            final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = executeShardBulkOnPrimary(primary, request);
+            return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
         }
 
         @Override
@@ -537,16 +537,17 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    private BulkShardResult executeShardBulkOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
+    private TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> executeShardBulkOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
         for (BulkItemRequest itemRequest : request.items()) {
             if (itemRequest.request() instanceof IndexRequest) {
                 ((IndexRequest) itemRequest.request()).process(null, index.getName());
             }
         }
-        final BulkShardResult result = TransportShardBulkAction.performOnPrimary(request, primary, null,
+        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =
+                TransportShardBulkAction.performOnPrimary(request, primary, null,
                 System::currentTimeMillis, new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
         request.primaryTerm(primary.getPrimaryTerm());
-        TransportWriteActionTestHelper.performPostWriteActions(primary, result.request, result.location, logger);
+        TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;
     }
 
@@ -558,19 +559,21 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied primary, modifying it for replicas
      */
-    BulkShardResult indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
+    BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         final BulkItemRequest bulkItemRequest = new BulkItemRequest(0, request);
         BulkItemRequest[] bulkItemRequests = new BulkItemRequest[1];
         bulkItemRequests[0] = bulkItemRequest;
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(), bulkItemRequests);
-        return executeShardBulkOnPrimary(primary, bulkShardRequest);
+        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =
+                executeShardBulkOnPrimary(primary, bulkShardRequest);
+        return result.replicaRequest();
     }
 
     /**
      * indexes the given requests on the supplied replica shard
      */
-    void indexOnReplica(BulkShardResult primaryResult, IndexShard replica) throws Exception {
-        executeShardBulkOnReplica(replica, primaryResult.request);
+    void indexOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        executeShardBulkOnReplica(replica, request);
     }
 
     class GlobalCheckpointSync extends ReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest,

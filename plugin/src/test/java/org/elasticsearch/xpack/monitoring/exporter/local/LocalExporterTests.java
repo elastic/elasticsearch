@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -21,11 +22,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
@@ -98,9 +101,24 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(exporterSettings));
 
-        wipeMonitoringIndices();
+        logger.debug("deleting monitoring indices, checking multiple times in case of in-flight bulk requests");
+        awaitBusy(() -> {
+            try {
+                IndicesExistsResponse existsResponse = client().admin().indices()
+                        .prepareExists(MONITORING_INDICES_PREFIX + "*").get();
+                if (existsResponse.isExists()) {
+                    deleteMonitoringIndices();
+                }
+            } catch (IndexNotFoundException e) {
+                return false;
+            } catch (Exception e) {
+                throw new ElasticsearchException("Failed to delete monitoring indices: ", e);
+            }
+            return false;
+        });
     }
 
+    @TestLogging("org.elasticsearch.xpack.monitoring:TRACE")
     public void testExport() throws Exception {
         if (randomBoolean()) {
             // indexing some random documents

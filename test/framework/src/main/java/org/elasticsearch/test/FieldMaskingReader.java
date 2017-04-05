@@ -45,7 +45,7 @@ public class FieldMaskingReader extends FilterDirectoryReader {
     }
 
     @Override
-    public Object getCoreCacheKey() {
-        return in.getCoreCacheKey();
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
     }
 }

@@ -49,6 +49,12 @@ public class IndexTests extends ESTestCase {
         }
     }
 
+    public void testIndexName() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new Index("cluster:index", "uuid"));
+        assertThat(e.getMessage(), equalTo("[index.name] must not contains ':' character"));
+    }
+
     public void testXContent() throws IOException {
         final String name = randomAsciiOfLengthBetween(4, 15);
         final String uuid = UUIDs.randomBase64UUID();

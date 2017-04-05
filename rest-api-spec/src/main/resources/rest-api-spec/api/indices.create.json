@@ -9,7 +9,7 @@
         "index": {
           "type" : "string",
           "required" : true,
-          "description" : "The name of the index"
+          "description" : "The name of the index. The name must not contains ':' character."
         }
       },
       "params": {

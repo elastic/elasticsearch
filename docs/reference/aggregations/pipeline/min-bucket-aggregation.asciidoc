@@ -9,7 +9,7 @@ be a multi-bucket aggregation.
 
 ==== Syntax
 
-A `max_bucket` aggregation looks like this in isolation:
+A `min_bucket` aggregation looks like this in isolation:
 
 [source,js]
 --------------------------------------------------
@@ -27,7 +27,7 @@ A `max_bucket` aggregation looks like this in isolation:
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional | `skip`
- |`format` |format to apply to the output value of this aggregation |Optional |`null` 
+ |`format` |format to apply to the output value of this aggregation |Optional |`null`
 |===
 
 The following snippet calculates the minimum of the total monthly `sales`:
@@ -62,7 +62,7 @@ POST /sales/_search
 // CONSOLE
 // TEST[setup:sales]
 
-<1> `buckets_path` instructs this max_bucket aggregation that we want the minimum value of the `sales` aggregation in the
+<1> `buckets_path` instructs this min_bucket aggregation that we want the minimum value of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
 And the following may be the response:

@@ -307,7 +307,7 @@ public class BulkProcessor implements Closeable {
             };
         }
 
-        return threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.SAME);
+        return threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
     }
 
     private void executeIfNeeded() {

@@ -676,8 +676,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
 
-        threadPool.shutdown();
-        threadPool.awaitTermination(1, TimeUnit.SECONDS);
+        terminate(threadPool);
     }
 
     private void validateBulkResponses(int nbItems, boolean[] errors, BulkResponse bulkResponse, BulkRequest bulkRequest) {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,7 +77,7 @@ public class ReplicationResponseTests extends ESTestCase {
 
         final XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(shardInfo, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(shardInfo, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         // Shuffle the XContent fields
         if (randomBoolean()) {

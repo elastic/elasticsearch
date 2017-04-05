@@ -66,9 +66,11 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -866,12 +868,27 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected final BytesReference toShuffledXContent(ToXContent toXContent, XContentType xContentType, ToXContent.Params params,
+                                                      boolean humanReadable, String... exceptFieldNames) throws IOException{
+        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
+        try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+            try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
+                return builder.bytes();
+            }
+        }
+    }
+
+    /**
      * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
      * Recursively goes through inner objects and also shuffles them. Exceptions for this
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
+    protected final XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             return shuffleXContent(parser, builder.isPrettyPrint(), exceptFieldNames);
         }
@@ -883,8 +900,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
-        // use ordered maps for reproducibility
+    protected static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
+        //TODO why do we need sorted map if we later sort the keys right before shuffling them? That should be enough?
         Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
         if (prettyPrint) {
@@ -895,7 +912,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFields) {
         List<String> keys = new ArrayList<>(map.keySet());
-
         // even though we shuffle later, we need this to make tests reproduce on different jvms
         Collections.sort(keys);
         Map<String, Object> targetMap = new TreeMap<>();
@@ -903,7 +919,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         for (String key : keys) {
             Object value = map.get(key);
             if (value instanceof Map && exceptFields.contains(key) == false) {
-                targetMap.put(key, shuffleMap((Map) value, exceptFields));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> valueMap = (Map<String, Object>) value;
+                targetMap.put(key, shuffleMap(valueMap, exceptFields));
             } else {
                 targetMap.put(key, value);
             }

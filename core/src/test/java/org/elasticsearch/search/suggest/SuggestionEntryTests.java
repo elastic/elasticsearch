@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -85,7 +86,7 @@ public class SuggestionEntryTests extends ESTestCase {
             Entry<Option> entry = createTestItem(entryType);
             XContentType xContentType = randomFrom(XContentType.values());
             boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toXContent(entry, xContentType, humanReadable);
+            BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
             Entry<Option> parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);

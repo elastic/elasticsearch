@@ -67,7 +67,7 @@ public class SearchSortValuesTests extends ESTestCase {
         SearchSortValues sortValues = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(sortValues, xcontentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(sortValues, xcontentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         SearchSortValues parsed;
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {

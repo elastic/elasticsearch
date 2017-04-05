@@ -137,7 +137,7 @@ public class SearchHitTests extends ESTestCase {
         SearchHit searchHit = createTestItem(true);
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(searchHit, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         SearchHit parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

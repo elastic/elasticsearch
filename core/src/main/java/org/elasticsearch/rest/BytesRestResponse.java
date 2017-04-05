@@ -30,7 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -147,8 +147,8 @@ public class BytesRestResponse extends RestResponse {
         return builder;
     }
 
-    static BytesRestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {
-        return new BytesRestResponse(status, channel.newErrorBuilder().startObject()
+    static BytesRestResponse createSimpleErrorResponse(RestStatus status, String errorMessage) throws IOException {
+        return new BytesRestResponse(status, JsonXContent.contentBuilder().startObject()
             .field("error", errorMessage)
             .field("status", status.getStatus())
             .endObject());

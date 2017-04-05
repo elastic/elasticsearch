@@ -20,9 +20,6 @@
 package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.BufferedReader;
@@ -237,58 +234,6 @@ public abstract class Streams {
             while ((line = reader.readLine()) != null) {
                 callback.handle(line);
             }
-        }
-    }
-
-    /**
-     * Wraps the given {@link BytesStream} in a {@link StreamOutput} that simply flushes when
-     * close is called.
-     */
-    public static BytesStream flushOnCloseStream(BytesStream os) {
-        return new FlushOnCloseOutputStream(os);
-    }
-
-    /**
-     * A wrapper around a {@link BytesStream} that makes the close operation a flush. This is
-     * needed as sometimes a stream will be closed but the bytes that the stream holds still need
-     * to be used and the stream cannot be closed until the bytes have been consumed.
-     */
-    private static class FlushOnCloseOutputStream extends BytesStream {
-
-        private final BytesStream delegate;
-
-        private FlushOnCloseOutputStream(BytesStream bytesStreamOutput) {
-            this.delegate = bytesStreamOutput;
-        }
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            delegate.writeByte(b);
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            delegate.writeBytes(b, offset, length);
-        }
-
-        @Override
-        public void flush() throws IOException {
-            delegate.flush();
-        }
-
-        @Override
-        public void close() throws IOException {
-            flush();
-        }
-
-        @Override
-        public void reset() throws IOException {
-            delegate.reset();
-        }
-
-        @Override
-        public BytesReference bytes() {
-            return delegate.bytes();
         }
     }
 }

@@ -96,6 +96,15 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
         setChanged();
     }
 
+    @Override
+    public void initializedReplicaReinitialized(ShardRouting initializingReplica, ShardRouting reinitializedReplica) {
+        assert initializingReplica.initializing() && initializingReplica.primary() == false :
+            "expected initializing replica shard " + initializingReplica;
+        assert reinitializedReplica.initializing() && reinitializedReplica.primary() == false :
+            "expected reinitialized replica shard " + reinitializedReplica;
+        setChanged();
+    }
+
     /**
      * Marks the allocation as changed.
      */

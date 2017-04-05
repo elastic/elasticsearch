@@ -416,6 +416,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // active primaries.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
+                state == IndexShardState.CLOSED :
+                "shard state is " + state + ", but routing is active " + newRouting;
             this.shardRouting = newRouting;
             persistMetadata(newRouting, currentRouting);
         }
@@ -498,6 +501,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the previous shard state
      */
     private IndexShardState changeState(IndexShardState newState, String reason) {
+        assert Thread.holdsLock(mutex);
         logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;

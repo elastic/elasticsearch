@@ -69,6 +69,11 @@ public interface RoutingChangesObserver {
      */
     void replicaPromoted(ShardRouting replicaShard);
 
+    /**
+     * Called when an initializing replica is reinitialized.
+     */
+    void initializedReplicaReinitialized(ShardRouting initializingReplica, ShardRouting reinitializedReplica);
+
 
     /**
      * Abstract implementation of {@link RoutingChangesObserver} that does not take any action. Useful for subclasses that only override
@@ -118,6 +123,11 @@ public interface RoutingChangesObserver {
 
         @Override
         public void replicaPromoted(ShardRouting replicaShard) {
+
+        }
+
+        @Override
+        public void initializedReplicaReinitialized(ShardRouting initializingReplica, ShardRouting reinitializedReplica) {
 
         }
     }
@@ -190,6 +200,13 @@ public interface RoutingChangesObserver {
         public void replicaPromoted(ShardRouting replicaShard) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
                 routingChangesObserver.replicaPromoted(replicaShard);
+            }
+        }
+
+        @Override
+        public void initializedReplicaReinitialized(ShardRouting initializingReplica, ShardRouting reinitializedReplica) {
+            for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
+                routingChangesObserver.initializedReplicaReinitialized(initializingReplica, reinitializedReplica);
             }
         }
     }

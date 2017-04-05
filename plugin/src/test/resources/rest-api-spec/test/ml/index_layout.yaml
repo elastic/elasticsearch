@@ -276,10 +276,6 @@ setup:
 ---
 "Test unrelated index":
 
-  - skip:
-      version:     " - "
-      reason:      Flaky test, needs fixing https://github.com/elastic/x-pack-elasticsearch/issues/903
-
   - do:
       xpack.ml.put_job:
         job_id: farequote

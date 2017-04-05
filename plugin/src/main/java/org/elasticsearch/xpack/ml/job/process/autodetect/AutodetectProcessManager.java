@@ -253,7 +253,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             }
             if (autodetectParams.quantiles() == null) {
                 String msg = "No quantiles could be found for a job with processed records";
-                logger.warn("[{}] {}", jobId);
+                logger.warn("[{}] {}", jobId, msg);
                 auditor.warning(jobId, msg);
             }
         }

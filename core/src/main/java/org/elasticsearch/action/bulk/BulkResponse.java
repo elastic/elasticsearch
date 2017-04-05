@@ -70,13 +70,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     /**
-     * How long the bulk execution took. Excluding ingest preprocessing.
-     */
-    public TimeValue getTook() {
-        return new TimeValue(tookInMillis);
-    }
-
-    /**
      * How long the bulk execution took in milliseconds. Excluding ingest preprocessing.
      */
     public long getTookInMillis() {

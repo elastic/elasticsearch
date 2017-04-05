@@ -187,11 +187,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (controlled) {
                     assertThat(
-                            bulkItemResponses.getTook().getMillis(),
+                            bulkItemResponses.getTookInMillis(),
                             equalTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
                 } else {
                     assertThat(
-                            bulkItemResponses.getTook().getMillis(),
+                            bulkItemResponses.getTookInMillis(),
                             greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
                 }
             }

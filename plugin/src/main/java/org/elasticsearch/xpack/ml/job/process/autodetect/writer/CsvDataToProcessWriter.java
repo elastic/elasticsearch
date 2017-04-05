@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -25,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * A writer for transforming and piping CSV data from an
@@ -66,7 +68,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      * header a exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream, XContentType xContentType) throws IOException {
+    public void write(InputStream inputStream, XContentType xContentType, BiConsumer<DataCounts, Exception> handler) throws IOException {
         CsvPreference csvPref = new CsvPreference.Builder(
                 dataDescription.getQuoteCharacter(),
                 dataDescription.getFieldDelimiter(),
@@ -78,7 +80,8 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
         try (CsvListReader csvReader = new CsvListReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8), csvPref)) {
             String[] header = csvReader.getHeader(true);
             if (header == null) { // null if EoF
-                return dataCountsReporter.incrementalStats();
+                handler.accept(dataCountsReporter.incrementalStats(), null);
+                return;
             }
 
             long inputFieldCount = Math.max(header.length - 1, 0); // time field doesn't count
@@ -124,10 +127,11 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
             }
 
             // This function can throw
-            dataCountsReporter.finishReporting();
+            dataCountsReporter.finishReporting(ActionListener.wrap(
+                    response -> handler.accept(dataCountsReporter.incrementalStats(), null),
+                    e -> handler.accept(null, e)
+            ));
         }
-
-        return dataCountsReporter.incrementalStats();
     }
 
     private static void fillRecordFromLine(List<String> line, String[] record) {

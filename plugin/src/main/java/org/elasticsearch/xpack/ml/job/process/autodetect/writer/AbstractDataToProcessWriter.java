@@ -6,12 +6,15 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 public abstract class AbstractDataToProcessWriter implements DataToProcessWriter {
 
@@ -77,7 +81,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Set up the field index mappings. This must be called before
-     * {@linkplain DataToProcessWriter#write(java.io.InputStream, org.elasticsearch.common.xcontent.XContentType)}.
+     * {@linkplain DataToProcessWriter#write(InputStream, XContentType, BiConsumer)}
      * <p>
      * Finds the required input indexes in the <code>header</code> and sets the
      * mappings to the corresponding output indexes.
@@ -162,7 +166,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     }
 
     @Override
-    public void flush() throws IOException {
+    public void flushStream() throws IOException {
         autodetectProcess.flushStream();
     }
 

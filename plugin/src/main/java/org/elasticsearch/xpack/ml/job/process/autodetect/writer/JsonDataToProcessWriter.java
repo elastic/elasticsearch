@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -22,6 +23,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * A writer for transforming and piping JSON data from an
@@ -52,7 +54,8 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * timeField is missing from the JOSN inputIndex an exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream, XContentType xContentType) throws IOException {
+    public void write(InputStream inputStream, XContentType xContentType, BiConsumer<DataCounts, Exception> handler)
+            throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
         try (XContentParser parser = XContentFactory.xContent(xContentType)
@@ -60,10 +63,12 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             writeJson(parser);
 
             // this line can throw and will be propagated
-            dataCountsReporter.finishReporting();
+            dataCountsReporter.finishReporting(
+                    ActionListener.wrap(
+                            response -> handler.accept(dataCountsReporter.incrementalStats(), null),
+                            e -> handler.accept(null, e)
+                    ));
         }
-
-        return dataCountsReporter.incrementalStats();
     }
 
     private void writeJson(XContentParser parser) throws IOException {

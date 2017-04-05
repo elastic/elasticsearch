@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -132,7 +133,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(302000, dataCountsReporter.runningTotalStats().getLatestRecordTimeStamp().getTime());
 
         // send 'flush' signal
-        dataCountsReporter.finishReporting();
+        dataCountsReporter.finishReporting(ActionListener.wrap(r -> {}, e -> {}));
         assertEquals(2, dataCountsReporter.runningTotalStats().getBucketCount());
         assertEquals(0, dataCountsReporter.runningTotalStats().getEmptyBucketCount());
         assertEquals(0, dataCountsReporter.runningTotalStats().getSparseBucketCount());
@@ -268,7 +269,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.reportRecordWritten(5, 2000);
         dataCountsReporter.reportRecordWritten(5, 3000);
         dataCountsReporter.reportMissingField();
-        dataCountsReporter.finishReporting();
+        dataCountsReporter.finishReporting(ActionListener.wrap(r -> {}, e -> {}));
 
         long lastReportedTimeMs = dataCountsReporter.incrementalStats().getLastDataTimeStamp().getTime();
         // check last data time is equal to now give or take a second

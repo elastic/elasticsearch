@@ -144,24 +144,12 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @param handler   Delegate error or datacount results (Count of records, fields, bytes, etc written)
      */
     public void processData(String jobId, InputStream input, XContentType xContentType,
-            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
+                            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
             throw new IllegalStateException("[" + jobId + "] Cannot process data: no active autodetect process for job");
         }
-        try {
-            communicator.writeToJob(input, xContentType, params, handler);
-            // TODO check for errors from autodetect
-        } catch (IOException e) {
-            String msg = String.format(Locale.ROOT, "Exception writing to process for job %s", jobId);
-            if (e.getCause() instanceof TimeoutException) {
-                logger.warn("Connection to process was dropped due to a timeout - if you are feeding this job from a connector it " +
-                        "may be that your connector stalled for too long", e.getCause());
-            } else {
-                logger.error("Unexpected exception", e);
-            }
-            throw ExceptionsHelper.serverError(msg, e);
-        }
+        communicator.writeToJob(input, xContentType, params, handler);
     }
 
     /**
@@ -181,26 +169,20 @@ public class AutodetectProcessManager extends AbstractComponent {
             logger.debug(message);
             throw new IllegalArgumentException(message);
         }
-        try {
-            communicator.flushJob(params, (aVoid, e) -> {
-                if (e == null) {
-                    handler.accept(null);
-                } else {
-                    String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
-                    logger.error(msg);
-                    handler.accept(ExceptionsHelper.serverError(msg, e));
-                }
-            });
-            // TODO check for errors from autodetect
-        } catch (IOException ioe) {
-            String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
-            logger.error(msg);
-            throw ExceptionsHelper.serverError(msg, ioe);
-        }
+
+        communicator.flushJob(params, (aVoid, e) -> {
+            if (e == null) {
+                handler.accept(null);
+            } else {
+                String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
+                logger.error(msg);
+                handler.accept(ExceptionsHelper.serverError(msg, e));
+            }
+        });
     }
 
     public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config,
-                                          Consumer<Exception> handler) throws IOException {
+                                          Consumer<Exception> handler) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
             logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
@@ -214,7 +196,6 @@ public class AutodetectProcessManager extends AbstractComponent {
                 handler.accept(e);
             }
         });
-        // TODO check for errors from autodetects
     }
 
     public void openJob(String jobId, JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {

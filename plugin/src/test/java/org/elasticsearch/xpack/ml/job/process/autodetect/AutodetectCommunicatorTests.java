@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -133,6 +134,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             return null;
         }).when(executorService).execute(any(Runnable.class));
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
+        doAnswer(invocation -> {
+            ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
+            return null;
+        }).when(dataCountsReporter).finishReporting(any());
         return new AutodetectCommunicator(createJobDetails(), autodetectProcess,
                 dataCountsReporter, autoDetectResultProcessor, e -> {
                 }, new NamedXContentRegistry(Collections.emptyList()), executorService);

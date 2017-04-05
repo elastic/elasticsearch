@@ -34,10 +34,14 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -78,18 +82,34 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public void writeToJob(InputStream inputStream, XContentType xContentType,
-            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) throws IOException {
+                           DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         submitOperation(() -> {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
             }
-            CountingInputStream countingStream = new CountingInputStream(inputStream, dataCountsReporter);
 
+            CountingInputStream countingStream = new CountingInputStream(inputStream, dataCountsReporter);
             DataToProcessWriter autoDetectWriter = createProcessWriter(params.getDataDescription());
-            DataCounts results = autoDetectWriter.write(countingStream, xContentType);
-            autoDetectWriter.flush();
-            return results;
-        }, handler);
+
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<DataCounts> dataCountsAtomicReference = new AtomicReference<>();
+            AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
+            autoDetectWriter.write(countingStream, xContentType, (dataCounts, e) -> {
+                dataCountsAtomicReference.set(dataCounts);
+                exceptionAtomicReference.set(e);
+                latch.countDown();
+            });
+
+            latch.await();
+            autoDetectWriter.flushStream();
+
+            if (exceptionAtomicReference.get() != null) {
+                throw exceptionAtomicReference.get();
+            } else {
+                return dataCountsAtomicReference.get();
+            }
+        },
+        handler);
     }
 
     @Override
@@ -123,7 +143,7 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public void writeUpdateProcessMessage(ModelPlotConfig config, List<JobUpdate.DetectorUpdate> updates,
-                                          BiConsumer<Void, Exception> handler) throws IOException {
+                                          BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
             if (config != null) {
                 autodetectProcess.writeUpdateModelPlotMessage(config);
@@ -139,7 +159,7 @@ public class AutodetectCommunicator implements Closeable {
         }, handler);
     }
 
-    public void flushJob(InterimResultsParams params, BiConsumer<Void, Exception> handler) throws IOException {
+    public void flushJob(InterimResultsParams params, BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
             waitFlushToCompletion(flushId);
@@ -147,8 +167,8 @@ public class AutodetectCommunicator implements Closeable {
         }, handler);
     }
 
-    private void waitFlushToCompletion(String flushId) throws IOException {
-        LOGGER.info("[{}] waiting for flush", job.getId());
+    private void waitFlushToCompletion(String flushId) {
+        LOGGER.debug("[{}] waiting for flush", job.getId());
 
         try {
             boolean isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
@@ -191,10 +211,17 @@ public class AutodetectCommunicator implements Closeable {
         return dataCountsReporter.runningTotalStats();
     }
 
-    private <T> void submitOperation(CheckedSupplier<T, IOException> operation, BiConsumer<T, Exception> handler) throws IOException {
+    private <T> void submitOperation(CheckedSupplier<T, Exception> operation, BiConsumer<T, Exception> handler) {
         autodetectWorkerExecutor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
+                if (e.getCause() instanceof TimeoutException) {
+                    LOGGER.warn("Connection to process was dropped due to a timeout - if you are feeding this job from a connector it " +
+                            "may be that your connector stalled for too long", e.getCause());
+                } else {
+                    LOGGER.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                }
+
                 handler.accept(null, e);
             }
 
@@ -205,5 +232,4 @@ public class AutodetectCommunicator implements Closeable {
             }
         });
     }
-
 }

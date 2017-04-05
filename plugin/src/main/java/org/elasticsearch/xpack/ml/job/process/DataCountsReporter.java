@@ -261,13 +261,13 @@ public class DataCountsReporter extends AbstractComponent {
     /**
      * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
-    public void finishReporting() {
+    public void finishReporting(ActionListener<Boolean> listener) {
         Date now = new Date();
         incrementalRecordStats.setLastDataTimeStamp(now);
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), new LoggingActionListener());
+        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), listener);
     }
 
     /**
@@ -367,20 +367,5 @@ public class DataCountsReporter extends AbstractComponent {
         incrementalRecordStats.updateLatestSparseBucketTimeStamp(diagnostics.getLatestSparseBucketTime());
 
         diagnostics.resetCounts();
-    }
-
-    /**
-     * Log success/error
-     */
-    private class LoggingActionListener implements ActionListener<Boolean> {
-        @Override
-        public void onResponse(Boolean aBoolean) {
-            logger.trace("[{}] Persisted DataCounts", job.getId());
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("[{}] Error persisting DataCounts stats", job.getId()), e);
-        }
     }
 }

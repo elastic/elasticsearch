@@ -10,10 +10,10 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.BiConsumer;
 
 /**
- * A writer for transforming and piping data from an
- * inputstream to outputstream as the process expects.
+ * Interface defining writers to a {@link org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess}
  */
 public interface DataToProcessWriter {
 
@@ -25,18 +25,15 @@ public interface DataToProcessWriter {
     void writeHeader() throws IOException;
 
     /**
-     * Reads the inputIndex, transform to length encoded values and pipe
-     * to the OutputStream.
+     * Write the contents of <code>inputStream</code>.
      * If any of the fields in <code>analysisFields</code> or the
      * <code>DataDescription</code>s timeField is missing from the CSV header
      * a <code>MissingFieldException</code> is thrown
-     *
-     * @return Counts of the records processed, bytes read etc
      */
-    DataCounts write(InputStream inputStream, XContentType xContentType) throws IOException;
+    void write(InputStream inputStream, XContentType xContentType, BiConsumer<DataCounts, Exception> handler) throws IOException;
 
     /**
      * Flush the outputstream
      */
-    void flush() throws IOException;
+    void flushStream() throws IOException;
 }

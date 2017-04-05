@@ -168,7 +168,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             this::handleMinimumMasterNodesChanged, (value) -> {
                 final ClusterState clusterState = clusterService.state();
                 int masterNodes = clusterState.nodes().getMasterNodes().size();
-                if (value > masterNodes) {
+                // the purpose of this validation is to make sure that the master doesn't step down
+                // due to a change in master nodes, which also means that there is no way to revert
+                // an accidental change. Since we validate using the current cluster state (and
+                // not the one from which the settings come from) we have to be careful and only
+                // validate if the local node is already a master. Doing so all the time causes
+                // subtle issues. For example, a node that joins a cluster has no nodes in its
+                // current cluster state. When it receives a cluster state from the master with
+                // a dynamic minimum master nodes setting int it, we must make sure we don't reject
+                // it.
+
+                if (clusterState.nodes().isLocalNodeElectedMaster() && value > masterNodes) {
                     throw new IllegalArgumentException("cannot set "
                         + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current" +
                         " master nodes count [" + masterNodes + "]");

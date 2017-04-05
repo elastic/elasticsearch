@@ -6,7 +6,7 @@ settings which need to be configured manually and should definitely be
 configured before going into production.
 
 * <<path-settings,`path.data` and `path.logs`>>
-* <<cluster.name,`  cluster.name`>>
+* <<cluster.name,`cluster.name`>>
 * <<node.name,`node.name`>>
 * <<bootstrap.memory_lock,`bootstrap.memory_lock`>>
 * <<network.host,`network.host`>>

@@ -33,22 +33,26 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
     private static final String TOKEN_GROUPS = "tokenGroups";
     private final String baseDn;
     private final LdapSearchScope scope;
+    private final boolean ignoreReferralErrors;
 
-    ActiveDirectoryGroupsResolver(Settings settings, String baseDnDefault) {
+    ActiveDirectoryGroupsResolver(Settings settings, String baseDnDefault,
+                                  boolean ignoreReferralErrors) {
         this.baseDn = settings.get("base_dn", baseDnDefault);
         this.scope = LdapSearchScope.resolve(settings.get("scope"), LdapSearchScope.SUB_TREE);
+        this.ignoreReferralErrors = ignoreReferralErrors;
     }
 
     @Override
     public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger, Collection<Attribute> attributes,
                         ActionListener<List<String>> listener) {
         buildGroupQuery(connection, userDn, timeout,
-                ActionListener.wrap((filter) -> {
+                ignoreReferralErrors, ActionListener.wrap((filter) -> {
                     if (filter == null) {
                         listener.onResponse(Collections.emptyList());
                     } else {
                         logger.debug("group SID to DN [{}] search filter: [{}]", userDn, filter);
-                        search(connection, baseDn, scope.scope(), filter, Math.toIntExact(timeout.seconds()),
+                        search(connection, baseDn, scope.scope(), filter,
+                                Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
                                 ActionListener.wrap((results) -> {
                                             List<String> groups = results.stream()
                                                     .map(SearchResultEntry::getDN)
@@ -67,8 +71,10 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
         return null;
     }
 
-    static void buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout, ActionListener<Filter> listener) {
-        searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
+    static void buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout,
+                                boolean ignoreReferralErrors, ActionListener<Filter> listener) {
+        searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
+                Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
                 ActionListener.wrap((entry) -> {
                     if (entry == null || entry.hasAttribute(TOKEN_GROUPS) == false) {
                         listener.onResponse(null);

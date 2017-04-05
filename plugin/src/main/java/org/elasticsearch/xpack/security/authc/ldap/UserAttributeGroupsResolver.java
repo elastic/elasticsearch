@@ -26,6 +26,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
+import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.IGNORE_REFERRAL_ERRORS_SETTING;
 
 /**
 * Resolves the groups of a user based on the value of a attribute of the user's ldap entry
@@ -35,13 +36,15 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     private static final Setting<String> ATTRIBUTE = new Setting<>("user_group_attribute", "memberOf",
             Function.identity(), Setting.Property.NodeScope);
     private final String attribute;
+    private final boolean ignoreReferralErrors;
 
     UserAttributeGroupsResolver(Settings settings) {
-        this(ATTRIBUTE.get(settings));
+        this(ATTRIBUTE.get(settings), IGNORE_REFERRAL_ERRORS_SETTING.get(settings));
     }
 
-    private UserAttributeGroupsResolver(String attribute) {
+    private UserAttributeGroupsResolver(String attribute, boolean ignoreReferralErrors) {
         this.attribute = Objects.requireNonNull(attribute);
+        this.ignoreReferralErrors = ignoreReferralErrors;
     }
 
     @Override
@@ -53,7 +56,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
             listener.onResponse(Collections.unmodifiableList(list));
         } else {
             searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
-                    ActionListener.wrap((entry) -> {
+                    ignoreReferralErrors, ActionListener.wrap((entry) -> {
                         if (entry == null || entry.hasAttribute(attribute) == false) {
                             listener.onResponse(Collections.emptyList());
                         } else {

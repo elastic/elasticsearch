@@ -475,12 +475,9 @@
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]LdapRealm.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]LdapSessionFactory.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]LdapUserSearchSessionFactory.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]SearchGroupsResolver.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]UserAttributeGroupsResolver.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]support[/\\]LdapLoadBalancing.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]support[/\\]LdapSession.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]support[/\\]LdapUtils.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]support[/\\]SessionFactory.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]pki[/\\]PkiRealm.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]support[/\\]BCrypt.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]support[/\\]CachingRealm.java" checks="LineLength" />

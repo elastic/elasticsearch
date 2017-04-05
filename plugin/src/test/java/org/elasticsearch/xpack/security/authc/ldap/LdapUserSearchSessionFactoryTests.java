@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
+import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -307,8 +308,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL }, Strings.EMPTY_ARRAY,
-                        groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(LdapTestCase.buildLdapSettings(
+                        new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL },
+                        Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE, null,
+                        true))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)

@@ -16,7 +16,6 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -294,7 +293,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
 
     private void findUser(String user, LDAPInterface ldapInterface, ActionListener<SearchResultEntry> listener) {
         searchForEntry(ldapInterface, userSearchBaseDn, scope.scope(),
-                createEqualityFilter(userAttribute, encodeValue(user)), Math.toIntExact(timeout.seconds()), listener,
+                createEqualityFilter(userAttribute, encodeValue(user)),
+                Math.toIntExact(timeout.seconds()), ignoreReferralErrors, listener,
                 attributesToSearchFor(groupResolver.attributes()));
     }
 

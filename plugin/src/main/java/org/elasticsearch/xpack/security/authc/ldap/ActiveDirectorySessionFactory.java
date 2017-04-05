@@ -65,13 +65,18 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         Settings settings = config.settings();
         String domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
-            throw new IllegalArgumentException("missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
+            throw new IllegalArgumentException("missing [" + AD_DOMAIN_NAME_SETTING +
+                    "] setting for active directory");
         }
         String domainDN = buildDnFromDomain(domainName);
-        GroupsResolver groupResolver = new ActiveDirectoryGroupsResolver(settings.getAsSettings("group_search"), domainDN);
-        defaultADAuthenticator = new DefaultADAuthenticator(settings, timeout, logger, groupResolver, domainDN);
-        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, logger, groupResolver, domainDN, sslService);
-        upnADAuthenticator = new UpnADAuthenticator(settings, timeout, logger, groupResolver, domainDN);
+        GroupsResolver groupResolver = new ActiveDirectoryGroupsResolver(
+                settings.getAsSettings("group_search"), domainDN, ignoreReferralErrors);
+        defaultADAuthenticator = new DefaultADAuthenticator(settings, timeout,
+                ignoreReferralErrors, logger, groupResolver, domainDN);
+        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout,
+                ignoreReferralErrors, logger, groupResolver, domainDN, sslService);
+        upnADAuthenticator = new UpnADAuthenticator(settings, timeout,
+                ignoreReferralErrors, logger, groupResolver, domainDN);
     }
 
     @Override
@@ -135,13 +140,16 @@ class ActiveDirectorySessionFactory extends SessionFactory {
     abstract static class ADAuthenticator {
 
         final TimeValue timeout;
+        final boolean ignoreReferralErrors;
         final Logger logger;
         final GroupsResolver groupsResolver;
         final String userSearchDN;
         final LdapSearchScope userSearchScope;
 
-        ADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
+        ADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
+                        Logger logger, GroupsResolver groupsResolver, String domainDN) {
             this.timeout = timeout;
+            this.ignoreReferralErrors = ignoreReferralErrors;
             this.logger = logger;
             this.groupsResolver = groupsResolver;
             userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
@@ -195,19 +203,22 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         final String userSearchFilter;
 
         final String domainName;
-        DefaultADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, logger, groupsResolver, domainDN);
+        DefaultADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
+                               Logger logger, GroupsResolver groupsResolver, String domainDN) {
+            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN);
             domainName = settings.get(AD_DOMAIN_NAME_SETTING);
             userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})" +
                     "(userPrincipalName={0}@" + domainName + ")))");
         }
 
         @Override
-        void searchForDN(LDAPConnection connection, String username, SecuredString password, int timeLimitSeconds,
-                         ActionListener<SearchResultEntry> listener) {
+        void searchForDN(LDAPConnection connection, String username, SecuredString password,
+                         int timeLimitSeconds, ActionListener<SearchResultEntry> listener) {
             try {
-                searchForEntry(connection, userSearchDN, userSearchScope.scope(), createFilter(userSearchFilter, username),
-                        timeLimitSeconds, listener, attributesToSearchFor(groupsResolver.attributes()));
+                searchForEntry(connection, userSearchDN, userSearchScope.scope(),
+                        createFilter(userSearchFilter, username), timeLimitSeconds,
+                        ignoreReferralErrors, listener,
+                        attributesToSearchFor(groupsResolver.attributes()));
             } catch (LDAPException e) {
                 listener.onFailure(e);
             }
@@ -220,8 +231,8 @@ class ActiveDirectorySessionFactory extends SessionFactory {
     }
 
     /**
-     * Active Directory calls the format <code>DOMAIN\\username</code> down-level credentials and this class contains the logic necessary
-     * to authenticate this form of a username
+     * Active Directory calls the format <code>DOMAIN\\username</code> down-level credentials and
+     * this class contains the logic necessary to authenticate this form of a username
      */
     static class DownLevelADAuthenticator extends ADAuthenticator {
         Cache<String, String> domainNameCache = CacheBuilder.<String, String>builder().setMaximumWeight(100).build();
@@ -231,9 +242,12 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         final SSLService sslService;
         final RealmConfig config;
 
-        DownLevelADAuthenticator(RealmConfig config, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN,
+        DownLevelADAuthenticator(RealmConfig config, TimeValue timeout,
+                                 boolean ignoreReferralErrors, Logger logger,
+                                 GroupsResolver groupsResolver, String domainDN,
                                  SSLService sslService) {
-            super(config.settings(), timeout, logger, groupsResolver, domainDN);
+            super(config.settings(), timeout, ignoreReferralErrors, logger, groupsResolver,
+                    domainDN);
             this.domainDN = domainDN;
             this.settings = config.settings();
             this.sslService = sslService;
@@ -255,8 +269,9 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                 } else {
                     try {
                         searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(),
-                                createFilter("(&(objectClass=user)(sAMAccountName={0}))", accountName), timeLimitSeconds, listener,
-                                attributesToSearchFor(groupsResolver.attributes()));
+                                createFilter("(&(objectClass=user)(sAMAccountName={0}))",
+                                        accountName), timeLimitSeconds, ignoreReferralErrors,
+                                listener, attributesToSearchFor(groupsResolver.attributes()));
                     } catch (LDAPException e) {
                         IOUtils.closeWhileHandlingException(connection);
                         listener.onFailure(e);
@@ -274,8 +289,9 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             if (cachedName != null) {
                 listener.onResponse(cachedName);
             } else if (usingGlobalCatalog(settings, connection)) {
-                // the global catalog does not replicate the necessary information to map a netbios dns name to a DN so we need to instead
-                // connect to the normal ports. This code uses the standard ports to avoid adding even more settings and is probably ok as
+                // the global catalog does not replicate the necessary information to map a netbios
+                // dns name to a DN so we need to instead connect to the normal ports. This code
+                // uses the standard ports to avoid adding even more settings and is probably ok as
                 // most AD users do not use non-standard ports
                 final LDAPConnectionOptions options = connectionOptions(config, sslService, logger);
                 boolean startedSearching = false;
@@ -283,7 +299,8 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                 try {
                     Filter filter = createFilter(NETBIOS_NAME_FILTER_TEMPLATE, netBiosDomainName);
                     if (connection.getSSLSession() != null) {
-                        searchConnection = LdapUtils.privilegedConnect(() -> new LDAPConnection(connection.getSocketFactory(), options,
+                        searchConnection = LdapUtils.privilegedConnect(
+                                () -> new LDAPConnection(connection.getSocketFactory(), options,
                                 connection.getConnectedAddress(), 636));
                     } else {
                         searchConnection = LdapUtils.privilegedConnect(() ->
@@ -291,14 +308,16 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                     }
                     searchConnection.bind(username, new String(password.internalChars()));
                     final LDAPConnection finalConnection = searchConnection;
-                    search(finalConnection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
-                            ActionListener.wrap((results) -> {
-                                IOUtils.close(finalConnection);
-                                handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
-                            }, (e) -> {
-                                IOUtils.closeWhileHandlingException(connection);
-                                listener.onFailure(e);
-                            }),
+                    search(finalConnection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
+                            timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(
+                                    (results) -> {
+                                        IOUtils.close(finalConnection);
+                                        handleSearchResults(results, netBiosDomainName,
+                                                domainNameCache, listener);
+                                    }, (e) -> {
+                                        IOUtils.closeWhileHandlingException(connection);
+                                        listener.onFailure(e);
+                                    }),
                             "ncname");
                     startedSearching = true;
                 } catch (LDAPException e) {
@@ -311,8 +330,10 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             } else {
                 try {
                     Filter filter = createFilter(NETBIOS_NAME_FILTER_TEMPLATE, netBiosDomainName);
-                    search(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
-                            ActionListener.wrap((results) -> handleSearchResults(results, netBiosDomainName, domainNameCache, listener),
+                    search(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
+                            timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(
+                                    (results) -> handleSearchResults(results, netBiosDomainName,
+                                            domainNameCache, listener),
                                     (e) -> {
                                         IOUtils.closeWhileHandlingException(connection);
                                         listener.onFailure(e);
@@ -324,9 +345,12 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             }
         }
 
-        static void handleSearchResults(List<SearchResultEntry> results, String netBiosDomainName, Cache<String, String> domainNameCache,
+        static void handleSearchResults(List<SearchResultEntry> results, String netBiosDomainName,
+                                        Cache<String, String> domainNameCache,
                                         ActionListener<String> listener) {
-            Optional<SearchResultEntry> entry = results.stream().filter((r) -> r.hasAttribute("ncname")).findFirst();
+            Optional<SearchResultEntry> entry = results.stream()
+                    .filter((r) -> r.hasAttribute("ncname"))
+                    .findFirst();
             if (entry.isPresent()) {
                 final String value = entry.get().getAttributeValue("ncname");
                 try {
@@ -353,8 +377,9 @@ class ActiveDirectorySessionFactory extends SessionFactory {
 
         private static final String UPN_USER_FILTER = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
 
-        UpnADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, logger, groupsResolver, domainDN);
+        UpnADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
+                           Logger logger, GroupsResolver groupsResolver, String domainDN) {
+            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN);
         }
 
         void searchForDN(LDAPConnection connection, String username, SecuredString password, int timeLimitSeconds,
@@ -366,7 +391,8 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             final String domainDN = buildDnFromDomain(domainName);
             try {
                 Filter filter = createFilter(UPN_USER_FILTER, accountName, username);
-                searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds, listener,
+                searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
+                        timeLimitSeconds, ignoreReferralErrors, listener,
                         attributesToSearchFor(groupsResolver.attributes()));
             } catch (LDAPException e) {
                 listener.onFailure(e);

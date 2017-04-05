@@ -25,7 +25,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,17 +91,27 @@ public abstract class LdapTestCase extends ESTestCase {
         return buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope, null);
     }
 
-    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, LdapSearchScope scope,
+    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate,
+                                             String groupSearchBase, LdapSearchScope scope,
                                              LdapLoadBalancing serverSetType) {
+        return buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope,
+                serverSetType, false);
+    }
+
+    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate,
+                                             String groupSearchBase, LdapSearchScope scope,
+                                             LdapLoadBalancing serverSetType,
+                                             boolean ignoreReferralErrors) {
         Settings.Builder builder = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
                 .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
+                .put(SessionFactory.IGNORE_REFERRAL_ERRORS_SETTING.getKey(), ignoreReferralErrors)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", scope)
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE);
         if (serverSetType != null) {
-            builder.put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING,
-                    serverSetType.toString());
+            builder.put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                            LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, serverSetType.toString());
         }
         return builder.build();
     }

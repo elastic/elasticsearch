@@ -21,8 +21,8 @@ package org.elasticsearch.index.cache.bitset;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
@@ -71,13 +71,13 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
-public final class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
+public final class BitsetFilterCache extends AbstractIndexComponent implements IndexReader.ClosedListener, RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
         Setting.boolSetting("index.load_fixed_bitset_filters_eagerly", true, Property.IndexScope);
 
     private final boolean loadRandomAccessFiltersEagerly;
-    private final Cache<Object, Cache<Query, Value>> loadedFilters;
+    private final Cache<IndexReader.CacheKey, Cache<Query, Value>> loadedFilters;
     private final Listener listener;
 
     public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
@@ -86,7 +86,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
             throw new IllegalArgumentException("listener must not be null");
         }
         this.loadRandomAccessFiltersEagerly = this.indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
-        this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
+        this.loadedFilters = CacheBuilder.<IndexReader.CacheKey, Cache<Query, Value>>builder().removalListener(this).build();
         this.listener = listener;
     }
 
@@ -100,7 +100,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
     }
 
     @Override
-    public void onClose(Object ownerCoreCacheKey) {
+    public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
         loadedFilters.invalidate(ownerCoreCacheKey);
     }
 
@@ -115,7 +115,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
     }
 
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws IOException, ExecutionException {
-        final Object coreCacheReader = context.reader().getCoreCacheKey();
+        final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
+        if (cacheHelper == null) {
+            throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
+        }
+        final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
         if (shardId != null // can't require it because of the percolator
                 && indexSettings.getIndex().equals(shardId.getIndex()) == false) {
@@ -124,7 +128,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
                     + " with cache of index " + indexSettings.getIndex());
         }
         Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
-            context.reader().addCoreClosedListener(BitsetFilterCache.this);
+            cacheHelper.addClosedListener(BitsetFilterCache.this);
             return CacheBuilder.<Query, Value>builder().build();
         });
 
@@ -148,7 +152,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
     }
 
     @Override
-    public void onRemoval(RemovalNotification<Object, Cache<Query, Value>> notification) {
+    public void onRemoval(RemovalNotification<IndexReader.CacheKey, Cache<Query, Value>> notification) {
         if (notification.getKey() == null) {
             return;
         }
@@ -272,7 +276,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
 
     }
 
-    Cache<Object, Cache<Query, Value>> getLoadedFilters() {
+    Cache<IndexReader.CacheKey, Cache<Query, Value>> getLoadedFilters() {
         return loadedFilters;
     }
 

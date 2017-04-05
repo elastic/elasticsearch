@@ -22,7 +22,6 @@ package org.elasticsearch.common.lucene.uid;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReader.CoreClosedListener;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -61,12 +60,12 @@ public class Versions {
     public static final long MATCH_DELETED = -4L;
 
     // TODO: is there somewhere else we can store these?
-    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    static final ConcurrentMap<IndexReader.CacheKey, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
-    private static final CoreClosedListener removeLookupState = new CoreClosedListener() {
+    private static final IndexReader.ClosedListener removeLookupState = new IndexReader.ClosedListener() {
         @Override
-        public void onClose(Object key) {
+        public void onClose(IndexReader.CacheKey key) {
             CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.remove(key);
             if (ctl != null) {
                 ctl.close();
@@ -75,7 +74,12 @@ public class Versions {
     };
 
     private static PerThreadIDAndVersionLookup getLookupState(LeafReader reader) throws IOException {
-        Object key = reader.getCoreCacheKey();
+        IndexReader.CacheHelper cacheHelper = reader.getCoreCacheHelper();
+        if (cacheHelper == null) {
+            throw new IllegalArgumentException("Reader " + reader + " does not support caching");
+        }
+        
+        IndexReader.CacheKey key = cacheHelper.getKey();
         CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.get(key);
         if (ctl == null) {
             // First time we are seeing this reader's core; make a
@@ -85,7 +89,7 @@ public class Versions {
             if (other == null) {
                 // Our CTL won, we must remove it when the
                 // core is closed:
-                reader.addCoreClosedListener(removeLookupState);
+                cacheHelper.addClosedListener(removeLookupState);
             } else {
                 // Another thread beat us to it: just use
                 // their CTL:
@@ -200,10 +204,13 @@ public class Versions {
                         }
 
                         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                            dvField.setDocument(docID);
-                            assert dvField.count() == 1 : "expected only a single value for _seq_no but got " +
-                                    dvField.count();
-                            return dvField.valueAt(0);
+                            if (dvField.advanceExact(docID) == false) {
+                                throw new AssertionError("Document " + docID + " does not have a value for the " + SeqNoFieldMapper.NAME + " field");
+                            }
+                            if (dvField.docValueCount() != 1) {
+                                throw new AssertionError("Document " + docID + " has more than 1 value for the " + SeqNoFieldMapper.NAME + " field: " + dvField.docValueCount());
+                            }
+                            return dvField.nextValue();
                         }
                     }
                 }
@@ -256,7 +263,10 @@ public class Versions {
                         }
 
                         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                            return dvField.get(docID);
+                            if (dvField.advanceExact(docID) == false) {
+                                throw new AssertionError("Document " + docID + " does not have a value for the " + SeqNoFieldMapper.PRIMARY_TERM_NAME + " field");
+                            }
+                            return dvField.longValue();
                         }
                     }
                 }

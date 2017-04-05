@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.Constants;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -289,7 +288,7 @@ public class FunctionRefTests extends ScriptTestCase {
             Object value = exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength).sum();");
         });
         assertThat(expected.getCause().getMessage(),
-                containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+                containsString("lambda expects return type [long], but found return type [void]"));
     }
 
     public void testReturnVoidDef() {
@@ -297,16 +296,16 @@ public class FunctionRefTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(LambdaConversionException.class, () -> {
             exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);");
         });
-        assertThat(expected.getMessage(), containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+        assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
 
         expected = expectScriptThrows(LambdaConversionException.class, () -> {
             exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);");
         });
-        assertThat(expected.getMessage(), containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+        assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
 
         expected = expectScriptThrows(LambdaConversionException.class, () -> {
             exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);");
         });
-        assertThat(expected.getMessage(), containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+        assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
     }
 }

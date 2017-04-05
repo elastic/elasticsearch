@@ -33,14 +33,15 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.invoke.MethodHandles.Lookup;
+import static org.elasticsearch.painless.Compiler.Loader;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE2;
+import static org.elasticsearch.painless.WriterConstants.DELEGATE_BOOTSTRAP_HANDLE;
 import static org.objectweb.asm.Opcodes.ACC_FINAL;
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
@@ -53,7 +54,6 @@ import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 
 public final class LambdaBootstrap {
-    private static final AtomicInteger COUNTER = new AtomicInteger(0);
 
     private static final class Capture {
         private final String name;
@@ -66,6 +66,8 @@ public final class LambdaBootstrap {
             this.desc = this.type.getDescriptor();
         }
     }
+
+    private static final AtomicLong COUNTER = new AtomicLong(0);
 
     public static CallSite lambdaBootstrap(
         Lookup lookup,
@@ -83,56 +85,29 @@ public final class LambdaBootstrap {
         Type lambdaClassType = Type.getType("L" + lambdaClassName + ";");
 
         validateTypes(lambdaMethodType, delegateMethodType);
+
         ClassWriter cw =
             beginLambdaClass(lambdaClassName, factoryMethodType.returnType().getName());
         Capture[] captures = generateCaptureFields(cw, factoryMethodType);
         Method constructorMethod =
             generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
 
-        if (captures != null) {
+        if (captures.length > 0) {
             generateFactoryMethod(cw, factoryMethodType, lambdaClassType, constructorMethod);
         }
 
-
-
+        generateLambdaMethod(cw, factoryMethodType, lambdaClassName, lambdaClassType,
+            lambdaMethodName, lambdaMethodType, delegateClassName, delegateInvokeType,
+            delegateMethodName, delegateMethodType, captures);
         endLambdaClass(cw);
 
-        try {
+        Class<?> lambdaClass =
+            createLambdaClass((Loader)lookup.lookupClass().getClassLoader(), cw, lambdaClassName);
 
-            final byte[] classBytes = cw.toByteArray();
-
-            final Class<?> lambdaClass = AccessController.doPrivileged(
-                new PrivilegedAction<Class<?>>() {
-                    @Override
-                    public Class<?> run() {
-                        Compiler.Loader loader =
-                            (Compiler.Loader)lookup.lookupClass().getClassLoader();
-                        return loader.defineLambda(lambdaClassName.replace('/', '.'), classBytes);
-                    }
-                });
-
-            if (type.parameterCount() == 0) {
-                final Constructor<?> ctr = AccessController.doPrivileged(
-                    new PrivilegedAction<Constructor<?>>() {
-                        @Override
-                        public Constructor<?> run() {
-                            try {
-                                return lambdaClass.getConstructor();
-                            } catch (Exception exception) {
-                                throw new RuntimeException(exception);
-                            }
-                        }
-                    });
-
-                Object inst = ctr.newInstance();
-                return new ConstantCallSite(MethodHandles.constant(type.returnType(), inst));
-            } else {
-                return new ConstantCallSite(lookup.findStatic(lambdaClass, facName, type));
-            }
-        } catch (LambdaConversionException lce) {
-            throw lce;
-        } catch (Exception exception) {
-            throw new RuntimeException(exception);
+        if (captures.length > 0) {
+            return createCaptureCallSite(lookup, factoryMethodType, lambdaClass);
+        } else {
+            return createNoCaptureCallSite(factoryMethodType, lambdaClass);
         }
     }
 
@@ -160,11 +135,6 @@ public final class LambdaBootstrap {
 
     private static Capture[] generateCaptureFields(ClassWriter cw, MethodType factoryMethodType) {
         int captureTotal = factoryMethodType.parameterCount();
-
-        if (captureTotal == 0) {
-            return null;
-        }
-
         Capture[] captures = new Capture[captureTotal];
 
         for (int captureCount = 0; captureCount < captureTotal; ++captureCount) {
@@ -283,28 +253,26 @@ public final class LambdaBootstrap {
             } else if (delegateInvokeType == H_INVOKEVIRTUAL ||
                 delegateInvokeType == H_INVOKEINTERFACE) {
                 if (captures.length == 0) {
-                    Class<?> clazz = lambdaMethodType.parameterType(0);
-                    delegateClassName = c.getName();
-                    lambdaMethodType = lambdaMethodType.dropParameterTypes(0, 1).
-                        insertParameterTypes(0, factoryMethodType.parameterArray());
-                    delegateMethodType = delegateMethodType.
-                        insertParameterTypes(0, factoryMethodType.parameterArray());
+                    Class<?> clazz = delegateMethodType.parameterType(0);
+                    delegateClassName = clazz.getName();
+                    delegateMethodType = delegateMethodType.dropParameterTypes(0, 1);
                 } else if (captures.length == 1) {
                     Class<?> clazz = factoryMethodType.parameterType(0);
-                    className = c.getName();
-                    delegateMethodType = delegateMethodType.insertParameterTypes(0, c);
+                    delegateClassName = clazz.getName();
+                    lambdaMethodType = lambdaMethodType.insertParameterTypes(0, clazz);
                 } else {
                     throw new LambdaConversionException(
-                        "unexpected number of captures [ " + );
+                        "unexpected number of captures [ " + captures.length + "]");
                 }
             }
 
-            Handle delegateHandle = new Handle(callType, className.replace('.', '/'),
-                    lambdaName, lambdaMethodType.toMethodDescriptorString(),
-                    delegateInvoke == H_INVOKEINTERFACE);
-            lambda.invokeDynamic(delegateMethodName, Type.getMethodType(delegateMethodType
-                    .toMethodDescriptorString()).getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE2,
-                lambdaHandle);
+            Handle delegateHandle =
+                new Handle(delegateInvokeType, delegateClassName.replace('.', '/'),
+                    delegateMethodName, delegateMethodType.toMethodDescriptorString(),
+                    delegateInvokeType == H_INVOKEINTERFACE);
+            lambda.invokeDynamic(delegateMethodName, Type.getMethodType(lambdaMethodType
+                    .toMethodDescriptorString()).getDescriptor(), DELEGATE_BOOTSTRAP_HANDLE,
+                delegateHandle);
         }
 
         lambda.returnValue();
@@ -315,14 +283,56 @@ public final class LambdaBootstrap {
         cw.visitEnd();
     }
 
+    private static Class<?> createLambdaClass(
+        Loader loader,
+        ClassWriter cw,
+        String lambdaClassName) {
+
+        byte[] classBytes = cw.toByteArray();
+        return AccessController.doPrivileged((PrivilegedAction<Class<?>>)() ->
+            loader.defineLambda(lambdaClassName.replace('/', '.'), classBytes));
+    }
+
+    private static CallSite createNoCaptureCallSite(
+        MethodType factoryMethodType,
+        Class<?> lambdaClass) {
+
+        Constructor<?> constructor = AccessController.doPrivileged(
+            (PrivilegedAction<Constructor<?>>)() -> {
+                try {
+                    return lambdaClass.getConstructor();
+                } catch (NoSuchMethodException nsme) {
+                    throw new IllegalStateException("unable to create lambda class", nsme);
+                }
+            });
+
+        try {
+            return new ConstantCallSite(MethodHandles.constant(
+                factoryMethodType.returnType(), constructor.newInstance()));
+        } catch (InstantiationException |
+            IllegalAccessException |
+            InvocationTargetException exception) {
+            throw new IllegalStateException("unable to create lambda class", exception);
+        }
+    }
+
+    private static CallSite createCaptureCallSite(
+        Lookup lookup,
+        MethodType factoryMethodType,
+        Class<?> lambdaClass) {
+
+        try {
+            return new ConstantCallSite(
+                lookup.findStatic(lambdaClass, "get$lambda", factoryMethodType));
+        } catch (NoSuchMethodException | IllegalAccessException exception) {
+            throw new IllegalStateException("unable to create lambda factory class", exception);
+        }
+    }
+
     public static CallSite delegateBootstrap(Lookup lookup,
                                              String lambdaName,
                                              MethodType lambdaMethodType,
                                              MethodHandle delegateMethodHandle) {
-        try {
-            return new ConstantCallSite(delegateMethodHandle.asType(lambdaMethodType));
-        } catch (Exception exception) {
-            throw new RuntimeException(exception);
-        }
+        return new ConstantCallSite(delegateMethodHandle.asType(lambdaMethodType));
     }
 }

@@ -55,11 +55,6 @@ public class LambdaTests extends ScriptTestCase {
 
         assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); "
                            + "return l.stream().mapToInt(x -> x + 1).sum();"));
-
-        for (int x = 0; x < 10000; ++x) {
-            assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); "
-                + "return l.stream().mapToInt(x -> x + 1).sum();"));
-        }
     }
 
     public void testPrimitiveLambdasWithTypedArgs() {

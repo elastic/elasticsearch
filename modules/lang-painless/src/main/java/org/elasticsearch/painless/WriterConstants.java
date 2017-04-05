@@ -131,11 +131,11 @@ public final class WriterConstants {
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
             new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
                 "lambdaBootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
-    public static final MethodType LAMBDA_BOOTSTRAP_TYPE2 =
+    public static final MethodType DELEGATE_BOOTSTRAP_TYPE =
         MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class);
-    public static final Handle LAMBDA_BOOTSTRAP_HANDLE2 =
+    public static final Handle DELEGATE_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
-            "bootstrap2", LAMBDA_BOOTSTRAP_TYPE2.toMethodDescriptorString(), false);
+            "delegateBootstrap", DELEGATE_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public static final Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;

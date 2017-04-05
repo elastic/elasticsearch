@@ -366,7 +366,7 @@ public final class Def {
              // whitelist lookup
              ref = new FunctionRef(clazz, type, call, captures.length);
          }
-         final CallSite callSite = LambdaBootstrap.bootstrap(
+         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
              lookup,
              ref.invokedName,
              ref.invokedType,

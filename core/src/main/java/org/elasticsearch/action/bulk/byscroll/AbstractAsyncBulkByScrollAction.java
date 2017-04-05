@@ -337,7 +337,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        bulkRetry.withAsyncBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 onBulkResponse(thisBatchStartTime, response);

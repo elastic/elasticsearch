@@ -25,20 +25,14 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 /**
@@ -82,9 +76,31 @@ public class Retry {
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
      * @param settings settings
      */
-    public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, threadPool);
+    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
+        PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
+        ActionListener<BulkResponse> completingListener = new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkRequest) {
+                try {
+                    listener.onResponse(bulkRequest);
+                } finally {
+                    actionFuture.onResponse(bulkRequest);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    actionFuture.onFailure(e);
+                }
+            }
+        };
+        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, completingListener, settings, threadPool);
         r.execute(bulkRequest);
+
+        return actionFuture;
     }
 
     /**
@@ -97,11 +113,14 @@ public class Retry {
      * @return the bulk response as returned by the client.
      * @throws Exception Any exception thrown by the callable.
      */
-    public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
-        PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, threadPool);
-        r.execute(bulkRequest);
-        return actionFuture.actionGet();
+    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
+        return withBackoff(consumer, bulkRequest, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkItemResponses) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+        }, settings);
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {

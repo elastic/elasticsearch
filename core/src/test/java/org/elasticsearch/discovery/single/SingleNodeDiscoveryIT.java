@@ -64,8 +64,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                // TODO: do not use such a restrictive ephemeral port range
-                .put("transport.tcp.port", "49152-49156")
+                .put("transport.tcp.port", "0")
                 .build();
     }
 
@@ -129,6 +128,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
+        final TransportService service = internalCluster().getInstance(TransportService.class);
+        final int port = service.boundAddress().publishAddress().getPort();
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -141,8 +142,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        // TODO: do not use such a restrictive ephemeral port range
-                        .put("transport.tcp.port", "49152-49156")
+                        .put("transport.tcp.port", port + "-" + (port + 5 - 1))
                         .build();
             }
         };

@@ -98,27 +98,26 @@ final class FetchSearchPhase extends SearchPhase {
         final int numShards = context.getNumShards();
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         List<SearchPhaseResult> phaseResults = queryResults.asList();
-        ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollSearch, phaseResults);
         String scrollId = isScrollSearch ? TransportSearchHelper.buildScrollId(queryResults) : null;
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = ()
-            -> moveToNextPhase(searchPhaseController, sortedShardDocs, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
+            -> moveToNextPhase(searchPhaseController, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
             queryResults : fetchResults);
         if (queryAndFetchOptimization) {
             assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null;
             // query AND fetch optimization
             finishPhase.run();
         } else {
-            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, sortedShardDocs);
-            if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, reducedQueryPhase.scoreDocs);
+            if (reducedQueryPhase.scoreDocs.length == 0) { // no docs to fetch -- sidestep everything and return
                 phaseResults.stream()
                     .map(e -> e.queryResult())
                     .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
                 finishPhase.run();
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?
-                    searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs, numShards)
+                    searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
                     : null;
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(r -> fetchResults.set(r.getShardIndex(), r),
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
@@ -188,7 +187,7 @@ final class FetchSearchPhase extends SearchPhase {
     private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
         // we only release search context that we did not fetch from if we are not scrolling
         // and if it has at lease one hit that didn't make it to the global topDocs
-        if (context.getRequest().scroll() == null && queryResult.hasHits()) {
+        if (context.getRequest().scroll() == null && queryResult.hasSearchContext()) {
             try {
                 Transport.Connection connection = context.getConnection(queryResult.getSearchShardTarget().getNodeId());
                 context.sendReleaseSearchContext(queryResult.getRequestId(), connection);
@@ -198,11 +197,11 @@ final class FetchSearchPhase extends SearchPhase {
         }
     }
 
-    private void moveToNextPhase(SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
+    private void moveToNextPhase(SearchPhaseController searchPhaseController,
                                  String scrollId, SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
                                  AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
-            sortedDocs, reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
+            reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
         context.executeNextPhase(this, nextPhaseFactory.apply(context.buildSearchResponse(internalResponse, scrollId)));
     }
 

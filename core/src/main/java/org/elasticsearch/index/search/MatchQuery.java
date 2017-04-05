@@ -405,7 +405,7 @@ public class MatchQuery {
         private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
             maxTermFrequency, MappedFieldType fieldType) {
             ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
-                bq.isCoordDisabled(), fieldType);
+                fieldType);
             for (BooleanClause clause : bq.clauses()) {
                 if (!(clause.getQuery() instanceof TermQuery)) {
                     return bq;

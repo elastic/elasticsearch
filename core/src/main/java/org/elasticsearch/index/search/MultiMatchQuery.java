@@ -305,9 +305,9 @@ public class MultiMatchQuery extends MatchQuery {
             terms = Arrays.copyOf(terms, i);
             blendedBoost = Arrays.copyOf(blendedBoost, i);
             if (commonTermsCutoff != null) {
-                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, false, commonTermsCutoff));
+                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, commonTermsCutoff));
             } else if (tieBreaker == 1.0f) {
-                queries.add(BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost, false));
+                queries.add(BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost));
             } else {
                 queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
             }
@@ -319,7 +319,6 @@ public class MultiMatchQuery extends MatchQuery {
             // however their score contribution will be different
             // TODO: can we improve this?
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            bq.setDisableCoord(true);
             for (Query query : queries) {
                 bq.add(query, Occur.SHOULD);
             }

@@ -78,7 +78,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     @Override
     public Query newDefaultQuery(String text) {
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
@@ -99,7 +98,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             try {
@@ -116,7 +114,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     @Override
     public Query newPhraseQuery(String text, int slop) {
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 String field = entry.getKey();
@@ -146,7 +143,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     @Override
     public Query newPrefixQuery(String text) {
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             try {
@@ -244,7 +240,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                     innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)),
                         BooleanClause.Occur.SHOULD));
                 }
-                posQuery = innerBuilder.setDisableCoord(true).build();
+                posQuery = innerBuilder.build();
             }
             builder.add(new BooleanClause(posQuery, getDefaultOperator()));
         }

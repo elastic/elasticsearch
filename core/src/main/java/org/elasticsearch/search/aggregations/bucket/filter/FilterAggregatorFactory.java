@@ -35,13 +35,13 @@ import java.util.Map;
 
 public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorFactory> {
 
-    private final Weight weight;
+    final Weight weight;
 
     public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         IndexSearcher contextSearcher = context.searcher();
-        Query filter = filterBuilder.toQuery(context.getQueryShardContext());
+        Query filter = filterBuilder.toFilter(context.getQueryShardContext());
         weight = contextSearcher.createNormalizedWeight(filter, false);
     }
 

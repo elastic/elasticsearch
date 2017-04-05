@@ -74,10 +74,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 double value;
                 if (values.advanceExact(docId)) {
                     value = values.nextValue();
-                } else if (missing != null) {
-                    value = missing;
                 } else {
-                    throw new ElasticsearchException("Missing value for field [" + field + "]");
+                    if (missing != null) {
+                        value = missing;
+                    } else {
+                        throw new ElasticsearchException("Missing value for field [" + field + "]");
+                    }
                 }
                 double val = value * boostFactor;
                 double result = modifier.apply(val);

@@ -54,7 +54,7 @@ public class MainResponseTests extends ESTestCase {
         MainResponse mainResponse = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(mainResponse, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(mainResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         MainResponse parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parsed = MainResponse.fromXContent(parser);

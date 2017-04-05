@@ -296,7 +296,7 @@ public class MachineLearning implements ActionPlugin {
                 threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, xContentRegistry);
+                normalizerFactory, xContentRegistry, auditor);
         PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, jobProvider,
                 System::currentTimeMillis, auditor, persistentTasksService);

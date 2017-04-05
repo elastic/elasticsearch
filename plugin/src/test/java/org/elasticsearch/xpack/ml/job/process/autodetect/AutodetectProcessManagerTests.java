@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -62,6 +63,7 @@ import static org.elasticsearch.mock.orig.Mockito.doReturn;
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
+import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
@@ -85,6 +87,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobResultsPersister jobResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
     private NormalizerFactory normalizerFactory;
+    private Auditor auditor;
 
     private DataCounts dataCounts = new DataCounts("foo");
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
@@ -100,6 +103,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
+        auditor = mock(Auditor.class);
 
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {
@@ -147,7 +151,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, new NamedXContentRegistry(Collections.emptyList())));
+                normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor));
         doReturn(executorService).when(manager).createAutodetectExecutorService(any());
 
         doAnswer(invocationOnMock -> {
@@ -328,12 +332,75 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 (j, modelSnapshot, quantiles, filters, i, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, new NamedXContentRegistry(Collections.emptyList()));
+                normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
 
         JobTask jobTask = mock(JobTask.class);
         expectThrows(EsRejectedExecutionException.class,
                 () -> manager.create("my_id", jobTask, buildAutodetectParams(), false, e -> {}));
         verify(autodetectProcess, times(1)).close();
+    }
+
+    public void testCreate_givenFirstTime() throws IOException {
+        modelSnapshot = null;
+        AutodetectProcessManager manager = createNonSpyManager("foo");
+
+        JobTask jobTask = mock(JobTask.class);
+        manager.create("foo", jobTask, buildAutodetectParams(), false, e -> {});
+
+        String expectedNotification = "Loading model snapshot [N/A], job latest_record_timestamp [N/A]";
+        verify(auditor).info("foo", expectedNotification);
+        verifyNoMoreInteractions(auditor);
+    }
+
+    public void testCreate_givenExistingModelSnapshot() throws IOException {
+        modelSnapshot = new ModelSnapshot.Builder("foo").setSnapshotId("snapshot-1")
+                .setLatestRecordTimeStamp(new Date(0L)).build();
+        dataCounts = new DataCounts("foo");
+        dataCounts.setLatestRecordTimeStamp(new Date(1L));
+        AutodetectProcessManager manager = createNonSpyManager("foo");
+
+        JobTask jobTask = mock(JobTask.class);
+        manager.create("foo", jobTask, buildAutodetectParams(), false, e -> {});
+
+        String expectedNotification = "Loading model snapshot [snapshot-1] with " +
+                "latest_record_timestamp [1970-01-01T00:00:00.000Z], " +
+                "job latest_record_timestamp [1970-01-01T00:00:00.001Z]";
+        verify(auditor).info("foo", expectedNotification);
+        verifyNoMoreInteractions(auditor);
+    }
+
+    public void testCreate_givenNonZeroCountsAndNoModelSnapshotNorQuantiles() throws IOException {
+        modelSnapshot = null;
+        quantiles = null;
+        dataCounts = new DataCounts("foo");
+        dataCounts.setLatestRecordTimeStamp(new Date(0L));
+        dataCounts.incrementProcessedRecordCount(42L);
+        AutodetectProcessManager manager = createNonSpyManager("foo");
+
+        JobTask jobTask = mock(JobTask.class);
+        manager.create("foo", jobTask, buildAutodetectParams(), false, e -> {});
+
+        String expectedNotification = "Loading model snapshot [N/A], " +
+                "job latest_record_timestamp [1970-01-01T00:00:00.000Z]";
+        verify(auditor).info("foo", expectedNotification);
+        verify(auditor).warning("foo", "No model snapshot could be found for a job with processed records");
+        verify(auditor).warning("foo", "No quantiles could be found for a job with processed records");
+        verifyNoMoreInteractions(auditor);
+    }
+
+    private AutodetectProcessManager createNonSpyManager(String jobId) {
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
+        when(jobManager.getJobOrThrowIfUnknown(jobId)).thenReturn(createJobDetails(jobId));
+        AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
+        AutodetectProcessFactory autodetectProcessFactory =
+                (j, modelSnapshot, quantiles, filters, i, e, onProcessCrash) -> autodetectProcess;
+        return new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
     }
 
     private AutodetectParams buildAutodetectParams() {
@@ -357,7 +424,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client,
                 threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister,
-                autodetectProcessFactory, normalizerFactory, new NamedXContentRegistry(Collections.emptyList()));
+                autodetectProcessFactory, normalizerFactory,
+                new NamedXContentRegistry(Collections.emptyList()), auditor);
         manager = spy(manager);
         doReturn(communicator).when(manager).create(any(), any(), eq(buildAutodetectParams()), anyBoolean(), any());
         return manager;

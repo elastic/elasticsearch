@@ -57,9 +57,10 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     private static final String CONF_SECURITY_PRINCIPAL = "security.principal";
 
-    private final BlobPath basePath = BlobPath.cleanPath();
+    private final Environment environment;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
+    private final BlobPath basePath = BlobPath.cleanPath();
 
     private HdfsBlobStore blobStore;
 
@@ -71,6 +72,7 @@ public final class HdfsRepository extends BlobStoreRepository {
                           NamedXContentRegistry namedXContentRegistry) throws IOException {
         super(metadata, environment.settings(), namedXContentRegistry);
 
+        this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
         this.compress = metadata.settings().getAsBoolean("compress", false);
     }
@@ -113,7 +115,7 @@ public final class HdfsRepository extends BlobStoreRepository {
     }
 
     // create hadoop filecontext
-    private static FileContext createContext(URI uri, Settings repositorySettings)  {
+    private FileContext createContext(URI uri, Settings repositorySettings)  {
         Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
@@ -141,7 +143,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         });
     }
 
-    private static UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
+    private UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
         // Validate the authentication method:
         AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(hadoopConfiguration);
         if (authMethod.equals(AuthenticationMethod.SIMPLE) == false
@@ -174,7 +176,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
                 String principal = preparePrincipal(kerberosPrincipal);
-                String keytab = HdfsSecurityContext.locateKeytabFile();
+                String keytab = HdfsSecurityContext.locateKeytabFile(environment).toString();
                 LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
                 return UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal, keytab);
             }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.SocketPermission;
@@ -26,15 +25,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.function.Supplier;
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.env.Environment;
 
 /**
  * Oversees all the security specific logic for the HDFS Repository plugin.
@@ -80,42 +80,29 @@ public class HdfsSecurityContext {
             new PrivateCredentialPermission("javax.security.auth.kerberos.KeyTab * \"*\"", "read")
             // Included later:
             // 7) allow code to initiate kerberos connections as the logged in user
-            // 8) allow code to access kerberos keytab file on disk
             // Still far and away fewer permissions than the original full plugin policy
         };
     }
 
-    private static final String PROP_KRB5_KEYTAB = "krb5.keytab";
-
-    private static String getKeytabFileName() {
-        String keytabLocation = System.getProperty(PROP_KRB5_KEYTAB);
-        if (keytabLocation == null) {
-            LOGGER.error("Keytab file location is not set in the [{}] system property.", PROP_KRB5_KEYTAB);
-            throw new RuntimeException("Could not locate keytab");
-        }
-        return keytabLocation;
-    }
-
     /**
-     * Locates the keytab file from the system properties and verifies that it exists.
+     * Locates the keytab file in the environment and verifies that it exists.
+     * Expects keytab file to exist at {@code $CONFIG_DIR$/kerberos/krb5.keytab}
      */
-    @SuppressForbidden(reason = "PathUtils.get() for finding configured keytab file location")
-    public static String locateKeytabFile() {
-        String keytabLocation = getKeytabFileName();
+    public static Path locateKeytabFile(Environment environment) {
+        Path keytabPath = environment.configFile().resolve("kerberos").resolve("krb5.keytab");
         try {
-            Path keytabPath = PathUtils.get(keytabLocation);
             if (Files.exists(keytabPath) == false) {
-                LOGGER.error("Could not locate keytab file at [{}]. Check that the [{}] system property is correct.",
-                    keytabLocation, PROP_KRB5_KEYTAB);
+                LOGGER.error("Could not locate keytab file at [{}].", keytabPath);
                 throw new RuntimeException("Could not locate keytab");
             }
         } catch (SecurityException se) {
-            LOGGER.error("Denied access to keytab file at [{}]. Check that the [{}] system property is correct.",
-                keytabLocation, PROP_KRB5_KEYTAB);
-            LOGGER.error("Could not access keytab", se);
+            LOGGER.error((Supplier<String>)() ->
+                String.format(Locale.getDefault(), "Denied access to keytab file at [%s].", keytabPath),
+                se
+            );
             throw new RuntimeException("Could not locate keytab");
         }
-        return keytabLocation;
+        return keytabPath;
     }
 
     private final UserGroupInformation ugi;
@@ -130,17 +117,15 @@ public class HdfsSecurityContext {
         Permission[] permissions;
         if (ugi.isFromKeytab()) {
             // KERBEROS
-            // Leave room to append two permissions based on the logged in user's info.
-            int permlen = KERBEROS_AUTH_PERMISSIONS.length + 2;
+            // Leave room to append one extra permission based on the logged in user's info.
+            int permlen = KERBEROS_AUTH_PERMISSIONS.length + 1;
             permissions = new Permission[permlen];
 
             System.arraycopy(KERBEROS_AUTH_PERMISSIONS, 0, permissions, 0, KERBEROS_AUTH_PERMISSIONS.length);
 
             // Append a kerberos.ServicePermission to only allow initiating kerberos connections
             // as the logged in user.
-            permissions[permissions.length-2] = new ServicePermission(ugi.getUserName(), "initiate");
-            // Append a file permission for reading the keytab file.
-            permissions[permissions.length-1] = new FilePermission(getKeytabFileName(), "read");
+            permissions[permissions.length-1] = new ServicePermission(ugi.getUserName(), "initiate");
         } else {
             // SIMPLE
             permissions = Arrays.copyOf(SIMPLE_AUTH_PERMISSIONS, SIMPLE_AUTH_PERMISSIONS.length);

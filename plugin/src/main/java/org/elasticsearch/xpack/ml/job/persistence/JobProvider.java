@@ -260,13 +260,10 @@ public class JobProvider {
 
         msearch.execute(ActionListener.wrap(
                 response -> {
-                    for (MultiSearchResponse.Item itemResponse : response.getResponses()) {
+                    for (int i = 0; i < response.getResponses().length; i++) {
+                        MultiSearchResponse.Item itemResponse = response.getResponses()[i];
                         if (itemResponse.isFailure()) {
-                            if (itemResponse.getFailure() instanceof IndexNotFoundException == false) {
-                                throw itemResponse.getFailure();
-                            } else {
-                                // Ignore IndexNotFoundException; AutodetectParamsBuilder has defaults for new jobs
-                            }
+                            errorHandler.accept(itemResponse.getFailure());
                         } else {
                             SearchResponse searchResponse = itemResponse.getResponse();
                             ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
@@ -280,12 +277,16 @@ public class JobProvider {
                                 errorHandler.accept(new ElasticsearchException("[" + jobId
                                         + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
                             } else {
-                                SearchHit[] hits = searchResponse.getHits().getHits();
-                                if (hits.length == 1) {
-                                    parseAutodetectParamSearchHit(paramsBuilder, hits[0], errorHandler);
-                                } else if (hits.length > 1) {
-                                    errorHandler.accept(new IllegalStateException("Got ["
-                                            + hits.length + "] even though search size was 1"));
+                                SearchHits hits = searchResponse.getHits();
+                                long totalHits = hits.getTotalHits();
+                                if (totalHits == 0) {
+                                    SearchRequest searchRequest = msearch.request().requests().get(i);
+                                    LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
+                                } else if (totalHits == 1) {
+                                    parseAutodetectParamSearchHit(paramsBuilder, hits.getAt(0), errorHandler);
+                                } else if (totalHits > 1) {
+                                    errorHandler.accept(new IllegalStateException("Expected total hits 0 or 1, but got [" + totalHits +
+                                            "] total hits"));
                                 }
                             }
                         }
@@ -298,6 +299,7 @@ public class JobProvider {
 
     private SearchRequestBuilder createDocIdSearch(String index, String type, String id) {
         return client.prepareSearch(index).setSize(1)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.idsQuery(type).addIds(id))
                 .setRouting(id);
     }

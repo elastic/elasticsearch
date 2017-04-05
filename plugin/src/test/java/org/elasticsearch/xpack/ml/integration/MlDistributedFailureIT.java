@@ -38,7 +38,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-@TestLogging("org.elasticsearch.xpack.ml.datafeed:DEBUG,org.elasticsearch.xpack.ml.action:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ml.datafeed:DEBUG,org.elasticsearch.xpack.ml.action:DEBUG," +
+        "org.elasticsearch.xpack.ml.job.persistence:DEBUG")
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     public void testFailOver() throws Exception {

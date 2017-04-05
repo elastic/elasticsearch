@@ -12,6 +12,7 @@ import java.util.Collections;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,8 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+                // prevent auto index creation, as watcher is disabled this should work
+                .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
 
                 // disable security because of query cache check and authentication/authorization
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)

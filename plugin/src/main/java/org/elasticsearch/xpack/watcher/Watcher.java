@@ -208,7 +208,9 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        validAutoCreateIndex(settings);
+        if (enabled && transportClientMode == false) {
+            validAutoCreateIndex(settings);
+        }
     }
 
     public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,

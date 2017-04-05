@@ -509,19 +509,6 @@ public class JobProvider {
         return searchRequest;
     }
 
-    private List<PerPartitionMaxProbabilities> handlePartitionMaxNormailizedProbabilitiesResponse(SearchResponse searchResponse) {
-        List<PerPartitionMaxProbabilities> results = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            BytesReference source = hit.getSourceRef();
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                results.add(PerPartitionMaxProbabilities.PARSER.apply(parser, null));
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse PerPartitionMaxProbabilities", e);
-            }
-        }
-        return results;
-    }
-
     /**
      * Returns a {@link BatchedDocumentsIterator} that allows querying
      * and iterating over a large number of buckets of the given job.
@@ -595,19 +582,6 @@ public class JobProvider {
 
     /**
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
-     * Uses the internal client, so runs as the _xpack user
-     * @param jobId the job id
-     * @param from  Skip the first N categories. This parameter is for paging
-     * @param size  Take only this number of categories
-     */
-    public void categoryDefinitionsViaInternalClient(String jobId, String categoryId, Integer from, Integer size,
-                                                     Consumer<QueryPage<CategoryDefinition>> handler,
-                                                     Consumer<Exception> errorHandler) {
-        categoryDefinitions(jobId, categoryId, from, size, handler, errorHandler, client);
-    }
-
-    /**
-     * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
      * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId the job id
      * @param from  Skip the first N categories. This parameter is for paging
@@ -656,16 +630,6 @@ public class JobProvider {
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
             handler.accept(result);
         }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))));
-    }
-
-    /**
-     * Search for anomaly records with the parameters in the
-     * {@link org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder.RecordsQuery}
-     * Uses the internal client, so runs as the _xpack user
-     */
-    public void recordsViaInternalClient(String jobId, RecordsQueryBuilder.RecordsQuery query, Consumer<QueryPage<AnomalyRecord>> handler,
-                                         Consumer<Exception> errorHandler) {
-        records(jobId, query, handler, errorHandler, client);
     }
 
     /**
@@ -734,17 +698,6 @@ public class JobProvider {
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
             handler.accept(queryPage);
         }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetRecordsAction.NAME))));
-    }
-
-    /**
-     * Return a page of influencers for the given job and within the given date range
-     * Uses the internal client, so runs as the _xpack user
-     * @param jobId The job ID for which influencers are requested
-     * @param query the query
-     */
-    public void influencersViaInternalClient(String jobId, InfluencersQuery query, Consumer<QueryPage<Influencer>> handler,
-                                             Consumer<Exception> errorHandler) {
-        influencers(jobId, query, handler, errorHandler, client);
     }
 
     /**

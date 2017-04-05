@@ -35,8 +35,8 @@ public class ExtendedCommonTermsQuery extends CommonTermsQuery {
 
     private final MappedFieldType fieldType;
 
-    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, boolean disableCoord, MappedFieldType fieldType) {
-        super(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoord);
+    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
+        super(highFreqOccur, lowFreqOccur, maxTermFrequency);
         this.fieldType = fieldType;
     }
 

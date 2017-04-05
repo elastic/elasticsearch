@@ -296,16 +296,15 @@ public abstract class BlendedTermQuery extends Query {
         return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
     }
 
-    public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final boolean disableCoord) {
-        return booleanBlendedQuery(terms, null, disableCoord);
+    public static BlendedTermQuery booleanBlendedQuery(Term[] terms) {
+        return booleanBlendedQuery(terms, null);
     }
 
-    public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final float[] boosts, final boolean disableCoord) {
+    public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final float[] boosts) {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
-                booleanQueryBuilder.setDisableCoord(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
                     Query query = new TermQuery(terms[i], ctx[i]);
                     if (boosts != null && boosts[i] != 1f) {
@@ -318,14 +317,12 @@ public abstract class BlendedTermQuery extends Query {
         };
     }
 
-    public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final boolean disableCoord, final float maxTermFrequency) {
+    public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery.Builder highBuilder = new BooleanQuery.Builder();
-                highBuilder.setDisableCoord(disableCoord);
                 BooleanQuery.Builder lowBuilder = new BooleanQuery.Builder();
-                lowBuilder.setDisableCoord(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
                     Query query = new TermQuery(terms[i], ctx[i]);
                     if (boosts != null && boosts[i] != 1f) {
@@ -343,7 +340,6 @@ public abstract class BlendedTermQuery extends Query {
                 BooleanQuery low = lowBuilder.build();
                 if (low.clauses().isEmpty()) {
                     BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-                    queryBuilder.setDisableCoord(disableCoord);
                     for (BooleanClause booleanClause : high) {
                         queryBuilder.add(booleanClause.getQuery(), Occur.MUST);
                     }
@@ -352,7 +348,6 @@ public abstract class BlendedTermQuery extends Query {
                     return low;
                 } else {
                     return new BooleanQuery.Builder()
-                        .setDisableCoord(true)
                         .add(high, BooleanClause.Occur.SHOULD)
                         .add(low, BooleanClause.Occur.MUST)
                         .build();

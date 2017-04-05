@@ -377,16 +377,46 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return new BulkItemResultHolder(updateResponse, updateOperationResult, replicaRequest);
     }
 
-    static boolean shouldExecuteReplicaItem(final BulkItemRequest request, final int index) {
+    /** Result Enum for executing bulk item request on replica */
+    public enum ShouldExecuteOnReplicaResult {
+
+        /**
+         * When primary execution succeeded
+         */
+        NORMAL,
+
+        /**
+         * When primary execution failed before sequence no was generated
+         * or primary execution was a noop (only possible when request is originating from pre-6.0 nodes)
+         */
+        NOOP,
+
+        /**
+         * When primary execution failed after sequence no was generated
+         */
+        FAILURE
+    }
+
+    /**
+     * Determines whether a bulk item request should be executed on the replica.
+     * @return {@link ShouldExecuteOnReplicaResult#NORMAL} upon normal primary execution with no failures
+     * {@link ShouldExecuteOnReplicaResult#FAILURE} upon primary execution failure after sequence no generation
+     * {@link ShouldExecuteOnReplicaResult#NOOP} upon primary execution failure before sequence no generation or
+     * when primary execution resulted in noop (only possible for write requests from pre-6.0 nodes)
+     */
+    static ShouldExecuteOnReplicaResult shouldExecuteOnReplica(final BulkItemRequest request, final int index) {
         final BulkItemResponse primaryResponse = request.getPrimaryResponse();
         assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request [" + request.request() + "]";
         if (primaryResponse.isFailed()) {
-            return primaryResponse.getFailure().getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            return primaryResponse.getFailure().getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO
+                    ? ShouldExecuteOnReplicaResult.FAILURE // we have a seq no generated with the failure, replicate as no-op
+                    : ShouldExecuteOnReplicaResult.NOOP; // no seq no generated, ignore replication
         } else {
-            // NOTE: pre-6.0 write requests has unassigned seq no
-            // and in case of failure, requests don't reach the replica
-            // so we execute on replica when the primary execution is not a noop
-            return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP;
+            // NOTE: write requests originating from pre-6.0 nodes can send a no-op operation to
+            // the replica; we ignore replicatio
+            return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
+                    ? ShouldExecuteOnReplicaResult.NORMAL // execution successful on primary
+                    : ShouldExecuteOnReplicaResult.NOOP; // ignore replication
         }
     }
 
@@ -400,17 +430,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
-            if (shouldExecuteReplicaItem(item, i)) {
-                DocWriteRequest docWriteRequest = item.request();
-                final Engine.Result operationResult;
-                try {
-                    if (item.getPrimaryResponse().isFailed()) {
-                        // execution on primary resulted in a failure
-                        // if primary execution generated a sequence no, execute a noop on the replica engine to record it in the translog
-                        final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                        assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                        operationResult = executeFailedSeqNoOnReplica(failure, docWriteRequest, replica);
-                    } else {
+            final ShouldExecuteOnReplicaResult shouldExecuteOnReplicaResult = shouldExecuteOnReplica(item, i);
+            final Engine.Result operationResult;
+            DocWriteRequest docWriteRequest = item.request();
+            try {
+                switch (shouldExecuteOnReplicaResult) {
+                    case NORMAL:
                         final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
                         switch (docWriteRequest.opType()) {
                             case CREATE:
@@ -422,30 +447,48 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 break;
                             default:
                                 throw new IllegalStateException("Unexpected request operation type on replica: "
-                                        + docWriteRequest.opType().getLowercase());
+                                    + docWriteRequest.opType().getLowercase());
                         }
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
-                    }
-                    if (operationResult.hasFailure()) {
-                        // check if any transient write operation failures should be bubbled up
-                        Exception failure = operationResult.getFailure();
-                        assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-                        if (!TransportActions.isShardNotAvailableException(failure)) {
-                            throw failure;
-                        }
-                    } else {
-                        location = locationToSync(location, operationResult.getTranslogLocation());
-                    }
-                } catch (Exception e) {
-                    // if its not an ignore replica failure, we need to make sure to bubble up the failure
-                    // so we will fail the shard
-                    if (!TransportActions.isShardNotAvailableException(e)) {
-                        throw e;
-                    }
+                        location = handleOperationResult(operationResult, location);
+                        break;
+                    case NOOP:
+                        break;
+                    case FAILURE:
+                        final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
+                        assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
+                        operationResult = executeFailedSeqNoOnReplica(failure, docWriteRequest, replica);
+                        assert operationResult != null : "operation result must never be null when primary response has no failure";
+                        location = handleOperationResult(operationResult, location);
+                         break;
+               }
+            } catch (Exception e) {
+                // if its not an ignore replica failure, we need to make sure to bubble up the failure
+                // so we will fail the shard
+                if (!TransportActions.isShardNotAvailableException(e)) {
+                    throw e;
                 }
             }
         }
         return  location;
+    }
+
+    private static Translog.Location handleOperationResult(final Engine.Result operationResult,
+                                                           final Translog.Location currentLocation) throws Exception {
+        final Translog.Location location;
+        if (operationResult.hasFailure()) {
+            // check if any transient write operation failures should be bubbled up
+            Exception failure = operationResult.getFailure();
+            assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
+            if (!TransportActions.isShardNotAvailableException(failure)) {
+                throw failure;
+            } else {
+                location = currentLocation;
+            }
+        } else {
+            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+        }
+        return location;
     }
 
     private static Translog.Location locationToSync(Translog.Location current,
@@ -518,8 +561,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
-    private static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
-                                                                   MappingUpdatePerformer mappingUpdater) throws Exception {
+    static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
+                                                           MappingUpdatePerformer mappingUpdater) throws Exception {
         // Update the mappings if parsing the documents includes new dynamic updates
         final Engine.Index preUpdateOperation;
         final Mapping mappingUpdate;

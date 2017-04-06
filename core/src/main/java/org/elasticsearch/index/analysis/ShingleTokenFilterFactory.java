@@ -90,15 +90,12 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
             filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
             filter.setTokenSeparator(tokenSeparator);
             filter.setFillerToken(fillerToken);
-            if (outputUnigrams || (minShingleSize != maxShingleSize)) {
-                /**
-                 * We disable the graph analysis on this token stream
-                 * because it produces shingles of different size.
-                 * Graph analysis on such token stream is useless and dangerous as it may create too many paths
-                 * since shingles of different size are not aligned in terms of positions.
-                 */
-                filter.addAttribute(DisableGraphAttribute.class);
-            }
+            /**
+             * We disable the graph analysis on this token stream because it can produce very
+             * large or invalid graph:
+             * https://issues.apache.org/jira/browse/LUCENE-7708
+             */
+            filter.addAttribute(DisableGraphAttribute.class);
             return filter;
         }
 

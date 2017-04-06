@@ -82,6 +82,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenFilter.create(stream), expected);
     }
 
+    // Disable graph analysis on shingles: https://issues.apache.org/jira/browse/LUCENE-7708
     public void testDisableGraph() throws IOException {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory shingleFiller = analysis.tokenFilter.get("shingle_filler");
@@ -91,15 +92,13 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         try (TokenStream stream = shingleFiller.create(tokenizer)) {
-            // This config uses different size of shingles so graph analysis is disabled
             assertTrue(stream.hasAttribute(DisableGraphAttribute.class));
         }
 
         tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         try (TokenStream stream = shingleInverse.create(tokenizer)) {
-            // This config uses a single size of shingles so graph analysis is enabled
-            assertFalse(stream.hasAttribute(DisableGraphAttribute.class));
+            assertTrue(stream.hasAttribute(DisableGraphAttribute.class));
         }
     }
 }

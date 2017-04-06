@@ -397,7 +397,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     : ShouldExecuteOnReplicaResult.NOOP; // no seq no generated, ignore replication
         } else {
             // NOTE: write requests originating from pre-6.0 nodes can send a no-op operation to
-            // the replica; we ignore replicatio
+            // the replica; we ignore replication
             return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
                     ? ShouldExecuteOnReplicaResult.NORMAL // execution successful on primary
                     : ShouldExecuteOnReplicaResult.NOOP; // ignore replication
@@ -434,7 +434,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     + docWriteRequest.opType().getLowercase());
                         }
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
-                        location = handleOperationResult(operationResult, location);
+                        location = syncOperationResultOrThrow(operationResult, location);
                         break;
                     case NOOP:
                         break;
@@ -443,7 +443,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
                         operationResult = executeFailedSeqNoOnReplica(failure, docWriteRequest, replica);
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
-                        location = handleOperationResult(operationResult, location);
+                        location = syncOperationResultOrThrow(operationResult, location);
                          break;
                }
             } catch (Exception e) {
@@ -457,8 +457,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return  location;
     }
 
-    private static Translog.Location handleOperationResult(final Engine.Result operationResult,
-                                                           final Translog.Location currentLocation) throws Exception {
+    /** Syncs operation result to the translog or throws a shard not available failure */
+    private static Translog.Location syncOperationResultOrThrow(final Engine.Result operationResult,
+                                                                final Translog.Location currentLocation) throws Exception {
         final Translog.Location location;
         if (operationResult.hasFailure()) {
             // check if any transient write operation failures should be bubbled up

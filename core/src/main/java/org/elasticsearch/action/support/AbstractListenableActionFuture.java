@@ -50,7 +50,8 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
     }
 
     public void internalAddListener(ActionListener<T> listener) {
-        listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
+        listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER,
+            ContextPreservingActionListener.wrap(listener, threadPool.getThreadContext(), false), false);
         boolean executeImmediate = false;
         synchronized (this) {
             if (executedListeners) {

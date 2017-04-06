@@ -50,4 +50,12 @@ public final class ContextPreservingActionListener<R> implements ActionListener<
             delegate.onFailure(e);
         }
     }
+
+    /**
+     * Wraps the given action listener so that it restores the current context.
+     */
+    public static <R> ContextPreservingActionListener<R> wrap(ActionListener<R> listener, ThreadContext context,
+                                                              boolean restoreResponseHeader) {
+        return new ContextPreservingActionListener<>(context.newRestorableContext(restoreResponseHeader), listener);
+    }
 }

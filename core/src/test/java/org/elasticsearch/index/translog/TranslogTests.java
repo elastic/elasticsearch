@@ -36,6 +36,7 @@ import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -84,6 +85,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -101,6 +103,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
@@ -124,7 +127,7 @@ public class TranslogTests extends ESTestCase {
 
         if (translog.isOpen()) {
             if (translog.currentFileGeneration() > 1) {
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
                 assertFileDeleted(translog, translog.currentFileGeneration() - 1);
             }
             translog.close();
@@ -287,7 +290,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
-        translog.commit();
+        translog.commit(translog.currentFileGeneration());
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.size(0));
         assertThat(snapshot.totalOperations(), equalTo(0));
@@ -373,7 +376,7 @@ public class TranslogTests extends ESTestCase {
             }
         }
 
-        translog.commit();
+        translog.commit(translog.currentFileGeneration());
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
@@ -446,7 +449,7 @@ public class TranslogTests extends ESTestCase {
 
         try (Translog.View view = translog.newView()) {
             Translog.Snapshot snapshot2 = translog.newSnapshot();
-            translog.commit();
+            translog.commit(translog.currentFileGeneration());
             assertThat(snapshot2, SnapshotMatchers.equalsTo(ops));
             assertThat(snapshot2.totalOperations(), equalTo(ops.size()));
         }
@@ -821,7 +824,7 @@ public class TranslogTests extends ESTestCase {
                         break;
                     }
                 }
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
             }
         } finally {
             run.set(false);
@@ -858,7 +861,7 @@ public class TranslogTests extends ESTestCase {
                 assertTrue("we only synced a previous operation yet", translog.syncNeeded());
             }
             if (rarely()) {
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
                 assertFalse("location is from a previous translog - already synced", translog.ensureSynced(location)); // not syncing now
                 assertFalse("no sync needed since no operations in current translog", translog.syncNeeded());
             }
@@ -878,7 +881,7 @@ public class TranslogTests extends ESTestCase {
             ArrayList<Location> locations = new ArrayList<>();
             for (int op = 0; op < translogOperations; op++) {
                 if (rarely()) {
-                    translog.commit(); // do this first so that there is at least one pending tlog entry
+                    translog.commit(translog.currentFileGeneration()); // do this first so that there is at least one pending tlog entry
                 }
                 final Translog.Location location = translog.add(new Translog.Index("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
                 locations.add(location);
@@ -889,7 +892,7 @@ public class TranslogTests extends ESTestCase {
                 assertTrue("this operation has not been synced", translog.ensureSynced(locations.stream()));
                 assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded()); // we are the last location so everything should be synced
             } else if (rarely()) {
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
                 assertFalse("location is from a previous translog - already synced", translog.ensureSynced(locations.stream())); // not syncing now
                 assertFalse("no sync needed since no operations in current translog", translog.syncNeeded());
             } else {
@@ -909,7 +912,7 @@ public class TranslogTests extends ESTestCase {
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
             if (rarely() && translogOperations > op + 1) {
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
             }
         }
         Collections.shuffle(locations, random());
@@ -1074,7 +1077,7 @@ public class TranslogTests extends ESTestCase {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             final boolean commit = commitOften ? frequently() : rarely();
             if (commit && op < translogOperations - 1) {
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
                 minUncommittedOp = op + 1;
                 translogGeneration = translog.getGeneration();
             }
@@ -1300,7 +1303,7 @@ public class TranslogTests extends ESTestCase {
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             if (randomBoolean()) {
-                translog.commit();
+                translog.commit(translog.currentFileGeneration());
                 firstUncommitted = op + 1;
             }
         }
@@ -1483,7 +1486,7 @@ public class TranslogTests extends ESTestCase {
         }
 
         try {
-            translog.commit();
+            translog.commit(translog.currentFileGeneration());
             fail("already closed");
         } catch (AlreadyClosedException ex) {
             assertNotNull(ex.getCause());
@@ -1930,7 +1933,7 @@ public class TranslogTests extends ESTestCase {
                             if (randomBoolean()) {
                                 failableTLog.prepareCommit();
                             }
-                            failableTLog.commit();
+                            failableTLog.commit(translog.currentFileGeneration());
                             syncedDocs.clear();
                         }
                     }
@@ -2110,7 +2113,7 @@ public class TranslogTests extends ESTestCase {
         for (int i = 0; i <= rolls; i++) {
             assertFileIsPresent(translog, generation + i);
         }
-        translog.commit();
+        translog.commit(generation + rolls + 1);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls + 1));
         assertThat(translog.totalOperations(), equalTo(0));
         for (int i = 0; i <= rolls; i++) {
@@ -2167,7 +2170,7 @@ public class TranslogTests extends ESTestCase {
             }
         }
 
-        translog.commit();
+        translog.commit(generation + rollsBefore + 1);
 
         for (int i = 0; i <= rollsBefore; i++) {
             assertFileDeleted(translog, generation + i);
@@ -2176,6 +2179,107 @@ public class TranslogTests extends ESTestCase {
             assertFileIsPresent(translog, generation + i);
         }
 
+    }
+
+    public void testMinGenerationForSeqNo() throws IOException {
+        final int operations = randomIntBetween(1, 4096);
+        final List<Long> seqNos =
+                LongStream.range(0, operations).boxed().collect(Collectors.toList());
+        Randomness.shuffle(seqNos);
+        final Map<Long, List<Long>> generations = new HashMap<>();
+
+        for (int i = 0; i < operations; i++) {
+            final Long seqNo = seqNos.get(i);
+            translog.add(new Translog.NoOp(seqNo, 0, "test"));
+            final List<Long> seqNoForGeneration =
+                    generations.computeIfAbsent(
+                            translog.currentFileGeneration(),
+                            g -> new ArrayList<>());
+            seqNoForGeneration.add(seqNo);
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+
+        final Set<Long> seenSeqNos = new HashSet<>();
+        for (final Map.Entry<Long, List<Long>> entry : generations.entrySet()) {
+            final long min = entry.getValue().stream().min(Long::compareTo).orElse(Long.MIN_VALUE);
+            final long max = entry.getValue().stream().max(Long::compareTo).orElse(Long.MAX_VALUE);
+            for (long seqNo = min; seqNo <= max; seqNo++) {
+                if (seenSeqNos.add(seqNo)) {
+                    assertThat(
+                            translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration,
+                            equalTo(entry.getKey()));
+                }
+            }
+        }
+
+        assertThat(seenSeqNos, equalTo(new HashSet<>(seqNos)));
+    }
+
+    public void testSimpleCommit() throws IOException {
+        final int operations = randomIntBetween(1, 4096);
+        long seqNo = 0;
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test'"));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+
+        final long generation =
+                randomIntBetween(1, Math.toIntExact(translog.currentFileGeneration()));
+        translog.commit(generation);
+        for (long i = 0; i < generation; i++) {
+            assertFileDeleted(translog, i);
+        }
+        for (long i = generation; i <= translog.currentFileGeneration(); i++) {
+            assertFileIsPresent(translog, i);
+        }
+    }
+
+    public void testPrepareCommitAndCommit() throws IOException {
+        final int operations = randomIntBetween(1, 4096);
+        long seqNo = 0;
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            if (rarely()) {
+                final long generation = translog.currentFileGeneration();
+                translog.prepareCommit();
+                translog.commit(randomIntBetween(1, Math.toIntExact(generation)));
+                for (long g = 0; i < generation; g++) {
+                    assertFileDeleted(translog, g);
+                }
+                for (long g = generation; g < translog.currentFileGeneration(); g++) {
+                    assertFileIsPresent(translog, g);
+                }
+            }
+        }
+    }
+
+    public void testCommitWithOpenView() throws IOException {
+        final int operations = randomIntBetween(1, 1 << 16);
+        long seqNo = 0;
+        long last;
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            if (rarely()) {
+                try (Translog.View ignored = translog.newView()) {
+                    final long generation = translog.currentFileGeneration();
+                    translog.prepareCommit();
+                    final long committedGeneration =
+                            randomIntBetween(1, Math.toIntExact(generation));
+                    translog.commit(committedGeneration);
+                    last = committedGeneration;
+                    for (long g = 0; i < last; g++) {
+                        assertFileDeleted(translog, g);
+                    }
+                    for (long g = last; i < translog.currentFileGeneration(); g++) {
+                        assertFileIsPresent(translog, g);
+                    }
+                }
+            }
+        }
     }
 
 }

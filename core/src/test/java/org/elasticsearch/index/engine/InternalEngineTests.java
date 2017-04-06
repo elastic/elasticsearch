@@ -3333,6 +3333,50 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
     }
 
+    /**
+     * A sequence number service that will generate a sequence number and if {@code stall} is set to
+     * {@code true} will wait on the barrier and the latch before returning. If the local checkpoint
+     * should advance (because {@code stall} is {@code false}), then the value of
+     * {@code expectedLocalCheckpoint} is set accordingly.
+     *
+     * @param latch                   to latch the thread for the purpose of stalling
+     * @param barrier                 to signal the thread has generated a new sequence number
+     * @param stall                   whether or not the thread should stall
+     * @param expectedLocalCheckpoint the expected local checkpoint after generating a new sequence
+     *                                number
+     * @return a sequence number service
+     */
+    private SequenceNumbersService getStallingSeqNoService(
+            final CountDownLatch latch,
+            final CyclicBarrier barrier,
+            final AtomicBoolean stall,
+            final AtomicLong expectedLocalCheckpoint) {
+        return new SequenceNumbersService(
+                shardId,
+                defaultSettings,
+                SequenceNumbersService.NO_OPS_PERFORMED,
+                SequenceNumbersService.NO_OPS_PERFORMED,
+                SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            @Override
+            public long generateSeqNo() {
+                final long seqNo = super.generateSeqNo();
+                if (stall.get()) {
+                    try {
+                        barrier.await();
+                        latch.await();
+                    } catch (BrokenBarrierException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    if (expectedLocalCheckpoint.get() + 1 == seqNo) {
+                        expectedLocalCheckpoint.set(seqNo);
+                    }
+                }
+                return seqNo;
+            }
+        };
+    }
+
     public void testSequenceNumberAdvancesToMaxSeqOnEngineOpenOnPrimary() throws BrokenBarrierException, InterruptedException, IOException {
         engine.close();
         final int docs = randomIntBetween(1, 32);
@@ -3340,41 +3384,18 @@ public class InternalEngineTests extends ESTestCase {
         try {
             final CountDownLatch latch = new CountDownLatch(1);
             final CyclicBarrier barrier = new CyclicBarrier(2);
-            final AtomicBoolean skip = new AtomicBoolean();
+            final AtomicBoolean stall = new AtomicBoolean();
             final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
             final List<Thread> threads = new ArrayList<>();
             final SequenceNumbersService seqNoService =
-                new SequenceNumbersService(
-                    shardId,
-                    defaultSettings,
-                    SequenceNumbersService.NO_OPS_PERFORMED,
-                    SequenceNumbersService.NO_OPS_PERFORMED,
-                    SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    @Override
-                    public long generateSeqNo() {
-                        final long seqNo = super.generateSeqNo();
-                        if (skip.get()) {
-                            try {
-                                barrier.await();
-                                latch.await();
-                            } catch (BrokenBarrierException | InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                        } else {
-                            if (expectedLocalCheckpoint.get() + 1 == seqNo) {
-                                expectedLocalCheckpoint.set(seqNo);
-                            }
-                        }
-                        return seqNo;
-                    }
-                };
+                    getStallingSeqNoService(latch, barrier, stall, expectedLocalCheckpoint);
             initialEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
             final InternalEngine finalInitialEngine = initialEngine;
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
                 final ParsedDocument doc = testParsedDocument(id, "test", null, testDocumentWithTextField(), SOURCE, null);
 
-                skip.set(randomBoolean());
+                stall.set(randomBoolean());
                 final Thread thread = new Thread(() -> {
                     try {
                         finalInitialEngine.index(indexForDoc(doc));
@@ -3383,7 +3404,7 @@ public class InternalEngineTests extends ESTestCase {
                     }
                 });
                 thread.start();
-                if (skip.get()) {
+                if (stall.get()) {
                     threads.add(thread);
                     barrier.await();
                 } else {
@@ -3568,6 +3589,72 @@ public class InternalEngineTests extends ESTestCase {
         } finally {
             IOUtils.close(noOpEngine);
         }
+    }
+
+    public void testMinGenerationForSeqNo() throws IOException, BrokenBarrierException, InterruptedException {
+        engine.close();
+        final int numberOfTriplets = randomIntBetween(1, 32);
+        InternalEngine actualEngine = null;
+        try {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final AtomicBoolean stall = new AtomicBoolean();
+            final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+            final List<Thread> threads = new ArrayList<>();
+            final SequenceNumbersService seqNoService = getStallingSeqNoService(latch, barrier, stall, expectedLocalCheckpoint);
+            actualEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
+            final InternalEngine finalActualEngine = actualEngine;
+            final long generation = finalActualEngine.getTranslog().currentFileGeneration();
+            for (int i = 0; i < numberOfTriplets; i++) {
+                /*
+                 * Index three documents with the first and last landing in the same generation and the middle document being stalled until
+                 * a later generation.
+                 */
+                stall.set(false);
+                index(finalActualEngine, 3 * i);
+
+                final int skipId = 3 * i + 1;
+                stall.set(true);
+                final Thread thread = new Thread(() -> {
+                    try {
+                        index(finalActualEngine, skipId);
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                thread.start();
+                threads.add(thread);
+                barrier.await();
+
+                stall.set(false);
+                index(finalActualEngine, 3 * i + 2);
+                finalActualEngine.flush();
+            }
+
+            latch.countDown();
+            for (final Thread thread : threads) {
+                thread.join();
+            }
+
+            final Translog translog = finalActualEngine.getTranslog();
+            for (int i = 0; i < numberOfTriplets; i++) {
+                /*
+                 * This sequence number landed in the last generation, but the lower and upper bounds for an earlier generation straddle
+                 * sequence number.
+                 */
+                assertThat(translog.getMinGenerationForSeqNo(3 * i + 1).translogFileGeneration, equalTo(i + generation));
+            }
+
+        } finally {
+            IOUtils.close(actualEngine);
+        }
+    }
+
+    private void index(final InternalEngine engine, final int id) throws IOException {
+        final String docId = Integer.toString(id);
+        final ParsedDocument doc =
+                testParsedDocument(docId, "test", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
     }
 
     /**

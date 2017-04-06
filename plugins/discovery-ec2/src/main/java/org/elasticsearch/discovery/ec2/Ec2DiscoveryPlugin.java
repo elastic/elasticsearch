@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.discovery.ec2;
+package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.json.Jackson;
 import java.io.BufferedReader;
@@ -41,10 +41,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
-import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
-import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -55,7 +51,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.node.Node;

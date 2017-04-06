@@ -3811,22 +3811,22 @@
   <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]classic[/\\]AzureSimpleTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]classic[/\\]AzureTwoStartedNodesTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]classic[/\\]DiscoveryAzureClassicClientYamlTestSuiteIT.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]AwsEc2Service.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]AwsEc2ServiceImpl.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]network[/\\]Ec2NameResolver.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]util[/\\]SocketAccess.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AwsEc2Service.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AwsEc2ServiceImpl.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2NameResolver.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]SocketAccess.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AwsEc2UnicastHostsProvider.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugin[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryPlugin.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]AWSSignersTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]AbstractAwsTestCase.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]AwsEc2ServiceImplTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryPlugin.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AWSSignersTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AbstractAwsTestCase.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AwsEc2ServiceImplTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AmazonEC2Mock.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryClusterFormationTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2DiscoverySettingsTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryUpdateSettingsTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2NetworkTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugin[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryPluginTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]Ec2DiscoveryPluginTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-file[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]file[/\\]FileBasedDiscoveryPlugin.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-file[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]file[/\\]FileBasedUnicastHostsProvider.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-file[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]file[/\\]FileBasedDiscoveryClientYamlTestSuiteIT.java" checks="LineLength" />

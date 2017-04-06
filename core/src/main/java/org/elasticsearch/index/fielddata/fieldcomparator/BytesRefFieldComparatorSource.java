@@ -21,15 +21,15 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -89,7 +89,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
-                    final RandomAccessOrds values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
+                    final SortedSetDocValues values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
                     final SortedDocValues selectedValues;
                     if (nested == null) {
                         selectedValues = sortMode.select(values);
@@ -132,11 +132,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             }
 
             @Override
-            protected Bits getDocsWithField(LeafReaderContext context, String field) throws IOException {
-                return new Bits.MatchAllBits(context.reader().maxDoc());
-            }
-
-            @Override
             protected boolean isNull(int doc, BytesRef term) {
                 return term == nullPlaceHolder;
             }
@@ -154,13 +149,13 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
      * are replaced with the specified term
      */
     // TODO: move this out if we need it for other reasons
-    static class ReplaceMissing extends SortedDocValues {
+    static class ReplaceMissing extends AbstractSortedDocValues {
         final SortedDocValues in;
         final int substituteOrd;
         final BytesRef substituteTerm;
         final boolean exists;
 
-        ReplaceMissing(SortedDocValues in, BytesRef term) {
+        ReplaceMissing(SortedDocValues in, BytesRef term) throws IOException {
             this.in = in;
             this.substituteTerm = term;
             int sub = in.lookupTerm(term);
@@ -174,8 +169,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         }
 
         @Override
-        public int getOrd(int docID) {
-            int ord = in.getOrd(docID);
+        public int ordValue() {
+            int ord = in.ordValue();
             if (ord < 0) {
                 return substituteOrd;
             } else if (exists == false && ord >= substituteOrd) {
@@ -183,6 +178,11 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             } else {
                 return ord;
             }
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return in.advanceExact(target);
         }
 
         @Override
@@ -195,7 +195,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         }
 
         @Override
-        public BytesRef lookupOrd(int ord) {
+        public BytesRef lookupOrd(int ord) throws IOException {
             if (ord == substituteOrd) {
                 return substituteTerm;
             } else if (exists == false && ord > substituteOrd) {

@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -48,14 +49,16 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
 
             private final BytesRef[] terms = new BytesRef[2];
             private int count;
+            private int termsCursor;
 
             @Override
-            public void setDocument(int docId) {
+            public boolean advanceExact(int docId) throws IOException {
                 count = 0;
+                termsCursor = 0;
                 for (String type : types()) {
                     final SortedDocValues values = getOrdinalsValues(type);
-                    final int ord = values.getOrd(docId);
-                    if (ord >= 0) {
+                    if (values.advanceExact(docId)) {
+                        final int ord = values.ordValue();
                         terms[count++] = values.lookupOrd(ord);
                     }
                 }
@@ -69,16 +72,17 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
                         count = 1;
                     }
                 }
+                return count != 0;
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 return count;
             }
 
             @Override
-            public BytesRef valueAt(int index) {
-                return terms[index];
+            public BytesRef nextValue() throws IOException {
+                return terms[termsCursor++];
             }
         };
     }

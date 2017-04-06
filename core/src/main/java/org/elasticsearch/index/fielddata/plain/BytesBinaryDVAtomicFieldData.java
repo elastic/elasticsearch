@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -59,41 +60,49 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
             int count;
             BytesRefBuilder[] refs = new BytesRefBuilder[0];
+            int refsCursor;
             final ByteArrayDataInput in = new ByteArrayDataInput();
 
             @Override
-            public void setDocument(int docId) {
-                final BytesRef bytes = values.get(docId);
-                in.reset(bytes.bytes, bytes.offset, bytes.length);
-                if (bytes.length == 0) {
-                    count = 0;
-                } else {
-                    count = in.readVInt();
-                    if (count > refs.length) {
-                        final int previousLength = refs.length;
-                        refs = Arrays.copyOf(refs, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                        for (int i = previousLength; i < refs.length; ++i) {
-                            refs[i] = new BytesRefBuilder();
+            public boolean advanceExact(int doc) throws IOException {
+                refsCursor = 0;
+                if (values.advanceExact(doc)) {
+                    final BytesRef bytes = values.binaryValue();
+                    in.reset(bytes.bytes, bytes.offset, bytes.length);
+                    if (bytes.length == 0) {
+                        count = 0;
+                    } else {
+                        count = in.readVInt();
+                        if (count > refs.length) {
+                            final int previousLength = refs.length;
+                            refs = Arrays.copyOf(refs, ArrayUtil.oversize(count,
+                                    RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                            for (int i = previousLength; i < refs.length; ++i) {
+                                refs[i] = new BytesRefBuilder();
+                            }
+                        }
+                        for (int i = 0; i < count; ++i) {
+                            final int length = in.readVInt();
+                            final BytesRefBuilder scratch = refs[i];
+                            scratch.grow(length);
+                            in.readBytes(scratch.bytes(), 0, length);
+                            scratch.setLength(length);
                         }
                     }
-                    for (int i = 0; i < count; ++i) {
-                        final int length = in.readVInt();
-                        final BytesRefBuilder scratch = refs[i];
-                        scratch.grow(length);
-                        in.readBytes(scratch.bytes(), 0, length);
-                        scratch.setLength(length);
-                    }
+                    return true;
+                } else {
+                    return false;
                 }
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 return count;
             }
 
             @Override
-            public BytesRef valueAt(int index) {
-                return refs[index].get();
+            public BytesRef nextValue() throws IOException {
+                return refs[refsCursor++].get();
             }
 
         };

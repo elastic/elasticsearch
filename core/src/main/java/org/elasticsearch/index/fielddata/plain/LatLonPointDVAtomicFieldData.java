@@ -26,6 +26,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -57,34 +58,41 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
     public MultiGeoPointValues getGeoPointValues() {
         return new MultiGeoPointValues() {
             GeoPoint[] points = new GeoPoint[0];
+            private int pointsCursor;
             private int count = 0;
 
             @Override
-            public void setDocument(int docId) {
-                values.setDocument(docId);
-                count = values.count();
-                if (count > points.length) {
-                    final int previousLength = points.length;
-                    points = Arrays.copyOf(points, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                    for (int i = previousLength; i < points.length; ++i) {
-                        points[i] = new GeoPoint(Double.NaN, Double.NaN);
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                    if (count > points.length) {
+                        final int previousLength = points.length;
+                        points = Arrays.copyOf(points,
+                                ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                        for (int i = previousLength; i < points.length; ++i) {
+                            points[i] = new GeoPoint(Double.NaN, Double.NaN);
+                        }
                     }
-                }
-                long encoded;
-                for (int i=0; i<count; ++i) {
-                    encoded = values.valueAt(i);
-                    points[i].reset(GeoEncodingUtils.decodeLatitude((int)(encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int)encoded));
+                    long encoded;
+                    for (int i = 0; i < count; ++i) {
+                        encoded = values.nextValue();
+                        points[i].reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
+                                GeoEncodingUtils.decodeLongitude((int) encoded));
+                    }
+                    return true;
+                } else {
+                    return false;
                 }
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 return count;
             }
 
             @Override
-            public GeoPoint valueAt(int index) {
-                return points[index];
+            public GeoPoint nextValue() {
+                return points[pointsCursor++];
             }
         };
     }

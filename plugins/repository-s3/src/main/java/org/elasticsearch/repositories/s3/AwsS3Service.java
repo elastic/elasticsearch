@@ -25,6 +25,7 @@ import java.util.function.Function;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -159,5 +160,8 @@ interface AwsS3Service extends LifecycleComponent {
             Setting.timeSetting("cloud.aws.s3.read_timeout", AwsS3Service.READ_TIMEOUT, Property.NodeScope, Property.Deprecated);
     }
 
-    AmazonS3 client(Settings repositorySettings, Integer maxRetries, boolean useThrottleRetries, Boolean pathStyleAccess);
+    /**
+     * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
+     */
+    AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings);
 }

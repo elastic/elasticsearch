@@ -51,21 +51,18 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final boolean serverSideEncryption;
 
-    private final int numberOfRetries;
-
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
     S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption,
-                       ByteSizeValue bufferSize, int maxRetries, String cannedACL, String storageClass) {
+                ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
-        this.numberOfRetries = maxRetries;
         this.storageClass = initStorageClass(storageClass);
 
         // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
@@ -100,10 +97,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public int bufferSizeInBytes() {
         return bufferSize.bytesAsInt();
-    }
-
-    public int numberOfRetries() {
-        return numberOfRetries;
     }
 
     @Override

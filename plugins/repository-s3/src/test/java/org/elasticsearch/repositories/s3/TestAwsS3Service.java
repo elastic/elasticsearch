@@ -23,6 +23,7 @@ import java.util.IdentityHashMap;
 
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
@@ -33,7 +34,7 @@ public class TestAwsS3Service extends InternalAwsS3Service {
         }
     }
 
-    IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<AmazonS3, TestAmazonS3>();
+    IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<>();
 
     public TestAwsS3Service(Settings settings) {
         super(settings);
@@ -41,9 +42,8 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
-                                              boolean useThrottleRetries, Boolean pathStyleAccess) {
-        return cachedWrapper(super.client(repositorySettings, maxRetries, useThrottleRetries, pathStyleAccess));
+    public synchronized AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings) {
+        return cachedWrapper(super.client(metadata, repositorySettings));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

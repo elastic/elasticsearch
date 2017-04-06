@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -40,13 +40,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
-public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
+class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
     private AmazonEC2Client client;
 
-    public AwsEc2ServiceImpl(Settings settings) {
+    AwsEc2ServiceImpl(Settings settings) {
         super(settings);
     }
 

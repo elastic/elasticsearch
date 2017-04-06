@@ -21,8 +21,7 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
+import org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;

@@ -37,8 +37,7 @@ import com.amazonaws.services.ec2.model.Tag;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
+import org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -48,25 +47,16 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.TAG_PREFIX;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_DNS;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_IP;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_DNS;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.TAG_PREFIX;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_DNS;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_DNS;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_IP;
 
-/**
- *
- */
-public class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     private final TransportService transportService;
 
@@ -84,7 +74,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final DiscoNodesCache discoNodes;
 
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
+    AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
         this.client = awsEc2Service.client();

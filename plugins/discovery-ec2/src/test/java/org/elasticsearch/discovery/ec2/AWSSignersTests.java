@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
+import org.elasticsearch.discovery.ec2.AwsSigner;
+import org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 

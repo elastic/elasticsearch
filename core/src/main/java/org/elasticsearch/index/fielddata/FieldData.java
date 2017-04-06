@@ -114,7 +114,30 @@ public enum FieldData {
     }
 
     /**
-     * Returns a Bits representing all documents from <code>dv</code> that have a value.
+     * Returns a {@link Bits} representing all documents from <code>dv</code>
+     * that have a value.
+     */
+    public static Bits docsWithValue(final SortedSetDocValues dv, final int maxDoc) {
+        return new Bits() {
+            @Override
+            public boolean get(int index) {
+                try {
+                    return dv.advanceExact(index);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
+    }
+
+    /**
+     * Returns a Bits representing all documents from <code>dv</code> that have
+     * a value.
      */
     public static Bits docsWithValue(final MultiGeoPointValues dv, final int maxDoc) {
         return new Bits() {
@@ -156,8 +179,31 @@ public enum FieldData {
     }
 
     /**
-     * Given a {@link SortedNumericDoubleValues}, return a {@link SortedNumericDocValues}
-     * instance that will translate double values to sortable long bits using
+     * Returns a Bits representing all documents from <code>dv</code> that have
+     * a value.
+     */
+    public static Bits docsWithValue(final SortedNumericDocValues dv, final int maxDoc) {
+        return new Bits() {
+            @Override
+            public boolean get(int index) {
+                try {
+                    return dv.advanceExact(index);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
+    }
+
+    /**
+     * Given a {@link SortedNumericDoubleValues}, return a
+     * {@link SortedNumericDocValues} instance that will translate double values
+     * to sortable long bits using
      * {@link NumericUtils#doubleToSortableLong(double)}.
      */
     public static SortedNumericDocValues toSortableLongBits(SortedNumericDoubleValues values) {

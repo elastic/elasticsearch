@@ -67,8 +67,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : bucket;
-                leafMapScript.setDocument(doc);
-                leafMapScript.run();
+                if (leafMapScript.advanceExact(doc)) {
+                    leafMapScript.run();
+                }
             }
         };
     }

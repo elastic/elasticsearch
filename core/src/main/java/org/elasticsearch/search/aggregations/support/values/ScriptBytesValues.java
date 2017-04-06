@@ -24,6 +24,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.script.LeafSearchScript;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Collection;
 
@@ -48,31 +49,34 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
     }
 
     @Override
-    public void setDocument(int docId) {
-        script.setDocument(docId);
-        final Object value = script.run();
-
-        if (value == null) {
-            count = 0;
-        } else if (value.getClass().isArray()) {
-            count = Array.getLength(value);
-            grow();
-            for (int i = 0; i < count; ++i) {
-                set(i, Array.get(value, i));
+    public boolean advanceExact(int doc) throws IOException {
+        if (script.advanceExact(doc)) {
+            final Object value = script.run();
+            if (value == null) {
+                return false;
+            } else if (value.getClass().isArray()) {
+                count = Array.getLength(value);
+                grow();
+                for (int i = 0; i < count; ++i) {
+                    set(i, Array.get(value, i));
+                }
+            } else if (value instanceof Collection) {
+                final Collection<?> coll = (Collection<?>) value;
+                count = coll.size();
+                grow();
+                int i = 0;
+                for (Object v : coll) {
+                    set(i++, v);
+                }
+            } else {
+                count = 1;
+                set(0, value);
             }
-        } else if (value instanceof Collection) {
-            final Collection<?> coll = (Collection<?>) value;
-            count = coll.size();
-            grow();
-            int i = 0;
-            for (Object v : coll) {
-                set(i++, v);
-            }
+            sort();
+            return true;
         } else {
-            count = 1;
-            set(0, value);
+            return false;
         }
-        sort();
     }
 
     @Override

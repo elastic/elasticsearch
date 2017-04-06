@@ -21,11 +21,12 @@ package org.elasticsearch.search.aggregations.support.values;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.index.fielddata.SortingNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.Iterator;
@@ -33,7 +34,7 @@ import java.util.Iterator;
 /**
  * {@link LongValues} implementation which is based on a script
  */
-public class ScriptLongValues extends SortingNumericDocValues implements ScorerAware {
+public class ScriptLongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
     final LeafSearchScript script;
 
@@ -43,36 +44,40 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
     }
 
     @Override
-    public void setDocument(int docId) {
-        script.setDocument(docId);
-        final Object value = script.run();
+    public boolean advanceExact(int target) throws IOException {
+        if (script.advanceExact(target)) {
+            final Object value = script.run();
 
-        if (value == null) {
-            resize(0);
-        }
-
-        else if (value.getClass().isArray()) {
-            resize(Array.getLength(value));
-            for (int i = 0; i < count(); ++i) {
-                values[i] = toLongValue(Array.get(value, i));
+            if (value == null) {
+                return false;
             }
-        }
 
-        else if (value instanceof Collection) {
-            resize(((Collection<?>) value).size());
-            int i = 0;
-            for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
-                values[i] = toLongValue(it.next());
+            else if (value.getClass().isArray()) {
+                resize(Array.getLength(value));
+                for (int i = 0; i < docValueCount(); ++i) {
+                    values[i] = toLongValue(Array.get(value, i));
+                }
             }
-            assert i == count();
-        }
 
-        else {
-            resize(1);
-            values[0] = toLongValue(value);
-        }
+            else if (value instanceof Collection) {
+                resize(((Collection<?>) value).size());
+                int i = 0;
+                for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
+                    values[i] = toLongValue(it.next());
+                }
+                assert i == docValueCount();
+            }
 
-        sort();
+            else {
+                resize(1);
+                values[0] = toLongValue(value);
+            }
+
+            sort();
+            return true;
+        } else {
+            return false;
+        }
     }
 
     private static long toLongValue(Object o) {

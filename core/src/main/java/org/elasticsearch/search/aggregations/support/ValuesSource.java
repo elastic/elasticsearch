@@ -72,11 +72,8 @@ public abstract class ValuesSource {
         @Override
         public Bits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
-            if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(bytes) != null) {
-                return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(bytes);
-            } else {
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes, context.reader().maxDoc());
-            }
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes,
+                    context.reader().maxDoc());
         }
 
         public abstract static class WithOrdinals extends Bytes {
@@ -101,20 +98,19 @@ public abstract class ValuesSource {
             };
 
             @Override
-            public Bits docsWithValue(LeafReaderContext context) {
+            public Bits docsWithValue(LeafReaderContext context) throws IOException {
                 final SortedSetDocValues ordinals = ordinalsValues(context);
-                if (DocValues.unwrapSingleton(ordinals) != null) {
-                    return DocValues.docsWithValue(DocValues.unwrapSingleton(ordinals), context.reader().maxDoc());
-                } else {
-                    return DocValues.docsWithValue(ordinals, context.reader().maxDoc());
-                }
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(ordinals,
+                        context.reader().maxDoc());
             }
 
-            public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context);
+            public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context)
+                    throws IOException;
 
-            public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context);
+            public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
+                    throws IOException;
 
-            public long globalMaxOrd(IndexSearcher indexSearcher) {
+            public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
                 IndexReader indexReader = indexSearcher.getIndexReader();
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
@@ -263,18 +259,12 @@ public abstract class ValuesSource {
         public Bits docsWithValue(LeafReaderContext context) throws IOException {
             if (isFloatingPoint()) {
                 final SortedNumericDoubleValues values = doubleValues(context);
-                if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values) != null) {
-                    return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(values);
-                } else {
-                    return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values, context.reader().maxDoc());
-                }
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values,
+                        context.reader().maxDoc());
             } else {
                 final SortedNumericDocValues values = longValues(context);
-                if (DocValues.unwrapSingleton(values) != null) {
-                    return DocValues.unwrapSingletonBits(values);
-                } else {
-                    return DocValues.docsWithValue(values, context.reader().maxDoc());
-                }
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values,
+                        context.reader().maxDoc());
             }
         }
 
@@ -332,16 +322,16 @@ public abstract class ValuesSource {
                 public boolean advanceExact(int target) throws IOException {
                     if (longValues.advanceExact(target)) {
                         resize(longValues.docValueCount());
-                        script.setDocument(target);
-                        for (int i = 0; i < docValueCount(); ++i) {
-                            script.setNextAggregationValue(longValues.nextValue());
-                            values[i] = script.runAsLong();
+                        if (script.advanceExact(target)) {
+                            for (int i = 0; i < docValueCount(); ++i) {
+                                script.setNextAggregationValue(longValues.nextValue());
+                                values[i] = script.runAsLong();
+                            }
+                            sort();
+                            return true;
                         }
-                        sort();
-                        return true;
-                    } else {
-                        return false;
                     }
+                    return false;
                 }
             }
 
@@ -364,16 +354,16 @@ public abstract class ValuesSource {
                 public boolean advanceExact(int target) throws IOException {
                     if (doubleValues.advanceExact(target)) {
                         resize(doubleValues.docValueCount());
-                        script.setDocument(target);
-                        for (int i = 0; i < docValueCount(); ++i) {
-                            script.setNextAggregationValue(doubleValues.nextValue());
-                            values[i] = script.runAsLong();
+                        if (script.advanceExact(target)) {
+                            for (int i = 0; i < docValueCount(); ++i) {
+                                script.setNextAggregationValue(doubleValues.nextValue());
+                                values[i] = script.runAsLong();
+                            }
+                            sort();
+                            return true;
                         }
-                        sort();
-                        return true;
-                    } else {
-                        return false;
                     }
+                    return false;
                 }
             }
         }
@@ -520,11 +510,8 @@ public abstract class ValuesSource {
         @Override
         public Bits docsWithValue(LeafReaderContext context) {
             final MultiGeoPointValues geoPoints = geoPointValues(context);
-            if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(geoPoints) != null) {
-                return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(geoPoints);
-            } else {
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints, context.reader().maxDoc());
-            }
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints,
+                    context.reader().maxDoc());
         }
 
         public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);

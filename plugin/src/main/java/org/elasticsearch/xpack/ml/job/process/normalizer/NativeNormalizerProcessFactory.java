@@ -26,7 +26,7 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
 
     private static final Logger LOGGER = Loggers.getLogger(NativeNormalizerProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
-    private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 
     private final Environment env;
     private final Settings settings;

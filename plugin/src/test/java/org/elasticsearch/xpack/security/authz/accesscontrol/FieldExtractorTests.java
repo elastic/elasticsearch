@@ -14,6 +14,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.DocValuesRangeQuery;
 import org.apache.lucene.search.FieldValueQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -134,5 +135,20 @@ public class FieldExtractorTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> {
             FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields);
         });
+    }
+
+    public void testIndexOrDocValuesQuery() {
+        Set<String> fields = new HashSet<>();
+        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(new FieldValueQuery("foo"),
+                        new DocValuesNumbersQuery("foo", 5L));
+        FieldExtractor.extractFields(query, fields);
+        assertEquals(asSet("foo"), fields);
+
+        // what if they have different fields - some programming error
+        fields.clear();
+        query = new IndexOrDocValuesQuery(new FieldValueQuery("foo1"),
+                new DocValuesNumbersQuery("bar", 5L));
+        FieldExtractor.extractFields(query, fields);
+        assertEquals(asSet("foo1", "bar"), fields);
     }
 }

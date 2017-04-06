@@ -11,6 +11,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.DocValuesRangeQuery;
 import org.apache.lucene.search.FieldValueQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -78,6 +79,9 @@ class FieldExtractor {
             fields.add(((FieldValueQuery)query).getField());
         } else if (query instanceof DocValuesNumbersQuery) {
             fields.add(((DocValuesNumbersQuery)query).getField());
+        } else if (query instanceof IndexOrDocValuesQuery) {
+            extractFields(((IndexOrDocValuesQuery) query).getIndexQuery(), fields);
+            extractFields(((IndexOrDocValuesQuery) query).getRandomAccessQuery(), fields);
         } else if (query instanceof DocValuesRangeQuery) {
             fields.add(((DocValuesRangeQuery)query).getField());
         } else if (query instanceof MatchAllDocsQuery) {

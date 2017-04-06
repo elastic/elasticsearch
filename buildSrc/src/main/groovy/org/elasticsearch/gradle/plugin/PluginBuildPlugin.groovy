@@ -260,7 +260,10 @@ public class PluginBuildPlugin extends BuildPlugin {
         File noticeFile = project.pluginProperties.extension.noticeFile
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
-            generateNotice.dependencies(project)
+            File licensesDir = new File(project.projectDir, 'licenses')
+            if (licensesDir.exists()) {
+                generateNotice.licensesDir(licensesDir)
+            }
             generateNotice.inputFile = noticeFile
             project.bundlePlugin.from(generateNotice)
         }

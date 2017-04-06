@@ -30,22 +30,23 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
     private static MultiGeoPointValues wrap(final GeoPoint... points) {
         return new MultiGeoPointValues() {
             int docID = -1;
+            int i;
 
             @Override
-            public GeoPoint valueAt(int i) {
+            public GeoPoint nextValue() {
                 if (docID != 0) {
                     fail();
                 }
-                return points[i];
+                return points[i++];
             }
 
             @Override
-            public void setDocument(int docId) {
-                this.docID = docId;
+            public boolean advanceExact(int docId) {
+                return points.length > 0;
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 if (docID != 0) {
                     return 0;
                 }

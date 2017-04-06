@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
@@ -87,20 +86,22 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
     }
 
     private Longs wrap(long[][] values) {
-        return new Longs(new SortedNumericDocValues() {
+        return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
+            int i;
 
             @Override
-            public void setDocument(int doc) {
+            public boolean advanceExact(int doc) {
                 current = values[doc];
+                return current.length > 0;
             }
             @Override
-            public int count() {
+            public int docValueCount() {
                 return current.length;
             }
             @Override
-            public long valueAt(int index) {
-                return current[index];
+            public long nextValue() {
+                return current[i++];
             }
         });
     }

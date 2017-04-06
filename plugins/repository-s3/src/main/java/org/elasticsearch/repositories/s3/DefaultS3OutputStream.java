@@ -72,8 +72,8 @@ class DefaultS3OutputStream extends S3OutputStream {
     private int multipartChunks;
     private List<PartETag> multiparts;
 
-    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, int numberOfRetries, boolean serverSideEncryption) {
-        super(blobStore, bucketName, blobName, bufferSizeInBytes, numberOfRetries, serverSideEncryption);
+    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, boolean serverSideEncryption) {
+        super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption);
     }
 
     @Override
@@ -106,19 +106,10 @@ class DefaultS3OutputStream extends S3OutputStream {
      */
     private void upload(byte[] bytes, int off, int len) throws IOException {
         try (ByteArrayInputStream is = new ByteArrayInputStream(bytes, off, len)) {
-            int retry = 0;
-            while (retry <= getNumberOfRetries()) {
-                try {
-                    doUpload(getBlobStore(), getBucketName(), getBlobName(), is, len, isServerSideEncryption());
-                    break;
-                } catch (AmazonClientException e) {
-                    if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
-                        is.reset();
-                        retry++;
-                    } else {
-                        throw new IOException("Unable to upload object " + getBlobName(), e);
-                    }
-                }
+            try {
+                doUpload(getBlobStore(), getBucketName(), getBlobName(), is, len, isServerSideEncryption());
+            } catch (AmazonClientException e) {
+                throw new IOException("Unable to upload object " + getBlobName(), e);
             }
         }
     }
@@ -131,10 +122,9 @@ class DefaultS3OutputStream extends S3OutputStream {
         }
         md.setContentLength(length);
 
-        InputStream inputStream = is;
-
         // We try to compute a MD5 while reading it
         MessageDigest messageDigest;
+        InputStream inputStream;
         try {
             messageDigest = MessageDigest.getInstance("MD5");
             inputStream = new DigestInputStream(is, messageDigest);
@@ -159,20 +149,11 @@ class DefaultS3OutputStream extends S3OutputStream {
     }
 
     private void initializeMultipart() {
-        int retry = 0;
-        while ((retry <= getNumberOfRetries()) && (multipartId == null)) {
-            try {
-                multipartId = doInitialize(getBlobStore(), getBucketName(), getBlobName(), isServerSideEncryption());
-                if (multipartId != null) {
-                    multipartChunks = 1;
-                    multiparts = new ArrayList<>();
-                }
-            } catch (AmazonClientException e) {
-                if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
-                    retry++;
-                } else {
-                    throw e;
-                }
+        while (multipartId == null) {
+            multipartId = doInitialize(getBlobStore(), getBucketName(), getBlobName(), isServerSideEncryption());
+            if (multipartId != null) {
+                multipartChunks = 1;
+                multiparts = new ArrayList<>();
             }
         }
     }
@@ -193,22 +174,13 @@ class DefaultS3OutputStream extends S3OutputStream {
 
     private void uploadMultipart(byte[] bytes, int off, int len, boolean lastPart) throws IOException {
         try (ByteArrayInputStream is = new ByteArrayInputStream(bytes, off, len)) {
-            int retry = 0;
-            while (retry <= getNumberOfRetries()) {
-                try {
-                    PartETag partETag = doUploadMultipart(getBlobStore(), getBucketName(), getBlobName(), multipartId, is, len, lastPart);
-                    multiparts.add(partETag);
-                    multipartChunks++;
-                    return;
-                } catch (AmazonClientException e) {
-                    if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
-                        is.reset();
-                        retry++;
-                    } else {
-                        abortMultipart();
-                        throw e;
-                    }
-                }
+            try {
+                PartETag partETag = doUploadMultipart(getBlobStore(), getBucketName(), getBlobName(), multipartId, is, len, lastPart);
+                multiparts.add(partETag);
+                multipartChunks++;
+            } catch (AmazonClientException e) {
+                abortMultipart();
+                throw e;
             }
         }
     }
@@ -230,20 +202,13 @@ class DefaultS3OutputStream extends S3OutputStream {
     }
 
     private void completeMultipart() {
-        int retry = 0;
-        while (retry <= getNumberOfRetries()) {
-            try {
-                doCompleteMultipart(getBlobStore(), getBucketName(), getBlobName(), multipartId, multiparts);
-                multipartId = null;
-                return;
-            } catch (AmazonClientException e) {
-                if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
-                    retry++;
-                } else {
-                    abortMultipart();
-                    throw e;
-                }
-            }
+        try {
+            doCompleteMultipart(getBlobStore(), getBucketName(), getBlobName(), multipartId, multiparts);
+            multipartId = null;
+            return;
+        } catch (AmazonClientException e) {
+            abortMultipart();
+            throw e;
         }
     }
 

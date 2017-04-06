@@ -24,6 +24,20 @@ include::ml/update-datafeed.asciidoc[]
 [[ml-api-job-endpoint]]
 === Jobs
 
+You can use APIs to perform the following activities:
+
+* <<ml-close-job,Close jobs>>
+* <<ml-put-job,Create jobs>>
+* <<ml-delete-job,Delete jobs>>
+* <<ml-get-job,Get job details>>
+* <<ml-get-job-stats,Get job statistics>>
+* <<ml-flush-job,Flush jobs>>
+* <<ml-open-job,Open jobs>>
+* <<ml-post-data,Post data to jobs>>
+* <<ml-update-job,Update jobs>>
+* <<ml-valid-detector,Validate detectors>>
+* <<ml-valid-job,Validate job>>
+
 include::ml/close-job.asciidoc[]
 include::ml/put-job.asciidoc[]
 include::ml/delete-job.asciidoc[]
@@ -33,8 +47,8 @@ include::ml/flush-job.asciidoc[]
 include::ml/open-job.asciidoc[]
 include::ml/post-data.asciidoc[]
 include::ml/update-job.asciidoc[]
-include::ml/validate-job.asciidoc[]
 include::ml/validate-detector.asciidoc[]
+include::ml/validate-job.asciidoc[]
 
 [[ml-api-snapshot-endpoint]]
 === Model Snapshots

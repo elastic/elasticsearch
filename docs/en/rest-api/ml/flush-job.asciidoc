@@ -47,3 +47,23 @@ A close operation additionally prunes and persists the model state to disk and t
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
 ////
+===== Examples
+
+The following example flushes the `event_rate` job:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/ml/anomaly_detectors/farequote/_flush
+{
+  "calc_interim": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the operation succeeds, you receive the following results:
+----
+{
+  "flushed": true
+}
+----

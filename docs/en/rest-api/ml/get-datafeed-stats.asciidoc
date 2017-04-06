@@ -5,9 +5,9 @@ The get data feed statistics API allows you to retrieve usage information for da
 
 ===== Request
 
-`GET _xpack/datafeeds/_stats` +
+`GET _xpack/ml/datafeeds/_stats` +
 
-`GET _xpack/datafeeds/<feed_id>/_stats`
+`GET _xpack/ml/datafeeds/<feed_id>/_stats`
 
 ////
 ===== Description

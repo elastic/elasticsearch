@@ -6,7 +6,7 @@ The job must have been opened prior to sending data.
 
 ===== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id> --data-binary @{data-file.json}`
+`POST _xpack/ml/anomaly_detectors/<job_id>/_data --data-binary @<data-file.json>`
 
 ===== Description
 
@@ -50,7 +50,36 @@ IMPORTANT:  Data can only be accepted from a single connection.
 ////
 ===== Examples
 
+The following example posts data from the farequote.json file to the `farequote` job:
+
 [source,js]
 --------------------------------------------------
-$ curl -s -XPOST localhost:9200/_xpack/ml/anomaly_detectors/my_analysis --data-binary @data-file.json
+$ curl -s -H "Content-type: application/json"
+-X POST http:\/\/localhost:9200/_xpack/ml/anomaly_detectors/farequote --data-binary @farequote.json
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the data is sent, you receive information about the operational progress of the job.
+For example:
+----
+{
+	"job_id":"farequote",
+	"processed_record_count":86275,
+	"processed_field_count":172550,
+	"input_bytes":8678202,
+	"input_field_count":258825,
+	"invalid_date_count":0,
+	"missing_field_count":0,
+	"out_of_order_timestamp_count":0,
+	"empty_bucket_count":0,
+	"sparse_bucket_count":0,
+	"bucket_count":1440,
+	"earliest_record_timestamp":1454803200000,
+	"latest_record_timestamp":1455235196000,
+	"last_data_time":1491436182038,
+	"input_record_count":86275
+}
+----
+
+For more information about these properties, see <<ml-jobcounts,Job Counts>>.

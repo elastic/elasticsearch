@@ -5,9 +5,9 @@ The get jobs API allows you to retrieve usage information for jobs.
 
 ===== Request
 
-`GET _xpack/anomaly_detectors/_stats` +
+`GET _xpack/ml/anomaly_detectors/_stats` +
 
-`GET _xpack/anomaly_detectors/<job_id>/_stats`
+`GET _xpack/ml/anomaly_detectors/<job_id>/_stats`
 
 ////
 ===== Description
@@ -38,12 +38,15 @@ The API returns the following usage information:
 
 `state`::
   (+string+) The status of the job, which can be one of the following values:
+
     running:: The job is actively receiving and processing data.
+
     closed:: The job finished successfully with its model state persisted.
-    The job is still available to accept further data. NOTE: If you send data in a periodic cycle
-    and close the job at the end of each transaction, the job is marked as closed in the intervals
-    between when data is sent. For example, if data is sent every minute and it takes 1 second to process,
-    the job has a closed state for 59 seconds.
+    The job is still available to accept further data.
+NOTE: If you send data in a periodic cycle and close the job at the end of each transaction,
+the job is marked as closed in the intervals between when data is sent.
+For example, if data is sent every minute and it takes 1 second to process, the job has a closed state for 59 seconds.
+
     failed:: The job did not finish successfully due to an error. NOTE: This can occur due to invalid input data.
     In this case, sending corrected data to a failed job re-opens the job and resets it to a running state.
 

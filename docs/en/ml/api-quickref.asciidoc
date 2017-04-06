@@ -19,16 +19,16 @@ The main {ml} resources can be accessed with a variety of endpoints:
 [[ml-api-jobs]]
 === /anomaly_detectors/
 
-* <<ml-put-job,POST /anomaly_detectors>>: Create job
+* <<ml-put-job,POST /anomaly_detectors>>: Create a job
 * <<ml-open-job,POST /anomaly_detectors/<job_id>/_open>>: Open a job
-* <<ml-post-data,POST anomaly_detectors/<job_id+++>+++>>: Send data to a job
+* <<ml-post-data,POST anomaly_detectors/<job_id>/_data>>: Send data to a job
 * <<ml-get-job,GET /anomaly_detectors>>: List jobs
 * <<ml-get-job,GET /anomaly_detectors/<job_id+++>+++>>: Get job details
 * <<ml-get-job-stats,GET /anomaly_detectors/<job_id>/_stats>>: Get job statistics
 * <<ml-update-job,POST /anomaly_detectors/<job_id>/_update>>: Update certain properties of the job configuration
 * <<ml-flush-job,POST anomaly_detectors/<job_id>/_flush>>: Force a job to analyze buffered data
 * <<ml-close-job,POST /anomaly_detectors/<job_id>/_close>>: Close a job
-* <<ml-delete-job,DELETE /anomaly_detectors/<job_id+++>+++>>: Delete job
+* <<ml-delete-job,DELETE /anomaly_detectors/<job_id+++>+++>>: Delete a job
 
 [float]
 [[ml-api-datafeeds]]

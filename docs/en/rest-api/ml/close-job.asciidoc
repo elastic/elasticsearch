@@ -32,7 +32,8 @@ data and analysis operations, however you can still explore and navigate results
 ===== Query Parameters
 
 `close_timeout`::
-  (+time+; default: ++30 min++)  Controls the time to wait until a job has closed
+  (+time+) Controls the time to wait until a job has closed.
+  The default value is 30 minutes.
 
 ////
 ===== Responses

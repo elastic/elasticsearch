@@ -27,13 +27,12 @@ The following properties can be updated after the job is created:
   See <<ml-analysisconfig, analysis configuration objects>>.  In particular, the following properties can be updated: `categorization_filters`, `detector_description`, TBD.
 
 `analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
-
-[NOTE]
-* You can update the `analysis_limits` only while the job is closed.
-* The `model_memory_limit` property value cannot be decreased.
-* If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
-increasing the `model_memory_limit` is not recommended.
+  (+object+) Specifies runtime limits for the job.
+  See <<ml-apilimits,analysis limits>>. NOTE:
+  * You can update the `analysis_limits` only while the job is closed.
+  * The `model_memory_limit` property value cannot be decreased.
+  * If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
+  increasing the `model_memory_limit` is not recommended.
 
 `description`::
   (+string+) An optional description of the job.

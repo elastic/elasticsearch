@@ -25,10 +25,11 @@ The job is ready to resume its analysis from where it left off, once new data is
 ===== Request Body
 
 `open_timeout`::
-  (+time+; default: ++30 min++) Controls the time to wait until a job has opened
+  (+time+) Controls the time to wait until a job has opened.
+  The default value is 30 minutes.
 
 `ignore_downtime`::
-  (+boolean+; default: ++true++) If true (default), any gap in data since it was
+  (+boolean+) If true (default), any gap in data since it was
   last closed is treated as a maintenance window. That is to say, it is not an anomaly
 
 ////

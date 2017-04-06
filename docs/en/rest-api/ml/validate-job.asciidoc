@@ -1,7 +1,7 @@
 [[ml-valid-job]]
 ==== Validate Jobs
 
-TBD
+The validate jobs API validates job configuration information.
 
 ===== Request
 
@@ -19,16 +19,21 @@ TBD
 ////
 ===== Request Body
 
-TBD
+`description`::
+  (+string+) An optional description of the job.
+
+`analysis_config`::
+  (+object+) The analysis configuration, which specifies how to analyze the data.
+  See <<ml-analysisconfig, analysis configuration objects>>.
+
+`data_description`::
+  (+object+) Describes the format of the input data.
+  See <<ml-datadescription,data description objects>>.
+
+`analysis_limits`::
+  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
+
 ////
-`open_timeout`::
-  (+time+; default: ++30 min++) Controls the time to wait until a job has opened
-
-`ignore_downtime`::
-  (+boolean+; default: ++true++) If true (default), any gap in data since it was
-  last closed is treated as a maintenance window. That is to say, it is not an anomaly
-
-
 ===== Responses
 
 200
@@ -37,25 +42,37 @@ TBD
 (BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-
+////
 ===== Examples
 
-The following example opens the `event_rate` job:
+The following example validates job configuration information:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/event_rate/_open
+POST _xpack/ml/anomaly_detectors/_validate
 {
-  "ignore_downtime":false
+    "description" : "Unusual response times by airlines",
+    "analysis_config" : {
+        "bucket_span": "300S",
+        "detectors" :[
+          {
+            "function":"metric",
+            "field_name":"responsetime",
+            "by_field_name":"airline"}],
+            "influencers" : [ "airline" ]
+    },
+    "data_description" : {
+       "time_field":"time",
+       "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
+    }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the job opens, you receive the following results:
+When the validation is complete, you receive the following results:
 ----
 {
-  "opened": true
+  "acknowledged": true
 }
 ----
-////

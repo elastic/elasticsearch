@@ -214,7 +214,7 @@ A data description object has the following properties:
   The value `epoch_ms` indicates that time is measured in milliseconds since the epoch.
   The `epoch` and `epoch_ms` time formats accept either integer or real values. +
 
-NOTE: Custom patterns must conform to the Java `DateTimeFormatter` class. When you use date-time formatting patterns, it is recommended that you provide the full date, time and time zone. For example: `yyyy-MM-ddTHH:mm:ssX`. If the pattern that you specify is not sufficient to produce a complete timestamp, job creation fails.
+NOTE: Custom patterns must conform to the Java `DateTimeFormatter` class. When you use date-time formatting patterns, it is recommended that you provide the full date, time and time zone. For example: `yyyy-MM-dd'T'HH:mm:ssX`. If the pattern that you specify is not sufficient to produce a complete timestamp, job creation fails.
 
 `quotecharacter`::
   TBD

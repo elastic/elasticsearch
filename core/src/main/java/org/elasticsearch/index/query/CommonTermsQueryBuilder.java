@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -69,7 +70,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField LOW_FREQ_OPERATOR_FIELD = new ParseField("low_freq_operator");
     private static final ParseField HIGH_FREQ_OPERATOR_FIELD = new ParseField("high_freq_operator");
-    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord");
+    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord")
+            .withAllDeprecated("disable_coord has been removed");
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField HIGH_FREQ_FIELD = new ParseField("high_freq");
@@ -88,8 +90,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private String lowFreqMinimumShouldMatch = null;
 
     private String highFreqMinimumShouldMatch = null;
-
-    private boolean disableCoord = DEFAULT_DISABLE_COORD;
 
     private float cutoffFrequency = DEFAULT_CUTOFF_FREQ;
 
@@ -119,7 +119,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         analyzer = in.readOptionalString();
         lowFreqMinimumShouldMatch = in.readOptionalString();
         highFreqMinimumShouldMatch = in.readOptionalString();
-        disableCoord = in.readBoolean();
+        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            in.readBoolean(); // disable_coord
+        }
         cutoffFrequency = in.readFloat();
     }
 
@@ -132,7 +134,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         out.writeOptionalString(analyzer);
         out.writeOptionalString(lowFreqMinimumShouldMatch);
         out.writeOptionalString(highFreqMinimumShouldMatch);
-        out.writeBoolean(disableCoord);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeBoolean(true); // disable_coord
+        }
         out.writeFloat(cutoffFrequency);
     }
 
@@ -226,21 +230,11 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         return this.lowFreqMinimumShouldMatch;
     }
 
-    public CommonTermsQueryBuilder disableCoord(boolean disableCoord) {
-        this.disableCoord = disableCoord;
-        return this;
-    }
-
-    public boolean disableCoord() {
-        return this.disableCoord;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), text);
-        builder.field(DISABLE_COORD_FIELD.getPreferredName(), disableCoord);
         builder.field(HIGH_FREQ_OPERATOR_FIELD.getPreferredName(), highFreqOperator.toString());
         builder.field(LOW_FREQ_OPERATOR_FIELD.getPreferredName(), lowFreqOperator.toString());
         if (analyzer != null) {
@@ -271,7 +265,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         String analyzer = null;
         String lowFreqMinimumShouldMatch = null;
         String highFreqMinimumShouldMatch = null;
-        boolean disableCoord = CommonTermsQueryBuilder.DEFAULT_DISABLE_COORD;
         Operator highFreqOperator = CommonTermsQueryBuilder.DEFAULT_HIGH_FREQ_OCCUR;
         Operator lowFreqOperator = CommonTermsQueryBuilder.DEFAULT_LOW_FREQ_OCCUR;
         float cutoffFrequency = CommonTermsQueryBuilder.DEFAULT_CUTOFF_FREQ;
@@ -321,7 +314,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                         } else if (ANALYZER_FIELD.match(currentFieldName)) {
                             analyzer = parser.text();
                         } else if (DISABLE_COORD_FIELD.match(currentFieldName)) {
-                            disableCoord = parser.booleanValue();
+                            // ignore
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if (HIGH_FREQ_OPERATOR_FIELD.match(currentFieldName)) {
@@ -353,7 +346,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 .analyzer(analyzer)
                 .highFreqOperator(highFreqOperator)
                 .lowFreqOperator(lowFreqOperator)
-                .disableCoord(disableCoord)
                 .cutoffFrequency(cutoffFrequency)
                 .boost(boost)
                 .queryName(queryName);
@@ -392,7 +384,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur,
-                cutoffFrequency, disableCoord, fieldType);
+                cutoffFrequency, fieldType);
         return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
@@ -418,7 +410,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, text, highFreqOperator, lowFreqOperator, analyzer,
-                lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, disableCoord, cutoffFrequency);
+                lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, cutoffFrequency);
     }
 
     @Override
@@ -430,7 +422,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 Objects.equals(analyzer, other.analyzer) &&
                 Objects.equals(lowFreqMinimumShouldMatch, other.lowFreqMinimumShouldMatch) &&
                 Objects.equals(highFreqMinimumShouldMatch, other.highFreqMinimumShouldMatch) &&
-                Objects.equals(disableCoord, other.disableCoord) &&
                 Objects.equals(cutoffFrequency, other.cutoffFrequency);
     }
 }

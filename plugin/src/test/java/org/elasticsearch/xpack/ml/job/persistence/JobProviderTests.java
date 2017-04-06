@@ -865,13 +865,6 @@ public class JobProviderTests extends ESTestCase {
         assertTrue(queryString.matches("(?s).*snapshot_id.*value. : .snappyId.*description.*value. : .description1.*"));
     }
 
-    private AnomalyRecord createAnomalyRecord(String partitionFieldValue, Date timestamp, double recordScore) {
-        AnomalyRecord record = new AnomalyRecord("foo", timestamp, 600, 42);
-        record.setPartitionFieldValue(partitionFieldValue);
-        record.setRecordScore(recordScore);
-        return record;
-    }
-
     public void testRestoreStateToStream() throws Exception {
         Map<String, Object> categorizerState = new HashMap<>();
         categorizerState.put("catName", "catVal");
@@ -901,9 +894,9 @@ public class JobProviderTests extends ESTestCase {
 
         String[] restoreData = stream.toString(StandardCharsets.UTF_8.name()).split("\0");
         assertEquals(3, restoreData.length);
-        assertEquals("{\"catName\":\"catVal\"}", restoreData[0]);
-        assertEquals("{\"modName\":\"modVal1\"}", restoreData[1]);
-        assertEquals("{\"modName\":\"modVal2\"}", restoreData[2]);
+        assertEquals("{\"modName\":\"modVal1\"}", restoreData[0]);
+        assertEquals("{\"modName\":\"modVal2\"}", restoreData[1]);
+        assertEquals("{\"catName\":\"catVal\"}", restoreData[2]);
     }
 
     public void testViolatedFieldCountLimit() throws Exception {

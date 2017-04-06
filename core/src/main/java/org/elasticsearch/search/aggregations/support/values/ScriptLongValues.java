@@ -45,39 +45,36 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
 
     @Override
     public boolean advanceExact(int target) throws IOException {
-        if (script.advanceExact(target)) {
-            final Object value = script.run();
+        script.setDocument(target);
+        final Object value = script.run();
 
-            if (value == null) {
-                return false;
-            }
-
-            else if (value.getClass().isArray()) {
-                resize(Array.getLength(value));
-                for (int i = 0; i < docValueCount(); ++i) {
-                    values[i] = toLongValue(Array.get(value, i));
-                }
-            }
-
-            else if (value instanceof Collection) {
-                resize(((Collection<?>) value).size());
-                int i = 0;
-                for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
-                    values[i] = toLongValue(it.next());
-                }
-                assert i == docValueCount();
-            }
-
-            else {
-                resize(1);
-                values[0] = toLongValue(value);
-            }
-
-            sort();
-            return true;
-        } else {
+        if (value == null) {
             return false;
         }
+
+        else if (value.getClass().isArray()) {
+            resize(Array.getLength(value));
+            for (int i = 0; i < docValueCount(); ++i) {
+                values[i] = toLongValue(Array.get(value, i));
+            }
+        }
+
+        else if (value instanceof Collection) {
+            resize(((Collection<?>) value).size());
+            int i = 0;
+            for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
+                values[i] = toLongValue(it.next());
+            }
+            assert i == docValueCount();
+        }
+
+        else {
+            resize(1);
+            values[0] = toLongValue(value);
+        }
+
+        sort();
+        return true;
     }
 
     private static long toLongValue(Object o) {

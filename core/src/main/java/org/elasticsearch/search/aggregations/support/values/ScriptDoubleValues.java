@@ -43,39 +43,36 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
 
     @Override
     public boolean advanceExact(int target) throws IOException {
-        if (script.advanceExact(target)) {
-            final Object value = script.run();
+        script.setDocument(target);
+        final Object value = script.run();
 
-            if (value == null) {
-                return false;
-            } else if (value instanceof Number) {
-                resize(1);
-                values[0] = ((Number) value).doubleValue();
-            } else if (value instanceof ReadableInstant) {
-                resize(1);
-                values[0] = ((ReadableInstant) value).getMillis();
-            } else if (value.getClass().isArray()) {
-                resize(Array.getLength(value));
-                for (int i = 0; i < docValueCount(); ++i) {
-                    values[i] = toDoubleValue(Array.get(value, i));
-                }
-            } else if (value instanceof Collection) {
-                resize(((Collection<?>) value).size());
-                int i = 0;
-                for (Object v : (Collection<?>) value) {
-                    values[i++] = toDoubleValue(v);
-                }
-                assert i == docValueCount();
-            } else {
-                resize(1);
-                values[0] = toDoubleValue(value);
-            }
-
-            sort();
-            return true;
-        } else {
+        if (value == null) {
             return false;
+        } else if (value instanceof Number) {
+            resize(1);
+            values[0] = ((Number) value).doubleValue();
+        } else if (value instanceof ReadableInstant) {
+            resize(1);
+            values[0] = ((ReadableInstant) value).getMillis();
+        } else if (value.getClass().isArray()) {
+            resize(Array.getLength(value));
+            for (int i = 0; i < docValueCount(); ++i) {
+                values[i] = toDoubleValue(Array.get(value, i));
+            }
+        } else if (value instanceof Collection) {
+            resize(((Collection<?>) value).size());
+            int i = 0;
+            for (Object v : (Collection<?>) value) {
+                values[i++] = toDoubleValue(v);
+            }
+            assert i == docValueCount();
+        } else {
+            resize(1);
+            values[0] = toDoubleValue(value);
         }
+
+        sort();
+        return true;
     }
 
     private static double toDoubleValue(Object o) {

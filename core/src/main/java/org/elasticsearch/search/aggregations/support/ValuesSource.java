@@ -322,14 +322,13 @@ public abstract class ValuesSource {
                 public boolean advanceExact(int target) throws IOException {
                     if (longValues.advanceExact(target)) {
                         resize(longValues.docValueCount());
-                        if (script.advanceExact(target)) {
-                            for (int i = 0; i < docValueCount(); ++i) {
-                                script.setNextAggregationValue(longValues.nextValue());
-                                values[i] = script.runAsLong();
-                            }
-                            sort();
-                            return true;
+                        script.setDocument(target);
+                        for (int i = 0; i < docValueCount(); ++i) {
+                            script.setNextAggregationValue(longValues.nextValue());
+                            values[i] = script.runAsLong();
                         }
+                        sort();
+                        return true;
                     }
                     return false;
                 }
@@ -354,14 +353,13 @@ public abstract class ValuesSource {
                 public boolean advanceExact(int target) throws IOException {
                     if (doubleValues.advanceExact(target)) {
                         resize(doubleValues.docValueCount());
-                        if (script.advanceExact(target)) {
-                            for (int i = 0; i < docValueCount(); ++i) {
-                                script.setNextAggregationValue(doubleValues.nextValue());
-                                values[i] = script.runAsLong();
-                            }
-                            sort();
-                            return true;
+                        script.setDocument(target);
+                        for (int i = 0; i < docValueCount(); ++i) {
+                            script.setNextAggregationValue(doubleValues.nextValue());
+                            values[i] = script.runAsLong();
                         }
+                        sort();
+                        return true;
                     }
                     return false;
                 }

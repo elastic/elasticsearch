@@ -95,10 +95,10 @@ class ExpressionSearchScript implements SearchScript {
             public double runAsDouble() { return evaluate(); }
 
             @Override
-            public boolean advanceExact(int d) {
+            public void setDocument(int d) {
                 docid = d;
                 try {
-                    return values.advanceExact(d);
+                    values.advanceExact(d);
                 } catch (IOException e) {
                     throw new IllegalStateException("Can't advance to doc using " + compiledScript, e);
                 }

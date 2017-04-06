@@ -28,7 +28,7 @@ import java.util.Map;
  */
 public interface LeafSearchScript extends ScorerAware, ExecutableScript {
 
-    boolean advanceExact(int doc);
+    void setDocument(int doc);
 
     void setSource(Map<String, Object> source);
     

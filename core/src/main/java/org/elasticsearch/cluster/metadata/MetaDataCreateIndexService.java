@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -93,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
@@ -222,7 +222,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
+
                     @Override
                     protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                         return new ClusterStateUpdateResponse(acknowledged);
@@ -474,10 +476,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         super.onFailure(source, e);
                     }
                 });
-    }
-
-    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
-        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {

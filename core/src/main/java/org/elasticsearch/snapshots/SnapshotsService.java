@@ -60,7 +60,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -71,7 +70,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -581,7 +579,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardSnapshotStatus.failure(shardFailure.reason());
                         shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
-                        IndexShardSnapshotStatus shardSnapshotStatus;
+                        final IndexShardSnapshotStatus shardSnapshotStatus;
                         if (snapshotInfo.state() == SnapshotState.FAILED) {
                             // If the snapshot failed, but the shard's snapshot does
                             // not have an exception, it means that partial snapshots
@@ -592,10 +590,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // could not be taken due to partial being set to false.
                             shardSnapshotStatus = new IndexShardSnapshotStatus();
                             shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
-                            String msg = "snapshot not taken because partial snapshots are not " +
-                                         "configured for this snapshot and another shard caused " +
-                                         "the snapshot to fail";
-                            shardSnapshotStatus.failure(msg);
+                            shardSnapshotStatus.failure("skipped");
                         } else {
                             shardSnapshotStatus = repository.getShardSnapshotStatus(
                                 snapshotInfo.snapshotId(),

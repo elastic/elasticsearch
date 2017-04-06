@@ -181,7 +181,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
     public void testScrollParams() {
         TimeValue scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
-        assertThat(scrollParams(scroll), hasEntry("scroll", scroll.toString()));
+        assertThat(scrollParams(scroll), hasEntry("scroll", scroll.getStringRep()));
     }
 
     public void testScrollEntity() throws IOException {

@@ -168,7 +168,7 @@ final class RemoteRequestBuilders {
     }
 
     static Map<String, String> scrollParams(TimeValue keepAlive) {
-        return singletonMap("scroll", keepAlive.toString());
+        return singletonMap("scroll", keepAlive.getStringRep());
     }
 
     static HttpEntity scrollEntity(String scroll, Version remoteVersion) {

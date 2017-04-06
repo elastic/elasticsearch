@@ -91,8 +91,8 @@ security of the Elasticsearch deployment.
 
 Which scripts Elasticsearch will execute where is controlled by settings
 starting with `scripts.`. The simplest settings allow scripts to be enabled
-or disabled based on where they are stored. The default values are the
-following:
+or disabled based on where they are stored. The default values for
+non-sandboxed languages are the following:
 
 [source,yaml]
 -----------------------------------

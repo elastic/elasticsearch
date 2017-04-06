@@ -101,9 +101,9 @@ public class ScriptValuesTests extends ESTestCase {
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
             scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
+            assertEquals(values[i].length, scriptValues.docValueCount());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j));
+                assertEquals(values[i][j], scriptValues.nextValue());
             }
         }
     }
@@ -122,9 +122,9 @@ public class ScriptValuesTests extends ESTestCase {
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
             scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
+            assertEquals(values[i].length, scriptValues.docValueCount());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j) == 1L);
+                assertEquals(values[i][j], scriptValues.nextValue() == 1L);
             }
         }
     }
@@ -143,9 +143,9 @@ public class ScriptValuesTests extends ESTestCase {
         ScriptDoubleValues scriptValues = new ScriptDoubleValues(script);
         for (int i = 0; i < values.length; ++i) {
             scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
+            assertEquals(values[i].length, scriptValues.docValueCount());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j));
+                assertEquals(values[i][j], scriptValues.nextValue());
             }
         }
     }
@@ -164,9 +164,9 @@ public class ScriptValuesTests extends ESTestCase {
         ScriptBytesValues scriptValues = new ScriptBytesValues(script);
         for (int i = 0; i < values.length; ++i) {
             scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
+            assertEquals(values[i].length, scriptValues.docValueCount());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(new BytesRef(values[i][j]), scriptValues.valueAt(j));
+                assertEquals(new BytesRef(values[i][j]), scriptValues.nextValue());
             }
         }
     }

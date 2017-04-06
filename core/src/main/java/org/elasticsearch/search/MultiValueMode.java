@@ -196,7 +196,7 @@ public enum MultiValueMode implements Writeable {
         @Override
         protected long pick(SortedNumericDocValues values) throws IOException {
             int count = values.docValueCount();
-            for (int i = 0; i < count / 2; ++i) {
+            for (int i = 0; i < (count - 1) / 2; ++i) {
                 values.nextValue();
             }
             if (count % 2 == 0) {
@@ -209,7 +209,7 @@ public enum MultiValueMode implements Writeable {
         @Override
         protected double pick(SortedNumericDoubleValues values) throws IOException {
             int count = values.docValueCount();
-            for (int i = 0; i < count / 2; ++i) {
+            for (int i = 0; i < (count - 1) / 2; ++i) {
                 values.nextValue();
             }
             if (count % 2 == 0) {

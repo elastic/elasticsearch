@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LegacyIntField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -64,7 +64,7 @@ public class NestedChildrenFilterTests extends ESTestCase {
 
             Document parenDoc = new Document();
             parenDoc.add(new StringField("type", "parent", Field.Store.NO));
-            parenDoc.add(new LegacyIntField("num_child_docs", numChildDocs, Field.Store.YES));
+            parenDoc.add(new StoredField("num_child_docs", numChildDocs));
             docs.add(parenDoc);
             writer.addDocuments(docs);
         }

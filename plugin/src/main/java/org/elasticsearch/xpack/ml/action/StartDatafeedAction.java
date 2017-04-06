@@ -12,16 +12,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -343,19 +342,14 @@ public class StartDatafeedAction
 
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
-        private final InternalClient client;
-        private final ClusterService clusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, InternalClient client,
-                               ClusterService clusterService) {
+                               IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
-            this.client = client;
-            this.clusterService = clusterService;
         }
 
         @Override
@@ -364,7 +358,7 @@ public class StartDatafeedAction
                 ActionListener<PersistentTask<Request>> finalListener = new ActionListener<PersistentTask<Request>>() {
                     @Override
                     public void onResponse(PersistentTask<Request> persistentTask) {
-                        waitForYellow(persistentTask.getId(), request, listener);
+                        waitForDatafeedStarted(persistentTask.getId(), request, listener);
                     }
 
                     @Override
@@ -375,22 +369,6 @@ public class StartDatafeedAction
                 persistentTasksService.startPersistentTask(NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
-            }
-        }
-
-        void waitForYellow(long taskId, Request request, ActionListener<Response> listener) {
-            ClusterState state = clusterService.state();
-            MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
-            DatafeedConfig config = mlMetadata.getDatafeed(request.getDatafeedId());
-            List<String> indices = config.getIndexes();
-            if (!indices.isEmpty()) {
-                ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices.toArray(new String[]{}));
-                healthRequest.waitForYellowStatus();
-                client.admin().cluster().health(healthRequest, ActionListener.wrap(clusterHealthResponse -> {
-                    waitForDatafeedStarted(taskId, request, listener);
-                }, listener::onFailure));
-            } else {
-                waitForDatafeedStarted(taskId, request, listener);
             }
         }
 
@@ -422,6 +400,7 @@ public class StartDatafeedAction
         private final XPackLicenseState licenseState;
         private final Auditor auditor;
         private final ThreadPool threadPool;
+        private final IndexNameExpressionResolver resolver;
 
         public StartDatafeedPersistentTasksExecutor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
                                                     DatafeedManager datafeedManager, Auditor auditor) {
@@ -430,11 +409,12 @@ public class StartDatafeedAction
             this.datafeedManager = datafeedManager;
             this.auditor = auditor;
             this.threadPool = threadPool;
+            this.resolver = new IndexNameExpressionResolver(settings);
         }
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState);
+            Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState, resolver);
             writeAssignmentNotification(request.getDatafeedId(), assignment, clusterState);
             return assignment;
         }
@@ -514,7 +494,8 @@ public class StartDatafeedAction
         }
     }
 
-    static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
+    static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState,
+                                 IndexNameExpressionResolver resolver) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
@@ -539,7 +520,43 @@ public class StartDatafeedAction
             logger.debug(reason);
             return new Assignment(null, reason);
         }
+        String reason = verifyIndicesActive(logger, datafeed, clusterState, resolver);
+        if (reason != null) {
+            return new Assignment(null, reason);
+        }
         return new Assignment(jobTask.getExecutorNode(), "");
+    }
+
+    private static String verifyIndicesActive(Logger logger, DatafeedConfig datafeed, ClusterState clusterState,
+                                              IndexNameExpressionResolver resolver) {
+        List<String> indices = datafeed.getIndexes();
+        for (String index : indices) {
+            String[] concreteIndices;
+            String reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
+                    + index + "] does not exist, is closed, or is still initializing.";
+
+            try {
+                concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), index);
+                if (concreteIndices.length == 0) {
+                    logger.debug(reason);
+                    return reason;
+                }
+            } catch (Exception e) {
+                logger.debug(reason);
+                return reason;
+            }
+
+            for (String concreteIndex : concreteIndices) {
+                IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
+                if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
+                    reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
+                            + concreteIndex + "] does not have all primary shards active yet.";
+                    logger.debug(reason);
+                    return reason;
+                }
+            }
+        }
+        return null;
     }
 
 }

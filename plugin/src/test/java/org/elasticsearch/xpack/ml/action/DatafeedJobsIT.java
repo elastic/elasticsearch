@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.Client;
@@ -128,6 +130,7 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
         client().admin().indices().prepareCreate("data-2")
                 .addMapping("type", "time", "type=date")
                 .get();
+        ClusterHealthResponse r = client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
         long numDocs2 = randomIntBetween(32, 2048);
         indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
 
@@ -142,7 +145,10 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
             assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
 
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data-*"));
+        List<String> t = new ArrayList<>(2);
+        t.add("data-1");
+        t.add("data-2");
+        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), t);
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(datafeedConfig);
         PutDatafeedAction.Response putDatafeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).get();
         assertTrue(putDatafeedResponse.isAcknowledged());

@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.TransportShardBulkAction.ShouldExecuteOnReplicaResult;
+import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaExecutionMode;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -89,7 +89,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, response));
         assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ShouldExecuteOnReplicaResult.NORMAL));
+                equalTo(ReplicaExecutionMode.NORMAL));
 
         // Failed index requests without sequence no should not be replicated
         writeRequest = new IndexRequest("index", "type", "id")
@@ -100,7 +100,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                         new BulkItemResponse.Failure("index", "type", "id",
                                                      new IllegalArgumentException("i died"))));
         assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ShouldExecuteOnReplicaResult.NOOP));
+                equalTo(ReplicaExecutionMode.NOOP));
 
         // Failed index requests with sequence no should be replicated
         request = new BulkItemRequest(0, writeRequest);
@@ -111,7 +111,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                                         "i died after sequence no was generated"),
                                 1)));
         assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ShouldExecuteOnReplicaResult.FAILURE));
+                equalTo(ReplicaExecutionMode.FAILURE));
         // NOOP requests should not be replicated
         writeRequest = new UpdateRequest("index", "type", "id");
         response = new UpdateResponse(shardId, "type", "id", 1, DocWriteResponse.Result.NOOP);
@@ -119,7 +119,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE,
                         response));
         assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ShouldExecuteOnReplicaResult.NOOP));
+                equalTo(ReplicaExecutionMode.NOOP));
     }
 
 

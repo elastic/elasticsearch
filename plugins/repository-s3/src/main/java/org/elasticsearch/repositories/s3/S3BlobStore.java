@@ -53,14 +53,12 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final boolean serverSideEncryption;
 
-    private final int numberOfRetries;
-
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
     S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
-                       ByteSizeValue bufferSize, int maxRetries, String cannedACL, String storageClass) {
+                       ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
@@ -68,7 +66,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
-        this.numberOfRetries = maxRetries;
         this.storageClass = initStorageClass(storageClass);
 
         // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
@@ -76,30 +73,17 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
-        int retry = 0;
-        while (retry <= maxRetries) {
-            try {
-                if (!client.doesBucketExist(bucket)) {
-                    deprecationLogger.deprecated("Auto creation of the bucket for an s3 backed repository is deprecated" +
-                                                 " and will be removed in 6.0.");
-                    CreateBucketRequest request = null;
-                    if (region != null) {
-                        request = new CreateBucketRequest(bucket, region);
-                    } else {
-                        request = new CreateBucketRequest(bucket);
-                    }
-                    request.setCannedAcl(this.cannedACL);
-                    client.createBucket(request);
-                }
-                break;
-            } catch (AmazonClientException e) {
-                if (shouldRetry(e) && retry < maxRetries) {
-                    retry++;
-                } else {
-                    logger.debug("S3 client create bucket failed");
-                    throw e;
-                }
+        if (!client.doesBucketExist(bucket)) {
+            deprecationLogger.deprecated("Auto creation of the bucket for an s3 backed " +
+                                         "repository is deprecated and will be removed in 6.0.");
+            final CreateBucketRequest request;
+            if (region != null) {
+                request = new CreateBucketRequest(bucket, region);
+            } else {
+                request = new CreateBucketRequest(bucket);
             }
+            request.setCannedAcl(this.cannedACL);
+            client.createBucket(request);
         }
     }
 
@@ -120,10 +104,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public int bufferSizeInBytes() {
         return bufferSize.bytesAsInt();
-    }
-
-    public int numberOfRetries() {
-        return numberOfRetries;
     }
 
     @Override
@@ -167,16 +147,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
             multiObjectDeleteRequest.setKeys(keys);
             client.deleteObjects(multiObjectDeleteRequest);
         }
-    }
-
-    protected boolean shouldRetry(AmazonClientException e) {
-        if (e instanceof AmazonS3Exception) {
-            AmazonS3Exception s3e = (AmazonS3Exception)e;
-            if (s3e.getStatusCode() == 400 && "RequestTimeout".equals(s3e.getErrorCode())) {
-                return true;
-            }
-        }
-        return e.isRetryable();
     }
 
     @Override

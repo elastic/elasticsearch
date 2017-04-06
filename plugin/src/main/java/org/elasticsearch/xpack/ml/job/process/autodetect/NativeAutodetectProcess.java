@@ -148,10 +148,9 @@ class NativeAutodetectProcess implements AutodetectProcess {
             }
             LOGGER.debug("[{}] Autodetect process exited", jobId);
         } catch (ExecutionException | TimeoutException e) {
-            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running autodetect process",
-                    new Object[] { jobId }), e);
+            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running autodetect process", jobId), e);
         } catch (InterruptedException e) {
-            LOGGER.warn("[{}] Exception closing the running autodetect process", jobId);
+            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running autodetect process", jobId), e);
             Thread.currentThread().interrupt();
         } finally {
             deleteAssociatedFiles();

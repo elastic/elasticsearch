@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -346,10 +347,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(geoDist.getName(), equalTo("amsterdam_rings"));
         List<? extends Bucket> buckets = geoDist.getBuckets();
         assertThat(geoDist.getBuckets().size(), equalTo(3));
-        assertThat(geoDist.getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) geoDist.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) geoDist.getProperty("_count");
-        Object[] propertiesCities = (Object[]) geoDist.getProperty("cities");
+        assertThat(((InternalAggregation)geoDist).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoDist).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoDist).getProperty("_count");
+        Object[] propertiesCities = (Object[]) ((InternalAggregation)geoDist).getProperty("cities");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());

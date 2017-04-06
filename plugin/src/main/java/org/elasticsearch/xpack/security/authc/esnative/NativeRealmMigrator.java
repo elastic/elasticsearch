@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.BuiltinUserInfo;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -46,7 +47,7 @@ import java.util.ArrayList;
  * When upgrading an Elasticsearch/X-Pack installation from a previous version, this class is responsible for ensuring that user/role
  * data stored in the security index is converted to a format that is appropriate for the newly installed version.
  */
-public class NativeRealmMigrator {
+public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigrator {
 
     private final XPackLicenseState licenseState;
     private final Logger logger;
@@ -72,8 +73,9 @@ public class NativeRealmMigrator {
      *                 {@link ActionListener#onResponse(Object) onResponse(false)} if no upgrade was required.
      * @see SecurityLifecycleService#securityIndexMappingAndTemplateSufficientToRead(ClusterState, Logger)
      * @see SecurityLifecycleService#canWriteToSecurityIndex
-     * @see SecurityLifecycleService#mappingVersion
+     * @see IndexLifecycleManager#mappingVersion
      */
+    @Override
     public void performUpgrade(@Nullable Version previousVersion, ActionListener<Boolean> listener) {
         try {
             List<BiConsumer<Version, ActionListener<Void>>> tasks = collectUpgradeTasks(previousVersion);

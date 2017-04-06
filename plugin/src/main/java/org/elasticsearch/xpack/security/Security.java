@@ -286,23 +286,28 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             }
         }
         final AuditTrailService auditTrailService =
-            new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), licenseState);
+            new AuditTrailService(settings,
+                    auditTrails.stream().collect(Collectors.toList()), licenseState);
         components.add(auditTrailService);
 
         SecurityLifecycleService securityLifecycleService =
-            new SecurityLifecycleService(settings, clusterService, threadPool, client, licenseState, indexAuditTrail);
+            new SecurityLifecycleService(settings, clusterService, threadPool, client, licenseState,
+                    indexAuditTrail);
 
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService);
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client,
+                securityLifecycleService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore, anonymousUser, securityLifecycleService);
+        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
+                anonymousUser, securityLifecycleService);
         Map<String, Realm.Factory> realmFactories = new HashMap<>();
         realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");
+                    throw new IllegalArgumentException("Realm type [" + entry.getKey() +
+                            "] is already registered");
                 }
             }
         }
@@ -663,10 +668,18 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
 
         final boolean indexAuditingEnabled = Security.indexAuditLoggingEnabled(settings);
-        final String auditIndex = indexAuditingEnabled ? "," + IndexAuditTrail.INDEX_NAME_PREFIX + "*" : "";
-        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
-                " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}{}]", (Object) value, SecurityLifecycleService.SECURITY_INDEX_NAME, auditIndex);
+        final String auditIndex;
+        if (indexAuditingEnabled) {
+            auditIndex = "," + IndexAuditTrail.INDEX_NAME_PREFIX + "*";
+        } else {
+            auditIndex = "";
+        }
+        String securityIndices = SecurityLifecycleService.indexNames().stream()
+                .collect(Collectors.joining(","));
+        String errorMessage = LoggerMessageFormat.format(
+                "the [action.auto_create_index] setting value [{}] is too" +
+                        " restrictive. disable [action.auto_create_index] or set it to " +
+                        "[{}{}]", (Object) value, securityIndices, auditIndex);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -677,7 +690,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
         String[] matches = Strings.commaDelimitedListToStringArray(value);
         List<String> indices = new ArrayList<>();
-        indices.add(SecurityLifecycleService.SECURITY_INDEX_NAME);
+        indices.addAll(SecurityLifecycleService.indexNames());
         if (indexAuditingEnabled) {
             DateTime now = new DateTime(DateTimeZone.UTC);
             // just use daily rollover

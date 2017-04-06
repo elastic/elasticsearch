@@ -144,7 +144,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
         when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
-        when(securityLifecycleService.checkMappingVersion(any())).thenReturn(true);
+        when(securityLifecycleService.checkSecurityMappingVersion(any())).thenReturn(true);
 
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm =

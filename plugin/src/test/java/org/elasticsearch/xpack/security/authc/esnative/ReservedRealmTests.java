@@ -67,12 +67,12 @@ public class ReservedRealmTests extends ESTestCase {
         usersStore = mock(NativeUsersStore.class);
         securityLifecycleService = mock(SecurityLifecycleService.class);
         when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
-        when(securityLifecycleService.checkMappingVersion(any())).thenReturn(true);
+        when(securityLifecycleService.checkSecurityMappingVersion(any())).thenReturn(true);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
     }
 
     public void testMappingVersionFromBeforeUserExisted() throws ExecutionException, InterruptedException {
-        when(securityLifecycleService.checkMappingVersion(any())).thenReturn(false);
+        when(securityLifecycleService.checkSecurityMappingVersion(any())).thenReturn(false);
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                               new AnonymousUser(Settings.EMPTY), securityLifecycleService);
@@ -108,7 +108,7 @@ public class ReservedRealmTests extends ESTestCase {
             verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
         }
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService).checkMappingVersion(predicateCaptor.capture());
+        verify(securityLifecycleService).checkSecurityMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
@@ -200,7 +200,7 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityLifecycleService, times(2)).securityIndexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService, times(2)).checkMappingVersion(predicateCaptor.capture());
+        verify(securityLifecycleService, times(2)).checkSecurityMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
@@ -219,7 +219,7 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityLifecycleService).securityIndexExists();
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService).checkMappingVersion(predicateCaptor.capture());
+        verify(securityLifecycleService).checkSecurityMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
@@ -266,7 +266,7 @@ public class ReservedRealmTests extends ESTestCase {
         verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService).checkMappingVersion(predicateCaptor.capture());
+        verify(securityLifecycleService).checkSecurityMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         verifyNoMoreInteractions(usersStore);

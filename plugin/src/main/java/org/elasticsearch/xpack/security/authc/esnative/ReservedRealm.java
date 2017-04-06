@@ -223,7 +223,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private boolean userIsDefinedForCurrentSecurityMapping(String username) {
         final Version requiredVersion = getDefinedVersion(username);
-        return securityLifecycleService.checkMappingVersion(requiredVersion::onOrBefore);
+        return securityLifecycleService.checkSecurityMappingVersion(requiredVersion::onOrBefore);
     }
 
     private Version getDefinedVersion(String username) {

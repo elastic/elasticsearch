@@ -26,12 +26,12 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
@@ -95,7 +95,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             };
             thread.start();
             Future<Void> future = shards.asyncRecoverReplica(replica, (indexShard, node)
-                -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {}) {
+                    -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
+            }) {
                 @Override
                 public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
                     super.cleanFiles(totalTranslogOps, sourceMetaData);
@@ -155,7 +156,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 final SeqNoStats shardStats = shard.seqNoStats();
                 final ShardRouting shardRouting = shard.routingEntry();
                 logger.debug("seq_no stats for {}: {}", shardRouting, XContentHelper.toString(shardStats,
-                    new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
+                        new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
                 assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
 
                 assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), equalTo(numDocs - 1L));
@@ -194,49 +195,48 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
      * for primary and replica shards
      */
     public void testDocumentFailureReplication() throws Exception {
-        IndexMetaData metaData = buildIndexMetaData(1);
-        final ReplicationGroup replicationGroupWithDocumentFailureOnPrimary = new ReplicationGroup(metaData) {
+        final String failureMessage = "simulated document failure";
+        final ThrowingDocumentFailureEngineFactory throwingDocumentFailureEngineFactory =
+                new ThrowingDocumentFailureEngineFactory(failureMessage);
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
-                if (routing.primary()) {
-                    return config -> InternalEngineTests.createInternalEngine((directory, writerConfig) ->
-                            new IndexWriter(directory, writerConfig) {
-                                @Override
-                                public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-                                    throw new IOException("simulated document failure");
-                                }
-                            }, null, config);
-                } else {
-                    return null;
-                }
+                return throwingDocumentFailureEngineFactory;
+            }}) {
+
+            // test only primary
+            shards.startPrimary();
+            BulkItemResponse response = shards.index(
+                    new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                            .source("{}", XContentType.JSON)
+            );
+            assertTrue(response.isFailed());
+            assertNoopTranslogOperationForDocumentFailure(shards, 1, failureMessage);
+            shards.assertAllEqual(0);
+
+            // add some replicas
+            int nReplica = randomIntBetween(1, 3);
+            for (int i = 0; i < nReplica; i++) {
+                shards.addReplica();
             }
-        };
-        replicationGroupWithDocumentFailureOnPrimary.startAll();
-        final BulkItemResponse response = replicationGroupWithDocumentFailureOnPrimary.index(
-                new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
-                        .source("{}", XContentType.JSON)
-        );
-        assertTrue(response.isFailed());
-        for (IndexShard indexShard : replicationGroupWithDocumentFailureOnPrimary) {
-            try(Translog.View view = indexShard.acquireTranslogView()) {
-                assertThat(view.totalOperations(), equalTo(1));
-                Translog.Operation op = view.snapshot().next();
-                assertThat(op.opType(), equalTo(Translog.Operation.Type.NO_OP));
-                assertThat(op.seqNo(), equalTo(0L));
-                assertThat(((Translog.NoOp) op).reason(), containsString("simulated document failure"));
-            }
+            shards.startReplicas(nReplica);
+            response = shards.index(
+                    new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                            .source("{}", XContentType.JSON)
+            );
+            assertTrue(response.isFailed());
+            assertNoopTranslogOperationForDocumentFailure(shards, 2, failureMessage);
+            shards.assertAllEqual(0);
         }
-        replicationGroupWithDocumentFailureOnPrimary.assertAllEqual(0);
-        replicationGroupWithDocumentFailureOnPrimary.close();
     }
 
     /**
      * test request failures (failures before seq_no generation) are not added as a noop to translog
      */
     public void testRequestFailureReplication() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            final BulkItemResponse response = shards.index(
+            BulkItemResponse response = shards.index(
                     new IndexRequest(index.getName(), "testRequestFailureException", "1")
                             .source("{}", XContentType.JSON)
                             .version(2)
@@ -248,6 +248,66 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 try(Translog.View view = indexShard.acquireTranslogView()) {
                     assertThat(view.totalOperations(), equalTo(0));
                 }
+            }
+
+            // add some replicas
+            int nReplica = randomIntBetween(1, 3);
+            for (int i = 0; i < nReplica; i++) {
+                shards.addReplica();
+            }
+            shards.startReplicas(nReplica);
+            response = shards.index(
+                    new IndexRequest(index.getName(), "testRequestFailureException", "1")
+                            .source("{}", XContentType.JSON)
+                            .version(2)
+            );
+            assertTrue(response.isFailed());
+            assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
+            shards.assertAllEqual(0);
+            for (IndexShard indexShard : shards) {
+                try(Translog.View view = indexShard.acquireTranslogView()) {
+                    assertThat(view.totalOperations(), equalTo(0));
+                }
+            }
+        }
+    }
+
+    /** Throws <code>documentFailure</code> on every indexing operation */
+    static class ThrowingDocumentFailureEngineFactory implements EngineFactory {
+        final String documentFailureMessage;
+
+        ThrowingDocumentFailureEngineFactory(String documentFailureMessage) {
+            this.documentFailureMessage = documentFailureMessage;
+        }
+
+        @Override
+        public Engine newReadWriteEngine(EngineConfig config) {
+            return InternalEngineTests.createInternalEngine((directory, writerConfig) ->
+                    new IndexWriter(directory, writerConfig) {
+                        @Override
+                        public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                            assert documentFailureMessage != null;
+                            throw new IOException(documentFailureMessage);
+                        }
+                    }, null, config);
+        }
+    }
+
+    private static void assertNoopTranslogOperationForDocumentFailure(ReplicationGroup replicationGroup, int expectedOperation,
+                                                               String failureMessage) throws IOException {
+        for (IndexShard indexShard : replicationGroup) {
+            try(Translog.View view = indexShard.acquireTranslogView()) {
+                assertThat(view.totalOperations(), equalTo(expectedOperation));
+                final Translog.Snapshot snapshot = view.snapshot();
+                long expectedSeqNo = 0L;
+                Translog.Operation op = snapshot.next();
+                do {
+                    assertThat(op.opType(), equalTo(Translog.Operation.Type.NO_OP));
+                    assertThat(op.seqNo(), equalTo(expectedSeqNo));
+                    assertThat(((Translog.NoOp) op).reason(), containsString(failureMessage));
+                    op = snapshot.next();
+                    expectedSeqNo++;
+                } while (op != null);
             }
         }
     }

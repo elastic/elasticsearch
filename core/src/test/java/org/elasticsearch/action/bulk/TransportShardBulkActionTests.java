@@ -47,6 +47,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -516,6 +517,30 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(TransportShardBulkAction.calculateTranslogLocation(original, results),
                 equalTo(newLocation));
 
+    }
+
+    public void testNoopReplicationOnPrimaryFailure() throws Exception {
+        final IndexShard shard = spy(newStartedShard(false));
+        BulkItemRequest itemRequest = new BulkItemRequest(0,
+                new IndexRequest("index", "type")
+                        .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")
+        );
+        final String failureMessage = "simulated primary failure";
+        itemRequest.setPrimaryResponse(new BulkItemResponse(0,
+                randomFrom(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.DELETE, DocWriteRequest.OpType.INDEX),
+                new BulkItemResponse.Failure("index", "type", "1",
+                        new IOException(failureMessage), 1L)
+        ));
+        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
+        itemRequests[0] = itemRequest;
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, itemRequests);
+        TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
+        ArgumentCaptor<Engine.NoOp> noOp = ArgumentCaptor.forClass(Engine.NoOp.class);
+        verify(shard, times(1)).markSeqNoAsNoOp(noOp.capture());
+        final Engine.NoOp noOpValue = noOp.getValue();
+        assertThat(noOpValue.seqNo(), equalTo(1L));
+        assertThat(noOpValue.reason(), containsString(failureMessage));
+        closeShards(shard);
     }
 
     public void testMappingUpdateParsesCorrectNumberOfTimes() throws Exception {

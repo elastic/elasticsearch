@@ -1,0 +1,28 @@
+---
+"Create index with deprecated settings":
+
+  - skip:
+      version: " - 5.3.0"
+      reason: fixed in 5.3.1
+      features: "warnings"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            shadow_replicas: true
+            shared_filesystem: false
+          mappings:
+            type:
+              properties:
+                field:
+                  type: "string"
+                field2:
+                  type: "long"
+                  store : "no"
+      warnings:
+        - "[index.shadow_replicas] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        - "[index.shared_filesystem] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        - "The [string] field is deprecated, please use [text] or [keyword] instead on [field]"
+        - "Expected a boolean [true/false] for property [field2.store] but got [no]"

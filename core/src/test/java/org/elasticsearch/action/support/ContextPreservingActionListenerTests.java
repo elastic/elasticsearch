@@ -33,11 +33,10 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
             if (nonEmptyContext) {
                 threadContext.putHeader("not empty", "value");
             }
-            ContextPreservingActionListener<Void> actionListener;
+            final ContextPreservingActionListener<Void> actionListener;
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.putHeader("foo", "bar");
-                actionListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(true),
-                        new ActionListener<Void>() {
+                final ActionListener<Void> delegate = new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void aVoid) {
                         assertEquals("bar", threadContext.getHeader("foo"));
@@ -48,7 +47,12 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
                     public void onFailure(Exception e) {
                         throw new RuntimeException("onFailure shouldn't be called", e);
                     }
-                });
+                };
+                if (randomBoolean()) {
+                    actionListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), delegate);
+                } else {
+                    actionListener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+                }
             }
 
             assertNull(threadContext.getHeader("foo"));
@@ -67,22 +71,28 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
             if (nonEmptyContext) {
                 threadContext.putHeader("not empty", "value");
             }
-            ContextPreservingActionListener<Void> actionListener;
+            final ContextPreservingActionListener<Void> actionListener;
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.putHeader("foo", "bar");
-                actionListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(true),
-                        new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                throw new RuntimeException("onResponse shouldn't be called");
-                            }
+                final ActionListener<Void> delegate = new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        throw new RuntimeException("onResponse shouldn't be called");
+                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                assertEquals("bar", threadContext.getHeader("foo"));
-                                assertNull(threadContext.getHeader("not empty"));
-                            }
-                        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertNull(threadContext.getHeader("not empty"));
+                    }
+                };
+
+                if (randomBoolean()) {
+                    actionListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), delegate);
+                } else {
+                    actionListener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+                }
+
             }
 
             assertNull(threadContext.getHeader("foo"));
@@ -101,25 +111,30 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
             if (nonEmptyContext) {
                 threadContext.putHeader("not empty", "value");
             }
-            ContextPreservingActionListener<Void> actionListener;
+            final ContextPreservingActionListener<Void> actionListener;
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.putHeader("foo", "bar");
-                actionListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(true),
-                        new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                assertEquals("bar", threadContext.getHeader("foo"));
-                                assertNull(threadContext.getHeader("not empty"));
-                                throw new RuntimeException("onResponse called");
-                            }
+                final ActionListener<Void> delegate = new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertNull(threadContext.getHeader("not empty"));
+                        throw new RuntimeException("onResponse called");
+                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                assertEquals("bar", threadContext.getHeader("foo"));
-                                assertNull(threadContext.getHeader("not empty"));
-                                throw new RuntimeException("onFailure called");
-                            }
-                        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertNull(threadContext.getHeader("not empty"));
+                        throw new RuntimeException("onFailure called");
+                    }
+                };
+
+                if (randomBoolean()) {
+                    actionListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), delegate);
+                } else {
+                    actionListener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+                }
             }
 
             assertNull(threadContext.getHeader("foo"));

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -165,6 +167,32 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             }
         }
         return super.simplify(bq.build());
+    }
+
+    /**
+     * Checks if graph analysis should be enabled for the field depending
+     * on the provided {@link Analyzer}
+     */
+    protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
+                                     String queryText, boolean quoted, int phraseSlop) {
+        assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+        // Use the analyzer to get all the tokens, and then build an appropriate
+        // query based on the analysis chain.
+        try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+            if (source.hasAttribute(DisableGraphAttribute.class)) {
+                /**
+                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                 * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                 */
+                setEnableGraphQueries(false);
+            }
+            Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+            setEnableGraphQueries(true);
+            return query;
+        } catch (IOException e) {
+            throw new RuntimeException("Error analyzing query text", e);
+        }
     }
 
     private static Query wrapWithBoost(Query query, float boost) {

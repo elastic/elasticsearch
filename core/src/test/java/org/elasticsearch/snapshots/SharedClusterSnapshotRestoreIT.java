@@ -2802,10 +2802,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getShards()) {
             assertEquals(SnapshotIndexShardStage.FAILURE, shardStatus.getStage());
             if (shardStatus.getIndex().equals("test-idx-good")) {
-                String msg = "snapshot not taken because partial snapshots are not " +
-                             "configured for this snapshot and another shard caused the " +
-                             "snapshot to fail";
-                assertEquals(msg, shardStatus.getFailure());
+                assertEquals("skipped", shardStatus.getFailure());
             } else {
                 assertEquals("primary shard is not allocated", shardStatus.getFailure());
             }

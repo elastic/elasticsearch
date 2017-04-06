@@ -1,43 +1,89 @@
 [[modules-scripting-security]]
 === Scripting and security
 
-While we make every effort to prevent scrips from running amok, security is
-something you do in
-https://en.wikipedia.org/wiki/Defense_in_depth_(computing)[layers], so you'll
-want to take some steps as well.
+While Elasticsearch contributors make every effort to prevent scrips from
+running amok, security is something best done in
+https://en.wikipedia.org/wiki/Defense_in_depth_(computing)[layers] because
+all software has bugs and it is important to minimize the risk of failure in
+any security layer. Find below rules of thumb for how to keep Elasticsearch
+from being a vulnerability.
 
-First and foremost, never run Elasticsearch as the `root` user, as this would
-allow a script to access or do *anything* on your server, without limitations.
-Elasticsearch checks if it is running as `root` on startup but it won't
-refuse to start if it can't be sure so do your part to make sure it isn't
-running as `root`.
+[float]
+=== Do not run as root
+First and foremost, never run Elasticsearch as the `root` user as this would
+allow any successful effort to circumvent the other security layers to do
+*anything* on your server. Elasticsearch will refuse to start if it detects
+that it is running as `root` but this is so important that it is worth double
+and triple checking.
 
-You should not expose Elasticsearch directly to users, but instead have an
-application in between your users and Elasticsearch. If you *must* allow users
-the ability to run whatever request they want then make sure that dynamic
-scripting is disabled for all non-sandboxed languages. That is already the
-default. Even then, understand that it is possible for a sufficiently
-determined malicious user to write searches that overwhelm the Elasticsearch
-cluster and bring it down.
+[float]
+=== Do not expose Elasticsearch directly to users
+Do not expose Elasticsearch directly to users, instead have an application
+make requests on behalf of users. If this is not possible, have an application
+to sanitize requests from users. If *that* is not possible then have some
+mechanism to track which users did what. Understand that it is quite possible
+to write a <<search, `_search`>> that overwhelms Elasticsearch and brings down
+the cluster. All such searches should be considered bugs and the Elasticsearch
+contributors make an effort to prevent this but they are still possible.
 
-By default Elasticsearch enables dynamic scripting for sandboxed languages,
-namely the scripting language `painless`, the template language `mustache`, and
-the expression language `expressions`. These *ought* to be safe to expose to
-trusted users and to your application servers. It is tempting fate to expose
-them to the Internet at large, on the other hand. Your applications can use
-these scripts dynamically and be exposed to the Internet. Just don't let the
-Internet write scripts.
+[float]
+=== Do not expose Elasticsearch directly to the Internet
+Do not expose Elasticsearch to the Internet, instead have an application
+make requests on behalf of the Internet. Do not entertain the thought of having
+an application "sanitize" requests to Elasticsearch. Understand that it is
+possible for a sufficiently determined malicious user to write searches that
+overwhelm the Elasticsearch cluster and bring it down. For example:
 
-Enabling dynamic scripting for non-sandboxed languages like `groovy`, `python`,
-and `javascript` is super dangerous. These languages have unfettered access to
-Elasticsearch and can cause all kind of trouble. Worse, the only thing
-preventing them from causing real trouble is the Java security manager and
-SECCOMP/Seatbelt/ActiveProcessLimit. Assuming that those will prevent disaster
-is tempting fate again so don't do it.
+Good:
+* Users type text into a search box and the text is sent directly to a
+<<query-dsl-match-query>>, <<query-dsl-match-query-phrase>>,
+<<query-dsl-simple-query-string-query>>, or any of the <<search-suggesters>>.
+* Running a script with any of the above queries that was written as part of
+the application development process.
+* Running a script with `params` provided by users.
+* User actions makes documents with a fixed structure.
+
+Bad:
+* Users can write arbitrary scripts, queries, `_search` requests.
+* User actions make documents with structure defined by users.
+
+[float]
+=== Do not weaken script security settings
+By default Elasticsearch allows inline scripting for sandboxed languages,
+namely the scripting language Painless, the template language Mustache, and
+the expression language Expressions. These *ought* to be safe to expose to
+trusted users and to your application servers because they have strong security
+sandboxes. Non-sandboxed languages are disabled by default and enabling them
+is a poor choice because:
+1. This drops a layer of security, leaving only Elasticsearch's builtin
+<<modules-scripting-other-layers, security layers>>.
+2. Un-sandboxed scripts have unchecked access to Elasticsearch's internals and
+can cause all kinds of trouble if misused.
+
+
+[float]
+[[modules-scripting-other-layers]]
+=== Other security layers
+In addition to user privileges and script sandboxing Elasticsearch uses the
+http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Java Security Manager]
+and native security tools as additional layers of security.
+
+As part of its startup sequence Elasticsearch enables the Java Security Manager
+which limits the actions that can be taken by portions of the code. Painless
+uses this to limit the actions that generated Painless scripts can take,
+preventing them from being able to do things like write files and listen to
+sockets.
+
+Elasticsearch uses
+https://en.wikipedia.org/wiki/Seccomp[seccomp] in Linux,
+https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt] in mac OS,
+and ActiveProcessLimit on Windows to prevent forking and other undesirable
+behaviors like writing to unexpected directories.
 
 Below this we describe the security settings for scripts and how you can
 change from the defaults described above. You should be very, very careful
-when allowing more than the defaults.
+when allowing more than the defaults. Any extra permissions weakens the total
+security of the Elasticsearch deployment.
 
 [[security-script-source]]
 [float]
@@ -128,6 +174,6 @@ script.engine.painless.stored.aggs:     true <3>
 script.engine.mustache.stored.search:   true <4>
 -----------------------------------
 <1> Disable all scripting from any source.
-<2> Allow inline Painless scripts for all operations
+<2> Allow inline Painless scripts for all operations.
 <3> Allow stored Painless scripts to be used for search and aggregations.
 <4> Allow stored Mustache templates to be used for search.

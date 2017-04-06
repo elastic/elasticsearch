@@ -89,7 +89,7 @@ public class HdfsSecurityContext {
      * Expects keytab file to exist at {@code $CONFIG_DIR$/kerberos/krb5.keytab}
      */
     public static Path locateKeytabFile(Environment environment) {
-        Path keytabPath = environment.configFile().resolve("kerberos").resolve("krb5.keytab");
+        Path keytabPath = environment.configFile().resolve("repository-hdfs").resolve("krb5.keytab");
         try {
             if (Files.exists(keytabPath) == false) {
                 LOGGER.error("Could not locate keytab file at [{}].", keytabPath);

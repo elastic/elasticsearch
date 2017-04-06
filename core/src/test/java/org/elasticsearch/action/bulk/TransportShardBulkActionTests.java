@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaExecutionMode;
+import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaItemExecutionMode;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -52,7 +52,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.bulk.TransportShardBulkAction.shouldExecuteOnReplica;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -88,8 +88,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 1, randomBoolean());
         BulkItemRequest request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, response));
-        assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ReplicaExecutionMode.NORMAL));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.NORMAL));
 
         // Failed index requests without sequence no should not be replicated
         writeRequest = new IndexRequest("index", "type", "id")
@@ -99,8 +99,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 new BulkItemResponse(0, DocWriteRequest.OpType.INDEX,
                         new BulkItemResponse.Failure("index", "type", "id",
                                                      new IllegalArgumentException("i died"))));
-        assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ReplicaExecutionMode.NOOP));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.NOOP));
 
         // Failed index requests with sequence no should be replicated
         request = new BulkItemRequest(0, writeRequest);
@@ -110,16 +110,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                                 new IllegalArgumentException(
                                         "i died after sequence no was generated"),
                                 1)));
-        assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ReplicaExecutionMode.FAILURE));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.FAILURE));
         // NOOP requests should not be replicated
         writeRequest = new UpdateRequest("index", "type", "id");
         response = new UpdateResponse(shardId, "type", "id", 1, DocWriteResponse.Result.NOOP);
         request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE,
                         response));
-        assertThat(shouldExecuteOnReplica(request, 0),
-                equalTo(ReplicaExecutionMode.NOOP));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.NOOP));
     }
 
 
@@ -519,7 +519,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     }
 
-    public void testNoopReplicationOnPrimaryFailure() throws Exception {
+    public void testNoOpReplicationOnPrimaryDocumentFailure() throws Exception {
         final IndexShard shard = spy(newStartedShard(false));
         BulkItemRequest itemRequest = new BulkItemRequest(0,
                 new IndexRequest("index", "type")
@@ -527,13 +527,18 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
         final String failureMessage = "simulated primary failure";
         itemRequest.setPrimaryResponse(new BulkItemResponse(0,
-                randomFrom(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.DELETE, DocWriteRequest.OpType.INDEX),
+                randomFrom(
+                        DocWriteRequest.OpType.CREATE,
+                        DocWriteRequest.OpType.DELETE,
+                        DocWriteRequest.OpType.INDEX
+                ),
                 new BulkItemResponse.Failure("index", "type", "1",
                         new IOException(failureMessage), 1L)
         ));
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         itemRequests[0] = itemRequest;
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, itemRequests);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shard.shardId(), RefreshPolicy.NONE, itemRequests);
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
         ArgumentCaptor<Engine.NoOp> noOp = ArgumentCaptor.forClass(Engine.NoOp.class);
         verify(shard, times(1)).markSeqNoAsNoOp(noOp.capture());

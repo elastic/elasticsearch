@@ -211,7 +211,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoopTranslogOperationForDocumentFailure(shards, 1, failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 1, failureMessage);
             shards.assertAllEqual(0);
 
             // add some replicas
@@ -225,7 +225,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoopTranslogOperationForDocumentFailure(shards, 2, failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 2, failureMessage);
             shards.assertAllEqual(0);
         }
     }
@@ -293,8 +293,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
-    private static void assertNoopTranslogOperationForDocumentFailure(ReplicationGroup replicationGroup, int expectedOperation,
-                                                               String failureMessage) throws IOException {
+    private static void assertNoOpTranslogOperationForDocumentFailure(
+            Iterable<IndexShard> replicationGroup,
+            int expectedOperation,
+            String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
             try(Translog.View view = indexShard.acquireTranslogView()) {
                 assertThat(view.totalOperations(), equalTo(expectedOperation));

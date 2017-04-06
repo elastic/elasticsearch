@@ -175,6 +175,12 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final RestStatus status;
         private final long seqNo;
 
+        /**
+         * For write failures before operation was assigned a sequence number.
+         *
+         * use @{link {@link #Failure(String, String, String, Exception, long)}}
+         * to record operation sequence no with failure
+         */
         public Failure(String index, String type, String id, Exception cause) {
             this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbersService.UNASSIGNED_SEQ_NO);
         }
@@ -182,6 +188,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         public Failure(String index, String type, String id, Exception cause, RestStatus status) {
             this(index, type, id, cause, status, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         }
+
+        /** For write failures after operation was assigned a sequence number. */
         public Failure(String index, String type, String id, Exception cause, long seqNo) {
             this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo);
         }

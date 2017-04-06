@@ -361,8 +361,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return new BulkItemResultHolder(updateResponse, updateOperationResult, replicaRequest);
     }
 
-    /** Mode for executing bulk item request on replica depending on corresponding primary execution */
-    public enum ReplicaExecutionMode {
+    /** Modes for executing item request on replica depending on corresponding primary execution result */
+    public enum ReplicaItemExecutionMode {
 
         /**
          * When primary execution succeeded
@@ -383,24 +383,24 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /**
      * Determines whether a bulk item request should be executed on the replica.
-     * @return {@link ReplicaExecutionMode#NORMAL} upon normal primary execution with no failures
-     * {@link ReplicaExecutionMode#FAILURE} upon primary execution failure after sequence no generation
-     * {@link ReplicaExecutionMode#NOOP} upon primary execution failure before sequence no generation or
+     * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures
+     * {@link ReplicaItemExecutionMode#FAILURE} upon primary execution failure after sequence no generation
+     * {@link ReplicaItemExecutionMode#NOOP} upon primary execution failure before sequence no generation or
      * when primary execution resulted in noop (only possible for write requests from pre-6.0 nodes)
      */
-    static ReplicaExecutionMode shouldExecuteOnReplica(final BulkItemRequest request, final int index) {
+    static ReplicaItemExecutionMode replicaItemExecutionMode(final BulkItemRequest request, final int index) {
         final BulkItemResponse primaryResponse = request.getPrimaryResponse();
         assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request [" + request.request() + "]";
         if (primaryResponse.isFailed()) {
             return primaryResponse.getFailure().getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO
-                    ? ReplicaExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
-                    : ReplicaExecutionMode.NOOP; // no seq no generated, ignore replication
+                    ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
+                    : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
         } else {
             // NOTE: write requests originating from pre-6.0 nodes can send a no-op operation to
             // the replica; we ignore replication
             return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
-                    ? ReplicaExecutionMode.NORMAL // execution successful on primary
-                    : ReplicaExecutionMode.NOOP; // ignore replication
+                    ? ReplicaItemExecutionMode.NORMAL // execution successful on primary
+                    : ReplicaItemExecutionMode.NOOP; // ignore replication
         }
     }
 
@@ -414,11 +414,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
-            final ReplicaExecutionMode replicaExecutionMode = shouldExecuteOnReplica(item, i);
             final Engine.Result operationResult;
             DocWriteRequest docWriteRequest = item.request();
             try {
-                switch (replicaExecutionMode) {
+                switch (replicaItemExecutionMode(item, i)) {
                     case NORMAL:
                         final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
                         switch (docWriteRequest.opType()) {
@@ -444,7 +443,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         operationResult = executeFailedSeqNoOnReplica(failure, docWriteRequest, replica);
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
                         location = syncOperationResultOrThrow(operationResult, location);
-                         break;
+                        break;
                }
             } catch (Exception e) {
                 // if its not an ignore replica failure, we need to make sure to bubble up the failure
@@ -454,7 +453,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }
         }
-        return  location;
+        return location;
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */

@@ -65,7 +65,7 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
      * {@link CollapseTopFieldDocs}. The collapsing needs only one pass so we can create the final top docs at the end
      * of the first pass.
      */
-    public CollapseTopFieldDocs getTopDocs() {
+    public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0, true);
         if (groups == null) {
             return new CollapseTopFieldDocs(collapseField, totalHitCount, new ScoreDoc[0],
@@ -136,7 +136,7 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
         }
 
         @Override
-        protected Long getDocGroupValue(int doc) {
+        protected Long getDocGroupValue(int doc) throws IOException {
             return source.get(doc);
         }
 
@@ -162,7 +162,7 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
         }
 
         @Override
-        protected BytesRef getDocGroupValue(int doc) {
+        protected BytesRef getDocGroupValue(int doc) throws IOException {
             return source.get(doc);
         }
 

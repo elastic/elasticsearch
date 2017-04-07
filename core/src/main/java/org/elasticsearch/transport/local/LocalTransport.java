@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -204,21 +205,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         if (targetTransport == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
         }
-        return new Connection() {
-            @Override
-            public DiscoveryNode getNode() {
-                return node;
-            }
-
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-                LocalTransport.this.sendRequest(targetTransport, node, requestId, action, request, options);
-            }
-
-            @Override
-            public void close() throws IOException {}
-        };
+        return getConnectionForTransport(targetTransport, node);
     }
 
     @Override
@@ -227,6 +214,10 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         if (targetTransport == null) {
             throw new ConnectTransportException(node, "Failed to connect");
         }
+        return getConnectionForTransport(targetTransport, node);
+    }
+
+    private Connection getConnectionForTransport(LocalTransport targetTransport, DiscoveryNode node) {
         return new Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -236,13 +227,20 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws IOException, TransportException {
+                if (transports.get(node.getAddress()) != targetTransport) {
+                    // we double check that we are still connected since due to the nature of local transport we won't get any errors
+                    // when we send to a closed / disconnected transport. Yet, if the target transport is closed concurrently before
+                    // the transport service registers the client handler local transport will simply ignore the request which can cause
+                    // requests to hang. By checking again here we guarantee to throw an exception which causes the client handler to run
+                    // in such a situation, if the client handler is not registered yet when the connections is obtained.
+                    throw new NodeNotConnectedException(node, " got disconnected");
+                }
                 LocalTransport.this.sendRequest(targetTransport, node, requestId, action, request, options);
             }
 
             @Override
             public void close() throws IOException {}
         };
-
     }
 
     protected void sendRequest(LocalTransport targetTransport, final DiscoveryNode node, final long requestId, final String action,

@@ -19,15 +19,24 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +44,10 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
@@ -124,5 +137,57 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    protected ContextParser<Object, Aggregation> instanceParser() {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    public void testFromXContent() throws IOException {
+        try {
+            final T aggregation = createTestInstance();
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
+                    singletonList(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(aggregation.getType()), instanceParser()))
+            );
+
+            final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+            final boolean humanReadable = randomBoolean();
+            final XContentType xContentType = XContentType.JSON;//randomFrom(XContentType.values());
+            final BytesReference originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+
+            Aggregation parsedAggregation;
+            try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, originalBytes)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+
+                String currentName = parser.currentName();
+                int i = currentName.indexOf(InternalAggregation.TYPED_KEYS_DELIMITER);
+                String aggType = currentName.substring(0, i);
+                String aggName = currentName.substring(i + 1);
+
+                parsedAggregation = parser.namedObject(Aggregation.class, aggType, aggName);
+
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                assertNull(parser.nextToken());
+            }
+
+            final BytesReference parsedBytes = toXContent((ToXContent) parsedAggregation, xContentType, params, humanReadable);
+            assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+            assertFromXContent(aggregation, parsedAggregation);
+
+        } catch (UnsupportedOperationException e) {
+            if ("Not implemented yet".equals(e.getMessage()) == false) {
+                throw e;
+            }
+        }
+    }
+
+    // TODO make abstract
+    protected void assertFromXContent(T aggregation, Aggregation parsedAggregation) {
+        assertEquals(aggregation.getName(), parsedAggregation.getName());
+        assertEquals(aggregation.getMetaData(), parsedAggregation.getMetaData());
+        assertTrue(parsedAggregation instanceof ParsedAggregation);
+        assertEquals(aggregation.getType(), ((ParsedAggregation) parsedAggregation).getType());
     }
 }

@@ -20,8 +20,11 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
@@ -38,7 +41,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalAggregationTes
         for (int i = 0; i < numValues; ++i) {
             state.add(randomDouble());
         }
-        boolean keyed = false;
+        boolean keyed = randomBoolean();
         DocValueFormat format = DocValueFormat.RAW;
         return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, pipelineAggregators, metaData);
     }
@@ -71,4 +74,21 @@ public class InternalTDigestPercentilesRanksTests extends InternalAggregationTes
         return InternalTDigestPercentileRanks::new;
     }
 
+    protected ContextParser<Object, Aggregation> instanceParser() {
+        return (parser, context) -> ParsedTDigestPercentileRanks.fromXContent(parser, (String) context);
+    }
+
+    @Override
+    protected void assertFromXContent(InternalTDigestPercentileRanks aggregation, Aggregation parsedAggregation) {
+        super.assertFromXContent(aggregation, parsedAggregation);
+
+        assertTrue(parsedAggregation instanceof ParsedTDigestPercentileRanks);
+        ParsedTDigestPercentileRanks tDigestPercentileRanks = (ParsedTDigestPercentileRanks) parsedAggregation;
+        for (Percentile percentile : aggregation) {
+            assertEquals(percentile.getPercent(), tDigestPercentileRanks.percentile(percentile.getValue()), 0);
+        }
+        for (Percentile percentile : tDigestPercentileRanks) {
+            assertEquals(percentile.getValue(), aggregation.percent(percentile.getPercent()), 0);
+        }
+    }
 }

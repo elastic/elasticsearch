@@ -21,9 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
@@ -41,7 +43,7 @@ public class InternalHDRPercentilesRanksTests extends InternalAggregationTestCas
         for (int i = 0; i < numValues; ++i) {
             state.recordValue(randomDouble());
         }
-        boolean keyed = false;
+        boolean keyed = randomBoolean();
         DocValueFormat format = DocValueFormat.RAW;
         return new InternalHDRPercentileRanks(name, cdfValues, state, keyed, format, pipelineAggregators, metaData);
     }
@@ -61,4 +63,21 @@ public class InternalHDRPercentilesRanksTests extends InternalAggregationTestCas
         return InternalHDRPercentileRanks::new;
     }
 
+    protected ContextParser<Object, Aggregation> instanceParser() {
+        return (parser, context) -> ParsedHDRPercentileRanks.fromXContent(parser, (String) context);
+    }
+
+    @Override
+    protected void assertFromXContent(InternalHDRPercentileRanks aggregation, Aggregation parsedAggregation) {
+        super.assertFromXContent(aggregation, parsedAggregation);
+
+        assertTrue(parsedAggregation instanceof ParsedHDRPercentileRanks);
+        ParsedHDRPercentileRanks hdrPercentileRanks = (ParsedHDRPercentileRanks) parsedAggregation;
+        for (Percentile percentile : aggregation) {
+            assertEquals(percentile.getPercent(), hdrPercentileRanks.percentile(percentile.getValue()), 0);
+        }
+        for (Percentile percentile : hdrPercentileRanks) {
+            assertEquals(percentile.getValue(), aggregation.percent(percentile.getPercent()), 0);
+        }
+    }
 }

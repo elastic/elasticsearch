@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -46,15 +47,18 @@ public class ParsedAggregationTests extends ESTestCase {
     //TODO maybe this test will no longer be needed once we have real tests for ParsedAggregation subclasses
     public void testParse() throws IOException {
         String name = randomAlphaOfLengthBetween(5, 10);
-        int numMetas = randomIntBetween(0, 5);
-        Map<String, Object> meta = new HashMap<>(numMetas);
-        for (int i = 0; i < numMetas; i++) {
-            meta.put(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
+        Map<String, Object> meta = null;
+        if (randomBoolean()) {
+            int numMetas = randomIntBetween(0, 5);
+            meta = new HashMap<>(numMetas);
+            for (int i = 0; i < numMetas; i++) {
+                meta.put(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
+            }
         }
         TestInternalAggregation testAgg = new TestInternalAggregation(name, meta);
         XContentType xContentType = randomFrom(XContentType.values());
         FakeRestRequest params = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withParams(Collections.singletonMap("typed_keys", "true")).build();
+                .withParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true")).build();
         BytesReference bytesAgg = XContentHelper.toXContent(testAgg, xContentType, params, randomBoolean());
         try (XContentParser parser = createParser(xContentType.xContent(), bytesAgg)) {
             parser.nextToken();
@@ -69,6 +73,9 @@ public class ParsedAggregationTests extends ESTestCase {
             assertThat(parsedAgg, instanceOf(TestParsedAggregation.class));
             assertEquals(testAgg.getName(), parsedAgg.getName());
             assertEquals(testAgg.getMetaData(), parsedAgg.getMetaData());
+            if (meta != null) {
+                expectThrows(UnsupportedOperationException.class, () -> parsedAgg.getMetaData().put("test", "test"));
+            }
             BytesReference finalAgg = XContentHelper.toXContent((ToXContent) parsedAgg, xContentType, randomBoolean());
             assertToXContentEquivalent(bytesAgg, finalAgg, xContentType);
         }

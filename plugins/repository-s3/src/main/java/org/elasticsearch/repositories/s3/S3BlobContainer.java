@@ -78,8 +78,17 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
-        S3Object s3Object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
-        return s3Object.getObjectContent();
+        try {
+            S3Object s3Object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
+            return s3Object.getObjectContent();
+        } catch (AmazonClientException e) {
+            if (e instanceof AmazonS3Exception) {
+                if (404 == ((AmazonS3Exception) e).getStatusCode()) {
+                    throw new NoSuchFileException("Blob object [" + blobName + "] not found: " + e.getMessage());
+                }
+            }
+            throw e;
+        }
     }
 
     @Override

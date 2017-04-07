@@ -4,8 +4,8 @@
 Change specific index level settings in real time.
 
 The REST endpoint is `/_settings` (to update all indices) or
-`{index}/_settings` to update one (or more) indices settings. The body
-of the request includes the updated settings, for example:
+`{index}/_settings` to update one (or more) indices settings.
+The body of the request includes the updated settings, for example:
 
 [source,js]
 --------------------------------------------------
@@ -21,6 +21,9 @@ PUT /twitter/_settings
 
 The list of per-index settings which can be updated dynamically on live
 indices can be found in <<index-modules>>.
+To preserve existing settings from being update, you can add the parameter
+`preserve_existing=true` in your request. The REST endpoint
+ would then become `/_settings?preserve_existing=true` or `{index}/_settings?preserve_existing=true`.
 
 [float]
 [[bulk]]

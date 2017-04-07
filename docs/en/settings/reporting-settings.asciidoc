@@ -1,0 +1,89 @@
+[[reporting-settings]]
+== Reporting Settings
+
+You configure `xpack.reporting` settings in `kibana.yml` to
+control how {reporting} <<reporting-kibana-server-settings, communicates
+with the Kibana server>>, <<reporting-job-queue-settings, manages background
+jobs>>, and <<reporting-capture-settings, captures screenshots>>.
+
+[float]
+[[general-reporting-settings]]
+=== General Reporting Settings
+`xpack.reporting.enabled`::
+Set to `false` to disable {reporting}.
+
+`xpack.reporting.encryptionKey`::
+Set to any text string. By default, Kibana generates a random key when it starts,
+which causes any pending reports to fail on restart. Configure this setting to use
+the same key across restarts.
+
+[float]
+[[reporting-kibana-server-settings]]
+=== Kibana Server Settings
+
+Reporting uses the Kibana interface to generate reports. In most cases, you don't need
+to configure Reporting to communicate with Kibana, it just works out of the box.
+However, if you use a proxy in your stack or otherwise change how you access Kibana, you
+might need to configure the following settings.
+
+`xpack.reporting.kibanaApp`::
+The root path used to access Kibana, defaults to `/app/kibana`.
+
+`xpack.reporting.kibanaServer.port`::
+The port used to access Kibana, if different than the `server.port` value.
+
+`xpack.reporting.kibanaServer.protocol`::
+The protocol used to access Kibana, typically `http` or `https`.
+
+`xpack.reporting.kibanaServer.hostname`::
+The hostname used to access Kibana, if different than the `server.name` value.
+
+[float]
+[[reporting-job-queue-settings]]
+=== Background Job Settings
+
+Reporting generates reports in the background and jobs are coordinated using documents
+in Elasticsearch. Depending on how often you generate reports and the overall number of
+reports, you may need to change some of the following settings.
+
+`xpack.reporting.queue.indexInterval`::
+How often the index that stores reporting jobs rolls over to a new index.
+Valid values are `year`, `month`, `week`, `day`, and `hour`. Defaults to `week`.
+
+`xpack.reporting.queue.pollInterval`::
+How often idle workers poll the index for pending jobs. Defaults to `3000` (3 seconds).
+
+`xpack.reporting.queue.timeout`::
+How long each worker has to produce a report. If your machine is slow or under constant
+heavy load, you might need to increase this timeout. Specified in milliseconds.
+Defaults to `30000` (30 seconds).
+
+[float]
+[[reporting-capture-settings]]
+=== Capture Settings
+
+Reporting works by capturing screenshots from Kibana. These settings are used to
+control various aspects of the capturing process.
+
+`xpack.reporting.capture.concurrency`::
+The number of concurrent capture processes to run. Note that jobs are CPU bound,
+and exceeding the number of cores available on the machine will likely be very
+slow and might cause issues. Defaults to the number of cores on
+the machine.
+
+`xpack.reporting.capture.loadDelay`::
+When visualizations are not evented, this is the amount of time to before
+taking a screenshot. All visualizations that ship with Kibana are evented, so this
+setting shouldn't have much effect. If you are seeing empty images instead of
+visualizations in your reports, try increasing this value.
+Defaults to `3000` (3 seconds).
+
+`xpack.reporting.capture.settleTime`::
+When visualizations are evented, this is the amount of time to wait for their rendering
+to settle. If visualizations in your PDF are smaller than they should be, try increasing
+this value.
+Defaults to `1000` (1 second).
+
+`xpack.reporting.capture.timeout`::
+The maximum amount of time to wait for things to render in Kibana when capturing
+screenshots. Defaults to `6000` (6 seconds).

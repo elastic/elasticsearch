@@ -1,0 +1,346 @@
+[[monitoring-settings]]
+== Monitoring Settings
+
+:imagesdir:         images/monitoring
+
+You configure <<monitoring-collection-settings, `xpack.monitoring.collection`>>
+settings in `elasticsearch.yml` to control how data is collected from your
+Elasticsearch nodes. You can adjust how monitoring data is displayed in the
+Monitoring UI by configuring <<monitoring-ui-settings, `xpack.monitoring`>>
+settings in `kibana.yml`.
+
+For more information, see <<configuring-monitoring, Configuring Monitoring>>.
+
+[float]
+[[general-monitoring-settings]]
+=== General Monitoring Settings
+`xpack.monitoring.enabled`::
+Set to `false` to disable {monitoring}.
+Configure in both `elasticsearch.yml` and `kibana.yml`.
+
+[float]
+[[monitoring-collection-settings]]
+=== Monitoring Collection Settings
+
+`xpack.monitoring.collection.cluster.state.timeout`::
+
+Sets the timeout for collecting the cluster state. Defaults to `10m`.
+
+`xpack.monitoring.collection.cluster.stats.timeout`::
+
+Sets the timeout for collecting the cluster statistics. Defaults to `10m`.
+
+`xpack.monitoring.collection.indices`::
+
+Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names
+as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for
+example `test*`. You can explicitly include or exclude indices by prepending
+`+` to include the index, or `-` to exclude the index. For example, to include all indices that
+start with `test` except `test3`, you could specify `+test*,-test3`.
++
+You can update this setting through the Cluster Update Settings API.
+
+`xpack.monitoring.collection.index.stats.timeout`::
+
+Sets the timeout for collecting index statistics. Defaults to `10m`.
+
+`xpack.monitoring.collection.indices.stats.timeout`::
+
+Sets the timeout for collecting total indices statistics. Defaults to `10m`.
+
+`xpack.monitoring.exporters` ::
+
+Configures where the agent stores monitoring data. By default, the agent uses a local exporter that
+indexes monitoring data on the cluster where it is installed. Use an HTTP exporter to send data to
+a separate monitoring cluster. For more information, see <<monitoring-cluster, Setting up a Separate
+Monitoring Cluster>>.
+
+`xpack.monitoring.collection.index.recovery.active_only`::
+
+Controls whether or not all recoveries are collected. Set to `true` to
+collect only active recoveries. Defaults to `false`.
+
+`xpack.monitoring.collection.index.recovery.timeout`::
+
+Sets the timeout for collecting the recovery information. Defaults to `10m`.
+
+`xpack.monitoring.collection.interval`::
+
+Controls how often data samples are collected. Defaults to `10s`. If you
+modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
+option in `kibana.yml` to the same value. Set to `-1` to temporarily disable
+data collection. You can update this setting through the Cluster Update
+Settings API.
+
+`xpack.monitoring.history.duration`::
+
+Sets the retention duration beyond which the indices created by a Monitoring exporter will
+be automatically deleted. Defaults to `7d` (7 days).
++
+This setting has a minimum value of `1d` (1 day) to ensure that something is being monitored,
+and it cannot be disabled.
++
+IMPORTANT: This setting currently only impacts `local`-type exporters. Indices created using
+the `http` exporter will not be deleted automatically.
+
+
+[float]
+[[monitoring-ui-settings]]
+=== Monitoring UI Settings
+
+You can set the following `xpack.monitoring` settings in `kibana.yml` to adjust
+how the Monitoring UI displays monitoring data. However, the defaults work best
+in most circumstances. For more information about configuring Kibana, see
+{kibana-ref}/settings.html[Setting Kibana
+Server Properties] in the Kibana User Guide.
+
+`xpack.monitoring.elasticsearch.url`::
+
+The location of the Elasticsearch instance(s) where your monitoring data is
+stored. By default, this is the same as the `elasticsearch.url`. This setting
+enables you to use a single Kibana instance to search and visualize data in
+your production cluster as well as monitor data sent to a dedicated monitoring
+cluster.
+
+`xpack.monitoring.max_bucket_size`::
+
+The number of term buckets to return out of the overall terms list when
+performing terms aggregations to retrieve index and node metrics. For more
+information about the `size` parameter, see {ref}/search-aggregations-bucket-terms-aggregation.html#_size[
+Terms Aggregation] in the Elasticsearch Reference. Defaults to 10000.
+
+`xpack.monitoring.min_interval_seconds`::
+
+The minimum number of seconds that a time bucket in a chart can represent.
+Defaults to 10. If you modify the `xpack.monitoring.collection.interval`
+in `elasticsearch.yml`, set this option to the same value.
+
+`xpack.monitoring.node_resolver`::
+
+The node resolver controls how nodes are considered unique. This can be set to either `uuid`,
+`transport_address`, or `name`. `uuid` controls uniqueness based on the node's persistent ID.
+`transport_address` controls uniqueness based on the node's published
+hostname/IP and port. `name` controls uniqueness based on the node's `node.name` setting. Defaults to
+`uuid`.
+
+`xpack.monitoring.report_stats`::
+
+Whether or not to send cluster statistics to Elastic. Reporting your cluster statistics
+helps us improve your user experience. Your data is never shared with anyone. Set to
+`false` to disable statistics reporting from any browser connected to the Kibana instance.
+You can also opt-out on a per-browser basis through the Monitoring user interface. Defaults to `true`.
+
+`xpack.monitoring.kibana.collection.enabled`::
+
+Whether or not to enable data collection from the Kibana NodeJS server for
+Kibana Dashboards to be featured in the Monitoring UI. Defaults to `true`.
+
+`xpack.monitoring.kibana.collection.interval`::
+
+Number of milliseconds to wait in between data sampling for Kibana's NodeJS
+server for the metrics that are displayed in the Kibana dashboards. Defaults to
+`10000` (10 seconds).
+
+[float]
+[[monitoring-ui-cgroup-settings]]
+==== Monitoring UI Container Settings
+
+The Monitoring UI exposes the Cgroup statistics that we collect for you to make better decisions
+about your container performance, rather than guessing based on the overall machine performance.
+If you are not running your applications in a container, then Cgroup statistics will not be useful.
+
+`xpack.monitoring.ui.container.elasticsearch.enabled`::
+
+For Elasticsearch clusters that are running in containers, this setting changes the Node Listing to
+display the CPU Utilization based on the reported Cgroup statistics. This will also add the calculated
+Cgroup CPU Utilization to the Node Overview page instead of the overall operating system's CPU
+Utilization. Defaults to `false`.
++
+image::monitoring-es-cgroup-true.png["Elasticsearch Inside a Container",link="images/monitoring-es-cgroup-true.png"]
+
+[float]
+[[local-exporter-settings]]
+==== Local Exporter Settings
+
+The `local` exporter is the default exporter used by Monitoring. As the name is
+meant to imply, it exports data to the _local_ cluster, which means that there
+is not much needed to be configured.
+
+If you do not supply _any_ exporters, then Monitoring will automatically create
+one for you. If any exporter is provided, then no default is added.
+
+[source,yaml]
+----------------------------------
+xpack.monitoring.exporters.my_local:
+  type: local
+----------------------------------
+
+`type`::
+
+The value for a Local exporter must always be `local` and it is required.
+
+`use_ingest`::
+
+Whether to supply a placeholder pipeline to the cluster and a pipeline processor with
+every bulk request. The default value is `true`. If disabled, then it means that it will not
+use pipelines, which means that a future release cannot automatically upgrade bulk requests
+to future-proof them.
+
+[float]
+[[http-exporter-settings]]
+==== HTTP Exporter Settings
+
+The following lists settings that can be supplied with the `http` exporter.
+All settings are shown as what follows the name you select for your exporter:
+
+[source,yaml]
+----------------------------------
+xpack.monitoring.exporters.my_remote:
+  type: http
+  host: ["host:port", ...]
+----------------------------------
+
+`type`::
+
+The value for an HTTP exporter must always be `http` and it is required.
+
+`host`::
+
+Host supports multiple formats, both as an array or as a single value. Supported formats include
+`hostname`, `hostname:port`, `http://hostname` `http://hostname:port`, `https://hostname`, and
+`https://hostname:port`. Hosts cannot be assumed. The default scheme is always `http` and the default
+port is always `9200` if not supplied as part of the `host` string.
++
+[source,yaml]
+----------------------------------
+xpack.monitoring.exporters:
+  example1:
+    type: http
+    host: "10.1.2.3"
+  example2:
+    type: http
+    host: ["http://10.1.2.4"]
+  example3:
+    type: http
+    host: ["10.1.2.5", "10.1.2.6"]
+  example4:
+    type: http
+    host: ["https://10.1.2.3:9200"]
+----------------------------------
+
+`auth.username`::
+
+The username is required if a `auth.password` is supplied.
+
+`auth.password`::
+
+The password for the `auth.username`.
+
+`connection.timeout`::
+
+The amount of time that the HTTP connection is supposed to wait for a socket to open for the
+request. The default value is `6s`.
+
+`connection.read_timeout`::
+
+The amount of time that the HTTP connection is supposed to wait for a socket to
+send back a response. The default value is `10 * connection.timeout` (`60s` if neither are set).
+
+`ssl`::
+
+Each HTTP exporter can define its own TLS / SSL settings or inherit them. See the
+<<ssl-monitoring-settings, TLS / SSL section below>>.
+
+`proxy.base_path`::
+
+The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk requests would
+then be sent as `/base/path/_bulk`). There is no default value.
+
+`headers`::
+
+Optional headers that are added to every request, which can assist with routing requests through
+proxies.
++
+[source,yaml]
+----------------------------------
+xpack.monitoring.exporters.my_remote:
+  headers:
+    X-My-Array: [abc, def, xyz]
+    X-My-Header: abc123
+----------------------------------
++
+Array-based headers are sent `n` times where `n` is the size of the array. `Content-Type`
+and `Content-Length` cannot be set. Any headers created by the Monitoring agent will override
+anything defined here.
+
+`index.name.time_format`::
+
+A mechanism for changing the default date suffix for the, by default, daily Monitoring indices.
+The default value is `YYYY.MM.DD`, which is why the indices are created daily.
+
+`use_ingest`::
+
+Whether to supply a placeholder pipeline to the monitoring cluster and a pipeline processor with
+every bulk request. The default value is `true`. If disabled, then it means that it will not
+use pipelines, which means that a future release cannot automatically upgrade bulk requests
+to future-proof them.
+
+[[ssl-monitoring-settings]]
+:ssl-prefix:             xpack.monitoring.exporters.$NAME
+:component:              {monitoring}
+:verifies:
+:server!:
+
+include::ssl-settings.asciidoc[]
+
+[float]
+[[monitoring-logstash-settings]]
+=== Monitoring Logstash Settings
+
+You can set the following `xpack.monitoring` settings in `logstash.yml` to control how monitoring data is
+collected from your Logstash nodes. However, the defaults work best in most circumstances. For more
+information about configuring Logstash, see {logstash-ref}/logstash-settings-file.html[Settings File]
+section.
+
+`xpack.monitoring.enabled`::
+
+Set to `false` to disable X-Pack monitoring.
+
+`xpack.monitoring.collection.interval`::
+
+Controls how often data samples are collected and shipped on the Logstash side. Defaults to `10s`.
+
+`xpack.monitoring.elasticsearch.url`::
+
+The Elasticsearch instance(s) that you want to ship your Logstash metrics to.
+This might be the same Elasticsearch instance specified in the `outputs`
+section in your Logstash configuration, or a different one. This is *not*
+the URL of your dedicated monitoring cluster. Even if you are using a dedicated
+monitoring cluster, the Logstash metrics must be routed through your production
+cluster. You can specify a single host as a string, or specify multiple
+hosts as an array. Defaults to `http://localhost:9200`.
+
+`xpack.monitoring.elasticsearch.username` and `xpack.monitoring.elasticsearch.password`::
+
+If your Elasticsearch is protected with basic authentication, these settings provide the username and
+password that the Logstash instance uses to authenticate for shipping monitoring data.
+
+`xpack.monitoring.elasticsearch.ssl.ca`::
+
+Optional setting that enables you to specify a path to the `.pem` file for the certificate authority for your Elasticsearch instance.
+
+`xpack.monitoring.elasticsearch.ssl.truststore.path`::
+
+Optional settings that provide the paths to the Java keystore (JKS) to validate the server’s certificate.
+
+`xpack.monitoring.elasticsearch.ssl.truststore.password`::
+
+Optional settings that provide the password to the truststore.
+
+`xpack.monitoring.elasticsearch.ssl.keystore.path`::
+
+Optional settings that provide the paths to the Java keystore (JKS) to validate the client’s certificate.
+
+`xpack.monitoring.elasticsearch.ssl.keystore.password`::
+
+Optional settings that provide the password to the keystore.

@@ -1,0 +1,20 @@
+[[xpack-settings]]
+= X-Pack Settings
+
+[partintro]
+--
+You configure settings for X-Pack features in the `elasticsearch.yml` and `kibana.yml`
+configuration files.
+
+* <<security-settings, Security Settings>>
+* <<monitoring-settings, Monitoring Settings>>
+* <<notification-settings, Watcher Settings>>
+* <<reporting-settings, Reporting Settings>>
+--
+
+include::security-settings.asciidoc[]
+include::monitoring-settings.asciidoc[]
+include::graph-settings.asciidoc[]
+include::notification-settings.asciidoc[]
+include::reporting-settings.asciidoc[]
+

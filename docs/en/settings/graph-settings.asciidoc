@@ -1,0 +1,9 @@
+[[graph-settings]]
+== Graph Settings
+You do not need to configure any settings to use {graph}.
+
+[float]
+[[general-graph-settings]]
+=== General Graph Settings
+`xpack.graph.enabled`::
+Set to `false` to disable {graph}.

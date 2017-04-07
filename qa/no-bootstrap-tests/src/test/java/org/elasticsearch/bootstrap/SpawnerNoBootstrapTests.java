@@ -157,6 +157,21 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         }
     }
 
+    public void testSpawnerSkipsHiddenFiles() throws IOException {
+        final Path esHome = createTempDir().resolve("home");
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
+        final Settings settings = settingsBuilder.build();
+
+        final Environment environment = new Environment(settings);
+
+        final Path hidden = environment.pluginsFile().resolve(".hidden");
+        Files.createDirectories(hidden);
+
+        Spawner spawner = new Spawner();
+        spawner.spawnNativePluginControllers(environment);
+    }
+
     public void testControllerSpawnWithIncorrectDescriptor() throws IOException {
         // this plugin will have a controller daemon
         Path esHome = createTempDir().resolve("esHome");

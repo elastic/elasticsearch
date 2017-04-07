@@ -344,7 +344,7 @@ public final class SearchPhaseController extends AbstractComponent {
 
     private SearchHits getHits(ReducedQueryPhase reducedQueryPhase, boolean ignoreFrom,
                                Collection<? extends SearchPhaseResult> fetchResults, IntFunction<SearchPhaseResult> resultsLookup) {
-        final boolean sorted = reducedQueryPhase.isSorted;
+        final boolean sorted = reducedQueryPhase.isSortedByField;
         ScoreDoc[] sortedDocs = reducedQueryPhase.scoreDocs;
         int sortScoreIndex = -1;
         if (sorted) {
@@ -405,7 +405,7 @@ public final class SearchPhaseController extends AbstractComponent {
      * @param queryResults a list of non-null query shard results
      * @param bufferedAggs a list of pre-collected / buffered aggregations. if this list is non-null all aggregations have been consumed
      *                    from all non-null query results.
-     * @param bufferedAggs a list of pre-collected / buffered top docs. if this list is non-null all top docs have been consumed
+     * @param bufferedTopDocs a list of pre-collected / buffered top docs. if this list is non-null all top docs have been consumed
      *                    from all non-null query results.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
      * @see QuerySearchResult#consumeAggs()
@@ -540,8 +540,8 @@ public final class SearchPhaseController extends AbstractComponent {
         final ScoreDoc[] scoreDocs;
         // the top docs sort fields used to sort the score docs, <code>null</code> if the results are not sorted
         final SortField[] sortField;
-        // <code>true</code> iff the result score docs is sorted
-        final boolean isSorted;
+        // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
+        final boolean isSortedByField;
         // the size of the top hits to return
         final int size;
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
@@ -553,7 +553,7 @@ public final class SearchPhaseController extends AbstractComponent {
 
         ReducedQueryPhase(long totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
                           InternalAggregations aggregations, SearchProfileShardResults shardResults, ScoreDoc[] scoreDocs,
-                          SortField[] sortFields, DocValueFormat[] sortValueFormats, int numReducePhases, boolean isSorted, int size,
+                          SortField[] sortFields, DocValueFormat[] sortValueFormats, int numReducePhases, boolean isSortedByField, int size,
                           int from, boolean isEmptyResult) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
@@ -573,7 +573,7 @@ public final class SearchPhaseController extends AbstractComponent {
             this.numReducePhases = numReducePhases;
             this.scoreDocs = scoreDocs;
             this.sortField = sortFields;
-            this.isSorted = isSorted;
+            this.isSortedByField = isSortedByField;
             this.size = size;
             this.from = from;
             this.isEmptyResult = isEmptyResult;

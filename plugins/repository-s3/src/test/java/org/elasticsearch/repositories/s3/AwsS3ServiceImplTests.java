@@ -210,7 +210,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.PROXY_PORT_SETTING.getKey(), 8080)
             .put(AwsS3Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsS3Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsS3Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .put(AwsS3Service.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
@@ -221,7 +220,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                 AwsS3Service.PROTOCOL_SETTING,
                 AwsS3Service.PROXY_HOST_SETTING,
                 AwsS3Service.PROXY_PORT_SETTING,
-                AwsS3Service.SIGNER_SETTING,
                 AwsS3Service.READ_TIMEOUT});
     }
 
@@ -232,14 +230,12 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.PROXY_PORT_SETTING.getKey(), 8080)
             .put(AwsS3Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsS3Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsS3Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .put(AwsS3Service.READ_TIMEOUT.getKey(), "5s")
             .put(AwsS3Service.CLOUD_S3.PROTOCOL_SETTING.getKey(), "https")
             .put(AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING.getKey(), "s3_proxy_host")
             .put(AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING.getKey(), 8081)
             .put(AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING.getKey(), "s3_proxy_username")
             .put(AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING.getKey(), "s3_proxy_password")
-            .put(AwsS3Service.CLOUD_S3.SIGNER_SETTING.getKey(), "NoOpSignerType")
             .put(AwsS3Service.CLOUD_S3.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
@@ -250,14 +246,12 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                 AwsS3Service.PROTOCOL_SETTING,
                 AwsS3Service.PROXY_HOST_SETTING,
                 AwsS3Service.PROXY_PORT_SETTING,
-                AwsS3Service.SIGNER_SETTING,
                 AwsS3Service.READ_TIMEOUT,
                 AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING,
                 AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING,
                 AwsS3Service.CLOUD_S3.PROTOCOL_SETTING,
                 AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING,
                 AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING,
-                AwsS3Service.CLOUD_S3.SIGNER_SETTING,
                 AwsS3Service.CLOUD_S3.READ_TIMEOUT});
     }
 

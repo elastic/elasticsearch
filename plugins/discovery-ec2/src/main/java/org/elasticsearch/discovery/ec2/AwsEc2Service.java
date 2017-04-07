@@ -77,10 +77,6 @@ interface AwsEc2Service {
     Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.proxy.password", "", SecureString::new,
         Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
     /**
-     * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
-     */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope, Property.Shared, Property.Deprecated);
-    /**
      * cloud.aws.region: Region. Shared with repository-s3 plugin
      */
     Setting<String> REGION_SETTING =
@@ -140,13 +136,6 @@ interface AwsEc2Service {
          */
         Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
             SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
-        /**
-         * cloud.aws.ec2.signer: If you are using an old AWS API version, you can define a Signer. Specific for EC2 API calls.
-         * Defaults to cloud.aws.signer.
-         * @see AwsEc2Service#SIGNER_SETTING
-         */
-        Setting<String> SIGNER_SETTING = new Setting<>("cloud.aws.ec2.signer", AwsEc2Service.SIGNER_SETTING, Function.identity(),
-            Property.NodeScope, Property.Deprecated);
         /**
          * cloud.aws.ec2.region: Region specific for EC2 API calls. Defaults to cloud.aws.region.
          * @see AwsEc2Service#REGION_SETTING

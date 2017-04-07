@@ -124,7 +124,6 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put(AwsEc2Service.PROXY_PORT_SETTING.getKey(), 8080)
             .put(AwsEc2Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsEc2Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsEc2Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .put(AwsEc2Service.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password",
@@ -135,7 +134,6 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             AwsEc2Service.PROXY_PORT_SETTING,
             AwsEc2Service.PROXY_USERNAME_SETTING,
             AwsEc2Service.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.SIGNER_SETTING,
             AwsEc2Service.READ_TIMEOUT
         });
     }
@@ -147,14 +145,12 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put(AwsEc2Service.PROXY_PORT_SETTING.getKey(), 8080)
             .put(AwsEc2Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsEc2Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsEc2Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .put(AwsEc2Service.READ_TIMEOUT.getKey(), "20s")
             .put(AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING.getKey(), "https")
             .put(AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING.getKey(), "ec2_proxy_host")
             .put(AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING.getKey(), 8081)
             .put(AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING.getKey(), "ec2_proxy_username")
             .put(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.getKey(), "ec2_proxy_password")
-            .put(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING.getKey(), "NoOpSignerType")
             .put(AwsEc2Service.CLOUD_EC2.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Protocol.HTTPS, "ec2_proxy_host", 8081, "ec2_proxy_username", "ec2_proxy_password",
@@ -165,14 +161,12 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             AwsEc2Service.PROXY_PORT_SETTING,
             AwsEc2Service.PROXY_USERNAME_SETTING,
             AwsEc2Service.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.SIGNER_SETTING,
             AwsEc2Service.READ_TIMEOUT,
             AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING,
             AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING,
             AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
             AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
             AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.CLOUD_EC2.SIGNER_SETTING,
             AwsEc2Service.CLOUD_EC2.READ_TIMEOUT
         });
     }

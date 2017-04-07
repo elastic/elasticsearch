@@ -19,118 +19,71 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.search.RemoteClusterConnection;
-import org.elasticsearch.action.search.RemoteClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ClusterNameExpressionResolver extends AbstractComponent {
+
+    private final WildcardExpressionResolver wildcardResolver = new WildcardExpressionResolver();
 
     public ClusterNameExpressionResolver(Settings settings) {
         super(settings);
         new WildcardExpressionResolver();
     }
 
-    private class WildcardExpressionResolver {
+    public List<String> resolveClusterNames(Set<String> remoteClusters, String clusterExpression) {
+        if (remoteClusters.contains(clusterExpression)) {
+            return Collections.singletonList(clusterExpression);
+        } else if (Regex.isSimpleMatchPattern(clusterExpression)) {
+            return wildcardResolver.resolve(remoteClusters, clusterExpression);
+        } else {
+            return null;
+        }
+    }
 
-        private List<String> resolve(Map<String, RemoteClusterConnection> remoteClusters, List<String> expressions) {
-            if (isEmptyOrTrivialWildcard(expressions)) {
-                return resolveEmptyOrTrivialWildcard(remoteClusters);
+    private static class WildcardExpressionResolver {
+
+        private List<String> resolve(Set<String> remoteClusters, String clusterExpression) {
+            if (isTrivialWildcard(clusterExpression)) {
+                return resolveTrivialWildcard(remoteClusters);
             }
 
-            List<String> names = innerResolve(remoteClusters, expressions);
-
-            if (names.isEmpty()) {
-                // TODO: Do I need to handle?
+            Set<String> matches = matches(remoteClusters, clusterExpression);
+            if (matches.isEmpty()) {
+                return null;
+            } else {
+                return new ArrayList<>(matches);
             }
-
-            return names;
         }
 
-        private  List<String> innerResolve(Map<String, RemoteClusterConnection> remoteClusters, List<String> expressions) {
-            Set<String> result = new HashSet<>();
+        private boolean isTrivialWildcard(String clusterExpression) {
+            return Regex.isMatchAllPattern(clusterExpression);
+        }
 
-            boolean wildcardSeen = false;
-            for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
-                if (remoteClusters.containsKey(expression)) {
-                    if (result != null) {
-                        result.add(expression);
-                    }
-                    continue;
-                }
-                if (Strings.isEmpty(expression)) {
-                    // In the current system I believe we do nothing if a Cluster is not found
-//                    throw infe(expression);
-                }
-                boolean add = true;
-//                if (expression.charAt(0) == '+') {
-//                    // if its the first, add empty result set
-//                    if (i == 0) {
-//                        result = new HashSet<>();
-//                    }
-//                    expression = expression.substring(1);
-//                } else if (expression.charAt(0) == '-') {
-//                    // if there is a negation without a wildcard being previously seen, add it verbatim,
-//                    // otherwise return the expression
-//                    if (wildcardSeen) {
-//                        add = false;
-//                        expression = expression.substring(1);
-//                    } else {
-//                        add = true;
-//                    }
-//                }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
-                }
-//                if (!Regex.isSimpleMatchPattern(expression)) {
-//                    if (!unavailableIgnoredOrExists(options, metaData, expression)) {
-//                        throw infe(expression);
-//                    }
-//                    if (add) {
-//                        result.add(expression);
-//                    } else {
-//                        result.remove(expression);
-//                    }
-//                    continue;
-//                }
-//
-//                final IndexMetaData.State excludeState = excludeState(options);
-//                final Map<String, AliasOrIndex> matches = matches(metaData, expression);
-//                Set<String> expand = expand(context, excludeState, matches);
-//                if (add) {
-//                    result.addAll(expand);
-//                } else {
-//                    result.removeAll(expand);
-//                }
-//
-//                if (!noIndicesAllowedOrMatches(options, matches)) {
-//                    throw infe(expression);
-//                }
+        private List<String> resolveTrivialWildcard(Set<String> remoteClusters) {
+            return new ArrayList<>(remoteClusters);
+        }
 
-                if (Regex.isSimpleMatchPattern(expression)) {
-                    wildcardSeen = true;
-                }
+        private static Set<String> matches(Set<String> remoteClusters, String expression) {
+            if (expression.indexOf("*") == expression.length() - 1) {
+                return otherWildcard(remoteClusters, expression);
+            } else {
+                return otherWildcard(remoteClusters, expression);
             }
-
-            return new ArrayList<>(result);
         }
 
-        private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty() || (expressions.size() == 1 && Regex.isMatchAllPattern(expressions.get(0)));
-        }
-
-        private List<String> resolveEmptyOrTrivialWildcard(Map<String, RemoteClusterConnection> remoteClusters) {
-            return new ArrayList<>(remoteClusters.keySet());
+        private static Set<String> otherWildcard(Set<String> remoteClusters, String expression) {
+            final String pattern = expression;
+            return remoteClusters.stream()
+                .filter(n -> Regex.simpleMatch(pattern, n))
+                .collect(Collectors.toSet());
         }
     }
 }

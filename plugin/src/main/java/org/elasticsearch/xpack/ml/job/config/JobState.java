@@ -22,7 +22,7 @@ import java.util.Locale;
  */
 public enum JobState implements ToXContent, Writeable {
 
-    CLOSED, OPENED, FAILED;
+    CLOSING, CLOSED, OPENED, FAILED;
 
     public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

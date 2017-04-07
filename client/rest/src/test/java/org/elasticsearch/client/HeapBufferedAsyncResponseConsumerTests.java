@@ -35,6 +35,7 @@ import org.apache.http.protocol.HttpContext;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -114,6 +115,11 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
         assertThat(consumer, instanceOf(HeapBufferedAsyncResponseConsumer.class));
         HeapBufferedAsyncResponseConsumer bufferedAsyncResponseConsumer = (HeapBufferedAsyncResponseConsumer) consumer;
         assertEquals(bufferLimit, bufferedAsyncResponseConsumer.getBufferLimit());
+    }
+
+    public void testHttpAsyncResponseConsumerFactoryVisibility() throws ClassNotFoundException {
+        final Class<?> clazz = Class.forName(HttpAsyncResponseConsumerFactory.class.getName());
+        assertEquals(Modifier.PUBLIC, clazz.getModifiers() & Modifier.PUBLIC);
     }
 
     private static void bufferLimitTest(HeapBufferedAsyncResponseConsumer consumer, int bufferLimit) throws Exception {

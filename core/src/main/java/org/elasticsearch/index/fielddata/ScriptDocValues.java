@@ -35,6 +35,7 @@ import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.util.AbstractList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.UnaryOperator;
@@ -86,7 +87,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Strings extends ScriptDocValues<String> {
 
         private final SortedBinaryDocValues in;
-        private BytesRef[] values;
+        private BytesRef[] values = new BytesRef[0];
         private int count;
 
         public Strings(SortedBinaryDocValues in) {
@@ -111,11 +112,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected final void resize(int newSize) {
             count = newSize;
-            if (values == null) {
-                values = new BytesRef[newSize];
-            } else {
-                values = ArrayUtil.grow(values, count);
-            }
+            values = ArrayUtil.grow(values, count);
         }
 
         public SortedBinaryDocValues getInternalValues() {
@@ -155,7 +152,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
 
         private final SortedNumericDocValues in;
-        private Long[] values;
+        private long[] values = new long[0];
         private int count;
         private Dates dates;
 
@@ -185,11 +182,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected final void resize(int newSize) {
             count = newSize;
-            if (values == null) {
-                values = new Long[newSize];
-            } else {
-                values = ArrayUtil.grow(values, count);
-            }
+            values = ArrayUtil.grow(values, count);
         }
 
         public SortedNumericDocValues getInternalValues() {
@@ -342,7 +335,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Doubles extends ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues in;
-        private Double[] values;
+        private double[] values = new double[0];
         private int count;
 
         public Doubles(SortedNumericDoubleValues in) {
@@ -367,11 +360,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected final void resize(int newSize) {
             count = newSize;
-            if (values == null) {
-                values = new Double[newSize];
-            } else {
-                values = ArrayUtil.grow(values, count);
-            }
+            values = ArrayUtil.grow(values, count);
         }
 
         public SortedNumericDoubleValues getInternalValues() {
@@ -399,7 +388,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
 
         private final MultiGeoPointValues in;
-        private GeoPoint[] values;
+        private GeoPoint[] values = new GeoPoint[0];
         private int count;
 
         public GeoPoints(MultiGeoPointValues in) {
@@ -411,7 +400,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue();
+                    GeoPoint point = in.nextValue();
+                    values[i].reset(point.lat(), point.lon());
                 }
             } else {
                 resize(0);
@@ -424,10 +414,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected final void resize(int newSize) {
             count = newSize;
-            if (values == null) {
-                values = new GeoPoint[newSize];
-            } else {
+            if (newSize > values.length) {
+                int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
+                for (int i = oldLength; i < values.length; ++i) {
+                values[i] = new GeoPoint();
+                }
             }
         }
 
@@ -516,7 +508,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Booleans extends ScriptDocValues<Boolean> {
 
         private final SortedNumericDocValues in;
-        private Boolean[] values;
+        private boolean[] values = new boolean[0];
         private int count;
 
         public Booleans(SortedNumericDocValues in) {
@@ -541,11 +533,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected final void resize(int newSize) {
             count = newSize;
-            if (values == null) {
-                values = new Boolean[newSize];
-            } else {
-                values = ArrayUtil.grow(values, count);
-            }
+            values = grow(values, count);
         }
 
         public boolean getValue() {
@@ -560,6 +548,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public int size() {
             return count;
+        }
+
+        private static boolean[] grow(boolean[] array, int minSize) {
+            assert minSize >= 0 : "size must be positive (got " + minSize
+                    + "): likely integer overflow?";
+            if (array.length < minSize) {
+                return Arrays.copyOf(array, ArrayUtil.oversize(minSize, 1));
+            } else
+                return array;
         }
 
     }

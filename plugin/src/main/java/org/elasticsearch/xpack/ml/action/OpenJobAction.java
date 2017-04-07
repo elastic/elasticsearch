@@ -405,8 +405,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 OpenJobAction.validate(request.getJobId(), mlMetadata, tasks);
                 Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
                 if (assignment.getExecutorNode() == null) {
-                    throw new ElasticsearchStatusException("cannot open job [" + request.getJobId() + "], no suitable nodes found, " +
-                            "allocation explanation [{}]", RestStatus.TOO_MANY_REQUESTS, assignment.getExplanation());
+                    String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
+                            + assignment.getExplanation() + "]";
+                    auditor.warning(request.getJobId(), msg);
+                    throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
                 }
             } else {
                 throw LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING);
@@ -447,7 +449,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                         auditor.warning(jobId, "No node found to open job. Reasons [" + assignment.getExplanation() + "]");
                     } else {
                         DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
-                        auditor.info(jobId, "Found node [" + node + "] to open job");
+                        auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                     }
                 }
             });

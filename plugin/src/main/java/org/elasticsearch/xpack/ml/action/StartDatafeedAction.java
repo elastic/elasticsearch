@@ -465,7 +465,7 @@ public class StartDatafeedAction
                                 assignment.getExplanation() + "]");
                     } else {
                         DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
-                        auditor.info(jobId, "Found node [" + node + "] to start datafeed [" + datafeedId + "]");
+                        auditor.info(jobId, "Starting datafeed [" + datafeedId + "] on node [" + node + "]");
                     }
                 }
             });

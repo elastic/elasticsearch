@@ -52,8 +52,7 @@ Scripting is available in many APIs, but we will use an example with the
 WARNING: Enabling inline scripting on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-python-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
-you can use Python as follows:
+If you have set `script.inline: true` then you can use Python as follows:
 
 [source,js]
 ----
@@ -94,8 +93,7 @@ GET test/_search
 WARNING: Enabling stored scripts on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-python-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
-you can use Python as follows:
+If you have set `script.stored: true` then you can use Python as follows:
 
 [source,js]
 ----

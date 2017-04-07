@@ -1,0 +1,292 @@
+[[file-realm]]
+=== File-based User Authentication
+
+You can manage and authenticate users with the built-in `file` internal realm.
+With the `file` realm users are defined in local files on each node in the cluster.
+
+IMPORTANT:  As the administrator of the cluster, it is your responsibility to
+            ensure the same users are defined on every node in the cluster.
+            {security} does not deliver any mechanism to guarantee this.
+
+The `file` realm is primarily supported to serve as a fallback/recovery realm. It
+is mostly useful in situations where all users locked themselves out of the system
+(no one remembers their username/password). In this type of scenarios, the `file`
+realm is your only way out - you can define a new `admin` user in the `file` realm
+and use it to log in and reset the credentials of all other users.
+
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
+realms you specify are used for authentication. To use the 
+`file` realm as a fallback, you must include it in the realm chain. 
+
+To define users, {security} provides the <<managing-file-users, users>> command-line
+tool. This tool enables you to add and remove users, assign user roles and manage
+user passwords.
+
+==== Configuring a File Realm
+
+The `file` realm is added to the realm chain by default. You don't need to
+explicitly configure a `file` realm to manage users with the `users` tool.
+
+Like other realms, you can configure options for a `file` realm in the
+`xpack.security.authc.realms` namespace in `elasticsearch.yml`.
+
+To configure an `file` realm:
+
+. Add a realm configuration of type `file` to `elasticsearch.yml` under the
+`xpack.security.authc.realms` namespace. At a minimum, you must set the realm `type` to
+`file`. If you are configuring multiple realms, you should also explicitly set
+the `order` attribute. See <<file-realm-settings>> for all of the options you can set
+for a `file` realm.
++
+For example, the following snippet shows a `file` realm configuration that sets
+the `order` to zero so the realm is checked first:
++
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        file1:
+          type: file
+          order: 0
+------------------------------------------------------------
+
+. Restart Elasticsearch.
+
+[[file-realm-settings]]
+===== File Realm Settings
+
+[cols="4,^3,10"]
+|=======================
+| Setting                 | Required  | Description
+| `type`                  | yes       | Indicates the realm type. Must be set to `file`.
+| `order`                 | no        | Indicates the priority of this realm within the
+                                        realm chain. Realms with a lower order are
+                                        consulted first. Although not required, we
+                                        recommend explicitly setting this value when you
+                                        configure multiple realms. Defaults to
+                                        `Integer.MAX_VALUE`.
+| `enabled`              | no         | Indicates whether this realm is enabled or
+                                        disabled. Enables you to disable a realm without
+                                        removing its configuration. Defaults to `true`.
+| `cache.ttl`            | no         | Specifies the time-to-live for cached user entries.
+                                        A user's credentials are cached for this period of
+                                        time. Specify the time period using the standard
+                                        Elasticsearch {ref}/common-options.html#time-units[time units].
+                                        Defaults to `20m`.
+| `cache.max_users`      | no        	| Specifies the maximum number of user entries that
+                                        can be stored in the cache at one time. Defaults
+                                        to 100,000.
+| `cache.hash_algo`      | no        	| Specifies the hashing algorithm that is used for
+                                        the cached user credentials. See <<cache-hash-algo,
+                                        Cache hash algorithms>> for the possible values.
+                                        (Expert Setting).
+|=======================
+
+[[managing-file-users]]
+==== Managing Users
+
+The `users` command-line tool is located in `ES_HOME/bin/x-pack` and enables
+several administrative tasks for managing users:
+
+* <<file-realm-add-user, Adding users>>
+* <<file-realm-list-users, Listing users and roles>>
+* <<file-realm-manage-passwd, Managing user passwords>>
+* <<file-realm-manage-roles, Managing users' roles>>
+* <<file-realm-remove-user, Removing users>>
+
+[[file-realm-add-user]]
+===== Adding Users
+
+Use the `useradd` sub-command to add a user to your local node.
+
+NOTE: To ensure that Elasticsearch can read the user and role information at
+      startup, run `users useradd` as the same user you use to run Elasticsearch.
+      Running the command as root or some other user will update the permissions
+      for the `users` and `users_roles` files and prevent Elasticsearch from
+      accessing them.
+
+[source,shell]
+----------------------------------------
+bin/x-pack/users useradd <username>
+----------------------------------------
+
+A username must be at least 1 character and no longer than 30 characters. The
+first character must be a letter (`a-z` or `A-Z`) or an underscore (`_`).
+Subsequent characters can be letters, underscores (`_`), digits (`0-9`), or any
+of the following symbols `@`, `-`, `.` or `$`.
+
+You can specify the user's password at the command-line with the `-p` option.
+When this option is absent, the command prompts you for the password. Omit the
+`-p` option to keep plaintext passwords out of the terminal session's command
+history.
+
+[source,shell]
+----------------------------------------------------
+bin/x-pack/users useradd <username> -p <secret>
+----------------------------------------------------
+
+Passwords must be at least 6 characters long.
+
+You can define a user's roles with the `-r` option. This option accepts a
+comma-separated list of role names to assign to the user.
+
+[source,shell]
+-------------------------------------------------------------------
+bin/x-pack/users useradd <username> -r <comma-separated list of role names>
+-------------------------------------------------------------------
+
+The following example adds a new user named `jacknich` to the `file` realm. The
+password for this user is `theshining`, and this user is associated with the
+`network` and `monitoring` roles.
+
+[source,shell]
+-------------------------------------------------------------------
+bin/x-pack/users useradd jacknich -p theshining -r network,monitoring
+-------------------------------------------------------------------
+
+For valid role names please see <<valid-role-name, Role Definitions>>.
+
+[[file-realm-list-users]]
+===== Listing Users
+
+Use the `list` sub-command to list the users registered with the `file` realm
+on the local node.
+
+[source, shell]
+----------------------------------
+bin/x-pack/users list
+rdeniro        : admin
+alpacino       : power_user
+jacknich       : monitoring,network
+----------------------------------
+
+Users are in the left-hand column and their corresponding roles are listed in
+the right-hand column.
+
+The `list <username>` sub-command lists a specific user. Use this command to
+verify that a user was successfully added to the local `file` realm.
+
+[source,shell]
+-----------------------------------
+bin/x-pack/users list jacknich
+jacknich       : monitoring,network
+-----------------------------------
+
+[[file-realm-manage-passwd]]
+===== Managing User Passwords
+
+Use the `passwd` sub-command to reset a user's password. You can specify the new
+password directly with the `-p` option. When `-p` option is omitted, the tool
+will prompt you to enter and confirm a password in interactive mode.
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/users passwd <username>
+--------------------------------------------------
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/users passwd <username> -p <password>
+--------------------------------------------------
+
+[[file-realm-manage-roles]]
+===== Assigning Users to Roles
+
+Use the `roles` sub-command to manage the roles of a particular user. The `-a`
+option adds a comma-separated list of roles to a user. The `-r` option removes
+a comma-separated list of roles from a user. You can combine adding and removing
+roles within the same command to change a user's roles.
+
+[source,shell]
+------------------------------------------------------------------------------------------------------------
+bin/x-pack/users roles <username> -a <commma-separate list of roles> -r <comma-separated list of roles>
+------------------------------------------------------------------------------------------------------------
+
+The following command removes the `network` and `monitoring` roles from user
+`jacknich` and adds the `user` role:
+
+[source,shell]
+------------------------------------------------------------
+bin/x-pack/users roles jacknich -r network,monitoring -a user
+------------------------------------------------------------
+
+Listing the user displays the new role assignment:
+
+[source,shell]
+---------------------------------
+bin/x-pack/users list jacknich
+jacknich       : user
+---------------------------------
+
+[[file-realm-remove-user]]
+===== Deleting Users
+
+Use the `userdel` sub-command to delete a user.
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/users userdel <username>
+--------------------------------------------------
+
+==== A Look Under the Hood
+
+All the data about the users for the `file` realm is stored in two files, `users`
+and `users_roles`. Both files are located in `CONFIG_DIR/x-pack/` and are read
+on startup.
+
+By default, {security} checks these files for changes every 5 seconds. You can
+change this default behavior by changing the `resource.reload.interval.high` setting in
+the `elasticsearch.yml` file (as this is a common setting in Elasticsearch,
+changing its value may effect other schedules in the system).
+
+[IMPORTANT]
+==============================
+These files are managed locally by the node and are **not** managed
+globally by the cluster. This means that with a typical multi-node cluster,
+the exact same changes need to be applied on each and every node in the
+cluster.
+
+A safer approach would be to apply the change on one of the nodes and have the
+`users` and `users_roles` files distributed/copied to all other nodes in the
+cluster (either manually or using a configuration management system such as
+Puppet or Chef).
+==============================
+
+While it is possible to modify these files directly using any standard text
+editor, we strongly recommend using the `bin/x-pack/users` command-line tool
+to apply the required changes.
+
+[float]
+[[users-file]]
+===== The `users` File
+The `users` file stores all the users and their passwords. Each line in the
+`users` file represents a single user entry consisting of the username and
+**hashed** password.
+
+[source,bash]
+----------------------------------------------------------------------
+rdeniro:$2a$10$BBJ/ILiyJ1eBTYoRKxkqbuDEdYECplvxnqQ47uiowE7yGqvCEgj9W
+alpacino:$2a$10$cNwHnElYiMYZ/T3K4PvzGeJ1KbpXZp2PfoQD.gfaVdImnHOwIuBKS
+jacknich:$2a$10$GYUNWyABV/Ols/.bcwxuBuuaQzV6WIauW6RdboojxcixBq3LtI3ni
+----------------------------------------------------------------------
+
+NOTE: {security} uses `bcrypt` to hash the user passwords.
+
+[float]
+[[users_defining-roles]]
+==== The `users_roles` File
+
+The `users_roles` file stores the roles associated with the users, as in the
+following example:
+
+[source,shell]
+--------------------------------------------------
+admin:rdeniro
+power_user:alpacino,jacknich
+user:jacknich
+--------------------------------------------------
+
+Each row maps a role to a comma-separated list of all the users that are
+associated with that role.

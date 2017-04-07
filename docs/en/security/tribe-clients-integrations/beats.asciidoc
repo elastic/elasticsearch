@@ -1,0 +1,187 @@
+[[beats]]
+=== Beats and Security
+
+To send data to a secured cluster through the `elasticsearch` output, 
+a Beat needs to authenticate as a user who can manage index templates,
+monitor the cluster, create indices, and read, and write to the indices
+it creates.
+
+If encryption is enabled on the cluster, you also need to enable HTTPS in the
+Beat configuration. 
+
+In addition to configuring authentication credentials for the Beat itself, you
+need to grant authorized users permission to access the indices it creates.
+
+[float]
+[[beats-basic-auth]]
+==== Configuring Authentication Credentials for a Beat
+
+When sending data to a secured cluster through the `elasticsearch`
+output, a Beat must either provide basic authentication credentials
+or present a client certificate. 
+
+To configure authentication credentials for a Beat:
+
+. Create a role that has the `manage_index_templates` and
+`monitor` cluster privileges, and `read`, `write`, and `create_index`
+privileges for the indices the Beat creates. You can create roles from the 
+**Management / Roles** UI in Kibana or through the `role` API.
+For example, the following request creates a `packetbeat_writer` role:
++
+[source, sh]
+---------------------------------------------------------------
+POST _xpack/security/role/packetbeat_writer 
+{
+  "cluster": ["manage_index_templates", "monitor"],
+  "indices": [
+    {
+      "names": [ "packetbeat-*" ], <1>
+      "privileges": ["write","create_index"]
+    }
+  ]
+}
+---------------------------------------------------------------
+<1> If you use a custom Packetbeat index pattern, specify that pattern
+instead of the default `packetbeat-*` pattern.
+
+. Assign the writer role to the user the Beat is going to use to
+connect to Elasticsearch:
+
+.. To authenticate as a native user, create a user for the Beat 
+to use internally and assign it the writer role. You can create 
+users from the **Management / Users** UI in Kibana or through the 
+`user` API. For example, the following request creates a 
+`packetbeat_internal` user that has the `packetbeat_writer` role:
++
+[source, sh]
+---------------------------------------------------------------
+POST /_xpack/security/user/packetbeat_internal
+{
+  "password" : "changeme", 
+  "roles" : [ "packetbeat_writer"], 
+  "full_name" : "Internal Packetbeat User"
+}
+---------------------------------------------------------------
+
+.. To authenticate using PKI authentication, assign the writer role 
+to the internal Beat user in the <<mapping-roles,`role_mapping.yml`>> 
+configuration file. Specify the user by the distinguished name that 
+appears in its certificate.
++
+[source, yaml]
+---------------------------------------------------------------
+packetbeat_writer:
+  - "cn=Internal Packetbeat User,ou=example,o=com" 
+---------------------------------------------------------------
+
+. Configure authentication credentials for the `elasticsearch` output
+in the Beat configuration file:
+
+.. To use basic authentication, configure the `username` and `password`
+settings. For example, the following Packetbeat output configuration
+uses the native `packetbeat_internal` user to connect to Elasticsearch:
++
+[source,js]
+--------------------------------------------------
+output.elasticsearch:
+    hosts: ["localhost:9200"]
+    index: "packetbeat"
+    username: "packetbeat_internal"
+    password: "changeme"
+--------------------------------------------------
+
+.. To use PKI authentication, configure the `certificate` and
+`key` settings:
++
+[source,js]
+--------------------------------------------------
+output.elasticsearch:
+    hosts: ["localhost:9200"]
+    index: "packetbeat"
+    ssl.certificate: "/etc/pki/client/cert.pem" <1>
+    ssl.key: "/etc/pki/client/cert.key"
+--------------------------------------------------
+<1> The distinguished name (DN) in the certificate must be mapped to 
+the writer role in the `role_mapping.yml` configuration file on each
+node in the Elasticsearch cluster.
+
+[float]
+[[beats-user-access]]
+==== Granting Users Access to Beats Indices
+
+To enable users to access the indices a Beat creates, grant them `read` and
+`view_index_metadata` privileges on the Beat indices:
+
+. Create a role that has the `read` and `view_index_metadata`
+privileges  for the Beat indices. You can create roles from the 
+**Management > Roles** UI in Kibana or through the `role` API.
+For example, the following request creates a `packetbeat_reader`
+role:
++
+[source, sh]
+---------------------------------------------------------------
+POST _xpack/security/role/packetbeat_reader 
+{
+  "indices": [
+    {
+      "names": [ "packetbeat-*" ], <1>
+      "privileges": ["read","view_index_metadata"]
+    }
+  ]
+}
+---------------------------------------------------------------
+<1> If you use a custom Packetbeat index pattern, specify that pattern
+instead of the default `packetbeat-*` pattern.
+
+. Assign your users the reader role so they can access the Beat indices:
+
+.. If you're using the `native` realm, you can assign roles with the 
+**Management > Users** UI in Kibana or through the `user` API. For 
+example, the following request grants `packetbeat_user`
+the `packetbeat_reader` role:
++
+[source, sh]
+---------------------------------------------------------------
+POST /_xpack/security/user/packetbeat_user
+{
+  "password" : "changeme", 
+  "roles" : [ "packetbeat_reader"], 
+  "full_name" : "Packetbeat User"
+}
+---------------------------------------------------------------
+
+.. If you're using the LDAP, Active Directory, or PKI realms, you 
+assign the roles in the <<mapping-roles,`role_mapping.yml`>> configuration 
+file. For example, the following snippet grants `Packetbeat User`
+the `packetbeat_reader` role:
++
+[source, yaml]
+---------------------------------------------------------------
+packetbeat_reader:
+  - "cn=Packetbeat User,dc=example,dc=com"
+---------------------------------------------------------------
+
+[float]
+[[beats-tls]]
+===== Configuring Beats to use Encrypted Connections
+
+If encryption is enabled on the Elasticsearch cluster, you need to 
+connect to Elasticsearch via HTTPS. If the CA that signed your node certificates
+is not in the host system's trusted certificate authorities list, you also need
+to add the path to the `.pem` file that contains your CA's certificate to the
+Beat configuration.
+
+To configure a Beat to connect to Elasticsearch via HTTPS, add the `https` protocol
+to all host URLs:
+
+[source,js]
+--------------------------------------------------
+output.elasticsearch:
+    hosts: ["https://localhost:9200"] <1>
+    index: "packetbeat"
+    ssl.certificate_authorities: ["/etc/pki/root/ca.pem"] <2>
+--------------------------------------------------
+<1> Specify the `https` protocol to connect the Elasticsearch cluster.
+<2> Specify the path to the local `.pem` file that contains your Certificate
+Authority's certificate. This is generally only needed if you use your
+own CA to sign your node certificates.

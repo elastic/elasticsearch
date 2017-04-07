@@ -1,0 +1,44 @@
+[[secure-reporting]]
+=== Reporting and Security
+
+Reporting operates by creating and updating documents in Elasticsearch in
+response to user actions in Kibana.
+
+To use Reporting with {security} enabled, you need to <<kibana, set up Kibana
+to work with {security}>>. If you are automatically generating reports with
+<<xpack-alerting, {watcher}>>, you also need to configure {watcher} to trust the
+Kibana server's certificate. For more information, see <<securing-reporting,
+Securing Reporting>>.
+
+[[reporting-app-users]]
+To enable users to generate reports, assign them the built in `reporting_user`
+and `kibana_user` roles:
+
+* If you're using the `native` realm, you can assign roles through 
+**Management / Users** UI in Kibana or with the `user` API. For example,
+the following request creates a `reporter` user that has the
+`reporting_user` and `kibana_user` roles:
++
+[source, sh]
+---------------------------------------------------------------
+POST /_xpack/security/user/reporter
+{
+  "password" : "changeme", 
+  "roles" : ["kibana_user", "reporting_user"], 
+  "full_name" : "Reporting User"
+}
+---------------------------------------------------------------
+
+* If you are using an LDAP or Active Directory realm, you can either assign
+roles on a per user basis, or assign roles to groups of users. By default, role
+mappings are configured in <<mapping-roles, `config/shield/role_mapping.yml`>>.
+For example, the following snippet assigns the user named Bill Murray the
+`kibana_user` and `reporting_user` roles:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+kibana_user:
+  - "cn=Bill Murray,dc=example,dc=com"
+reporting_user:
+  - "cn=Bill Murray,dc=example,dc=com"
+--------------------------------------------------------------------------------

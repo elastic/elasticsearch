@@ -1,0 +1,118 @@
+[[security-getting-started]]
+== Getting Started with Security
+
+To secure a cluster, you must install {xpack} on every node in the
+cluster. Basic authentication is enabled by default--to communicate
+with the cluster, you must specify a username and password.
+Unless you <<anonymous-access, enable anonymous access>>, all
+requests that don't include a user name and password are rejected.
+
+{security} provides a built-in `elastic` superuser you can use
+to start setting things up. This `elastic` user has full access
+to the cluster, including all indices and data, so make sure
+you change the default password and protect the `elastic` user
+credentials accordingly.
+
+To get started with {security}:
+
+. <<installing-xpack, Install X-Pack>> and start Elasticsearch and Kibana.
+
+. Change the passwords of the built in `kibana`, `logstash_system` and `elastic` users:
++
+[source,shell]
+----------------------------------------------------------
+curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/elastic/_password' -H "Content-Type: application/json" -d '{
+  "password" : "elasticpassword"
+}'
+
+curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/kibana/_password' -H "Content-Type: application/json" -d '{
+  "password" : "kibanapassword"
+}'
+
+curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/logstash_system/_password' -H "Content-Type: application/json" -d '{
+  "password" : "logstashpassword"
+}'
+----------------------------------------------------------
+// NOTCONSOLE
++
+NOTE: The default password for the `elastic` user is `changeme`.
+
+. Set up roles and users to control access to Elasticsearch and Kibana.
+For example, to grant _John Doe_ full access to all indices that match
+the pattern `events*` and enable him to create visualizations and dashboards
+for those indices in Kibana, you could create an `events_admin` role and
+and assign the role to a new `johndoe` user.
++
+[source,shell]
+----------------------------------------------------------
+curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Content-Type: application/json" -d '{
+  "indices" : [
+    {
+      "names" : [ "events*" ],
+      "privileges" : [ "all" ]
+    },
+    {
+      "names" : [ ".kibana*" ],
+      "privileges" : [ "manage", "read", "index" ]
+    }
+  ]
+}'
+
+curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content-Type: application/json" -d '{
+  "password" : "userpassword",
+  "full_name" : "John Doe",
+  "email" : "john.doe@anony.mous",
+  "roles" : [ "events_admin" ]
+}'
+----------------------------------------------------------
+// NOTCONSOLE
+
+[[enable-message-authentication]]
+. Enable message authentication to verify that messages are not tampered with or corrupted in transit:
+.. Run the `syskeygen` tool from `ES_HOME` without any options:
++
+[source, shell]
+----------------
+bin/x-pack/syskeygen
+----------------
++
+This creates a system key file in `CONFIG_DIR/x-pack/system_key`.
+
+.. Copy the generated system key to the rest of the nodes in the cluster.
++
+IMPORTANT:  The system key is a symmetric key, so the same key must be on every
+            node in the cluster.
+
+
+[[enable-auditing]]
+. Enable Auditing to keep track of attempted and successful interactions with
+  your Elasticsearch cluster:
++
+--
+.. Add the following setting to `elasticsearch.yml` on all nodes in your cluster:
++
+[source,yaml]
+----------------------------
+xpack.security.audit.enabled: true
+----------------------------
+.. Restart Elasticsearch.
+
+By default, events are logged to a dedicated `elasticsearch-access.log` file in
+`ES_HOME/logs`. You can also store the events in an Elasticsearch index for
+easier analysis and control what events are logged. For more information, see
+<<auditing, Configuring Auditing>>.
+--
+
+[[moving-on]]
+IMPORTANT:  Once you get these basic security measures in place, we strongly
+            recommend that you secure communications to and from nodes by
+            configuring your cluster to use <<ssl-tls, SSL/TLS encryption>>.
+            Nodes that do not have encryption enabled send passwords in plain
+            text!
+
+Depending on your security requirements, you might also want to:
+
+* Integrate with <<ldap-realm, LDAP>> or <<active-directory-realm, Active Directory>>,
+or <<pki-realm, require certificates>> for authentication.
+* Use <<ip-filtering, IP Filtering>> to allow or deny requests from particular
+IP addresses or address ranges.

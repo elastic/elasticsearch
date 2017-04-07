@@ -1,0 +1,132 @@
+[[pki-realm]]
+=== PKI User Authentication
+
+You can configure {security} to use Public Key Infrastructure (PKI) certificates
+to authenticate users. This requires clients to present X.509 certificates. To
+use PKI, you configure a PKI realm, enable client authentication on the desired
+network layers (transport or http), and map the Distinguished Names (DNs) from
+the user certificates to {security} roles in the <<mapping-roles, role mapping file>>.
+
+You can also use a combination of PKI and username/password authentication. For
+example, you can enable SSL/TLS on the transport layer and define a PKI realm to
+require transport clients to authenticate with X.509 certificates, while still
+authenticating HTTP traffic using username and password credentials. You can also set
+`xpack.security.transport.ssl.client_authentication` to `optional` to allow clients without
+certificates to authenticate with other credentials.
+
+IMPORTANT:  You must enable SSL/TLS and enabled client authentication to use PKI.
+            For more information, see <<ssl-tls, Setting Up SSL/TLS on a Cluster>>.
+
+==== PKI Realm Configuration
+
+Like other realms, you configure options for a `pki` realm under the
+`xpack.security.authc.realms` namespace in `elasticsearch.yml`.
+
+To configure `pki` realm:
+
+. Add a realm configuration of type `pki` to `elasticsearch.yml` under the
+`xpack.security.authc.realms` namespace. At a minimum, you must set the realm `type` to
+`pki`. If you are configuring multiple realms, you should also explicitly set
+the `order` attribute. See <<pki-settings>> for all of the options you can set
+for a `pki` realm.
++
+For example, the following snippet shows the most basic `pki` realm configuration:
++
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        pki1:
+          type: pki
+------------------------------------------------------------
++
+With this configuration, any certificate trusted by the SSL/TLS layer is accepted
+for authentication. The username is the common name (CN) extracted from the DN
+of the certificate.
++
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
+realms you specify are used for authentication. If you also want to use the 
+`native` or `file` realms, you must include them in the realm chain. 
++
+If you want to use something other than the CN of the DN as the username, you
+can specify a regex to extract the desired username. For example, the regex in
+the following configuration extracts the email address from the DN:
++
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        pki1:
+          type: pki
+          username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
+------------------------------------------------------------
++
+You can also specify which truststore to use for authentication. This is useful
+when the SSL/TLS layer trusts clients with certificates that are signed by a
+different CA than the one that signs your users' certificates. To specify the
+location of the truststore, specify the `truststore.path` option:
++
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        pki1:
+          type: pki
+          truststore:
+            path: "/path/to/pki_truststore.jks"
+            password: "changeme"
+------------------------------------------------------------
+
+. Restart Elasticsearch.
+
+[[pki-settings]]
+===== PKI Realm Settings
+
+[cols="4,^3,10"]
+|=======================
+| Setting                 | Required  | Description
+| `type`                  | yes       | Indicates the realm type. Must be set to `pki`.
+| `order`                 | no        | Indicates the priority of this realm within the realm
+                                        chain. Realms with a lower order are consulted first.
+                                        Although not required, we recommend explicitly
+                                        setting this value when you configure multiple realms.
+                                        Defaults to `Integer.MAX_VALUE`.
+| `enabled`               | no        | Indicates whether this realm is enabled or disabled.
+                                        Enables you to disable a realm without removing its
+                                        configuration. Defaults to `true`.
+| `username_pattern`      | no        | Specifies the regular expression pattern used to extract
+                                        the username from the certificate DN. The first match
+                                        group is used as the username. Defaults to `CN=(.*?)(?:,\|$)`.
+| `truststore.path`       | no        | The path to the truststore. Defaults to the path
+                                        defined by <<ssl-tls-settings,SSL/TLS settings>>.
+| `truststore.password`   | no/yes    | Specifies the password for the truststore. Must be
+                                        provided if `truststore.path` is set.
+| `truststore.algorithm`  | no        | Specifies the algorithm used for the truststore.
+                                        Defaults to `SunX509`.
+| `files.role_mapping`    | no        | Specifies the <<security-files-location,location>>
+                                        for the <<pki-role-mapping, YAML role mapping configuration file>>.
+                                        Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
+|=======================
+
+[[assigning-roles-pki]]
+==== Mapping Roles for PKI Users
+
+You map roles for PKI users in the role mapping file stored on each node. You
+identify a user by the distinguished name in their certificate. For example, the
+following mapping configuration maps `John Doe` to the `user` role:
+
+[source, yaml]
+------------------------------------------------------------
+user: <1>
+  - "cn=John Doe,ou=example,o=com" <2>
+------------------------------------------------------------
+<1> The name of a role.
+<2> The distinguished name (DN) of a PKI user.
+
+For more information, see <<mapping-roles, Mapping Users and Groups to Roles>>.

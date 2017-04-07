@@ -1,0 +1,197 @@
+
+[[kibana]]
+=== Kibana and Security
+
+[[using-kibana-with-security]]
+Kibana users have to log in when {security} is enabled on your cluster. You
+configure {security} roles for your Kibana users to control what data those users
+can access. You also need to configure credentials for the
+Kibana server so the requests it submits to Elasticsearch on the user's
+behalf can be authenticated.
+
+To prevent user passwords from being sent in the clear, you must configure
+Kibana to encrypt communications between the browser and the Kibana server.
+If are encrypting traffic to and from the nodes in your Elasticsearch cluster,
+you must also configure Kibana to connect to Elasticsearch via HTTPS.
+
+With {security} enabled, if you load a Kibana dashboard that accesses data in an
+index that you are not authorized to view, you get an error that indicates the
+index does not exist. {security} do not currently provide a way to control which
+users can load which dashboards.
+
+IMPORTANT: Support for tribe nodes in Kibana was added in v5.2.
+
+To use Kibana with {security}:
+
+. Configure the password for the built-in `kibana` user. The Kibana server submits
+requests as this user to access the cluster monitoring APIs and the `.kibana` index.
+The server does _not_ need access to user indices.
++
+By default, the `kibana` user password is set to `changeme`. Change this password
+through the reset password API:
++
+[source,shell]
+--------------------------------------------------------------------------------
+PUT /_xpack/security/user/kibana/_password
+{
+  "password" : "s0m3th1ngs3cr3t"
+}
+--------------------------------------------------------------------------------
+// CONSOLE
++
+Once you change the password, you need to specify it with the `elasticsearch.password`
+property in `kibana.yml`:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+elasticsearch.password: "s0m3th1ngs3cr3t"
+--------------------------------------------------------------------------------
+
+[[kibana-roles]]
+. Assign the `kibana_user` role to grant Kibana users the privileges they
+need to use Kibana.
++
+IMPORTANT: You also need to grant Kibana users access to the
+indices that they will be working with in Kibana.
++
+** If you're using the `native` realm, you can assign roles using the
+<<managing-native-users, User Management API>>. For example, the following
+creates a user named `jacknich` and assigns it the `kibana_user` role:
++
+[source,js]
+--------------------------------------------------------------------------------
+POST /_xpack/security/user/jacknich
+{
+  "password" : "t0pS3cr3t",
+  "roles" : [ "kibana_user" ]
+}
+--------------------------------------------------------------------------------
+// CONSOLE
+
+** If you are using an LDAP or Active Directory realm, you can either assign
+roles on a per user basis, or assign roles to groups of users. By default, role
+mappings are stored in <<mapping-roles, `CONFIGDIR/x-pack/role_mapping.yml`>>.
+For example, the following snippet assigns the `kibana_user` role to the
+group named `admins` and the user named Jack Nicholson:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+kibana_user:
+  - "cn=admins,dc=example,dc=com"
+  - "cn=Jack Nicholson,dc=example,dc=com"
+--------------------------------------------------------------------------------
+
+[[configure-kibana-cert]]
+. Configure Kibana to encrypt communications between the browser and the Kibana
+server:
+.. Generate a server certificate for Kibana. You must either set the certificate's
+`subjectAltName` to the hostname, fully-qualified domain name (FQDN), or IP
+address of the Kibana server, or set the CN to the Kibana server's hostname
+or FQDN. Using the server's IP address as the CN does not work.
+.. Set the `server.ssl.key` and `server.ssl.cert` properties in `kibana.yml`:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+server.ssl.key: /path/to/your/server.key
+server.ssl.cert: /path/to/your/server.crt
+--------------------------------------------------------------------------------
++
+Once you enable SSL encryption between the browser and the Kibana server,
+access Kibana via HTTPS. For example, `https://localhost:5601`.
++
+NOTE: You must enable SSL encryption between the browser and the Kibana
+server to use Kibana with {security} enabled. If {security} is configured to
+encrypt connections to Elasticsearch, you must also <<configure-kibana-ssl,
+configure Kibana to connect to Elasticsearch via HTTPS>>.
+
+[[configure-kibana-ssl]]
+. If you have enabled SSL encryption in {security}, configure Kibana to connect
+to Elasticsearch via HTTPS:
+
+.. Specify the HTTPS protocol in the `elasticsearch.url` setting in the Kibana
+configuration file, `kibana.yml`:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+elasticsearch.url: "https://<your_elasticsearch_host>.com:9200"
+--------------------------------------------------------------------------------
+
+.. If you are using your own CA to sign certificates for Elasticsearch, set the
+`elasticsearch.ssl.ca` setting in `kibana.yml` to specify the location of the PEM
+file.
++
+[source,yaml]
+--------------------------------------------------------------------------------
+elasticsearch.ssl.ca: /path/to/your/cacert.pem
+--------------------------------------------------------------------------------
+
+. Install {xpack} into Kibana to secure user sessions and enable users
+to log in and out of Kibana:
+
+.. Run the following command in your Kibana installation directory.
++
+[source,console]
+--------------------------------------------------------------------------------
+bin/kibana-plugin install x-pack
+--------------------------------------------------------------------------------
++
+[NOTE]
+=============================================================================
+To perform an offline install, download the {xpack} zip file from
+https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip[
++https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip+]
+(https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip.sha1[sha1])
+and run:
+
+["source","sh",subs="attributes"]
+---------------------------------------------------------
+bin/kibana-plugin install file:///path/to/file/x-pack-{version}.zip
+---------------------------------------------------------
+=============================================================================
+
+.. Set the `xpack.security.encryptionKey` property in the `kibana.yml` configuration file.
+You can use any text string that is 32 characters or longer as the encryption key.
++
+[source,yaml]
+--------------------------------------------------------------------------------
+xpack.security.encryptionKey: "something_at_least_32_characters"
+--------------------------------------------------------------------------------
+
+.. To change the default session duration, set the `xpack.security.sessionTimeout` property
+in the `kibana.yml` configuration file. By default, sessions will stay active until the
+browser is closed. The timeout is specified in milliseconds. For example, set the timeout
+to 600000 to expire sessions after 10 minutes:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+xpack.security.sessionTimeout: 600000
+--------------------------------------------------------------------------------
+
+. Restart Kibana and verify that you can log in as a user. If you are running
+Kibana locally, go to `https://localhost:5601` and enter the credentials for a
+user you've assigned a Kibana user role. For example, you could log in as the
+`jacknich` user created above.
++
+image::kibana-login.jpg["Kibana Login",link="images/kibana-login.jpg"]
++
+NOTE: This must be a user who has been assigned the `kibana_user` role.
+Kibana server credentials should only be used internally by the
+Kibana server.
+
+[float]
+[[security-ui-settings]]
+===== Kibana {security} UI Settings
+[options="header"]
+|======
+| Name                               | Default                  | Description
+| `xpack.security.encryptionKey`     | -                        | An arbitrary string of 32 characters or more used to encrypt credentials in a
+                                                                  cookie. It is crucial that this key is not exposed to
+                                                                  users of Kibana. Required.
+| `xpack.security.sessionTimeout`    | `1800000` (30 minutes)   | Sets the session duration (in milliseconds).
+| `xpack.security.cookieName`        | `"sid"`                  | Sets the name of the cookie used for the session.
+| `xpack.security.secureCookies`     | `false`                  | Sets the `secure` flag of the session cookie. Is set
+                                                                  to `true` if `server.ssl.cert` and `server.ssl.key`
+                                                                  are set. Set this to `true` if SSL is configured
+                                                                  outside of Kibana (for example, you are routing
+                                                                  requests through a load balancer or proxy).
+|======

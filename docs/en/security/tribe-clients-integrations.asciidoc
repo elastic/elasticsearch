@@ -1,0 +1,42 @@
+[[tribe-clients-integrations]]
+== Tribe, Clients and Integrations
+
+When using a {ref}/modules-tribe.html[Tribe Nodes] you need to take extra steps to secure its communication
+with the connected clusters
+
+* <<tribe-node-configuring, Tribe Node Security>>
+
+You will need to update the configuration for several clients to work with a
+secured cluster:
+
+* <<java-clients, Java Clients>>
+* <<http-clients, HTTP Clients>>
+
+
+{security} enables you to secure you Elasticsearch cluster. But Elasticsearch
+itself is only one product within the Elastic Stack. It is often the case that
+other products in the stack are connected to the cluster and therefore need to
+be secured as well, or at least communicate with the cluster in a secured way:
+
+* <<hadoop, Apache Hadoop>>
+* <<logstash, Logstash>>
+* <<kibana, Kibana>>
+* <<secure-monitoring, Monitoring>>
+
+include::tribe-clients-integrations/tribe.asciidoc[]
+
+include::tribe-clients-integrations/java.asciidoc[]
+
+include::tribe-clients-integrations/http.asciidoc[]
+
+include::tribe-clients-integrations/hadoop.asciidoc[]
+
+include::tribe-clients-integrations/logstash.asciidoc[]
+
+include::tribe-clients-integrations/beats.asciidoc[]
+
+include::tribe-clients-integrations/kibana.asciidoc[]
+
+include::tribe-clients-integrations/monitoring.asciidoc[]
+
+include::tribe-clients-integrations/reporting.asciidoc[]

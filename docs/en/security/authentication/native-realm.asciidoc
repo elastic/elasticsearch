@@ -1,0 +1,196 @@
+[[native-realm]]
+=== Native User Authentication
+
+The easiest way to manage and authenticate users is with the internal `native`
+realm. You can use the REST APIs or Kibana to add and remove users, assign user roles, and
+manage user passwords.
+
+[[native-realm-configuration]]
+[float]
+==== Configuring a Native Realm
+
+The native realm is added to the realm chain by default. You don't need to
+explicitly configure a native realm to manage users through the REST APIs.
+
+
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
+realms you specify are used for authentication. To use the 
+`native` realm as a fallback, you must include it in the realm chain. 
+
+You can, however, configure options for the `native` realm in the
+`xpack.security.authc.realms` namespace in `elasticsearch.yml`. Explicitly
+configuring a native realm enables you to set the order in which it appears in
+the realm chain, temporary disable the realm, and control its cache options.
+
+To configure a native realm:
+
+. Add a realm configuration of type `native` to `elasticsearch.yml` under the
+`xpack.security.authc.realms` namespace. At a minimum, you must set the realm
+`type` to `native`. If you are configuring multiple realms, you should also
+explicitly set the `order` attribute. See <<native-settings, Native Realm Settings>>
+for all of the options you can set for the `native` realm.
++
+For example, the following snippet shows a `native` realm configuration that
+sets the `order` to zero so the realm is checked first:
++
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        native1:
+          type: native
+          order: 0
+------------------------------------------------------------
+
+. Restart Elasticsearch.
+
+[[native-settings]]
+.Native Realm Settings
+[cols="4,^3,10"]
+|=======================
+| Setting             | Required  | Description
+
+| `type`              | yes       | Indicates the realm type. Must be set to `native`.
+
+| `order`             | no        | Indicates the priority of this realm within
+                                    the realm chain. Realms with a lower order
+                                    are consulted first. Although not required,
+                                    we recommend explicitly setting this value
+                                    when you configure multiple realms. Defaults
+                                    to `Integer.MAX_VALUE`.
+
+| `enabled`           | no        | Indicates whether this realm is enabled or
+                                    disabled. When set to `false`, the realm is
+                                    not added to the realm chain and therefore
+                                    is inactive. Defaults to `true`.
+
+| `cache.ttl`         | no        | Specifies the time-to-live for cached user
+                                    entries. A user's credentials are cached for
+                                    this period of time. Specify the time period
+                                    using the standard Elasticsearch
+                                    {ref}/common-options.html#time-units[time units].
+                                    Defaults to `20m`.
+
+| `cache.max_users`   | no        | Specifies the maximum number of user entries
+                                    that can be cached at any given time. Defaults
+                                    to 100,000.
+
+| `cache.hash_algo`   | no        | Specifies the hashing algorithm that is used
+                                    for the cached user credentials. See
+                                    <<cache-hash-algo, Cache hash algorithms>>
+                                    for the possible values. (Expert Setting)
+|=======================
+
+
+[[managing-native-users]]
+==== Managing Native Users
+
+You manage users in the `native` realm through the <<security-api-users, user API>>.
+
+[[migrating-from-file]]
+NOTE: To migrate file-based users to the `native` realm, use the
+<<migrate-tool, migrate>> tool.
+
+[float]
+[[native-add]]
+===== Adding Users
+
+To add a user, submit a PUT or POST request to the `/_xpack/security/user/<username>`
+endpoint. A username must be at least 1 character long and no longer than 30
+characters. The first character must be a letter (`a-z` or `A-Z`) or an
+underscore (`_`). Subsequent characters can be letters, underscores (`_`),
+digits (`0-9`), or any of the following symbols `@`, `-`, `.` or `$`.
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/user/jacknich
+{
+  "password" : "j@rV1s", <1>
+  "roles" : [ "admin", "other_role1" ], <2>
+  "full_name" : "Jack Nicholson", <3>
+  "email" : "jacknich@example.com", <4>
+  "metadata" : { <5>
+    "intelligence" : 7
+  },
+  "enabled": true <6>
+}
+--------------------------------------------------
+// CONSOLE
+<1> You must specify a password when adding a user. Passwords must be at least 6
+    characters long.
+<2> You must assign at least one role to the user. The roles determine the user's
+    access permissions.
+<3> The user's full name. Optional.
+<4> The user's email address. Optional.
+<5> Arbitrary metadata you want to associate with the user. Optional.
+<6> Specifies whether the user should be enabled. Optional with a default of true.
+
+
+[float]
+[[native-list]]
+===== Retrieving Users
+
+To retrieve all users, submit a GET request to the `/_xpack/security/user` endpoint:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/user
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+To retrieve particular users, specify the users as a comma-separated list:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/user/jacknich,rdeniro
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+An object is returned holding the found users, each keyed by the relevant
+username. Note that user passwords are not included.
+
+[source,js]
+--------------------------------------------------
+{
+  "jacknich" : {
+    "username": "jacknich",
+    "roles" : [ "admin", "other_role1" ],
+    "full_name" : "Jack Nicholson",
+    "email" : "jacknich@example.com",
+    "enabled" : true,
+    "metadata" : {
+      "intelligence" : 7
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[float]
+[[native-delete]]
+===== Deleting Users
+
+To delete a user, submit a DELETE request to the `/_xpack/security/user/<username>`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/user/jacknich
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the user is successfully deleted, the request returns `{"found": true}`.
+Otherwise, `found` is set to false.
+
+[source,js]
+--------------------------------------------------
+{
+  "found" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

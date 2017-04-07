@@ -1,0 +1,73 @@
+[[migrate-tool]]
+==== Migrating File-based Users and Roles to the Native Realm
+
+From 5.0 onward, you should use the `native` realm to manage roles and local 
+users. To migrate existing file-based users and roles to the native realm, use
+the `migrate` tool that's included with the X-Pack plugin.
+
+NOTE: When migrating from Shield 2.x, the `migrate` tool should be run prior
+to upgrading to ensure all roles can be migrated as some may be in a deprecated
+format that {xpack} cannot read. The `migrate` tool is available in Shield
+2.4.0 and higher.
+
+The `migrate` tool loads the existing file-based users and roles and calls the 
+user and roles APIs to add them to the native realm. You can migrate all users 
+and roles, or specify the ones you want to migrate. Users and roles that 
+already exist in the `native` realm are not replaced or overridden. If 
+the names you specify with the `--users` and `--roles` options don't 
+exist in the `file` realm, they are skipped.
+
+Run the migrate tool after you install the X-Pack plugin. For example:
+
+[source, sh]
+----------------------------------------------------------------------
+$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p changeme
+-n lee,foo -r role1,role2,role3,role4,foo
+starting migration of users and roles...
+importing users from [/home/es/config/shield/users]...
+found existing users: [test_user, joe3, joe2]
+migrating user [lee]
+{"user":{"created":true}}
+no user [foo] found, skipping
+importing roles from [/home/es/config/shield/roles.yml]...
+found existing roles: [marvel_user, role_query_fields, admin_role, role3, admin, 
+remote_marvel_agent, power_user, role_new_format_name_array, role_run_as, 
+logstash, role_fields, role_run_as1, role_new_format, kibana4_server, user, 
+transport_client, role1.ab, role_query]
+migrating role [role1]
+{"role":{"created":true}}
+migrating role [role2]
+{"role":{"created":true}}
+role [role3] already exists, skipping
+no role [foo] found, skipping
+users and roles imported.
+----------------------------------------------------------------------
+
+[[migrate-tool-options]]
+The `native` subcommand supports the following options:
+
+`-U`, `--url`::
+Endpoint URL of the Elasticsearch cluster to which you want to migrate the 
+file-based users and roles. Required.
+
+`-u`, `--username`::
+Username to use for authentication.
+
+`-p`, `--password`:: 
+Password to use for authentication.
+
+`-n`, `--users`::
+Comma-separated list of the users you want to migrate. If not specified, all 
+users are migrated.
+
+`-r`, `--roles`:: 
+Comma-separated list of the roles you want to migrate. If not specified, all 
+roles are migrated.
+
+Additionally, the `-E` flag can be used to specify additional settings. For example
+to specify a different configuration directory, the command would look like:
+
+[source, sh]
+----------------------------------------------------------------------
+$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p changeme -Epath.conf=/etc/elasticsearch
+----------------------------------------------------------------------

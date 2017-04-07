@@ -1,0 +1,329 @@
+[[security-release-notes]]
+== Shield Release Notes (Pre-5.0)
+
+[float]
+[[update-roles]]
+=== Updated Role Definitions
+The default role definitions in the `roles.yml` file may need to be changed to ensure proper interoperation with other
+applications such as Monitoring and Kibana. Any role changes are stored in `roles.yml.new` when you upgrade. We recommend copying the following changes to your `roles.yml` file.
+
+* The `kibana4` role now grants access to the Field Stats API.
+* The permission on all the roles are updated to the verbose format to make it easier to enable field level and document level security. The `transport_client` role has been updated to work with Elasticsearch 2.0.0.
+ The `marvel_user` role has been updated to work with Monitoring 2.0 and a `remote_marvel_agent` role has been added. The `kibana3` and `marvel_agent` roles have been removed.
+* `kibana` role added that defines the minimum set of permissions necessary for the Kibana 4 server.
+* `kibana4` role updated to work with new features in Kibana 4 RC1
+
+[float]
+[[security-change-list]]
+=== Change List
+
+[float]
+==== 2.4.2
+November 22, 2016
+
+.Bug Fixes
+* Users with `manage` or `manage_security` cluster privileges can now access the `.security` index if they have the appropriate index
+privileges.
+
+.Breaking Changes
+* Shield on tribe nodes now requires `tribe.on_conflict` to prefer one of the clusters.
+
+[float]
+==== 2.4.0
+August 31, 2016
+
+.Breaking Changes
+* The `monitor` cluster privilege now grants access to the GET `/_license` API
+
+
+[float]
+==== 2.3.5
+August 3, 2016
+
+.Bug Fixes
+
+* Fixed a license problem that was preventing tribe nodes from working with
+Shield.
+
+[float]
+==== 2.3.4
+July 7, 2016
+
+.Bug Fixes
+* The `default` transport profile SSL settings now override the `shield.ssl.*`
+settings properly.
+* Fixed a memory leak that occured when indices were deleted or closed.
+
+[float]
+==== 2.3.3
+May 18, 2016
+
+.Bug Fixes
+* Fixed the `/_shield/realm/{realms}/_cache/clear` REST endpoint. This endpoint is deprecated and `/_shield/realm/{realms}/_clear_cache` should be used going forward.
+
+[float]
+==== 2.3.2
+April 26, 2016
+
+.Bug Fixes
+* Date math expressions in index names are now resolved before attempting to authorize access to the indices.
+* Fixed an issue where active directory realms did not work unless the url setting was configured.
+* Enabled `_cat/indices` to be used when Shield is installed.
+
+[float]
+==== 2.3.1
+April 4, 2016
+
+.Bug Fixes
+* Fixed an issue that could prevent nodes from joining the cluster.
+
+[float]
+==== 2.3.0
+March 30, 2016
+
+.New Features
+* <<native-realm,Native realm>> with support for <<security-api-users,user management APIs>>.
+* <<security-api-roles,Role management APIs>> have been added.
+
+.Bug Fixes
+* When evaluating permissions for multiple roles that have document level security enabled for the same index, Shield performed an `AND`
+on the queries, which is not consistent with how role privileges work in Shield. This has been changed to an `OR` relationship and may
+affect the behavior of existing roles; please ensure you are not relying on the `AND` behavior of document level security queries.
+* When evaluation permissions for user that has roles with and without document level security (and/or field level security), the roles that
+granted unrestricted access were not being applied properly and the user's access was still being restricted.
+
+.Enhancements
+* Added new <<security-privileges, privileges>> to simplify access control.
+
+[float]
+==== 2.2.1
+March 15, 2016
+
+.Bug Fixes
+* Enable <<field-and-document-access-control,document and field level security>> by default.
+* Fix issues with <<enable-message-authentication,message authentication>> on certain JDKs that do not support cloning message
+authentication codes.
+* Built in <<setting-up-authentication, realms>> no longer throw an exception if the `Authorization` header does not contain a basic
+authentication token.
+* Ensure each tribe client node has the same shield configuration as defined in the settings.
+
+[float]
+==== 2.2.0
+February 2, 2016
+
+.New Features
+* Shield plugin for Kibana:  Secures user sessions and enables users to log in and out of Kibana.
+For information about installing the Shield plugin, see <<kibana, Using Kibana with Shield>>.
+
+.Bug Fixes
+* Update requests (including within bulk requests) are blocked when document
+and field level security is enabled
+
+[float]
+==== 2.1.2
+February 2, 2016
+
+.Enhancements
+* Adds support for Elasticssearch 2.1.2
+
+[float]
+==== 2.1.1
+December 17, 2015
+
+.Bug Fixes
+* Disable the request cache when <<document-level-security, document level security>> is in use for a search request.
+* Fix startup failures when using auditing and <<audit-log-entry-local-node-info, enabling network information output>>.
+* Updated the `kibana4` role to include the Field Stats API.
+
+[float]
+==== 2.1.0
+November 24, 2015
+
+.Breaking Changes
+* Same as 2.0.1. <<field-and-document-access-control, Document and Field Level Security>> is now disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
+
+.Enhancements
+* Adds support for Elasticsearch 2.1.0.
+
+[float]
+==== 2.0.2
+December 16, 2015
+
+.Bug Fixes
+* Disable the request cache when <<document-level-security, document level security>> is in use for a search request.
+
+[float]
+==== 2.0.1
+November 24, 2015
+
+.Breaking Changes
+* <<field-and-document-access-control, Document and Field Level Security>> is now disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
+
+.Enhancement
+* Adds support for Elasticsearch 2.0.1.
+
+[float]
+==== 2.0.0
+October 28, 2015
+
+.Breaking Changes
+* All files that Shield uses must be kept in the <<security-files-location, configuration directory>> due to the enhanced security of Elasticsearch 2.0.
+* The network format has been changed from all previous versions of Shield and a full cluster restart is required to upgrade to Shield 2.0.
+
+.New Features
+* <<field-and-document-access-control, Document and Field Level Security>> support has been added and can be
+configured per role.
+* Support for <<custom-realms, custom authentication realms>> has been added, allowing Shield to integrate with more authentication sources and methods.
+* <<run-as-privilege, User impersonation support>> has also been added, which allows a user to send a request to Elasticsearch that will be run
+with the specified user's permissions.
+
+.Bug Fixes
+* <<auditing, Auditing>> now captures requests from nodes using a different system key as tampered requests.
+* The <<audit-index, index output for auditing>> stores the type of request when available.
+* `esusers` and `syskeygen` work when spaces are in the Elasticsearch installation path.
+* Fixed a rare issue where authentication fails even when the username and password are correct.
+
+[float]
+==== 1.3.3
+
+.Bug Fixes
+* Fixed a rare issue where authentication fails even when the username and password are correct.
+* The <<audit-index, index output for auditing>> stores the type of request when available.
+
+.Enhancements
+* Tampered requests with a bad header are now audited.
+
+[float]
+==== 1.3.2
+August 10, 2015
+
+.Bug Fixes
+* When using the <<ldap-user-search,LDAP user search>> mechanism, connection errors during startup no longer cause the node to stop.
+* The <<security-api-clear-cache,Clear Cache API>> no longer generates invalid JSON.
+* The <<audit-index,index output for auditing>> starts properly when forwarding the audit events to a remote cluster and uses
+the correct user to index the audit events.
+
+[float]
+==== 1.3.1
+July 21, 2015
+
+.Bug Fixes
+* Fixes <<enable-message-authentication,message authentication>> serialization to work with Shield 1.2.1 and earlier.
+** NOTE: if you are upgrading from Shield 1.3.0 or Shield 1.2.2 a {ref-17}/setup-upgrade.html#restart-upgrade[cluster restart upgrade]
+will be necessary. When upgrading from other versions of Shield, follow the normal upgrade procedure.
+
+[float]
+==== 1.3.0
+June 24, 2015
+
+.Breaking Changes
+* The `sha2` and `apr1` hashing algorithms have been removed as options for the <<cache-hash-algo,`cache.hash_algo` setting>>.
+  If your existing Shield installation uses either of these options, remove the setting and use the default `ssha256`
+  algorithm.
+* The `users` file now only supports `bcrypt` password hashing. All existing passwords stored using the `esusers` tool
+  have been hashed with `bcrypt` and are not affected.
+
+.New Features
+* <<pki-realm,PKI Realm>>: Adds Public Key Infrastructure (PKI) authentication through the use of X.509 certificates in place of
+ username and password credentials.
+* <<auditing, Index Output for Audit Events>>: An index based output has been added for storing audit events in an Elasticsearch index.
+
+.Enhancements
+* TLS 1.2 is now the default protocol.
+* Clients that do not support pre-emptive basic authentication can now support both anonymous and authenticated access
+  by specifying the `shield.authc.anonymous.authz_exception` <<anonymous-access,setting>> with a value of `false`.
+* Reduced logging for common SSL exceptions, such as a client closing the connection during a handshake.
+
+.Bug Fixes
+* The `esusers` and `syskeygen` tools now work correctly with environment variables in the RPM and DEB installation
+  environment files `/etc/sysconfig/elasticsearch` and `/etc/default/elasticsearch`.
+* Default ciphers no longer include `TLS_DHE_RSA_WITH_AES_128_CBC_SHA`.
+
+[float]
+==== 1.2.3
+July 21, 2015
+
+.Bug Fixes
+* Fixes <<enable-message-authentication,message authentication>> serialization to work with Shield 1.2.1 and earlier.
+** NOTE: if you are upgrading from Shield 1.2.2 a {ref-17}/setup-upgrade.html#restart-upgrade[cluster restart upgrade]
+will be necessary. When upgrading from other versions of Shield, follow the normal upgrade procedure.
+
+[float]
+==== 1.2.2
+June 24, 2015
+
+.Bug Fixes
+* The `esusers` tool no longer warns about missing roles that are properly defined in the `roles.yml` file.
+* The period character, `.`, is now allowed in usernames and role names.
+* The {ref-17}/query-dsl-terms-filter.html#_caching_19[terms filter lookup cache] has been disabled to ensure all requests
+  are properly authorized. This removes the need to manually disable the terms filter cache.
+* For LDAP client connections, only the protocols and ciphers specified in the `shield.ssl.supported_protocols` and
+  `shield.ssl.ciphers` <<ssl-tls-settings,settings>> will be used.
+* The auditing mechanism now logs authentication failed events when a request contains an invalid authentication token.
+
+[float]
+==== 1.2.1
+April 29, 2015
+
+.Bug Fixes
+* Several bug fixes including a fix to ensure that {ref}/disk-allocator.html[Disk-based Shard Allocation]
+works properly with Shield
+
+[float]
+==== 1.2.0
+March 24, 2015
+
+.Enhancements
+* Adds support for Elasticsearch 1.5
+
+[float]
+==== 1.1.1
+April 29, 2015
+
+.Bug Fixes
+* Several bug fixes including a fix to ensure that {ref}/disk-allocator.html[Disk-based Shard Allocation]
+works properly with Shield
+
+[float]
+==== 1.1.0
+March 24, 2015
+
+.New Features
+* LDAP:
+** Add the ability to bind as a specific user for LDAP searches, which removes the need to specify `user_dn_templates`.
+This mode of operation also makes use of connection pooling for better performance. Please see <<ldap-user-search, ldap user search>>
+for more information.
+** User distinguished names (DNs) can now be used for <<ldap-role-mapping, role mapping>>.
+* Authentication:
+** <<anonymous-access, Anonymous access>> is now supported (disabled by default).
+* IP Filtering:
+** IP Filtering settings can now be <<dynamic-ip-filtering,dynamically updated>> using the {ref}/cluster-update-settings.html[Cluster Update Settings API].
+
+.Enhancements
+* Significant memory footprint reduction of internal data structures
+* Test if SSL/TLS ciphers are supported and warn if any of the specified ciphers are not supported
+* Reduce the amount of logging when a non-encrypted connection is opened and `https` is being used
+* Added the <<kibana-roles, `kibana_server` role>>, which is a role that contains the minimum set of permissions required for the Kibana 4 server.
+* In-memory user credential caching hash algorithm defaults now to salted SHA-256 (see <<cache-hash-algo, Cache hash algorithms>>
+
+.Bug Fixes
+* Filter out sensitive settings from the settings APIs
+
+[float]
+==== 1.0.2
+March 24, 2015
+
+.Bug Fixes
+* Filter out sensitive settings from the settings APIs
+* Significant memory footprint reduction of internal data structures
+
+[float]
+==== 1.0.1
+February 13, 2015
+
+.Bug Fixes
+* Fixed dependency issues with Elasticsearch 1.4.3 and (Lucene 4.10.3 that comes with it)
+* Fixed bug in how user roles were handled. When multiple roles were defined for a user, and one of the
+  roles only had cluster permissions, not all privileges were properly evaluated.
+* Updated `kibana4` permissions to be compatible with Kibana 4 RC1
+* Ensure the mandatory `base_dn` settings is set in the `ldap` realm configuration

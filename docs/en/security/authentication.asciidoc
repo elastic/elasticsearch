@@ -1,0 +1,265 @@
+[[setting-up-authentication]]
+== Setting Up User Authentication
+
+Authentication identifies an individual. To gain access to restricted resources,
+a user must prove their identity, via passwords, credentials, or some other
+means (typically referred to as authentication tokens).
+
+You can use the native support for managing and authenticating users, or
+integrate with external user management systems such as LDAP and Active
+Directory. For information about managing native users,
+see <<managing-native-users, Managing Native Users>>.
+
+[float]
+[[built-in-users]]
+=== Built-in Users
+
+{security} provides built-in user credentials to help you get up and running.
+These users have a fixed set of privileges and the default password `changeme`.
+Please read <<reset-built-in-user-passwords,Reset Built-in User Passwords>> and
+<<disabling-default-password, Disable Default Password Functionality>> below.
+
+.{security} Built-in Users
+|========
+| Name               | Description
+| `elastic`          | A built-in <<built-in-roles-superuser, _superuser_>>.
+| `kibana`           | The user Kibana uses to connect and communicate with Elasticsearch.
+| `logstash_system`  | The user Logstash uses when storing monitoring information in Elasticsearch.
+|========
+
+[float]
+[[reset-built-in-user-passwords]]
+==== Reset Built-in User Passwords
+[IMPORTANT]
+=============================================================================
+You must reset the default passwords for all built-in users, and then
+<<disabling-default-password, disable default password support>>.
+You can update passwords from the *Management > Users* UI in Kibana or with the
+<<security-api-reset-user-password, Reset Password API>>:
+
+[source,js]
+---------------------------------------------------------------------
+PUT _xpack/security/user/elastic/_password 
+{
+  "password": "elasticpassword"
+}
+---------------------------------------------------------------------
+// CONSOLE
+
+[source,js]
+---------------------------------------------------------------------
+PUT _xpack/security/user/kibana/_password 
+{
+  "password": "kibanapassword"
+}
+---------------------------------------------------------------------
+// CONSOLE
+
+[source,js]
+---------------------------------------------------------------------
+PUT _xpack/security/user/logstash_system/_password
+{
+  "password": "logstashpassword"
+}
+---------------------------------------------------------------------
+// CONSOLE
+
+Once the `kibana` user password is reset, you need to update the Kibana server
+with the new password by setting `elasticsearch.password` in the
+`kibana.yml` configuration file:
+
+[source,yaml]
+-----------------------------------------------
+elasticsearch.password: kibanapassword
+-----------------------------------------------
+
+The `logstash_system` user is used internally within Logstash when
+<<monitoring-logstash-settings, monitoring>> is enabled for logstash
+
+If you wish to enable this feature in Logstash, then you need to update the Logstash
+configuration with the new password by setting `xpack.monitoring.elasticsearch.password` in
+the `logstash.yml` configuration file:
+
+[source,yaml]
+----------------------------------------------------------
+xpack.monitoring.elasticsearch.password: logstashpassword
+----------------------------------------------------------
+
+If you have upgraded from an older version of elasticsearch/x-pack,
+the `logstash_system` user may have defaulted to _disabled_ for security reasons.
+Once the password has been changed, you can enable the user via the following API call:
+
+[source,js]
+---------------------------------------------------------------------
+PUT _xpack/security/user/logstash_system/_enable
+---------------------------------------------------------------------
+// CONSOLE
+=============================================================================
+
+[float]
+[[disabling-default-password]]
+==== Disable Default Password Functionality
+[IMPORTANT]
+=============================================================================
+The default password of `changeme` is provided as a convenience that allows you to quickly
+setup your Elasticsearch stack. It should not be used when running in production.
+
+Once you have changed the password for the built-in users, you must disable default password support
+by setting `xpack.security.authc.accept_default_password` to `false`.
+
+A {ref}/bootstrap-checks.html[bootstrap check] will prevent your cluster from operating in production
+mode until you make this configuration change.
+
+=============================================================================
+
+=== How Authentication Works
+
+Authentication in {security} is handled by one or more authentication services
+called _realms_. A _realm_ is used to resolve and authenticate users based on
+authentication tokens. {security} provides the following built-in realms:
+
+_native_::
+An internal realm where users are stored in a dedicated Elasticsearch index.
+This realm supports an authentication token in the form of username and password,
+and is available by default when no realms are explicitly configured. See
+<<native-realm>>.
+
+_ldap_::
+A realm that uses an external LDAP server to authenticate the
+users. This realm supports an authentication token in the form of username and
+password, and requires explicit configuration in order to be used. See
+<<ldap-realm>>.
+
+_active_directory_::
+A realm that uses an external Active Directory Server to authenticate the
+users. With this realm, users are authenticated by usernames and passwords.
+See <<active-directory-realm>>.
+
+_pki_::
+A realm that authenticates users using Public Key Infrastructure (PKI). This
+realm works in conjunction with SSL/TLS and identifies the users through the
+Distinguished Name (DN) of the client's X.509 certificates. See <<pki-realm>>.
+
+_file_::
+An internal realm where users are defined in files stored on each node in the
+Elasticsearch cluster. This realm supports an authentication token in the form
+of username and password, and is always available. See <<file-realm>>.
+
+{security} also supports custom realms. If you need to integrate with another
+authentication system, you can build a custom realm plugin. For more information,
+see <<custom-realms, Integrating with Other Authentication Systems>>.
+
+Realms live within a _realm chain_. It is essentially a prioritized list of
+configured realms (typically of various types). The order of the list determines
+the order in which the realms will be consulted. During the authentication process,
+{security} will consult and try to authenticate the request one realm at a time.
+Once one of the realms successfully authenticates the request, the authentication
+is considered to be successful and the authenticated user will be associated
+with the request (which will then proceed to the authorization phase). If a realm
+cannot authenticate the request, the next in line realm in the chain will be
+consulted. If all realms in the chain could not authenticate the request, the
+authentication is then considered to be unsuccessful and an authentication error
+will be returned (as HTTP status code `401`).
+
+NOTE: Some systems (e.g. Active Directory) have a temporary lock-out period after
+      several successive failed login attempts. If the same username exists in
+      multiple realms, unintentional account lockouts are possible. For more
+      information, please see <<trouble-shoot-active-directory, here>>.
+
+The default realm chain contains the `native` and `file` realms. To explicitly,
+configure a realm chain, you specify the chain in `elasticsearch.yml`. When you
+configure a realm chain, only the realms you specify are used for authentication. 
+To use the `native` and `file` realms, you must include them in the chain. 
+
+The following snippet configures a realm chain that includes the `file` and
+`native` realms, as well as two LDAP realms and an Active Directory realm.
+
+[source,yaml]
+----------------------------------------
+xpack.security.authc:
+  realms:
+
+    file:
+      type: file
+      order: 0
+
+    native:
+      type: native
+      order: 1
+
+    ldap1:
+      type: ldap
+      order: 2
+      enabled: false
+      url: 'url_to_ldap1'
+      ...
+
+    ldap2:
+      type: ldap
+      order: 3
+      url: 'url_to_ldap2'
+      ...
+
+    ad1:
+      type: active_directory
+      order: 4
+      url: 'url_to_ad'
+----------------------------------------
+
+As can be seen above, each realm has a unique name that identifies it and each
+realm type dictates its own set of required and optional settings. That said,
+there are three settings that are common to all realms:
+
+[cols=",^,",options="header"]
+|=========
+| Setting     | Required  | Description
+
+| `type`      | true      | Identifies the type of the realm. The realm type
+                            determines what other settings the realms should be
+                            configured with. The type can be one of: `native`,
+                            `ldap`, `active_directory`, `pki`, `file`, or in case
+                            of a custom realm, the type name that identifies it.
+
+| `order`     | false     | A numeric value representing the priority/index of
+                            the realm within the realm chain. This will determine
+                            the order by which the realms will be consulted
+                            during authentication, with lower order being consulted
+                            first.
+
+| `enabled`   | false     | When set to `false` the realm will be disabled and
+                            will not be added to the realm chain. This is useful
+                            for debugging purposes as it enables you to remove
+                            a realm from the chain without deleting and losing
+                            its configuration.
+|=========
+
+Realm types can roughly be classified in two categories:
+
+Internal::  Realms that are internal to Elasticsearch and don't require any
+            communication with external parties. They are fully managed by
+            {security}. There can only be a maximum of one configured realm
+            per internal realm type. {security} provides two internal realm
+            types: `native` and `file`.
+
+External::  Realms that require interaction with parties/components external to
+            Elasticsearch, typically, with enterprise grade identity management
+            systems. Unlike internal realms, there can be as many external realms
+            as one would like - each with its own unique name and configuration.
+            {security} provides three external realm types: `ldap`,
+            `active_directory` and `pki`.
+
+include::authentication/anonymous-access.asciidoc[]
+
+include::authentication/native-realm.asciidoc[]
+
+include::authentication/ldap-realm.asciidoc[]
+
+include::authentication/active-directory-realm.asciidoc[]
+
+include::authentication/pki-realm.asciidoc[]
+
+include::authentication/file-realm.asciidoc[]
+
+include::authentication/custom-realm.asciidoc[]
+
+include::authentication/user-cache.asciidoc[]

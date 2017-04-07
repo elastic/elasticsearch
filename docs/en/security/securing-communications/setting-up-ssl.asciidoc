@@ -1,0 +1,258 @@
+[[ssl-tls]]
+=== Setting Up SSL/TLS on a Cluster
+
+{security} enables you to encrypt traffic to, from and within your Elasticsearch
+cluster. Connections are secured using Transport Layer Security (TLS), which is
+commonly referred to as "SSL".
+
+WARNING: Clusters that do not have encryption enabled send all data in plain text
+including passwords.
+
+To enable encryption, you need to perform the following steps on each node in
+the cluster:
+
+. <<installing-node-certificates, Generate a private key and X.509 certificate>>.
+
+. <<configure-ssl, Configure the node>> to:
+.. Identify itself using its signed certificate.
+.. Enable SSL on the transport and HTTP layers.
+
+. Restart Elasticsearch.
+
+[[installing-node-certificates]]
+==== Node Certificates
+
+TLS requires X.509 certificates to perform encryption and authentication of the application
+that is being communicated with. In order for the communication between nodes to be truly
+secure, the certificates must be validated. The recommended approach for validating
+certificate authenticity in a Elasticsearch cluster is to trust the certificate authority (CA)
+that signed the certificate. By doing this, as nodes are added to your cluster they just need
+to use a certificate signed by the same CA and the node is automatically allowed to join the
+cluster. Additionally, it is recommended that the certificates contain subject alternative
+names (SAN) that correspond to the node's ip address and dns name so that hostname verification
+can be performed.
+
+In order to simplify the process of generating certificates for the Elastic Stack, a command
+line tool, `certgen` has been included with {xpack}. This tool takes care of the generating
+a CA and signing certificates with the CA. `certgen` can be used interactively or in a silent
+mode through the use of an input file. The `certgen` tool also supports generation of certificate
+signing requests (CSR), so that a commercial or organization specific CA may be used to sign
+the certificates.
+
+NOTE: If you choose not to use the `certgen`, the certificates that you obtain must allow for both
+`clientAuth` and `serverAuth` if the extended key usage extension is present. The certificates
+need to be in PEM format. Although not required, it is highly recommended that the certificate contain
+the dns name(s) and/or ip address(es) of the node so that hostname verification may be used.
+
+[[generating-signed-certificates]]
+===== Generating Certificates with `certgen`
+
+The `certgen` tool can be used to generate a CA and signed certificates for your nodes. The tool
+can be used interactively:
+
+[listing]
+....
+bin/x-pack/certgen
+This tool assists you in the generation of X.509 certificates and certificate
+signing requests for use with SSL in the Elastic stack. Depending on the command
+line option specified, you may be prompted for the following:
+
+* The path to the output file
+    * The output file is a zip file containing the signed certificates and
+      private keys for each instance. If a Certificate Authority was generated,
+      the certificate and private key will also be included in the output file.
+* Information about each instance
+    * An instance is any piece of the Elastic Stack that requires a SSL certificate.
+      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats
+      may all require a certificate and private key.
+    * The minimum required value for each instance is a name. This can simply be the
+      hostname, which will be used as the Common Name of the certificate. A full
+      distinguished name may also be used.
+    * IP addresses and DNS names are optional. Multiple values can be specified as a
+      comma separated string. If no IP addresses or DNS names are provided, you may
+      disable hostname verification in your SSL configuration.
+* Certificate Authority private key password
+    * The password may be left empty if desired.
+
+Let's get started...
+
+Please enter the desired output file [/home/es/config/x-pack/certificate-bundle.zip]:
+Enter instance name: node01
+Enter name for directories and files [node01]:
+Enter IP Addresses for instance (comma-separated if more than one) []: 10.10.0.1
+Enter DNS names for instance (comma-separated if more than one) []: node01.mydomain.com,node01
+Would you like to specify another instance? Press 'y' to continue entering instance information: y
+Enter instance name: node02
+Enter name for directories and files [node02]:
+Enter IP Addresses for instance (comma-separated if more than one) []: 10.10.0.2
+Enter DNS names for instance (comma-separated if more than one) []: node02.mydomain.com
+Would you like to specify another instance? Press 'y' to continue entering instance information:
+Certificates written to /Users/jmodi/dev/tmp/elasticsearch-5.0.0-alpha5-SNAPSHOT/config/x-pack/certificate-bundle.zip
+
+This file should be properly secured as it contains the private keys for all
+instances and the certificate authority.
+
+After unzipping the file, there will be a directory for each instance containing
+the certificate and private key. Copy the certificate, key, and CA certificate
+to the configuration directory of the Elastic product that they will be used for
+and follow the SSL configuration instructions in the product guide.
+
+For client applications, you may only need to copy the CA certificate and
+configure the client to trust this certificate.
+....
+
+The usage of `certgen` above generates a zip file with the CA certificate, private key, two signed certificates and keys
+in PEM format for `node01` and `node02`.
+
+[[generating-csr]]
+===== Generating Certificate Signing Requests with `certgen`
+
+When using a commercial or organization specific CA, the `certgen` tool may be used to generate
+certificate signing requests (CSR) for the nodes in your cluster:
+
+[listing]
+....
+bin/x-pack/certgen -csr
+This tool assists you in the generation of X.509 certificates and certificate
+signing requests for use with SSL in the Elastic stack. Depending on the command
+line option specified, you may be prompted for the following:
+
+* The path to the output file
+    * The output file is a zip file containing the certificate signing requests
+      and private keys for each instance.
+* Information about each instance
+    * An instance is any piece of the Elastic Stack that requires a SSL certificate.
+      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats
+      may all require a certificate and private key.
+    * The minimum required value for each instance is a name. This can simply be the
+      hostname, which will be used as the Common Name of the certificate. A full
+      distinguished name may also be used.
+    * IP addresses and DNS names are optional. Multiple values can be specified as a
+      comma separated string. If no IP addresses or DNS names are provided, you may
+      disable hostname verification in your SSL configuration.
+
+Let's get started...
+
+Please enter the desired output file [/home/es/config/x-pack/csr-bundle.zip]:
+Enter instance name: node01
+Enter name for directories and files [node01]:
+Enter IP Addresses for instance (comma-separated if more than one) []: 10.10.0.1
+Enter DNS names for instance (comma-separated if more than one) []: node01.mydomain.com,node01
+Would you like to specify another instance? Press 'y' to continue entering instance information: y
+Enter instance name: node02
+Enter name for directories and files [node02]:
+Enter IP Addresses for instance (comma-separated if more than one) []: 10.10.0.2
+Enter DNS names for instance (comma-separated if more than one) []: node02.mydomain.com
+Would you like to specify another instance? Press 'y' to continue entering instance information:
+Certificate signing requests written to /Users/jmodi/dev/tmp/elasticsearch-5.0.0-alpha5-SNAPSHOT/config/x-pack/csr-bundle.zip
+
+This file should be properly secured as it contains the private keys for all
+instances.
+
+After unzipping the file, there will be a directory for each instance containing
+the certificate signing request and the private key. Provide the certificate
+signing requests to your certificate authority. Once you have received the
+signed certificate, copy the signed certificate, key, and CA certificate to the
+configuration directory of the Elastic product that they will be used for and
+follow the SSL configuration instructions in the product guide.
+....
+
+The usage of `certgen` above generates a zip file with two CSRs and private
+keys. The CSRs should be provided to the CA in order to obtain the signed
+certificates. The signed certificates will need to be in PEM format in order to
+be used.
+
+===== Using `certgen` in Silent Mode
+
+`certgen` supports a silent mode of operation to enable easier batch operations. In order
+to use this mode, a YAML file containing the information about the instances needs to be
+created matching the format shown below:
+
+[source, yaml]
+--------------------------------------------------
+instances:
+  - name: "node1" <1>
+    ip: <2>
+      - "192.0.2.1"
+    dns: <3>
+      - "node1.mydomain.com"
+  - name: "node2"
+    ip:
+      - "192.0.2.2"
+      - "198.51.100.1"
+  - name: "node3"
+  - name: "node4"
+    dns:
+      - "node4.mydomain.com"
+      - "node4.internal"
+  - name: "CN=node5,OU=IT,DC=mydomain,DC=com"
+    filename: "node5" <4>
+--------------------------------------------------
+<1> The name of the instance. This can be a simple string value or can be a Distinguished Name (DN). This is the only required field.
+<2> An optional array of strings that represent IP Addresses for this instance. Both IPv4 and IPv6 values are allowed. The values will
+be added as Subject Alternative Names.
+<3> An optional array of strings that represent DNS names for this instance. The values will be added as Subject Alternative Names.
+<4> The filename to use for this instance. This name will be the name of the directory in the zip file that this instance's files will
+stored in and it will used be used in the naming of the files within the directory. This filename should not have an extension. Note: If
+the `name` provided for the instance does not represent a valid filename, then the `filename` field must be present.
+
+With the YAML file ready, the `certgen` tool can be used to generate certificates or certificate signing requests. Simply pass the file's
+path to `certgen` using the `-in` option. For example:
+
+[source, sh]
+--------------------------------------------------
+bin/x-pack/certgen -in instances.yml <1>
+--------------------------------------------------
+<1> Generates a CA certificate and private key in addition to certificates and private keys for the instances
+contained in the YAML file. The other options to the tool can be specified in addition to the `-in` option. For all of the available
+options, run `bin/x-pack/certgen -h`.
+
+[[enable-ssl]]
+==== Enabling SSL in the Node Configuration
+
+Once you have the signed certificate, private key, and CA certificate you need to
+modify the node configuration to enable SSL.
+
+[[configure-ssl]]
+To enable SSL, make the following changes in `elasticsearch.yml`:
+
+. Specify the location of the node's keystore and the password(s) needed to
+access the node's certificate. For example:
++
+--
+[source, yaml]
+--------------------------------------------------
+xpack.ssl.key:                     /home/es/config/x-pack/node01.key <1>
+xpack.ssl.certificate:             /home/es/config/x-pack/node01.crt <2>
+xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ] <3>
+--------------------------------------------------
+<1> The full path to the node key file. This must be a location within the
+    Elasticsearch configuration directory.
+<2> The full path to the node certificate. This must be a location within the
+    Elasticsearch configuration directory.
+<3> An array of paths to the CA certificates that should be trusted. These paths
+    must be a location within the Elasticsearch configuration directory.
+--
+
+. Enable SSL on the transport networking layer to ensure that communication
+between nodes is encrypted:
++
+[source, yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true
+--------------------------------------------------
++
+. Enable SSL on the HTTP layer to ensure that communication between HTTP clients
+and the cluster is encrypted:
++
+[source, yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true
+--------------------------------------------------
++
+
+. Restart Elasticsearch.
+
+NOTE: All SSL related node settings that are considered to be highly sensitive
+      and therefore are not exposed via the
+      {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].

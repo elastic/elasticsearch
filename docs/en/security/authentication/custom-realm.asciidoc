@@ -1,0 +1,107 @@
+[[custom-realms]]
+=== Integrating with Other Authentication Systems
+
+If you are using an authentication system that is not supported out-of-the-box
+by {security}, you can create a custom realm to interact with it to authenticate
+users. You implement a custom realm as an {xpack} extension.
+
+[[implementing-custom-realm]]
+==== Implementing a Custom Realm
+
+Sample code that illustrates the structure and implementation of a custom realm
+is provided in the https://github.com/elastic/shield-custom-realm-example[custom-realm-example]
+repository on GitHub. You can use this code as a starting point for creating your
+own realm.
+
+To create a custom realm, you need to:
+
+. Extend `org.elasticsearch.xpack.security.authc.Realm` to communicate with your
+  authentication system to authenticate users.
+. Implement the `org.elasticsearch.xpack.security.authc.Realm.Factory` interface in
+  a class that will be used to create the custom realm.
+. Extend `org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler` to
+  handle authentication failures when using your custom realm.
+
+To package your custom realm as a plugin:
+
+. Implement an extension class for your realm that extends
+  `org.elasticsearch.xpack.extensions.XPackExtension`. There you need to
+  override one or more of the following methods:
++
+[source,java]
+----------------------------------------------------
+@Override
+public Map<String, Factory> getRealms() {
+    ...
+}
+----------------------------------------------------
++
+The `getRealms` method is used to provide a map of type names to the `Factory` that
+will be used to create the realm.
++
+[source,java]
+----------------------------------------------------
+@Override
+public AuthenticationFailureHandler getAuthenticationFailureHandler() {
+    ...
+}
+----------------------------------------------------
++
+The `getAuthenticationFailureHandler` method is used to optionally provide a
+custom `AuthenticationFailureHandler`, which will control how X-Pack responds
+in certain authentication failure events.
++
+[source,java]
+----------------------------------------------------
+@Override
+public Collection<String> getRestHeaders() {
+    ...
+}
+----------------------------------------------------
++
+The `getRestHeaders` method returns a collection of header names that should be
+copied from the request into the `ThreadContext` where they can be accessed by
+the realm.
++
+[source,java]
+----------------------------------------------------
+@Override
+public List<String> getSettingsFilter() {
+    ...
+}
+----------------------------------------------------
++
+The `getSettingsFilter` method returns a list of setting names that should be
+filtered from the settings APIs as they may contain sensitive credentials.
+
+. Create a build configuration file for the plugin; Gradle is our recommendation.
+. Create a `x-pack-extension-descriptor.properties` descriptor file for the
+  extension.
+. Bundle all in a single zip file.
+
+[[using-custom-realm]]
+==== Using a Custom Realm to Authenticate Users
+
+To use a custom realm:
+
+. Install the realm extension on each node in the cluster. You run
+  `bin/x-pack/extension` with the `install` sub-command and specify the URL
+  pointing to the zip file that contains the extension. For example:
++
+[source,shell]
+----------------------------------------
+bin/x-pack/extension install file:///<path>/my-realm-1.0.zip
+----------------------------------------
+
+. Add a realm configuration of the appropriate realm type to `elasticsearch.yml`
+under the `xpack.security.authc.realms` namespace. The options you can set depend 
+on the settings exposed by the custom realm. At a minimum, you must set the realm 
+`type` to the type defined by the extension. If you are configuring multiple 
+realms, you should also explicitly set the  `order` attribute to control the 
+order in which the realms are consulted during authentication.
++
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
+realms you specify are used for authentication. If you also want to use the 
+`native` or `file` realms, you must include them in the realm chain. 
+
+. Restart Elasticsearch.

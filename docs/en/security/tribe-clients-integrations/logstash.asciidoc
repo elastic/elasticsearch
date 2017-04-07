@@ -1,0 +1,219 @@
+[[logstash]]
+=== Logstash and Security
+
+The Logstash Elasticsearch plugins (
+{logstash-ref}/plugins-outputs-elasticsearch.html[output],
+{logstash-ref}/plugins-inputs-elasticsearch.html[input],
+{logstash-ref}/plugins-filters-elasticsearch.html[filter]
+and <<monitoring-logstash-settings, monitoring>>)
+support authentication and encryption over HTTP.
+
+To use Logstash with a secured cluster, you need to configure authentication 
+credentials for Logstash. Logstash throws an exception and the processing 
+pipeline is halted if authentication fails. 
+
+If encryption is enabled on the cluster, you also need to enable SSL in the 
+Logstash configuration. 
+
+If you wish to monitor your logstash instance with x-pack monitoring, and store
+the monitoring data in a secured elasticsearch cluster, you must configure Logstash
+with a username and password for a user with the appropriate permissions.
+
+In addition to configuring authentication credentials for Logstash, you need
+to grant authorized users permission to access the Logstash indices.
+
+[float]
+[[ls-http-auth-basic]]
+==== Configuring Logstash to use Basic Authentication
+
+Logstash needs to be able to manage index templates, create indices,  
+and write and delete documents in the indices it creates. 
+
+To set up authentication credentials for Logstash:
+
+. Create a `logstash_writer` role that has the `manage_index_templates` cluster 
+privilege, and the `write`, `delete`, and `create_index` privileges  for the 
+Logstash indices. You can create roles from the **Management > Roles** UI in 
+Kibana or through the `role` API:
++
+[source, sh]
+---------------------------------------------------------------
+POST _xpack/security/role/logstash_writer
+{
+  "cluster": ["manage_index_templates", "monitor"],
+  "indices": [
+    {
+      "names": [ "logstash-*" ], <1>
+      "privileges": ["write","delete","create_index"]
+    }
+  ]
+}
+---------------------------------------------------------------
+
+<1> If you use a custom Logstash index pattern, specify that pattern
+instead of the default `logstash-*` pattern.
+
+. Create a `logstash_internal` user and assign it the `logstash_writer` role.
+You can create users from the **Management > Users** UI in Kibana or through 
+the `user` API:
++
+[source, sh]
+---------------------------------------------------------------
+POST _xpack/security/user/logstash_internal
+{
+  "password" : "changeme", 
+  "roles" : [ "logstash_writer"], 
+  "full_name" : "Internal Logstash User"
+}
+---------------------------------------------------------------
+
+. Configure Logstash to authenticate as the `logstash_internal` user you just
+created. You configure credentials separately for each of the Elasticsearch
+plugins in your Logstash `.conf` file. For example:
++
+[source,js]
+--------------------------------------------------
+input { 
+    ...
+    user => logstash_internal 
+    password => changeme
+  }
+filter { 
+    ...
+    user => logstash_internal 
+    password => changeme
+  }
+output {
+  elasticsearch {
+    ...
+    user => logstash_internal 
+    password => changeme
+  }
+--------------------------------------------------
+
+[float]
+[[ls-user-access]]
+==== Granting Users Access to the Logstash Indices
+
+To access the indices Logstash creates, users need the `read` and 
+`view_index_metadata` privileges:
+
+. Create a `logstash_reader` role that has the `read and `view_index_metadata`
+privileges  for the Logstash indices. You can create roles from the 
+**Management > Roles** UI in Kibana or through the `role` API:
++
+[source, sh]
+---------------------------------------------------------------
+POST _xpack/security/role/logstash_reader
+{
+  "indices": [
+    {
+      "names": [ "logstash-*" ], <1>
+      "privileges": ["read","view_index_metadata"]
+    }
+  ]
+}
+---------------------------------------------------------------
+
+<1> If you use a custom Logstash index pattern, specify that pattern
+instead of the default `logstash-*` pattern.
+
+. Assign your Logstash users the `logstash_reader` role. You can create 
+and manage users from the **Management > Users** UI in Kibana or through 
+the `user` API:
++
+[source, sh]
+---------------------------------------------------------------
+POST _xpack/security/user/logstash_user
+{
+  "password" : "changeme", 
+  "roles" : [ "logstash_reader"], 
+  "full_name" : "Kibana User"
+}
+---------------------------------------------------------------
+
+[float]
+[[ls-http-auth-pki]]
+===== Configuring the elasticsearch Output to use PKI Authentication 
+
+The `elasticsearch` output supports PKI authentication. To use an X.509 
+client-certificate for authentication, you configure the `keystore` and
+`keystore_password` options in your Logstash `.conf` file:
+
+[source,js]
+--------------------------------------------------
+output {
+  elasticsearch {
+    ...
+    keystore => /path/to/keystore.jks 
+    keystore_password => realpassword
+    truststore =>  /path/to/truststore.jks <1>
+    truststore_password =>  realpassword 
+  }
+}
+--------------------------------------------------
+<1> If you use a separate truststore, the truststore path and password are 
+also required.
+
+[float]
+[[ls-http-ssl]]
+===== Configuring Logstash to use TLS Encryption
+
+If TLS encryption is enabled on the Elasticsearch cluster, you need to 
+configure the `ssl` and `cacert` options in your Logstash `.conf` file:
+
+[source,js]
+--------------------------------------------------
+output {
+  elasticsearch {
+    ...
+    ssl => true
+    cacert => '/path/to/cert.pem' <1>
+  }
+}
+--------------------------------------------------
+<1> The path to the local `.pem` file that contains the Certificate
+    Authority's certificate.
+
+[float]
+[[ls-monitoring-user]]
+===== Configuring Logstash Monitoring
+
+If you wish to ship Logstash <<monitoring-logstash-settings, monitoring>>
+data to a secure cluster, Logstash must be configured with a username and password.
+
+X-Pack security comes preconfigured with a `logstash_system` user for this purpose.
+This user has the minimum permissions necessary for the monitoring function, and
+_should not_ be used for any other purpose - it is specifically _not intended_ for
+use within a Logstash pipeline.
+
+By default, the `logstash_system` user password is set to `changeme`.
+Change this password through the reset password API:
+
+[source,js]
+---------------------------------------------------------------------
+PUT _xpack/security/user/logstash_system/_password
+{
+  "password": "t0p.s3cr3t"
+}
+---------------------------------------------------------------------
+// CONSOLE
+
+Then configure the user and password in your `logstash.yml` configuration file:
+
+[source,yaml]
+----------------------------------------------------------
+xpack.monitoring.elasticsearch.username: logstash_system
+xpack.monitoring.elasticsearch.password: t0p.s3cr3t
+----------------------------------------------------------
+
+If you initially installed an older version of X-Pack, and then upgraded, then
+the `logstash_system` user may have defaulted to disabled for security reasons.
+You can enable the user with the following API call:
+
+[source,js]
+---------------------------------------------------------------------
+PUT _xpack/security/user/logstash_system/_enable
+---------------------------------------------------------------------
+// CONSOLE
+

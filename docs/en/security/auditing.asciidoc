@@ -1,0 +1,432 @@
+[[auditing]]
+== Auditing Security Events
+
+You can enable auditing to keep track of security-related events such as 
+authentication failures and refused connections. Logging these events enables you
+to monitor your cluster for suspicious activity and provides evidence in the
+event of an attack.
+
+[IMPORTANT]
+============================================================================
+Audit logs are **disabled** by default. To enable this functionality, you 
+must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
+============================================================================
+
+{Security} provides two ways to persist audit logs: 
+
+* The <<audit-log-output, `logfile`>> output, which persists events to
+  a dedicated `<clustername>_access.log` file on the host's file system.
+* The <<audit-index, `index`>> output, which persists events to an Elasticsearch index.
+The audit index can reside on the same cluster, or a separate cluster.
+
+By default, only the `logfile` output is used when enabling auditing.
+To facilitate browsing and analyzing the events, you can also enable
+indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.outputs: [ index, logfile ]
+----------------------------
+
+The `index` output type should be used in conjunction with the `logfile` 
+output type Because it is possible for the `index` output type to lose
+messages if the target index is unavailable, the `access.log` should be 
+used as the official record of events.
+
+NOTE: Audit events are batched for indexing so there is a lag before 
+events appear in the index. You can control how frequently batches of 
+events are pushed to the index by setting 
+`xpack.security.audit.index.flush_interval` in `elasticsearch.yml`.
+
+[float]
+[[audit-event-types]]
+=== Audit Event Types
+
+Each request may generate multiple audit events.
+The following is a list of the events that can be generated:
+
+|======
+| `anonymous_access_denied`         | | | Logged when a request is denied due to a missing
+                                          authentication token.
+| `authentication_success`          | | | Logged when a user successfully authenticates.
+| `authentication_failed`           | | | Logged when the authentication token cannot be
+                                          matched to a known user.
+| `realm_authentication_failed`     | | | Logged for every realm that fails to present a valid
+                                          authentication token. `<realm>` represents the
+                                          realm type.
+| `access_denied`                   | | | Logged when an authenticated user attempts to execute
+                                          an action they do not have the necessary 
+                                          <<security-reference, privilege>> to perform.
+| `access_granted`                  | | | Logged when an authenticated user attempts to execute
+                                          an action they have the necessary privilege to perform.
+                                          When the `system_access_granted` event is included, all system
+                                          (internal) actions are also logged. The default setting does
+                                          not log system actions to avoid cluttering the logs.
+| `run_as_granted`                  | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
+                                          another user that they have the necessary privileges to do.
+| `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
+                                          another user action they do not have the necessary
+                                          <<security-reference, privilege>> to do so.
+| `tampered_request`                | | | Logged when {security} detects that the request has 
+                                          been tampered with. Typically relates to `search/scroll` 
+                                          requests when the scroll ID is believed to have been
+                                          tampered with.
+| `connection_granted`              | | | Logged when an incoming TCP connection passes the
+                                          <<ip-filtering, IP Filter>> for a specific
+                                          profile.
+| `connection_denied`               | | | Logged when an incoming TCP connection does not pass the
+                                          <<ip-filtering, IP Filter>> for a specific
+                                          profile.
+|======
+
+[float]
+[[audit-event-attributes]]
+=== Audit Event Attributes
+
+The following table shows the common attributes that can be associated with every event.
+
+.Common Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute           | Description
+| `timestamp`         | When the event occurred.
+| `node_name`         | The name of the node.
+| `node_host_name`    | The hostname of the node.
+| `node_host_address` | The IP address of the node.
+| `layer`             | The layer from which this event originated: `rest`, `transport` or `ip_filter`
+| `event_type`        | The type of event that occurred: `anonymous_access_denied`,
+                        `authentication_failed`, `access_denied`, `access_granted`,
+                        `connection_granted`, `connection_denied`, `tampered_request`,
+                        `run_as_granted`, `run_as_denied`.
+|======
+
+The following tables show the attributes that can be associated with each type of event.
+The log level determines  which attributes are included in a log entry.
+
+.REST anonymous_access_denied Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_address`  | The IP address from which the request originated.
+| `uri`             | The REST endpoint URI.
+| `request_body`    | The body of the request, if enabled.
+|======
+
+.REST authentication_success Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `user`            | The authenticated user.
+| `realm`           | The realm that authenticated the user.
+| `uri`             | The REST endpoint URI.
+| `params`          | The REST URI query parameters.
+| `request_body`    | The body of the request, if enabled.
+|======
+
+.REST authentication_failed Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed authentication.
+| `uri`             | The REST endpoint URI.
+| `request_body`    | The body of the request, if enabled.
+|======
+
+.REST realm_authentication_failed Attributes
+[cols="2,7",options="header"]
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed authentication.
+| `uri`             | The REST endpoint URI.
+| `request_body`    | The body of the request, if enabled.
+| `realm`           | The realm that failed to authenticate the user.
+                      NOTE: A separate entry is logged for each
+                            consulted realm.
+|======
+
+.Transport anonymous_access_denied Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+| `indices`         | A comma-separated list of indices this request
+                      pertains to (when applicable).
+|======
+
+.Transport authentication_success Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `user`            | The authenticated user.
+| `realm`           | The realm that authenticated the user.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+|======
+
+.Transport authentication_failed Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed authentication.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+| `indices`         | A comma-separated list of indices this request
+                      pertains to (when applicable).
+|======
+
+.Transport realm_authentication_failed Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed authentication.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+| `indices`         | A comma-separated list of indices this request
+                      pertains to (when applicable).
+| `realm`           | The realm that failed to authenticate the user.
+                      NOTE: A separate entry is logged for each
+                            consulted realm.
+|======
+
+.Transport access_granted Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed authentication.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+| `indices`         | A comma-separated list of indices this request
+                      pertains to (when applicable).
+|======
+
+.Transport access_denied Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed authentication.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+| `indices`         | A comma-separated list of indices this request
+                      relates to (when applicable).
+|======
+
+.Transport tampered_request Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute         | Description
+| `origin_type`     | Where the request originated: `rest` (request
+                      originated from a REST API request), `transport`
+                      (request was received on the transport channel),
+                      `local_node` (the local node issued the request).
+| `origin_address`  | The IP address from which the request originated.
+| `principal`       | The principal (username) that failed to authenticate.
+| `action`          | The name of the action that was executed.
+| `request`         | The type of request that was executed.
+| `indices`         | A comma-separated list of indices this request
+                      pertains to (when applicable).
+|======
+
+.IP Filter connection_granted Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute           | Description
+| `origin_address`    | The IP address from which the request originated.
+| `transport_profile` | The transport profile the request targeted.
+| `rule`              | The <<ip-filtering, IP filtering>> rule that granted
+                        the request.
+|======
+
+.IP Filter connection_denied Attributes
+[cols="2,7",options="header"]
+|======
+| Attribute           | Description
+| `origin_address`    | The IP address from which the request originated.
+| `transport_profile` | The transport profile the request targeted.
+| `rule`              | The <<ip-filtering, IP filtering>> rule that denied
+                        the request.
+|======
+
+[float]
+[[audit-log-output]]
+=== Logfile Audit Output
+
+The `logfile` audit output is the default output for auditing. It writes data to
+the `<clustername>_access.log` file in the logs directory.
+
+[float]
+[[audit-log-entry-format]]
+=== Log Entry Format
+
+The format of a log entry is:
+
+[source,txt]
+----------------------------------------------------------------------------
+[<timestamp>] [<local_node_info>] [<layer>] [<entry_type>] <attribute_list>
+----------------------------------------------------------------------------
+
+`<timestamp>`       ::      When the event occurred. You can configure the
+                            timestamp format in `log4j2.properties`.
+`<local_node_info>` ::      Information about the local node that generated
+                            the log entry. You can control what node information
+                            is included by configuring the
+                            <<audit-log-entry-local-node-info, local node info settings>>.
+`<layer>`           ::      The layer from which this event originated:
+                            `rest`, `transport` or `ip_filter`.
+`<entry_type>`      ::       The type of event that occurred: `anonymous_access_denied`,
+                            `authentication_failed`, `access_denied`, `access_granted`,
+                            `connection_granted`, `connection_denied`.
+`<attribute_list>`  ::      A comma-separated list of key-value pairs that contain
+                            data pertaining to the event. Formatted as
+                            `attr1=[val1], attr2=[val2]`. See <<audit-event-attributes,
+                            Audit Entry Attributes>> for the attributes that can be included
+                            for each type of event.
+
+[float]
+[[audit-log-settings]]
+=== Logfile Output Settings
+
+The events and some other information about what gets logged can be
+controlled using settings in the `elasticsearch.yml` file.
+
+.Audited Event Settings
+[cols="4,^2,4",options="header"]
+|======
+| Name                                                   | Default   | Description
+| `xpack.security.audit.logfile.events.include`          | `access_denied`, `access_granted`, `anonymous_access_denied`, `authentication_failed`, `connection_denied`, `tampered_request`, `run_as_denied`, `run_as_granted` | Includes the specified events in the output.
+| `xpack.security.audit.logfile.events.exclude`          |           | Excludes the specified events from the output.
+| `xpack.security.audit.logfile.events.emit_request_body`| false     | Include or exclude the request body from REST requests
+                                                                       on certain event types such as `authentication_failed`.
+|======
+
+
+IMPORTANT: No filtering is performed when auditing, so sensitive data may be
+audited in plain text when including the request body in audit events.
+
+[[audit-log-entry-local-node-info]]
+.Local Node Info Settings
+[cols="4,^2,4",options="header"]
+|======
+| Name                                                   | Default   | Description
+| `xpack.security.audit.logfile.prefix.emit_node_name`           | true      | Include or exclude the node's name
+                                                                               from the local node info.
+| `xpack.security.audit.logfile.prefix.emit_node_host_address`   | false     | Include or exclude the node's IP address
+                                                                               from the local node info.
+| `xpack.security.audit.logfile.prefix.emit_node_host_name`      | false     | Include or exclude the node's host name
+                                                                               from the local node info.
+|======
+
+[[logging-file]]
+You configure also configure how the logfile is written in the `log4j2.properties`
+file located in `CONFIG_DIR/x-pack`. By default, audit information is appended to the
+`<clustername>_access.log` file located in the standard Elasticsearch `logs` directory
+(typically located at `$ES_HOME/logs`). The file rolls over on a daily basis.
+
+[float]
+[[audit-index]]
+=== Index Audit Output
+
+In addition to logging to a file, you can store audit logs in Elasticsearch 
+rolling indices. These indices can be either on the same cluster, or on a 
+remote cluster. You configure the following settings in  
+`elasticsearch.yml` to control how audit entries are indexed. To enable
+this output, you need to configure the setting `xpack.security.audit.outputs`
+in the `elasticsearch.yml` file:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.outputs: [ index, logfile ]
+----------------------------
+
+.Audit Log Indexing Configuration
+[options="header"]
+|======
+| Attribute                           | Default Setting | Description
+| `xpack.security.audit.index.bulk_size`      | `1000`          | Controls how many audit events are batched into a single write.
+| `xpack.security.audit.index.flush_interval` | `1s`            | Controls how often buffered events are flushed to the index.
+| `xpack.security.audit.index.rollover`       | `daily`         | Controls how often to roll over to a new index:
+                                                                  `hourly`, `daily`, `weekly`, or `monthly`.
+| `xpack.security.audit.index.events.include` | `anonymous_access_denied`, `authentication_failed`, `realm_authentication_failed`, `access_granted`, `access_denied`, `tampered_request`, `connection_granted`, `connection_denied`, `run_as_granted`, `run_as_denied` | The audit events to be indexed. See <<audit-event-types, Audit Entry Types>> for the complete list.
+| `xpack.security.audit.index.events.exclude` |  | The audit events to exclude from indexing.
+| `xpack.security.audit.index.events.emit_request_body`| false   | Include or exclude the request body from REST requests
+                                                                   on certain event types such as `authentication_failed`.
+|======
+
+IMPORTANT: No filtering is performed when auditing, so sensitive data may be
+audited in plain text when including the request body in audit events.
+
+[float]
+==== Audit Index Settings
+
+You can also configure settings for the indices that the events are stored in.
+These settings are configured in the `xpack.security.audit.index.settings` namespace
+in `elasticsearch.yml`. For example, the following configuration sets the
+number of shards and replicas to 1 for the audit indices:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.index.settings:
+  index:
+    number_of_shards: 1
+    number_of_replicas: 1
+----------------------------
+
+[float]
+==== Forwarding Audit Logs to a Remote Cluster
+
+To index audit events to a remote Elasticsearch cluster, you configure
+the following `xpack.security.audit.index.client` settings.
+
+.Remote Audit Log Indexing Configuration
+[options="header"]
+|======
+| Attribute                                                 | Description
+| `xpack.security.audit.index.client.hosts`                 | Comma-separated list of `host:port` pairs. These hosts
+                                                              should be nodes in the remote cluster.
+| `xpack.security.audit.index.client.cluster.name`          | The name of the remote cluster.
+| `xpack.security.audit.index.client.xpack.security.user`   | The `username:password` pair to use to authenticate with
+                                                              the remote cluster.
+|======
+
+You can pass additional settings to the remote client by specifying them in the
+`xpack.security.audit.index.client` namespace. For example, to allow the remote 
+client to discover all of the nodes in the remote cluster you can specify the
+`client.transport.sniff` setting:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.index.client.transport.sniff: true
+----------------------------

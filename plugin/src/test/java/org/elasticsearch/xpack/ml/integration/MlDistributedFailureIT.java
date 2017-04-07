@@ -44,13 +44,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        ensureStableCluster(3);
+        ensureStableClusterOnAllNodes(3);
         run(() -> {
             GetJobsStatsAction.Request  request = new GetJobsStatsAction.Request("job_id");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
             internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
-            ensureStableCluster(2);
+            ensureStableClusterOnAllNodes(2);
         });
     }
 
@@ -67,7 +67,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         String mlAndDataNode = internalCluster().startNode(Settings.builder()
                 .put("node.master", false)
                 .build());
-        ensureStableCluster(2);
+        ensureStableClusterOnAllNodes(2);
         run(() -> {
             logger.info("Stopping dedicated master node");
             internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.master", false));
@@ -82,13 +82,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                     .put("node.data", false)
                     .put("node.ml", false)
                     .build());
-            ensureStableCluster(2);
+            ensureStableClusterOnAllNodes(2);
         });
     }
 
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        ensureStableCluster(3);
+        ensureStableClusterOnAllNodes(3);
         run(() -> {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
@@ -131,6 +131,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertEquals(numDocs1, dataCounts.getProcessedRecordCount());
             assertEquals(0L, dataCounts.getOutOfOrderTimeStampCount());
         });
+        client().admin().indices().prepareSyncedFlush().get();
 
         disrupt.run();
         assertBusy(() -> {
@@ -183,6 +184,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             return DataCounts.PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void ensureStableClusterOnAllNodes(int nodeCount) {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ensureStableCluster(nodeCount, nodeName);
         }
     }
 

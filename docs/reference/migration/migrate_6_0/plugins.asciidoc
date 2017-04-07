@@ -33,3 +33,8 @@ name space have been removed. This includes `repositories.azure.account`, `repos
 You must set those settings per repository instead. Respectively `account`, `container`, `base_path`,
 `location_mode`, `chunk_size` and `compress`.
 See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].
+
+==== Ignoring hidden folders
+
+Previous versions of Elasticsearch would skip hidden files and directories when
+scanning the plugins folder. This leniency has been removed.

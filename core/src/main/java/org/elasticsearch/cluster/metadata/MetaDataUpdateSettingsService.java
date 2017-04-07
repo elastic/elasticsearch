@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,6 +54,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -180,7 +181,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -284,10 +286,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         });
     }
 
-    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
-        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
-    }
-
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
@@ -307,7 +305,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("update-index-compatibility-versions",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {

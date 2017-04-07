@@ -569,7 +569,11 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (termStr.equals("*") && field != null) {
-            if ("*".equals(field)) {
+            /**
+             * We rewrite _all:* to a match all query.
+             * TODO: We can remove this special case when _all is completely removed.
+             */
+            if ("*".equals(field) || "_all".equals(field)) {
                 return newMatchAllDocsQuery();
             }
             String actualField = field;

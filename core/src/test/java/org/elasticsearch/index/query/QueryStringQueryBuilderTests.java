@@ -822,7 +822,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         queryBuilder = new QueryStringQueryBuilder("_all:*");
         query = queryBuilder.toQuery(context);
-        expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");

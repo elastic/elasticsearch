@@ -105,8 +105,10 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     public void testCanConfigureHeapBufferLimitFromOutsidePackage() throws ClassNotFoundException, NoSuchMethodException,
             IllegalAccessException, InvocationTargetException, InstantiationException {
         int bufferLimit = randomIntBetween(1, Integer.MAX_VALUE);
+        //we use reflection to make sure that the class can be instantiated from the outside, and the constructor is public
         Class<?> aClass = Class.forName(HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class.getName());
         Constructor<?> constructor = aClass.getConstructor(Integer.TYPE);
+        assertEquals(Modifier.PUBLIC, constructor.getModifiers() & Modifier.PUBLIC);
         Object object = constructor.newInstance(bufferLimit);
         assertThat(object, instanceOf(HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class));
         HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =

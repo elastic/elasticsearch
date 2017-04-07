@@ -204,6 +204,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     public void openJob(String jobId, JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {
+        logger.info("Opening job [{}]", jobId);
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         jobProvider.getAutodetectParams(job, params -> {
             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):

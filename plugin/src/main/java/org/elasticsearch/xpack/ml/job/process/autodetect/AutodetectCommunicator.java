@@ -184,7 +184,7 @@ public class AutodetectCommunicator implements Closeable {
         // clients from querying results in the middle of normalization.
         autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
 
-        LOGGER.info("[{}] Flush completed", job.getId());
+        LOGGER.debug("[{}] Flush completed", job.getId());
     }
 
     /**

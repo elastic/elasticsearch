@@ -216,6 +216,9 @@ GET _search
   }
 }
 ------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+// TEST[catch:request]
 
 will return the following exception:
 
@@ -236,6 +239,9 @@ will return the following exception:
   }
 }
 ------------------------------
+// NOTCONSOLE
+// This isn't exactly the error we get but it isn't worth fixing it because
+// this is being dropped in master anyway.
 
 However, classloader issues may also result in more difficult to interpret
 exceptions.  For instance, this script:
@@ -260,6 +266,7 @@ Returns the following exception:
   }
 }
 ------------------------------
+// NOTCONSOLE
 
 [float]
 == Dealing with Java Security Manager issues
@@ -290,6 +297,7 @@ Security Policy either:
 export ES_JAVA_OPTS="${ES_JAVA_OPTS} -Djava.security.policy=file:///path/to/my.policy`
 ./bin/elasticsearch
 ---------------------------------
+// NOTCONSOLE
 
 Permissions may be granted at the class, package, or global level.  For instance:
 
@@ -301,6 +309,7 @@ grant {
     permission org.elasticsearch.script.ClassPermission "*"; // allow all (disables filtering basically)
 };
 ----------------------------------
+// NOTCONSOLE
 
 Here is an example of how to enable the `groovy.time.TimeCategory` class:
 
@@ -311,6 +320,7 @@ grant {
     permission org.elasticsearch.script.ClassPermission "groovy.time.TimeCategory";
 };
 ----------------------------------
+// NOTCONSOLE
 
 [TIP]
 ======================================

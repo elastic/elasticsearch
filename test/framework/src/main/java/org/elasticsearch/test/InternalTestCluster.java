@@ -1059,13 +1059,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /** ensure a cluster is formed with all published nodes. */
-    private void validateClusterFormed() {
+    public synchronized void validateClusterFormed() {
         String name = randomFrom(random, getNodeNames());
         validateClusterFormed(name);
     }
 
     /** ensure a cluster is formed with all published nodes, but do so by using the client of the specified node */
-    private void validateClusterFormed(String viaNode) {
+    public synchronized void validateClusterFormed(String viaNode) {
         Set<DiscoveryNode> expectedNodes = new HashSet<>();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());

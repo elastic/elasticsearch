@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
@@ -385,10 +385,12 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
                     client.threadPool());
             new MachineLearningClient(client).stopDatafeed(new StopDatafeedAction.Request("foobar"), listener);
             if (invalidLicense) {
-                // expected to because datafeeds is automatically stopped in case of invalid license,
-                // a license error should not be returned
-                Exception e = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
-                assertEquals("Cannot stop datafeed [foobar] because it has already been stopped", e.getMessage());
+                // the stop datafeed due to invalid license happens async, so check if the datafeed turns into stopped state:
+                assertBusy(() -> {
+                    GetDatafeedsStatsAction.Response response =
+                            new MachineLearningClient(client).getDatafeedsStats(new GetDatafeedsStatsAction.Request("foobar")).actionGet();
+                    assertEquals(DatafeedState.STOPPED, response.getResponse().results().get(0).getDatafeedState());
+                });
             } else {
                 listener.actionGet();
             }

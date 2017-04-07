@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
@@ -170,10 +171,10 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(filters.getName(), equalTo("tags"));
 
         assertThat(filters.getBuckets().size(), equalTo(2));
-        assertThat(filters.getProperty("_bucket_count"), equalTo(2));
-        Object[] propertiesKeys = (Object[]) filters.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) filters.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) filters.getProperty("avg_value.value");
+        assertThat(((InternalAggregation)filters).getProperty("_bucket_count"), equalTo(2));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)filters).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)filters).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)filters).getProperty("avg_value.value");
 
         Filters.Bucket bucket = filters.getBucketByKey("tag1");
         assertThat(bucket, Matchers.notNullValue());
@@ -425,10 +426,10 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(filters.getName(), equalTo("tags"));
 
         assertThat(filters.getBuckets().size(), equalTo(3));
-        assertThat(filters.getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) filters.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) filters.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) filters.getProperty("avg_value.value");
+        assertThat(((InternalAggregation)filters).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)filters).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)filters).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)filters).getProperty("avg_value.value");
 
         Filters.Bucket bucket = filters.getBucketByKey("tag1");
         assertThat(bucket, Matchers.notNullValue());

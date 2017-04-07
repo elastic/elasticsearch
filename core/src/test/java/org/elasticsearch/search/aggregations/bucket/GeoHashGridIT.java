@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid.Bucket;
@@ -157,8 +158,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             List<Bucket> buckets = geoGrid.getBuckets();
-            Object[] propertiesKeys = (Object[]) geoGrid.getProperty("_key");
-            Object[] propertiesDocCounts = (Object[]) geoGrid.getProperty("_count");
+            Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoGrid).getProperty("_key");
+            Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoGrid).getProperty("_count");
             for (int i = 0; i < buckets.size(); i++) {
                 GeoHashGrid.Bucket cell = buckets.get(i);
                 String geohash = cell.getKeyAsString();

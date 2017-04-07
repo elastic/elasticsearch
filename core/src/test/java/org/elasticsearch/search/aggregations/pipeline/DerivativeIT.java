@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
@@ -259,9 +260,9 @@ public class DerivativeIT extends ESIntegTestCase {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) deriv.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) deriv.getProperty("_count");
-        Object[] propertiesSumCounts = (Object[]) deriv.getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)deriv).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("sum.value");
 
         List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
@@ -304,9 +305,9 @@ public class DerivativeIT extends ESIntegTestCase {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) deriv.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) deriv.getProperty("_count");
-        Object[] propertiesSumCounts = (Object[]) deriv.getProperty("stats.sum");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)deriv).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("stats.sum");
 
         List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets

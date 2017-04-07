@@ -19,9 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
@@ -143,16 +141,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
             }
             return null;
         });
-    }
-
-    protected boolean shouldRetry(AmazonClientException e) {
-        if (e instanceof AmazonS3Exception) {
-            AmazonS3Exception s3e = (AmazonS3Exception) e;
-            if (s3e.getStatusCode() == 400 && "RequestTimeout".equals(s3e.getErrorCode())) {
-                return true;
-            }
-        }
-        return e.isRetryable();
     }
 
     @Override

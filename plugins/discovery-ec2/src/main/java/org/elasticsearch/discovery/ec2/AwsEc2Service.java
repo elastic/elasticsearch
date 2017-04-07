@@ -77,10 +77,6 @@ interface AwsEc2Service {
     Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.proxy.password", "", SecureString::new,
         Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
     /**
-     * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
-     */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope, Property.Shared, Property.Deprecated);
-    /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with repository-s3 plugin
      */
     Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
@@ -135,13 +131,6 @@ interface AwsEc2Service {
          */
         Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
             SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
-        /**
-         * cloud.aws.ec2.signer: If you are using an old AWS API version, you can define a Signer. Specific for EC2 API calls.
-         * Defaults to cloud.aws.signer.
-         * @see AwsEc2Service#SIGNER_SETTING
-         */
-        Setting<String> SIGNER_SETTING = new Setting<>("cloud.aws.ec2.signer", AwsEc2Service.SIGNER_SETTING, Function.identity(),
-            Property.NodeScope, Property.Deprecated);
         /**
          * cloud.aws.ec2.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */

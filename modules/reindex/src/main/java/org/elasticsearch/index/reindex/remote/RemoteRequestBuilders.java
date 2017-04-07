@@ -59,7 +59,7 @@ final class RemoteRequestBuilders {
     static Map<String, String> initialSearchParams(SearchRequest searchRequest, Version remoteVersion) {
         Map<String, String> params = new HashMap<>();
         if (searchRequest.scroll() != null) {
-            params.put("scroll", searchRequest.scroll().keepAlive().toString());
+            params.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
         params.put("size", Integer.toString(searchRequest.source().size()));
         if (searchRequest.source().version() == null || searchRequest.source().version() == true) {

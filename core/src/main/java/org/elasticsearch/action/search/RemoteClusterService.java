@@ -221,7 +221,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                     clusterName = remoteClusterName;
                 }
             }
-            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<String>()).add(indexName);
+            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
         }
         return perClusterIndices;
 }

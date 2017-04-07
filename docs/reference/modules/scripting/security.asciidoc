@@ -1,7 +1,7 @@
 [[modules-scripting-security]]
 === Scripting and security
 
-While Elasticsearch contributors make every effort to prevent scrips from
+While Elasticsearch contributors make every effort to prevent scripts from
 running amok, security is something best done in
 https://en.wikipedia.org/wiki/Defense_in_depth_(computing)[layers] because
 all software has bugs and it is important to minimize the risk of failure in
@@ -57,7 +57,7 @@ sandboxes. Non-sandboxed languages are disabled by default and enabling them
 is a poor choice because:
 1. This drops a layer of security, leaving only Elasticsearch's builtin
 <<modules-scripting-other-layers, security layers>>.
-2. Un-sandboxed scripts have unchecked access to Elasticsearch's internals and
+2. Non-sandboxed scripts have unchecked access to Elasticsearch's internals and
 can cause all kinds of trouble if misused.
 
 

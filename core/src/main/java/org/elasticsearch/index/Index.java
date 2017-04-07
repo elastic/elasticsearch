@@ -52,8 +52,8 @@ public class Index implements Writeable, ToXContent {
     public Index(String name, String uuid) {
         this.name = Objects.requireNonNull(name).intern();
         this.uuid = Objects.requireNonNull(uuid).intern();
-        if(this.name.contains(":")){
-            throw new IllegalArgumentException("[index.name] must not contains ':' character");
+        if (this.name.contains(":")) {
+            throw new IllegalArgumentException("[index.name] must not contains ':' character but was [" + this.name + "]");
         }
     }
 

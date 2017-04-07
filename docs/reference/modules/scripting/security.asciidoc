@@ -50,12 +50,13 @@ Bad:
 [float]
 [[modules-scripting-security-do-no-weaken]]
 === Do not weaken script security settings
-By default Elasticsearch allows inline scripting for sandboxed languages,
-namely the scripting language Painless, the template language Mustache, and
-the expression language Expressions. These *ought* to be safe to expose to
-trusted users and to your application servers because they have strong security
-sandboxes. Non-sandboxed languages are disabled by default and enabling them
-is a poor choice because:
+By default Elasticsearch will run inline, stored, and filesystem scripts for
+sandboxed languages, namely the scripting language Painless, the template
+language Mustache, and the expression language Expressions. These *ought* to be
+safe to expose to trusted users and to your application servers because they
+have strong security sandboxes. By default Elasticsearch will only run
+filesystem scripts for non-sandboxed languages and enabling them is a poor
+choice because:
 1. This drops a layer of security, leaving only Elasticsearch's builtin
 <<modules-scripting-other-layers, security layers>>.
 2. Non-sandboxed scripts have unchecked access to Elasticsearch's internals and

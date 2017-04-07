@@ -21,12 +21,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -364,7 +364,19 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         String monitoringVersion = MonitoringTemplateUtils.TEMPLATE_VERSION;
         MonitoringIndex index = randomFrom(MonitoringIndex.values());
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference source = RandomObjects.randomSource(random(), xContentType);
+
+        BytesReference source;
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            {
+                final int nbFields = randomIntBetween(1, 3);
+                for (int i = 0; i < nbFields; i++) {
+                    builder.field("field_" + i, i);
+                }
+            }
+            builder.endObject();
+            source = builder.bytes();
+        }
 
         // Aligns the type with the monitoring index and monitored system so that we can later
         // check if the document is indexed in the correct index.

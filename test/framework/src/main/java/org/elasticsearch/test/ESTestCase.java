@@ -117,12 +117,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -919,9 +919,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    protected static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
-        //TODO why do we need sorted map if we later sort the keys right before shuffling them? That should be enough?
-        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
+    protected static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames)
+            throws IOException {
+        //we need a sorted map for reproducibility, as we are going to shuffle its keys and write XContent back
+        Map<String, Object> shuffledMap = shuffleMap((LinkedHashMap<String, Object>)parser.mapOrdered(),
+                new HashSet<>(Arrays.asList(exceptFieldNames)));
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
         if (prettyPrint) {
             xContentBuilder.prettyPrint();
@@ -929,17 +931,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return xContentBuilder.map(shuffledMap);
     }
 
-    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFields) {
+    public static LinkedHashMap<String, Object> shuffleMap(LinkedHashMap<String, Object> map, Set<String> exceptFields) {
         List<String> keys = new ArrayList<>(map.keySet());
-        // even though we shuffle later, we need this to make tests reproduce on different jvms
-        Collections.sort(keys);
-        Map<String, Object> targetMap = new TreeMap<>();
+        LinkedHashMap<String, Object> targetMap = new LinkedHashMap<>();
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
             if (value instanceof Map && exceptFields.contains(key) == false) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> valueMap = (Map<String, Object>) value;
+                LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetMap.put(key, shuffleMap(valueMap, exceptFields));
             } else {
                 targetMap.put(key, value);

@@ -616,7 +616,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         };
 
         ThreadPool threadPool = new ThreadPool(Settings.builder().put("node.name", getClass().getName()).build());
-        try(BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, listener, threadPool)
+        // Pull the client to a variable to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=514884
+        RestHighLevelClient hlClient = highLevelClient();
+        try(BulkProcessor processor = new BulkProcessor.Builder(hlClient::bulkAsync, listener, threadPool)
             .setConcurrentRequests(0)
             .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
             .setBulkActions(nbItems + 1)

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -153,10 +154,10 @@ public class ChildrenIT extends ESIntegTestCase {
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
-            assertThat((long) childrenBucket.getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
+            assertThat((long) ((InternalAggregation)childrenBucket).getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
 
             Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
-            assertThat((Terms) childrenBucket.getProperty("commenters"), sameInstance(commentersTerms));
+            assertThat((Terms) ((InternalAggregation)childrenBucket).getProperty("commenters"), sameInstance(commentersTerms));
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());

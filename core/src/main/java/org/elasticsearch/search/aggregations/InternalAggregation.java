@@ -132,7 +132,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
-    @Override
+    /**
+     * Get the value of specified path in the aggregation.
+     *
+     * @param path
+     *            the path to the property in the aggregation tree
+     * @return the value of the property
+     */
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
         return getProperty(aggPath.getPathElementsAsStringList());

@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -349,9 +350,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)histo).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histo).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)histo).getProperty("sum.value");
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);

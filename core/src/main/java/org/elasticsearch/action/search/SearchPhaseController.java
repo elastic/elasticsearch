@@ -184,8 +184,8 @@ public final class SearchPhaseController extends AbstractComponent {
                 }
             }
         }
-        final boolean hasNoHits = groupedCompletionSuggestions.isEmpty() && topDocs.isEmpty();
-        if (hasNoHits == false) {
+        final boolean hasHits = (groupedCompletionSuggestions.isEmpty() && topDocs.isEmpty()) == false;
+        if (hasHits) {
             final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
             final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
             ScoreDoc[] scoreDocs = mergedScoreDocs;
@@ -209,18 +209,18 @@ public final class SearchPhaseController extends AbstractComponent {
                     }
                 }
             }
-            final boolean isSorted;
+            final boolean isSortedByField;
             final SortField[] sortFields;
             if (mergedTopDocs != null && mergedTopDocs instanceof TopFieldDocs) {
                 TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
-                isSorted = (fieldDocs instanceof CollapseTopFieldDocs &&
+                isSortedByField = (fieldDocs instanceof CollapseTopFieldDocs &&
                     fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
                 sortFields = fieldDocs.fields;
             } else {
-                isSorted = false;
+                isSortedByField = false;
                 sortFields = null;
             }
-            return new SortedTopDocs(scoreDocs, isSorted, sortFields);
+            return new SortedTopDocs(scoreDocs, isSortedByField, sortFields);
         } else {
             // no relevant docs
             return SortedTopDocs.EMPTY;
@@ -412,9 +412,8 @@ public final class SearchPhaseController extends AbstractComponent {
      * @see QuerySearchResult#consumeProfileResult()
      */
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                                    List<InternalAggregations> bufferedAggs,
-                                                    List<TopDocs> bufferedTopDocs, TopDocsStats topDocsStats, int numReducePhases,
-                                                boolean isScrollRequest) {
+                                                List<InternalAggregations> bufferedAggs, List<TopDocs> bufferedTopDocs,
+                                                TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         boolean timedOut = false;
@@ -487,7 +486,7 @@ public final class SearchPhaseController extends AbstractComponent {
         return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
             timedOut, terminatedEarly, suggest, aggregations, shardResults, scoreDocs.scoreDocs, scoreDocs.sortFields,
             firstResult != null ? firstResult.sortValueFormats() : null,
-            numReducePhases, scoreDocs.sorted, size, from, firstResult == null);
+            numReducePhases, scoreDocs.isSortedByField, size, from, firstResult == null);
     }
 
 
@@ -734,15 +733,15 @@ public final class SearchPhaseController extends AbstractComponent {
         }
     }
 
-    static class SortedTopDocs {
+    static final class SortedTopDocs {
         static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null);
         final ScoreDoc[] scoreDocs;
-        final boolean sorted;
+        final boolean isSortedByField;
         final SortField[] sortFields;
 
-        SortedTopDocs(ScoreDoc[] scoreDocs, boolean sorted, SortField[] sortFields) {
+        SortedTopDocs(ScoreDoc[] scoreDocs, boolean isSortedByField, SortField[] sortFields) {
             this.scoreDocs = scoreDocs;
-            this.sorted = sorted;
+            this.isSortedByField = isSortedByField;
             this.sortFields = sortFields;
         }
     }

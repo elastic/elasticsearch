@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,12 +35,12 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
 
     //TODO move CommonFields out of InternalAggregation
     protected static void declareCommonFields(ObjectParser<? extends ParsedAggregation, Void> objectParser) {
-        objectParser.declareObject((parsedAgg, metadata) -> parsedAgg.metadata.putAll(metadata),
+        objectParser.declareObject((parsedAgg, metadata) -> parsedAgg.metadata = Collections.unmodifiableMap(metadata),
                 (parser, context) -> parser.map(), InternalAggregation.CommonFields.META);
     }
 
     String name;
-    final Map<String, Object> metadata = new HashMap<>();
+    Map<String, Object> metadata;
 
     @Override
     public final String getName() {
@@ -50,7 +49,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
 
     @Override
     public final Map<String, Object> getMetaData() {
-        return Collections.unmodifiableMap(metadata);
+        return metadata;
     }
 
     /**
@@ -67,9 +66,9 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
         //TODO move TYPED_KEYS_DELIMITER constant out of InternalAggregation
         // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
         builder.startObject(String.join(InternalAggregation.TYPED_KEYS_DELIMITER, getType(), name));
-        if (metadata.isEmpty() == false) {
+        if (this.metadata != null) {
             builder.field(InternalAggregation.CommonFields.META.getPreferredName());
-            builder.map(metadata);
+            builder.map(this.metadata);
         }
         doXContentBody(builder, params);
         builder.endObject();

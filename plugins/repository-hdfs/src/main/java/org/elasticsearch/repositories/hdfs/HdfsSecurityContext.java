@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.SocketPermission;
 import java.nio.file.Files;
@@ -146,7 +147,7 @@ public class HdfsSecurityContext {
             try {
                 ugi.checkTGTAndReloginFromKeytab();
             } catch (IOException ioe) {
-                throw new RuntimeException("Could not re-authenticate", ioe);
+                throw new UncheckedIOException("Could not re-authenticate", ioe);
             }
         }
     }

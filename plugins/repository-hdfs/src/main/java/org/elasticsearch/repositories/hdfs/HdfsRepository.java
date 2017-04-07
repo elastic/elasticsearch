@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -109,7 +110,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
+            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
         }
         super.doStart();
     }
@@ -182,7 +183,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
             return UserGroupInformation.getCurrentUser();
         } catch (IOException e) {
-            throw new RuntimeException("Could not retrieve the current user information", e);
+            throw new UncheckedIOException("Could not retrieve the current user information", e);
         }
     }
 
@@ -194,7 +195,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             try {
                 finalPrincipal = SecurityUtil.getServerPrincipal(originalPrincipal, findHostName());
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
 
             if (originalPrincipal.equals(finalPrincipal) == false) {

@@ -87,3 +87,12 @@ Defaults to `1000` (1 second).
 `xpack.reporting.capture.timeout`::
 The maximum amount of time to wait for things to render in Kibana when capturing
 screenshots. Defaults to `6000` (6 seconds).
+
+[float]
+[[reporting-advanced-settings]]
+=== Advanced Settings
+
+`xpack.reporting.index`::
+Reporting uses a weekly index in Elasticsearch to store the reporting job and the report
+content. The index will be created automatically if it does not already exist.
+Defaults to `.reporting`

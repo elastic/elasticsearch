@@ -17,6 +17,10 @@ Specifies the address of the proxy server to use to connect to HTTP services.
 `xpack.http.proxy.port`::
 Specifies the port number to use to connect to the proxy server.
 
+`xpack.http.max_response_size`::
+Specifies the maximum size a HTTP response is allowed to have, defaults to
+`10mb`, max values is `50mb`.
+
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
 :component:              {watcher}

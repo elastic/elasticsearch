@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -128,7 +129,7 @@ public class FilterIT extends ESIntegTestCase {
         assertThat(filter, notNullValue());
         assertThat(filter.getName(), equalTo("tag1"));
         assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
-        assertThat((long) filter.getProperty("_count"), equalTo((long) numTag1Docs));
+        assertThat((long) ((InternalAggregation)filter).getProperty("_count"), equalTo((long) numTag1Docs));
 
         long sum = 0;
         for (int i = 0; i < numTag1Docs; ++i) {
@@ -139,7 +140,7 @@ public class FilterIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag1Docs));
-        assertThat((double) filter.getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
+        assertThat((double) ((InternalAggregation)filter).getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
     }
 
     public void testAsSubAggregation() {

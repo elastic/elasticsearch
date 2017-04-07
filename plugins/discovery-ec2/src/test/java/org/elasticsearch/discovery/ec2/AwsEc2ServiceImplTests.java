@@ -98,7 +98,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, null,
+        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null,
             ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
@@ -113,8 +113,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put("discovery.ec2.read_timeout", "10s")
             .setSecureSettings(secureSettings)
             .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password",
-            null, 10000);
+        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password", 10000);
     }
 
     public void testAWSConfigurationWithAwsSettingsBackcompat() {
@@ -127,7 +126,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put(AwsEc2Service.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password",
-            "AWS3SignerType", 10000);
+            10000);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
             AwsEc2Service.PROTOCOL_SETTING,
             AwsEc2Service.PROXY_HOST_SETTING,
@@ -153,8 +152,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.getKey(), "ec2_proxy_password")
             .put(AwsEc2Service.CLOUD_EC2.READ_TIMEOUT.getKey(), "10s")
             .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, "ec2_proxy_host", 8081, "ec2_proxy_username", "ec2_proxy_password",
-            "NoOpSignerType", 10000);
+        launchAWSConfigurationTest(settings, Protocol.HTTPS, "ec2_proxy_host", 8081, "ec2_proxy_username", "ec2_proxy_password", 10000);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
             AwsEc2Service.PROTOCOL_SETTING,
             AwsEc2Service.PROXY_HOST_SETTING,
@@ -177,7 +175,6 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
                                               int expectedProxyPort,
                                               String expectedProxyUsername,
                                               String expectedProxyPassword,
-                                              String expectedSigner,
                                               int expectedReadTimeout) {
         ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(logger, settings);
 
@@ -187,7 +184,6 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertThat(configuration.getProxyPort(), is(expectedProxyPort));
         assertThat(configuration.getProxyUsername(), is(expectedProxyUsername));
         assertThat(configuration.getProxyPassword(), is(expectedProxyPassword));
-        assertThat(configuration.getSignerOverride(), is(expectedSigner));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
     }
 

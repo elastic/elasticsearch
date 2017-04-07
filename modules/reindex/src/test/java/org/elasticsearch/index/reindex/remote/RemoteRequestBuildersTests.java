@@ -96,12 +96,12 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test sort:_doc for versions that support it.
-        Version remoteVersion = Version.fromId(between(Version.V_2_1_0_ID, Version.CURRENT.id));
+        Version remoteVersion = Version.fromId(between(2010099, Version.CURRENT.id));
         searchRequest.source().sort("_doc");
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sort", "_doc:asc"));
 
         // Test search_type scan for versions that don't support sort:_doc.
-        remoteVersion = Version.fromId(between(0, Version.V_2_1_0_ID - 1));
+        remoteVersion = Version.fromId(between(0, 2010099 - 1));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("search_type", "scan"));
 
         // Test sorting by some field. Version doesn't matter.

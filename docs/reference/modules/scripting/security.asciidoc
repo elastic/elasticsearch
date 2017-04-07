@@ -76,9 +76,10 @@ sockets.
 
 Elasticsearch uses
 https://en.wikipedia.org/wiki/Seccomp[seccomp] in Linux,
-https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt] in mac OS,
-and ActiveProcessLimit on Windows to prevent forking and other undesirable
-behaviors like writing to unexpected directories.
+https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt]
+in macOS, and
+https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
+on Windows to prevent Elasticsearch from forking or executing other processes.
 
 Below this we describe the security settings for scripts and how you can
 change from the defaults described above. You should be very, very careful

@@ -19,10 +19,13 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -59,6 +62,8 @@ final class Spawner implements Closeable {
      * @throws IOException if an I/O error occurs reading the plugins or spawning a native process
      */
     void spawnNativePluginControllers(final Environment environment) throws IOException {
+        final Logger logger = Loggers.getLogger(getClass(), environment.settings());
+
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }
@@ -72,6 +77,12 @@ final class Spawner implements Closeable {
          */
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsFile)) {
             for (final Path plugin : stream) {
+                if (FileSystemUtils.isHidden(plugin)) {
+                    logger.trace(
+                            "skipping hidden path in plugin directory [{}]",
+                            plugin.toAbsolutePath());
+                    continue;
+                }
                 final PluginInfo info = PluginInfo.readFromProperties(plugin);
                 final Path spawnPath = Platforms.nativeControllerPath(plugin);
                 if (!Files.isRegularFile(spawnPath)) {

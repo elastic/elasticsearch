@@ -48,6 +48,7 @@ Bad:
 * User actions make documents with structure defined by users.
 
 [float]
+[[modules-scripting-security-do-no-weaken]]
 === Do not weaken script security settings
 By default Elasticsearch allows inline scripting for sandboxed languages,
 namely the scripting language Painless, the template language Mustache, and
@@ -92,8 +93,7 @@ security of the Elasticsearch deployment.
 
 Which scripts Elasticsearch will execute where is controlled by settings
 starting with `scripts.`. The simplest settings allow scripts to be enabled
-or disabled based on where they are stored. The default values for
-non-sandboxed languages are the following:
+or disabled based on where they are stored. For example:
 
 [source,yaml]
 -----------------------------------
@@ -101,15 +101,14 @@ script.inline: false  <1>
 script.stored: false  <2>
 script.file:   true   <3>
 -----------------------------------
-<1> Scripts provided inline are disabled by default.
-<2> Scripts stored in the cluster state are disabled by default.
-<3> Scripts stored on the node's filesystem are enabled by default.
+<1> Refuse to run scripts provided inline in the API.
+<2> Refuse to run scripts stored using the API.
+<3> Run scripts found on the filesystem in `/etc/elasticsearch/scripts`
+(rpm or deb) or `config/scripts` (zip or tar).
 
-NOTE: Global scripting settings affect the `mustache` scripting language.
-<<search-template,Search templates>> internally use the `mustache` language,
-and will still be enabled by default as the `mustache` engine is sandboxed,
-but they will be enabled/disabled according to fine-grained settings
-specified in `elasticsearch.yml`.
+NOTE: These settings override the defaults mentioned
+<<modules-scripting-security-do-no-weaken, above>>. Recreating the defaults
+requires more fine grained settings described <<security-script-fine, below>>.
 
 [[security-script-context]]
 [float]

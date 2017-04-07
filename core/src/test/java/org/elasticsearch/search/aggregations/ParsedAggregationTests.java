@@ -81,7 +81,6 @@ public class ParsedAggregationTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        //TODO we may want to un-deprecate this Entry constructor if we are going to use it extensively, which I think we are
         NamedXContentRegistry.Entry entry = new NamedXContentRegistry.Entry(Aggregation.class, new ParseField("type"),
                 (parser, name) -> TestParsedAggregation.fromXContent(parser, (String)name));
         return new NamedXContentRegistry(Collections.singletonList(entry));

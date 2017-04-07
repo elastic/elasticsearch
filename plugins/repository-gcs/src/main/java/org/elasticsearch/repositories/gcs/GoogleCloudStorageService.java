@@ -45,7 +45,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-public interface GoogleCloudStorageService {
+interface GoogleCloudStorageService {
 
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects.
@@ -67,7 +67,7 @@ public interface GoogleCloudStorageService {
 
         private final Environment environment;
 
-        public InternalGoogleCloudStorageService(Environment environment) {
+        InternalGoogleCloudStorageService(Environment environment) {
             super(environment.settings());
             this.environment = environment;
         }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.batch.BatchRequest;
 import com.google.api.client.googleapis.batch.json.JsonBatchCallback;
@@ -61,7 +61,7 @@ import java.util.stream.StreamSupport;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
-public class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
+class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
 
     /**
      * Google Cloud Storage batch requests are limited to 1000 operations
@@ -71,7 +71,7 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
     private final Storage client;
     private final String bucket;
 
-    public GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storageClient) {
+    GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storageClient) {
         super(settings);
         this.bucket = bucket;
         this.client = storageClient;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.repository.gcs;
+package org.elasticsearch.repositories.gcs;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;

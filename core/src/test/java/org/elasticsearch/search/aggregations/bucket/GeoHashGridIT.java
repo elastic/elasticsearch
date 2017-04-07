@@ -157,7 +157,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
             assertSearchResponse(response);
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
-            List<Bucket> buckets = geoGrid.getBuckets();
+            List<? extends Bucket> buckets = geoGrid.getBuckets();
             Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoGrid).getProperty("_key");
             Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoGrid).getProperty("_count");
             for (int i = 0; i < buckets.size(); i++) {

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
+import org.elasticsearch.xpack.ml.job.config.Job;
+
 import java.util.regex.Pattern;
 
 /**
@@ -56,6 +58,6 @@ public final class MlStrings {
     }
 
     public static boolean isValidId(String id) {
-        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches();
+        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !Job.ALL.equals(id);
     }
 }

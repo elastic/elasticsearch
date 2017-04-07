@@ -45,7 +45,6 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -290,32 +289,31 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
-        for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {
-            String jobId = entry.getKey();
+
+        try {
+            CloseJobAction.Request closeRequest = new CloseJobAction.Request(Job.ALL);
+            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+            logger.info("Closing jobs using [{}]", Job.ALL);
+            CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
+                    .get();
+            assertTrue(response.isClosed());
+        } catch (Exception e1) {
             try {
-                CloseJobAction.Request closeRequest = new CloseJobAction.Request(jobId);
+                CloseJobAction.Request closeRequest = new CloseJobAction.Request(Job.ALL);
+                closeRequest.setForce(true);
                 closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
-                logger.info("Closing job [{}]", jobId);
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
-            } catch (Exception e1) {
-                if (e1.getMessage().contains("because job [" + jobId + "] is not open")) {
-                    logger.debug("job [" + jobId + "] has already been closed", e1);
-                } else {
-                    try {
-                        CloseJobAction.Request closeRequest = new CloseJobAction.Request(jobId);
-                        closeRequest.setForce(true);
-                        closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
-                        CloseJobAction.Response response =
-                                client.execute(CloseJobAction.INSTANCE, closeRequest).get();
-                        assertTrue(response.isClosed());
-                    } catch (Exception e2) {
-                        logger.warn("Force-closing datafeed [" + jobId + "] failed.", e2);
-                    }
-                    throw new RuntimeException("Had to resort to force-closing job, something went wrong?", e1);
-                }
+            } catch (Exception e2) {
+                logger.warn("Force-closing jobs failed.", e2);
             }
+            throw new RuntimeException("Had to resort to force-closing job, something went wrong?",
+                    e1);
+        }
+
+        for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {
+            String jobId = entry.getKey();
             assertBusy(() -> {
                 GetJobsStatsAction.Response statsResponse =
                         client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId)).actionGet();

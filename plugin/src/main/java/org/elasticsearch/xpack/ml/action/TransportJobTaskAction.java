@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -39,7 +41,7 @@ import java.util.function.Supplier;
  */
 // TODO: Hacking around here with TransportTasksAction. Ideally we should have another base class in core that
 // redirects to a single node only
-public abstract class TransportJobTaskAction<OperationTask extends Task, Request extends TransportJobTaskAction.JobTaskRequest<Request>,
+public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction.JobTask, Request extends TransportJobTaskAction.JobTaskRequest<Request>,
         Response extends BaseTasksResponse & Writeable> extends TransportTasksAction<OperationTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
@@ -55,27 +57,36 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        String jobId = request.getJobId();
+        ClusterState state = clusterService.state();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        ClusterState state = clusterService.state();
-        JobManager.getJobOrThrowIfUnknown(state, jobId);
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
-        if (jobTask == null || jobTask.isAssigned() == false) {
-            String message = "Cannot perform requested action because job [" + jobId + "] is not open";
-            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-        } else {
-            request.setNodes(jobTask.getExecutorNode());
-            super.doExecute(task, request, listener);
+        Set<String> executorNodes = new HashSet<>();
+
+        for (String resolvedJobId : request.getResolvedJobIds()) {
+            JobManager.getJobOrThrowIfUnknown(state, resolvedJobId);
+            PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData()
+                    .custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata
+                    .getJobTask(resolvedJobId, tasks);
+
+            if (jobTask == null || jobTask.isAssigned() == false) {
+                String message = "Cannot perform requested action because job [" + resolvedJobId
+                        + "] is not open";
+                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+            } else {
+                executorNodes.add(jobTask.getExecutorNode());
+            }
         }
+
+        request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
+        super.doExecute(task, request, listener);
     }
 
     @Override
     protected final void taskOperation(Request request, OperationTask task, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        JobState jobState = MlMetadata.getJobState(request.getJobId(), tasks);
+        JobState jobState = MlMetadata.getJobState(task.getJobId(), tasks);
         if (jobState == JobState.OPENED) {
             innerTaskOperation(request, task, listener, state);
         } else {
@@ -110,7 +121,8 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
             }
         } else {
             if (tasks.size() > 1) {
-                throw new IllegalStateException("Expected one node level response, but got [" + tasks.size() + "]");
+                throw new IllegalStateException(
+                        "Expected one node level response, but got [" + tasks.size() + "]");
             }
             return tasks.get(0);
         }
@@ -124,33 +136,53 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
     public static class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksRequest<R> {
 
         String jobId;
+        String[] resolvedJobIds;
 
         JobTaskRequest() {
         }
 
         JobTaskRequest(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+
+            // the default implementation just returns 1 jobId
+            this.resolvedJobIds = new String[] { jobId };
         }
 
         public String getJobId() {
             return jobId;
         }
 
+        protected String[] getResolvedJobIds() {
+            return resolvedJobIds;
+        }
+
+        protected void setResolvedJobIds(String[] resolvedJobIds) {
+            this.resolvedJobIds = resolvedJobIds;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
+            resolvedJobIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
+            out.writeStringArray(resolvedJobIds);
         }
 
         @Override
         public boolean match(Task task) {
-            return OpenJobAction.JobTask.match(task, jobId);
+            for (String id : resolvedJobIds) {
+                if (OpenJobAction.JobTask.match(task, id)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

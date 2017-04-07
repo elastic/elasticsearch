@@ -55,29 +55,29 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String jobId;
+        private String[] jobIds;
 
-        public Request(String jobId) {
-            this.jobId = jobId;
+        public Request(String[] jobIds) {
+            this.jobIds = jobIds;
         }
 
         Request() {
         }
 
-        public String getJobId() {
-            return jobId;
+        public String[] getJobIds() {
+            return jobIds;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobId = in.readString();
+            jobIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(jobId);
+            out.writeStringArray(jobIds);
         }
 
         @Override
@@ -140,18 +140,21 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
         @Override
         protected void masterOperation(Request request, ClusterState state,
                                        ActionListener<Response> listener) throws Exception {
-            String jobId = request.getJobId();
-            String source = "finalize_job_execution [" + jobId + "]";
-            logger.debug("finalizing job [{}]", request.getJobId());
+            String jobIdString = String.join(",", request.getJobIds());
+            String source = "finalize_job_execution [" + jobIdString + "]";
+            logger.debug("finalizing jobs [{}]", jobIdString);
             clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     MlMetadata mlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
-                    Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
-                    jobBuilder.setFinishedTime(new Date());
                     MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
-                    mlMetadataBuilder.putJob(jobBuilder.build(), true);
+                    Date finishedTime = new Date();
 
+                    for (String jobId : request.getJobIds()) {
+                        Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
+                        jobBuilder.setFinishedTime(finishedTime);
+                        mlMetadataBuilder.putJob(jobBuilder.build(), true);
+                    }
                     ClusterState.Builder builder = ClusterState.builder(currentState);
                     return builder.metaData(new MetaData.Builder(currentState.metaData())
                             .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
@@ -166,7 +169,7 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState,
                                                   ClusterState newState) {
-                    logger.debug("finalized job [{}]", request.getJobId());
+                    logger.debug("finalized job [{}]", jobIdString);
                     listener.onResponse(new Response(true));
                 }
             });

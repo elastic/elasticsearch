@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -82,6 +83,43 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
                         .putCustom(PersistentTasksCustomMetaData.TYPE,
                                 new PersistentTasksCustomMetaData(1L, tasks))).build();
         CloseJobAction.validateAndReturnJobTask("job_id", cs2);
+    }
+
+    public void testResolve() {
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
+        mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date()),
+                false);
+        mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id_1", "job_id_1",
+                Collections.singletonList("*")));
+
+        mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date()),
+                false);
+        mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id_2", "job_id_2",
+                Collections.singletonList("*")));
+
+        mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id_3").build(new Date()),
+                false);
+        mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id_3", "job_id_3",
+                Collections.singletonList("*")));
+
+        Map<Long, PersistentTask<?>> tasks = new HashMap<>();
+        PersistentTask<?> jobTask = createJobTask(1L, "job_id_1", null, JobState.OPENED);
+        tasks.put(1L, jobTask);
+
+        jobTask = createJobTask(2L, "job_id_2", null, JobState.CLOSED);
+        tasks.put(2L, jobTask);
+
+        jobTask = createJobTask(3L, "job_id_3", null, JobState.FAILED);
+        tasks.put(3L, jobTask);
+
+        ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
+                        .putCustom(PersistentTasksCustomMetaData.TYPE,
+                                new PersistentTasksCustomMetaData(1L, tasks)))
+                .build();
+
+        assertEquals(Arrays.asList("job_id_1", "job_id_3"),
+                CloseJobAction.resolveAndValidateJobId("_all", cs1));
     }
 
     public static PersistentTask<StartDatafeedAction.Request> createTask(long id,

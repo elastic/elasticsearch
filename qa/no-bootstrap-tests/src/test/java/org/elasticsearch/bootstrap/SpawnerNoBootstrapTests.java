@@ -158,6 +158,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     }
 
     public void testSpawnerSkipsHiddenFiles() throws IOException {
+        assert Version.CURRENT.before(Version.fromString("5.5.0"))
+                : "remove support for skipping hidden files in 5.5.0";
         final Path esHome = createTempDir().resolve("home");
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());

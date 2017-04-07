@@ -37,7 +37,6 @@ import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -193,7 +192,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         // Don't worry about host name resolution if they don't have the _HOST pattern in the name.
         if (originalPrincipal.contains("_HOST")) {
             try {
-                finalPrincipal = SecurityUtil.getServerPrincipal(originalPrincipal, findHostName());
+                finalPrincipal = SecurityUtil.getServerPrincipal(originalPrincipal, getHostName());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -206,9 +205,14 @@ public final class HdfsRepository extends BlobStoreRepository {
         return finalPrincipal;
     }
 
-    @SuppressForbidden(reason = "InetAddress.getLocalHost()")
-    private static String findHostName() {
+    @SuppressForbidden(reason = "InetAddress.getLocalHost(); Needed for filling in hostname for a kerberos principal name pattern.")
+    private static String getHostName() {
         try {
+            /*
+             * This should not block since it should already be resolved via Log4J and Netty. The
+             * host information is cached by the JVM and the TTL for the cache entry is infinite
+             * when the SecurityManager is activated.
+             */
             return InetAddress.getLocalHost().getCanonicalHostName();
         } catch (UnknownHostException e) {
             throw new RuntimeException("Could not locate host information", e);

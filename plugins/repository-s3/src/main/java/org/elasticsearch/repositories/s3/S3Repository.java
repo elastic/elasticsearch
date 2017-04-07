@@ -65,11 +65,11 @@ class S3Repository extends BlobStoreRepository {
 
     /** The access key (ie login id) for connecting to s3. */
     public static final AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
-        key -> SecureSetting.secureString(key, Repositories.KEY_SETTING, false));
+        key -> SecureSetting.secureString(key, Repositories.KEY_SETTING));
 
     /** The secret key (ie password) for connecting to s3. */
     public static final AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
-        key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING, false));
+        key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING));
 
     /** An override for the s3 endpoint to connect to. */
     public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
@@ -89,11 +89,11 @@ class S3Repository extends BlobStoreRepository {
 
     /** The username of a proxy to connect to s3 through. */
     public static final AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING, false));
+        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING));
 
     /** The password of a proxy to connect to s3 through. */
     public static final AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING, false));
+        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING));
 
     /** The socket timeout for connecting to s3. */
     public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",

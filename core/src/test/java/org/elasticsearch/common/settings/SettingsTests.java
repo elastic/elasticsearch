@@ -555,4 +555,11 @@ public class SettingsTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
     }
+
+    public void testSecureSettingConflict() {
+        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
+        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+    }
 }

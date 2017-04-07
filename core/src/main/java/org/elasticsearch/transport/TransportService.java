@@ -844,7 +844,7 @@ public class TransportService extends AbstractLifecycleComponent {
         @Override
         public void onNodeDisconnected(final DiscoveryNode node) {
             try {
-                threadPool.generic().execute( () -> {
+                threadPool.generic().execute(() -> {
                     for (final TransportConnectionListener connectionListener : connectionListeners) {
                         connectionListener.onNodeDisconnected(node);
                     }

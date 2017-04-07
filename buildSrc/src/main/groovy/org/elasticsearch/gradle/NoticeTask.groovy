@@ -42,6 +42,11 @@ public class NoticeTask extends DefaultTask {
 
     public NoticeTask() {
         description = 'Create a notice file from dependencies'
+        // Default licenses directory is ${projectDir}/licenses (if it exists)
+        File licensesDir = new File(project.projectDir, 'licenses')
+        if (licensesDir.exists()) {
+            licensesDirs.add(licensesDir)
+        }
     }
 
     /** Add notices from the specified directory. */
@@ -59,11 +64,21 @@ public class NoticeTask extends DefaultTask {
         Map<String, File> seen = new TreeMap<>()
         for (File licensesDir : licensesDirs) {
             licensesDir.eachFileMatch({ it ==~ /.*-NOTICE\.txt/ }) { File file ->
-                seen.put(file.name, file)
+                String name = file.name.substring(0, file.name.length() - '-NOTICE.txt'.length())
+                if (seen.containsKey(name)) {
+                    File prevFile = seen.get(name)
+                    if (prevFile.text != file.text) {
+                        throw new RuntimeException("Two different notices exist for dependency '" +
+                                name + "': " + prevFile + " and " + file)
+                    }
+                } else {
+                    seen.put(name, file)
+                }
             }
         }
-        for (File file : seen.values()) {
-            String name = file.name.substring(0, file.name.length() - '-NOTICE.txt'.length())
+        for (Map.Entry<String, File> entry : seen.entrySet()) {
+            String name = entry.getKey()
+            File file = entry.getValue()
             appendFile(file, name, 'NOTICE', output)
             appendFile(new File(file.parentFile, "${name}-LICENSE.txt"), name, 'LICENSE', output)
         }

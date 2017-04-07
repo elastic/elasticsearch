@@ -43,7 +43,7 @@ import org.elasticsearch.env.Environment;
  * Keeps track of the current user for a given repository, as well as which
  * permissions to grant the blob store restricted execution methods.
  */
-public class HdfsSecurityContext {
+class HdfsSecurityContext {
 
     private static final Logger LOGGER = Loggers.getLogger(HdfsSecurityContext.class);
 
@@ -71,7 +71,7 @@ public class HdfsSecurityContext {
             // 4) Listen and resolve permissions for kerberos server principals
             new SocketPermission("localhost:0", "listen,resolve"),
             // We add the following since hadoop requires the client to re-login when the kerberos ticket expires:
-            // 5) All the permissions needed for UGI to do it's weird JAAS hack
+            // 5) All the permissions needed for UGI to do its weird JAAS hack
             new RuntimePermission("getClassLoader"),
             new RuntimePermission("setContextClassLoader"),
             // 6) Additional permissions for the login modules
@@ -89,19 +89,14 @@ public class HdfsSecurityContext {
      * Locates the keytab file in the environment and verifies that it exists.
      * Expects keytab file to exist at {@code $CONFIG_DIR$/kerberos/krb5.keytab}
      */
-    public static Path locateKeytabFile(Environment environment) {
+    static Path locateKeytabFile(Environment environment) {
         Path keytabPath = environment.configFile().resolve("repository-hdfs").resolve("krb5.keytab");
         try {
             if (Files.exists(keytabPath) == false) {
-                LOGGER.error("Could not locate keytab file at [{}].", keytabPath);
-                throw new RuntimeException("Could not locate keytab");
+                throw new RuntimeException("Could not locate keytab at [" + keytabPath + "].");
             }
         } catch (SecurityException se) {
-            LOGGER.error((Supplier<String>)() ->
-                String.format(Locale.getDefault(), "Denied access to keytab file at [%s].", keytabPath),
-                se
-            );
-            throw new RuntimeException("Could not locate keytab");
+            throw new RuntimeException("Could not locate keytab at [" + keytabPath + "]", se);
         }
         return keytabPath;
     }
@@ -109,7 +104,7 @@ public class HdfsSecurityContext {
     private final UserGroupInformation ugi;
     private final Permission[] restrictedExecutionPermissions;
 
-    public HdfsSecurityContext(UserGroupInformation ugi) {
+    HdfsSecurityContext(UserGroupInformation ugi) {
         this.ugi = ugi;
         this.restrictedExecutionPermissions = renderPermissions(ugi);
     }
@@ -126,7 +121,7 @@ public class HdfsSecurityContext {
 
             // Append a kerberos.ServicePermission to only allow initiating kerberos connections
             // as the logged in user.
-            permissions[permissions.length-1] = new ServicePermission(ugi.getUserName(), "initiate");
+            permissions[permissions.length - 1] = new ServicePermission(ugi.getUserName(), "initiate");
         } else {
             // SIMPLE
             permissions = Arrays.copyOf(SIMPLE_AUTH_PERMISSIONS, SIMPLE_AUTH_PERMISSIONS.length);
@@ -134,15 +129,11 @@ public class HdfsSecurityContext {
         return permissions;
     }
 
-    public UserGroupInformation getUser() {
-        return ugi;
-    }
-
-    public Permission[] getRestrictedExecutionPermissions() {
+    Permission[] getRestrictedExecutionPermissions() {
         return restrictedExecutionPermissions;
     }
 
-    public void ensureLogin() {
+    void ensureLogin() {
         if (ugi.isFromKeytab()) {
             try {
                 ugi.checkTGTAndReloginFromKeytab();

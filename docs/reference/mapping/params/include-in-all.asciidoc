@@ -70,6 +70,7 @@ PUT my_index
 }
 --------------------------------
 // CONSOLE
+// TEST[warning:field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed in 6.0, use [copy_to] instead.]
 
 <1> All fields in `my_type` are excluded from `_all`.
 <2> The `author.first_name` and `author.last_name` fields are included in `_all`.

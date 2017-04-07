@@ -47,7 +47,7 @@ public class StateProcessorTests extends ESTestCase {
     private StateProcessor stateProcessor;
 
     @Before
-    public void initialize() {
+    public void initialize() throws IOException {
         stateProcessor = spy(new StateProcessor(Settings.EMPTY, mock(Client.class)));
         doNothing().when(stateProcessor).persist(any(), any());
     }

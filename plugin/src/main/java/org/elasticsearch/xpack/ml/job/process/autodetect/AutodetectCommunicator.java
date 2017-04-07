@@ -126,9 +126,12 @@ public class AutodetectCommunicator implements Closeable {
     public void close(boolean restart, String reason) throws IOException {
         Future<?> future = autodetectWorkerExecutor.submit(() -> {
             checkProcessIsAlive();
-            autodetectProcess.close();
-            autoDetectResultProcessor.awaitCompletion();
-            handler.accept(restart ? new ElasticsearchException(reason) : null);
+            try {
+                autodetectProcess.close();
+                autoDetectResultProcessor.awaitCompletion();
+            } finally {
+                handler.accept(restart ? new ElasticsearchException(reason) : null);
+            }
             LOGGER.info("[{}] job closed", job.getId());
             return null;
         });

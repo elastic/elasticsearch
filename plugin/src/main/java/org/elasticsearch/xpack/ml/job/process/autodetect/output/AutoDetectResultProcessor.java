@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * A runnable class that reads the autodetect process output in the
@@ -222,9 +224,13 @@ public class AutoDetectResultProcessor {
         });
     }
 
-    public void awaitCompletion() {
+    public void awaitCompletion() throws TimeoutException {
         try {
-            completionLatch.await();
+            // Although the results won't take 30 minutes to finish, the pipe won't be closed
+            // until the state is persisted, and that can take a while
+            if (completionLatch.await(30, TimeUnit.MINUTES) == false) {
+                throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
+            }
             // Input stream has been completely processed at this point.
             // Wait for any updateModelSnapshotIdOnJob calls to complete.
             updateModelSnapshotIdSemaphore.acquire();

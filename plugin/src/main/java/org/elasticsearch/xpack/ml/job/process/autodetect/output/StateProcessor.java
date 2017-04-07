@@ -14,10 +14,11 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Reads the autodetect state and persists via a bulk request
@@ -32,24 +33,29 @@ public class StateProcessor extends AbstractComponent {
         this.client = client;
     }
 
-    public void process(String jobId, InputStream in) {
-        try {
-            BytesReference bytesRef = null;
-            int searchFrom = 0;
-            byte[] readBuf = new byte[READ_BUF_SIZE];
-            for (int bytesRead = in.read(readBuf); bytesRead != -1; bytesRead = in.read(readBuf)) {
-                if (bytesRef == null) {
-                    searchFrom = 0;
-                    bytesRef = new BytesArray(readBuf, 0, bytesRead);
-                } else {
-                    searchFrom = bytesRef.length();
-                    bytesRef = new CompositeBytesReference(bytesRef, new BytesArray(readBuf, 0, bytesRead));
-                }
-                bytesRef = splitAndPersist(jobId, bytesRef, searchFrom);
-                readBuf = new byte[READ_BUF_SIZE];
+    public void process(String jobId, InputStream in) throws IOException {
+        BytesReference bytesToDate = null;
+        List<BytesReference> newBlocks = new ArrayList<>();
+        byte[] readBuf = new byte[READ_BUF_SIZE];
+        int searchFrom = 0;
+        // The original implementation of this loop created very deeply nested
+        // CompositeBytesReference objects, which caused problems for the bulk persister.
+        // This new implementation uses an intermediate List of blocks that don't contain
+        // end markers to avoid such deep nesting in the CompositeBytesReference that
+        // eventually gets created.
+        for (int bytesRead = in.read(readBuf); bytesRead != -1; bytesRead = in.read(readBuf)) {
+            BytesArray newBlock = new BytesArray(readBuf, 0, bytesRead);
+            newBlocks.add(newBlock);
+            if (findNextZeroByte(newBlock, 0, 0) == -1) {
+                searchFrom += bytesRead;
+            } else {
+                BytesReference newBytes = new CompositeBytesReference(newBlocks.toArray(new BytesReference[0]));
+                bytesToDate = (bytesToDate == null) ? newBytes : new CompositeBytesReference(bytesToDate, newBytes);
+                bytesToDate = splitAndPersist(jobId, bytesToDate, searchFrom);
+                searchFrom = (bytesToDate == null) ? 0 : bytesToDate.length();
+                newBlocks.clear();
             }
-        } catch (IOException e) {
-            logger.info(new ParameterizedMessage("[{}] Error reading autodetect state output", jobId), e);
+            readBuf = new byte[READ_BUF_SIZE];
         }
         logger.info("[{}] State output finished", jobId);
     }
@@ -59,7 +65,7 @@ public class StateProcessor extends AbstractComponent {
      * data is expected to be a series of Elasticsearch bulk requests in UTF-8 JSON
      * (as would be uploaded to the public REST API) separated by zero bytes ('\0').
      */
-    private BytesReference splitAndPersist(String jobId, BytesReference bytesRef, int searchFrom) {
+    private BytesReference splitAndPersist(String jobId, BytesReference bytesRef, int searchFrom) throws IOException {
         int splitFrom = 0;
         while (true) {
             int nextZeroByte = findNextZeroByte(bytesRef, searchFrom, splitFrom);
@@ -77,15 +83,11 @@ public class StateProcessor extends AbstractComponent {
         return bytesRef.slice(splitFrom, bytesRef.length() - splitFrom);
     }
 
-    void persist(String jobId, BytesReference bytes) {
-        try {
-            logger.trace("[{}] ES API CALL: bulk index", jobId);
-            BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(bytes, null, null, XContentType.JSON);
-            client.bulk(bulkRequest).actionGet();
-        } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);
-        }
+    void persist(String jobId, BytesReference bytes) throws IOException {
+        logger.trace("[{}] ES API CALL: bulk index", jobId);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bytes, null, null, XContentType.JSON);
+        client.bulk(bulkRequest).actionGet();
     }
 
     private static int findNextZeroByte(BytesReference bytesRef, int searchFrom, int splitFrom) {

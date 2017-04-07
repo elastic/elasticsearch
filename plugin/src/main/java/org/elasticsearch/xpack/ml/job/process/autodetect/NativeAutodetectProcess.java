@@ -77,8 +77,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error tailing autodetect process logs",
-                        new Object[] { jobId }), e);
+                LOGGER.error(new ParameterizedMessage("[{}] Error tailing autodetect process logs", jobId), e);
             } finally {
                 if (processCloseInitiated == false) {
                     // The log message doesn't say "crashed", as the process could have been killed
@@ -89,7 +88,11 @@ class NativeAutodetectProcess implements AutodetectProcess {
             }
         });
         stateProcessorFuture = executorService.submit(() -> {
-            stateProcessor.process(jobId, persistStream);
+            try (InputStream in = persistStream) {
+                stateProcessor.process(jobId, in);
+            } catch (IOException e) {
+                LOGGER.error(new ParameterizedMessage("[{}] Error reading autodetect state output", jobId), e);
+            }
         });
     }
 

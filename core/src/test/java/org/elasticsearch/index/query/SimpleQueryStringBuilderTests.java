@@ -244,9 +244,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 Map.Entry<String, Float> field = fieldsIterator.next();
                 assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-            if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
+            /**
+             * TODO:
+             * Test disabled because we cannot check min should match consistently:
+             * https://github.com/elastic/elasticsearch/issues/23966
+             *
+                if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
                 assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-            }
+                }
+             *
+             **/
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
             assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());

@@ -1,0 +1,143 @@
+[[security-api-roles]]
+=== Role Management APIs
+
+The Roles API enables you to add, remove, and retrieve roles in the `native`
+realm. To use this API, you must have at least the `manage_security` cluster
+privilege.
+
+NOTE: The Roles API is now the preferred way to manage roles.
+
+[[security-api-put-role]]
+To add a role, submit a PUT or POST request to the `/_xpack/security/role/<rolename>`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/role/my_admin_role
+{
+  "cluster": ["all"],
+  "indices": [
+    {
+      "names": [ "index1", "index2" ],
+      "privileges": ["all"],
+      "field_security" : { // optional
+        "grant" : [ "title", "body" ]
+      },
+      "query": "{\"match\": {\"title\": \"foo\"}}" // optional
+    }
+  ],
+  "run_as": [ "other_user" ], // optional
+  "metadata" : { // optional
+    "version" : 1
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `name`, `cluster`, and `indices` fields are required at the top-level.
+Within the `indices` array, the `names` and `privileges` fields are required.
+Within the `metadata` object, keys beginning with `_` are reserved for system
+usage.
+
+The `field_security` and `query` fields are both optional. They are used to
+implement <<field-and-document-access-control, Field and Document Level Security>>.
+
+A successful call returns a JSON structure that shows whether the role has been
+created or updated.
+
+[source,js]
+--------------------------------------------------
+{
+  "role": {
+    "created": true <1>
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+<1> When an existing role is updated, `created` is set to false.
+
+[[security-api-get-role]]
+To retrieve a role from the `native` Security realm, issue a GET request to the
+`/_xpack/security/role/<rolename>` endpoint:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/role/my_admin_role
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+A successful call returns an array of roles with the JSON representation of the
+role. If the role is not defined in the `native` realm, the request 404s.
+
+[source,js]
+--------------------------------------------------
+{
+  "my_admin_role": {
+    "cluster" : [ "all" ],
+    "indices" : [ {
+      "names" : [ "index1", "index2" ],
+      "privileges" : [ "all" ],
+      "field_security" : {
+        "grant" : [ "title", "body" ]
+      },
+      "query" : "{\"match\": {\"title\": \"foo\"}}"
+    } ],
+    "run_as" : [ "other_user" ],
+    "metadata" : {
+      "version" : 1
+    },
+    "transient_metadata": {
+      "enabled": true
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+You can specify multiple roles as a comma-separated list. To retrieve all roles,
+omit the role name.
+
+[source,js]
+--------------------------------------------------
+# Retrieve roles "r1", "r2", and "my_admin_role"
+GET /_xpack/security/role/r1,r2,my_admin_role
+
+# Retrieve all roles
+GET /_xpack/security/role
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[[security-api-delete-role]]
+To delete a role, submit a DELETE request to the `/_xpack/security/role/<rolename>`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/role/my_admin_role
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the role is successfully deleted, the request returns `{"found": true}`.
+Otherwise, `found` is set to false.
+
+[source,js]
+--------------------------------------------------
+{
+  "found" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[[security-api-clear-role-cache]]
+The Clear Roles Cache API evicts roles from the native role cache. To clear the
+cache for a role, submit a POST request `/_xpack/security/role/<rolename>/_clear_cache`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/role/my_admin_role/_clear_cache
+--------------------------------------------------
+// CONSOLE

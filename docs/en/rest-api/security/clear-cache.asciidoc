@@ -1,0 +1,32 @@
+[[security-api-clear-cache]]
+=== Clear Cache API
+
+The Clear Cache API evicts users from the user cache. You can completely clear
+the cache or evict specific users.
+
+For example, to evict all users cached by the `file` realm:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/security/realm/default_file/_clear_cache
+--------------------------------------------------
+// CONSOLE
+
+To evict selected users, specify the `usernames` parameter:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
+--------------------------------------------------
+// CONSOLE
+
+To clear the caches for multiple realms, specify the realms as a comma-delimited
+list:
+
+[source, js]
+------------------------------------------------------------
+POST _xpack/security/realm/default_file,ldap1/_clear_cache
+------------------------------------------------------------
+// CONSOLE
+
+For more information, see <<controlling-user-cache, Controlling the User Cache>>.

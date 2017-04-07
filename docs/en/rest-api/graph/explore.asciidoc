@@ -1,0 +1,254 @@
+[[graph-api-explore]]
+=== Explore API
+
+The Graph "explore" API is accessible via the /_xpack/graph/_explore endpoint.
+One of the best ways to understand the behaviour of this API is to use the Kibana
+Graph UI to visually click around connected data and then view the "Last request"
+panel (accessible from the button with the cog icon). This panel shows the JSON request/response
+pair of the last user operation.
+
+image::spy.jpg["Viewing the last request in the Kibana Graph UI"]
+
+- <<basic-search, Basic exploration>>
+- <<optional-controls, Optional controls>>
+- <<spider-search, "Spidering" operations>>
+
+
+
+[float]
+[[basic-search]]
+=== Basic exploration
+
+An initial search typically begins with a query to identify strongly related terms.
+
+[source,js]
+--------------------------------------------------
+POST clicklogs/_xpack/graph/_explore
+{
+    "query": { <1>
+        "match": {
+            "query.raw": "midi"
+        }
+    },
+    "vertices": [ <2>
+        {
+            "field": "product"
+        }
+    ],
+    "connections": {  <3>     
+        "vertices": [
+            {
+                "field": "query.raw"
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// CONSOLE
+<1> A query is used to "seed" the exploration - here we are looking in clicklogs for people who searched for "midi". Any of the
+usual elasticsearch query syntax can be used here to identify the documents of interest.
+<2> A list of fields is provided - here we want to find product codes that are significantly associated with searches for "midi"
+<3> A list of fields is provided again - here we are looking for other search terms that led people to click on the products found in 2)
+
+NOTE: Further "connections" can be nested inside the "connections" object to continue exploring out the relationships in the data. Each level of nesting
+is commonly referred to as a "hop" and proximity in a graph is often thought of in terms of "hop depth". 
+
+
+The response from a graph exploration is as follows:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 0,
+   "timed_out": false,
+   "failures": [],
+   "vertices": [ <1>
+      {
+         "field": "query.raw",
+         "term": "midi cable",
+         "weight": 0.08745858139552132,
+         "depth": 1
+      },
+      {
+         "field": "product",
+         "term": "8567446",
+         "weight": 0.13247784285434397,
+         "depth": 0
+      },
+      {
+         "field": "product",
+         "term": "1112375",
+         "weight": 0.018600718471158982,
+         "depth": 0
+      },
+      {
+         "field": "query.raw",
+         "term": "midi keyboard",
+         "weight": 0.04802242866755111,
+         "depth": 1
+      }
+   ],
+   "connections": [ <2>
+      {
+         "source": 0,
+         "target": 1,
+         "weight": 0.04802242866755111,
+         "doc_count": 13
+      },
+      {
+         "source": 2,
+         "target": 3,
+         "weight": 0.08120623870976627,
+         "doc_count": 23
+      }
+   ]
+}
+--------------------------------------------------
+<1> An array of all of the vertices that were discovered. A vertex is an indexed term so the field and term value are supplied. The `weight` attribute denotes a significance score while `depth` is at which hop-level the term was first encountered.
+<2> The connections between the vertices in the array. The `source` and `target` properties are indexes into the vertices array and indicate which vertex term led to the other as part of exploration.
+The `doc_count` value indicates how many documents contain this pairing of terms was found in the sample of documents analyzed (this is not a global count for all documents in the index)
+
+In the Kibana Graph UI response data is visualized in a diagram like this:
+
+
+image::midiclicks.jpg["An example visualization of product/search click data using the Kibana Graph UI",width="50%", align="center"]
+
+
+[float]
+[[optional-controls]]
+=== Optional controls
+
+The previous basic example omitted several parameters that have default values. This fuller example illustrates the additional parameters that can be used in graph explore requests.
+
+[source,js]
+--------------------------------------------------
+POST clicklogs/_xpack/graph/_explore
+{
+   "query": {<1>
+      "bool": {
+         "must": {
+            "match": {
+               "query.raw": "midi"
+            }
+         },
+         "filter": [
+            {
+               "range": {
+                  "query_time": {
+                     "gte": "2015-10-01 00:00:00"
+                  }
+               }
+            }
+         ]
+      }
+   },
+   "controls": {
+      "use_significance": true,<2>
+      "sample_size": 2000,<3>
+      "timeout": 2000,<4>
+      "sample_diversity": {<5>
+         "field": "category.raw",
+         "max_docs_per_value": 500
+      }
+   },
+   "vertices": [
+      {
+         "field": "product",
+         "size": 5,<6>
+         "min_doc_count": 10,<7>
+         "shard_min_doc_count": 3<8>
+      }
+   ],
+   "connections": {
+      "query": {<9>
+         "bool": {
+            "filter": [
+               {
+                  "range": {
+                     "query_time": {
+                        "gte": "2015-10-01 00:00:00"
+                     }
+                  }
+               }
+            ]
+         }
+      },
+      "vertices": [
+         {
+            "field": "query.raw",
+            "size": 5,
+            "min_doc_count": 10,
+            "shard_min_doc_count": 3
+         }
+      ]
+   }
+}
+--------------------------------------------------
+// CONSOLE
+<1> This seed query iin this example is a more complex query for the word "midi" but with a date filter.
+<2> The `use_significance` flag defaults to true and is used to filter associated terms to only those that are significantly associated with our query.
+The algorithm used to calculate significance are explained in the documentation for the {ref}/search-aggregations-bucket-significantterms-aggregation.html[significant_terms aggregation].
+<3> Each "hop" considers a sample of the best-matching documents on each shard (default is 100 documents). Using samples has the dual benefit of keeping exploration focused on meaningfully-connected terms and improving the speed of execution. Very small values (less than 50) may not provide sufficient weight-of-evidence to identify significant connections between terms while very large sample sizes may dilute the quality and be slow.
+<4> A `timeout` setting (expressed here in milliseconds) after which exploration will be halted and results gathered so far are returned. This is a best-effort approach to termination so 
+ may overrun if, for example, a long pause is encountered while FieldData is loaded for a field.
+<5> To avoid the top-matching documents sample being dominated by a single source of results sometimes it can prove necessary to request diversity in the sample. This is achieved by
+ selecting a single-value field and a maximum number of documents per value in that field. In this example we are requiring that there are no more than 500 click documents from any one department in the store.
+ This might help us consider products from the electronics, book and video departments whereas without this diversification our results may be entirely dominated by the electronics department.
+<6> We can control the maximum number of vertex terms returned for each field using the `size` property (default is 5)
+<7> `min_doc_count` acts as a certainty threshold - just how many documents have to contain a pair of terms before we consider this to be a useful connection? (default is 3)
+<8> `shard_min_doc_count` is an advanced setting - just how many documents on a shard have to contain a pair of terms before we return this for global consideration? (default is 2)
+<9> Optionally, a "guiding query" can be used to guide the Graph API as it explores connected terms. In this case we are guiding the hop from products to related queries by only considering documents that are also clicks that have been recorded recently.
+
+The default settings are configured to remove noisy data and get "the big picture" from data. For more detailed forensic type work where every document could be of interest see the <<graph-troubleshooting,troubleshooting guide>> for tips on tuning the settings for this type of work.
+
+[float]
+[[spider-search]]
+=== "Spidering" operations
+
+After an initial search users typically want to review the results using a form of graph visualization tool like the one in the Kibana Graph UI.
+Users will frequently then select one or more vertices of interest and ask to load more vertices that may be connected to their current selection. In graph-speak, this operation is often called "spidering" or "spidering out".
+
+In order to spider out it is typically necessary to define two things:
+
+ * The set of vertices from which you would like to spider
+ * The set of vertices you already have in your workspace which you want to avoid seeing again in results
+ 
+These two pieces of information when passed to the Graph API will ensure you are returned new vertices that can be attached to the existing selection.
+An example request is as follows:
+
+[source,js]
+--------------------------------------------------
+POST clicklogs/_xpack/graph/_explore
+{
+   "vertices": [
+      {
+         "field": "product",
+         "include": [ "1854873" ] <1>
+      }
+   ],
+   "connections": {
+      "vertices": [
+         {
+            "field": "query.raw",
+            "exclude": [ <2>
+               "midi keyboard",
+               "midi",
+               "synth"
+            ]
+         }
+      ]
+   }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Here we list the mandatory start points from which we want to spider using an `include` array of the terms of interest (in this case a single product code). Note that because
+we have an `include` clause here there is no need to define a seed query - we are implicitly querying for documents that contain any of the terms
+listed in our include clauses. Instead of passing plain strings in this array it is also possible to pass objects with `term` and `boost` values to
+boost matches on certain terms over others.
+<2> The `exclude` clause avoids returning specific terms. Here we are asking for more search terms that have led people to click on product 1854873 but explicitly exclude the search terms the client already
+knows about.
+
+The `include`and `exclude` clauses provide the essential features that enable clients to progressively build up a picture of related information in their workspace.
+The `include` clause is used to define the set of start points from which users wish to spider. Include clauses can also be used to limit the end points users wish to reach, thereby "filling in" some of the missing links between existing vertices in their client-side workspace.
+The `exclude` clause can be used to avoid the Graph API returning vertices already visible in a client's workspace or perhaps could list undesirable vertices that the client has blacklisted from their workspace and never wants to see returned.
+

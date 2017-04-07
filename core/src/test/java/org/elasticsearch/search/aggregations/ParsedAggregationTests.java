@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,8 +56,7 @@ public class ParsedAggregationTests extends ESTestCase {
         }
         TestInternalAggregation testAgg = new TestInternalAggregation(name, meta);
         XContentType xContentType = randomFrom(XContentType.values());
-        FakeRestRequest params = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true")).build();
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference bytesAgg = XContentHelper.toXContent(testAgg, xContentType, params, randomBoolean());
         try (XContentParser parser = createParser(xContentType.xContent(), bytesAgg)) {
             parser.nextToken();

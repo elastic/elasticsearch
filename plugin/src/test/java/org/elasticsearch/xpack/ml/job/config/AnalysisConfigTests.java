@@ -434,20 +434,20 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         // should work now
         Detector.Builder builder = new Detector.Builder("distinct_count", "somefield");
-        builder.setOverFieldName("over");
+        builder.setOverFieldName("over_field");
         new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
 
         builder = new Detector.Builder("info_content", "somefield");
-        builder.setOverFieldName("over");
+        builder.setOverFieldName("over_field");
         d = builder.build();
         new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
 
-        builder.setByFieldName("by");
+        builder.setByFieldName("by_field");
         new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
 
         try {
             builder = new Detector.Builder("made_up_function", "somefield");
-            builder.setOverFieldName("over");
+            builder.setOverFieldName("over_field");
             new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
             assertTrue(false); // shouldn't get here
         } catch (IllegalArgumentException e) {

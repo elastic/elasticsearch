@@ -161,10 +161,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
      */
     public void testAnalysisConfigRequiredFields() {
         Detector.Builder d1 = new Detector.Builder("max", "field");
-        d1.setByFieldName("by");
+        d1.setByFieldName("by_field");
 
         Detector.Builder d2 = new Detector.Builder("metric", "field2");
-        d2.setOverFieldName("over");
+        d2.setOverFieldName("over_field");
 
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setSummaryCountFieldName("agg");
@@ -174,9 +174,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         assertTrue(analysisFields.contains("agg"));
         assertTrue(analysisFields.contains("field"));
-        assertTrue(analysisFields.contains("by"));
+        assertTrue(analysisFields.contains("by_field"));
         assertTrue(analysisFields.contains("field2"));
-        assertTrue(analysisFields.contains("over"));
+        assertTrue(analysisFields.contains("over_field"));
 
         assertFalse(analysisFields.contains("max"));
         assertFalse(analysisFields.contains(""));
@@ -193,10 +193,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         assertTrue(analysisFields.contains("partition"));
         assertTrue(analysisFields.contains("field"));
-        assertTrue(analysisFields.contains("by"));
+        assertTrue(analysisFields.contains("by_field"));
         assertTrue(analysisFields.contains("by2"));
         assertTrue(analysisFields.contains("field2"));
-        assertTrue(analysisFields.contains("over"));
+        assertTrue(analysisFields.contains("over_field"));
 
         assertFalse(analysisFields.contains("count"));
         assertFalse(analysisFields.contains("max"));

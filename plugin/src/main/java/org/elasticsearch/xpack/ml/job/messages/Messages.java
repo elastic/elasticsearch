@@ -123,6 +123,10 @@ public final class Messages {
             "{0} and {1} cannot be the same: ''{2}''";
     public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =
             "''count'' is not a permitted value for {0}";
+    public static final String JOB_CONFIG_DETECTOR_BY_DISALLOWED =
+            "''by'' is not a permitted value for {0}";
+    public static final String JOB_CONFIG_DETECTOR_OVER_DISALLOWED =
+            "''over'' is not a permitted value for {0}";
     public static final String JOB_CONFIG_MAPPING_TYPE_CLASH =
             "A field has a different mapping type to an existing field with the same name. " +
                     "Use the 'results_index_name' setting to assign the job to another index";

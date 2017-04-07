@@ -137,6 +137,8 @@ public class Detector extends ToXContentToBytes implements Writeable {
     public static final String NON_NULL_SUM = "non_null_sum";
     public static final String LOW_NON_NULL_SUM = "low_non_null_sum";
     public static final String HIGH_NON_NULL_SUM = "high_non_null_sum";
+    public static final String BY = "by";
+    public static final String OVER = "over";
     /**
      * Population variance is called varp to match Splunk
      */
@@ -674,7 +676,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
                         byFieldName));
             }
 
-            // by/over field names cannot be "count" - this requirement dates back to the early
+            // by/over field names cannot be "count", "over', "by" - this requirement dates back to the early
             // days of the Splunk app and could be removed now BUT ONLY IF THE C++ CODE IS CHANGED
             // FIRST - see https://github.com/elastic/x-pack-elasticsearch/issues/858
             if (COUNT.equals(byFieldName)) {
@@ -683,6 +685,24 @@ public class Detector extends ToXContentToBytes implements Writeable {
             }
             if (COUNT.equals(overFieldName)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
+                        OVER_FIELD_NAME_FIELD.getPreferredName()));
+            }
+
+            if (BY.equals(byFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
+                        BY_FIELD_NAME_FIELD.getPreferredName()));
+            }
+            if (BY.equals(overFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
+                        OVER_FIELD_NAME_FIELD.getPreferredName()));
+            }
+
+            if (OVER.equals(byFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
+                        BY_FIELD_NAME_FIELD.getPreferredName()));
+            }
+            if (OVER.equals(overFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
                         OVER_FIELD_NAME_FIELD.getPreferredName()));
             }
 

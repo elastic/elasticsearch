@@ -24,14 +24,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.gcs.GoogleCloudStorageBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -44,7 +42,7 @@ import static org.elasticsearch.common.settings.Setting.simpleString;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-public class GoogleCloudStorageRepository extends BlobStoreRepository {
+class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
@@ -76,7 +74,7 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final BlobPath basePath;
     private final GoogleCloudStorageBlobStore blobStore;
 
-    public GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
+    GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
                                         GoogleCloudStorageService storageService) throws Exception {
         super(metadata, environment.settings(), namedXContentRegistry);

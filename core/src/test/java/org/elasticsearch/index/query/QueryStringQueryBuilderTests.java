@@ -869,7 +869,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
         }
         expected = new DisjunctionMaxQuery(fieldQueries, 0f);
-        Query expectedSingle = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        Query expectedSingle = new MatchAllDocsQuery();
         assertThat(query, anyOf(equalTo(expected), equalTo(expectedSingle)));
     }
 

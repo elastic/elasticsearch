@@ -104,13 +104,6 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
             }
         }
 
-        // #155: we might have 3rd party users using older EC2 API version
-        String awsSigner = CLOUD_EC2.SIGNER_SETTING.get(settings);
-        if (Strings.hasText(awsSigner)) {
-            logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration);
-        }
-
         // Increase the number of retries in case of 5xx API responses
         final Random rand = Randomness.get();
         RetryPolicy retryPolicy = new RetryPolicy(

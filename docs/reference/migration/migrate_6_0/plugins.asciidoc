@@ -21,6 +21,8 @@ region inside the repository settings. Instead, specify the full endpoint if a c
 s3 location is needed, or rely on the default behavior which automatically locates
 the region of the configured bucket.
 
+* Specifying s3 signer type has been removed, including `cloud.aws.signer` and `cloud.aws.s3.signer`.
+
 ==== Azure Repository plugin
 
 * The container an azure repository is configured with will no longer be created automatically.
@@ -33,3 +35,7 @@ name space have been removed. This includes `repositories.azure.account`, `repos
 You must set those settings per repository instead. Respectively `account`, `container`, `base_path`,
 `location_mode`, `chunk_size` and `compress`.
 See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].
+
+==== EC2 Discovery plugin
+
+* Specifying ec2 signer type has been removed, including `cloud.aws.signer` and `cloud.aws.ec2.signer`.

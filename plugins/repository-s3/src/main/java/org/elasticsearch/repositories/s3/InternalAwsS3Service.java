@@ -36,6 +36,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -44,6 +45,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+
+import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
@@ -60,8 +63,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
-                                              boolean useThrottleRetries, Boolean pathStyleAccess) {
+    public synchronized AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings) {
         String clientName = CLIENT_NAME.get(repositorySettings);
         String foundEndpoint = findEndpoint(logger, repositorySettings, settings, clientName);
 
@@ -72,6 +74,26 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         if (client != null) {
             return client;
         }
+
+        Integer maxRetries = getValue(metadata.settings(), settings,
+            S3Repository.Repository.MAX_RETRIES_SETTING,
+            S3Repository.Repositories.MAX_RETRIES_SETTING);
+        boolean useThrottleRetries = getValue(metadata.settings(), settings,
+            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING,
+            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
+        // If the user defined a path style access setting, we rely on it,
+        // otherwise we use the default value set by the SDK
+        Boolean pathStyleAccess = null;
+        if (S3Repository.Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
+                S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
+            pathStyleAccess = getValue(metadata.settings(), settings,
+                S3Repository.Repository.PATH_STYLE_ACCESS_SETTING,
+                S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
+        }
+
+        logger.debug("creating S3 client with client_name [{}], endpoint [{}], max_retries [{}], " +
+                     "use_throttle_retries [{}], path_style_access [{}]",
+                     clientName, foundEndpoint, maxRetries, useThrottleRetries, pathStyleAccess);
 
         client = new AmazonS3Client(
             credentials,
@@ -187,7 +209,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             // no repository setting, just use global setting
             return globalSetting.get(globalSettings);
         } else {
-            return S3Repository.getValue(repositorySettings, globalSettings, repositorySetting, globalSetting);
+            return getValue(repositorySettings, globalSettings, repositorySetting, globalSetting);
         }
     }
 

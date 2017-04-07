@@ -35,11 +35,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchPath;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollEntity;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollParams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -150,7 +150,11 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         Map<String, String> params = initialSearchParams(searchRequest, remoteVersion);
 
-        assertThat(params, scroll == null ? not(hasKey("scroll")) : hasEntry("scroll", scroll.toString()));
+        if (scroll == null) {
+            assertThat(params, not(hasKey("scroll")));
+        } else {
+            assertEquals(scroll, TimeValue.parseTimeValue(params.get("scroll"), "scroll"));
+        }
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
     }
@@ -181,7 +185,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
     public void testScrollParams() {
         TimeValue scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
-        assertThat(scrollParams(scroll), hasEntry("scroll", scroll.toString()));
+        assertEquals(scroll, TimeValue.parseTimeValue(scrollParams(scroll).get("scroll"), "scroll"));
     }
 
     public void testScrollEntity() throws IOException {

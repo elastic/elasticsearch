@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -79,6 +80,7 @@ import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
@@ -690,6 +692,30 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(createAuthentication(superuser), action, request);
         verify(auditTrail).accessGranted(superuser, action, request);
         assertThat(request.indices(), arrayContaining(".security"));
+    }
+
+    public void testOnlyXPackUserCanExecuteXPackDBQAction() {
+        final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+
+        String action = XPackDeleteByQueryAction.NAME;
+        DeleteByQueryRequest request = new DeleteByQueryRequest(new SearchRequest("_all"));
+        authorize(createAuthentication(XPackUser.INSTANCE), action, request);
+        verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
+        assertThat(request.indices(), arrayContaining(".security"));
+
+        DeleteByQueryRequest request1 = new DeleteByQueryRequest(new SearchRequest("_all"));
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(superuser), action, request1),
+                action, superuser.principal());
+        verify(auditTrail).accessDenied(superuser, action, request1);
     }
 
     public void testAnonymousRolesAreAppliedToOtherUsers() {

@@ -135,7 +135,7 @@ cluster:admin/xpack/ml/datafeeds/stop
 cluster:admin/xpack/ml/datafeeds/start
 cluster:admin/xpack/ml/job/open
 cluster:admin/xpack/ml/job/update
-indices:internal/data/write/mldeletebyquery
+indices:internal/data/write/xpackdeletebyquery
 cluster:internal/xpack/ml/job/update/process
 cluster:admin/xpack/ml/delete_expired_data
 cluster:admin/persistent/create

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.ml.action.MlDeleteByQueryAction;
+import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
@@ -64,7 +64,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                      listener.onResponse(null);
                      return null;
                  }
-             }).when(client).execute(same(MlDeleteByQueryAction.INSTANCE), any(), any());
+             }).when(client).execute(same(XPackDeleteByQueryAction.INSTANCE), any(), any());
         onFinish = mock(Runnable.class);
     }
 
@@ -149,7 +149,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 }
                 return null;
             }
-        }).when(client).execute(same(MlDeleteByQueryAction.INSTANCE), any(), any());
+        }).when(client).execute(same(XPackDeleteByQueryAction.INSTANCE), any(), any());
     }
 
     private void givenJobs(List<Job> jobs) {

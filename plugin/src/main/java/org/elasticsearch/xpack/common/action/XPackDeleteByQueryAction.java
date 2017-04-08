@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.action;
+package org.elasticsearch.xpack.common.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -31,24 +32,24 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction.XPackDeleteByQueryRequestBuilder;
 
-public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkByScrollResponse,
-        MlDeleteByQueryAction.MlDeleteByQueryRequestBuilder> {
+public class XPackDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkByScrollResponse,
+        XPackDeleteByQueryRequestBuilder> {
 
-    public static final MlDeleteByQueryAction INSTANCE = new MlDeleteByQueryAction();
-    // TODO: Ideally we'd use an "internal" action here as we don't want transport client users running it, but unfortunately the internal
-    // _xpack user is forbidden to run "internal" actions.  Putting "internal" at the top level of the action name at least restricts it to
-    // superusers, and makes clear to anyone who sees the name that it's not for general use.
-    public static final String NAME = "indices:internal/data/write/mldeletebyquery";
+    public static final XPackDeleteByQueryAction INSTANCE = new XPackDeleteByQueryAction();
+    // Ideally we'd use an "internal" action here as we don't want transport client users running it
+    // but unfortunately the _xpack user is forbidden to run "internal" actions as these are really
+    // intended to be run as the system user
+    public static final String NAME = "indices:internal/data/write/xpackdeletebyquery";
 
-    private MlDeleteByQueryAction() {
+    private XPackDeleteByQueryAction() {
         super(NAME);
     }
 
     @Override
-    public MlDeleteByQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MlDeleteByQueryRequestBuilder(client, this);
+    public XPackDeleteByQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new XPackDeleteByQueryRequestBuilder(client, this);
     }
 
     @Override
@@ -56,29 +57,29 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
         return new BulkByScrollResponse();
     }
 
-    public static class MlDeleteByQueryRequestBuilder extends
-            AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, MlDeleteByQueryRequestBuilder> {
+    public static class XPackDeleteByQueryRequestBuilder extends
+            AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, XPackDeleteByQueryRequestBuilder> {
 
-        private MlDeleteByQueryRequestBuilder(ElasticsearchClient client,
-                                           Action<DeleteByQueryRequest, BulkByScrollResponse, MlDeleteByQueryRequestBuilder> action) {
+        private XPackDeleteByQueryRequestBuilder(ElasticsearchClient client,
+                                                 Action<DeleteByQueryRequest, BulkByScrollResponse, XPackDeleteByQueryRequestBuilder> action) {
             this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
         }
 
-        private MlDeleteByQueryRequestBuilder(ElasticsearchClient client,
-                                            Action<DeleteByQueryRequest, BulkByScrollResponse, MlDeleteByQueryRequestBuilder> action,
-                                            SearchRequestBuilder search) {
+        private XPackDeleteByQueryRequestBuilder(ElasticsearchClient client,
+                                                 Action<DeleteByQueryRequest, BulkByScrollResponse, XPackDeleteByQueryRequestBuilder> action,
+                                                 SearchRequestBuilder search) {
             super(client, action, search,
-                    new DeleteByQueryRequest(search.setIndicesOptions(
-                            JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS)).request()));
+                    new DeleteByQueryRequest(
+                            search.setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS)).request()));
         }
 
         @Override
-        protected MlDeleteByQueryRequestBuilder self() {
+        protected XPackDeleteByQueryRequestBuilder self() {
             return this;
         }
 
         @Override
-        public MlDeleteByQueryRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
+        public XPackDeleteByQueryRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
             request.setAbortOnVersionConflict(abortOnVersionConflict);
             return this;
         }
@@ -93,7 +94,7 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
         public TransportAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver resolver, Client client, TransportService transportService,
                                             ScriptService scriptService, ClusterService clusterService) {
-            super(settings, MlDeleteByQueryAction.NAME, threadPool, transportService, actionFilters, resolver, DeleteByQueryRequest::new);
+            super(settings, XPackDeleteByQueryAction.NAME, threadPool, transportService, actionFilters, resolver, DeleteByQueryRequest::new);
             this.client = client;
             this.scriptService = scriptService;
             this.clusterService = clusterService;
@@ -102,7 +103,7 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
         @Override
         public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
             if (request.getSlices() > 1) {
-                BulkByScrollParallelizationHelper.startSlices(client, taskManager, MlDeleteByQueryAction.INSTANCE,
+                BulkByScrollParallelizationHelper.startSlices(client, taskManager, XPackDeleteByQueryAction.INSTANCE,
                         clusterService.localNode().getId(), (ParentBulkByScrollTask) task, request, listener);
             } else {
                 ClusterState state = clusterService.state();
@@ -117,4 +118,11 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
             throw new UnsupportedOperationException("task required");
         }
     }
+
+    private static IndicesOptions addIgnoreUnavailable(IndicesOptions indicesOptions) {
+        return IndicesOptions.fromOptions(true, indicesOptions.allowNoIndices(),
+                indicesOptions.expandWildcardsOpen(), indicesOptions.expandWildcardsClosed(),
+                indicesOptions);
+    }
+
 }

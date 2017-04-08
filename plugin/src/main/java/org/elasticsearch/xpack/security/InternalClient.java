@@ -51,7 +51,7 @@ public class InternalClient extends FilterClient {
 
     /**
      * Constructs an InternalClient.
-     * If {@code cryptoService} is non-null, the client is secure. Otherwise this client is a passthrough.
+     * If security is enabled the client is secure. Otherwise this client is a passthrough.
      */
     public InternalClient(Settings settings, ThreadPool threadPool, Client in) {
         super(settings, threadPool, in);

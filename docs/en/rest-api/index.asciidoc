@@ -92,7 +92,7 @@ GET /_xpack?human=false
 
 include::security.asciidoc[]
 
-include::../{xes-repo-dir}/rest-api/watcher.asciidoc[]
+include::watcher.asciidoc[]
 
 include::graph.asciidoc[]
-include::../{xes-repo-dir}/rest-api/ml-api.asciidoc[]
+include::ml-api.asciidoc[]

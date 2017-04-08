@@ -153,9 +153,9 @@ killed by firewalls or load balancers inbetween.
 You can use the `http` attachment type in an `email` action to automatically
 generate a Kibana report and distribute it via email.
 
-include::../../{xkb-repo-dir}/reporting/watch-example.asciidoc[]
+include::{xkb-repo-dir}/reporting/watch-example.asciidoc[]
 
-include::../../{xkb-repo-dir}/reporting/report-intervals.asciidoc[]
+include::{xkb-repo-dir}/reporting/report-intervals.asciidoc[]
 
 For more information, see <<automating-report-generation,
 Automating Report Generation>>.

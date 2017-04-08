@@ -178,7 +178,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         secureSettings.setString("foo", "secret");
         Settings input = Settings.builder().put(baseEnvSettings).setSecureSettings(secureSettings).build();
         Environment env = InternalSettingsPreparer.prepareEnvironment(input, null);
-        Setting<SecureString> fakeSetting = SecureSetting.secureString("foo", null, false);
+        Setting<SecureString> fakeSetting = SecureSetting.secureString("foo", null);
         assertEquals("secret", fakeSetting.get(env.settings()).toString());
     }
 

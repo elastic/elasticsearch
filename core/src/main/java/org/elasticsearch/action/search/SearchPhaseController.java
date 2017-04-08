@@ -304,6 +304,10 @@ public final class SearchPhaseController extends AbstractComponent {
                         ScoreDoc shardDoc = sortedDocs[scoreDocIndex];
                         SearchPhaseResult searchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
                         if (searchResultProvider == null) {
+                            // this can happen if we are hitting a shard failure during the fetch phase
+                            // in this case we referenced the shard result via teh ScoreDoc but never got a
+                            // result from fetch.
+                            // TODO it would be nice to assert this in the future
                             continue;
                         }
                         FetchSearchResult fetchResult = searchResultProvider.fetchResult();
@@ -358,6 +362,10 @@ public final class SearchPhaseController extends AbstractComponent {
                 ScoreDoc shardDoc = sortedDocs[i];
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
                 if (fetchResultProvider == null) {
+                    // this can happen if we are hitting a shard failure during the fetch phase
+                    // in this case we referenced the shard result via teh ScoreDoc but never got a
+                    // result from fetch.
+                    // TODO it would be nice to assert this in the future
                     continue;
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();

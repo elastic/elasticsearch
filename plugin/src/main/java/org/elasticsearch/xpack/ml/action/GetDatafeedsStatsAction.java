@@ -191,7 +191,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assigment_explanation", assignmentExplanation);
+                    builder.field("assignment_explanation", assignmentExplanation);
                 }
                 builder.endObject();
                 return builder;

@@ -241,7 +241,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assigment_explanation", assignmentExplanation);
+                    builder.field("assignment_explanation", assignmentExplanation);
                 }
                 if (openTime != null) {
                     builder.field("open_time", openTime.getStringRep());

@@ -50,8 +50,6 @@ import static org.hamcrest.Matchers.is;
  */
 public class CategorizationIT extends SecurityIntegTestCase {
 
-    private static final Logger LOGGER = Loggers.getLogger(CategorizationIT.class);
-
     private static final String DATA_INDEX = "log-data";
     private static final String DATA_TYPE = "log";
 

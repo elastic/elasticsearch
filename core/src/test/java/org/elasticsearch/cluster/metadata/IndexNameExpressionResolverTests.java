@@ -643,6 +643,33 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(0, indexNames.length);
     }
 
+    // issue #23960
+    public void testConcreteIndicesWildcardAndAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))
+                .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state,
+                IndicesOptions.lenientExpandOpen(), "foo*");
+
+        assertEquals(1, indexNames.length);
+        assertEquals("foo_foo", indexNames[0]);
+
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state,
+                IndicesOptions.lenientExpandOpen(), "*o");
+
+        assertEquals(1, indexNames.length);
+        assertEquals("foo_foo", indexNames[0]);
+
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state,
+                IndicesOptions.lenientExpandOpen(), "f*o");
+
+        assertEquals(1, indexNames.length);
+        assertEquals("foo_foo", indexNames[0]);
+    }
+
+    
     /**
      * test resolving _all pattern (null, empty array or "_all") for random IndicesOptions
      */

@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -100,7 +101,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * indices options in the context don't allow such a case.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options);
+        Context context = new Context(state, options, System.currentTimeMillis(), false, true);
         return concreteIndexNames(context, indexExpressions);
     }
 
@@ -504,6 +505,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final IndicesOptions options;
         private final long startTime;
         private final boolean preserveAliases;
+        private final boolean resolveIndices;
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
@@ -517,11 +519,18 @@ public class IndexNameExpressionResolver extends AbstractComponent {
            this(state, options, startTime, false);
         }
 
-        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
+        Context(ClusterState state, IndicesOptions options, long startTime,
+                boolean preserveAliases) {
+            this(state, options, startTime, preserveAliases, false);
+        }
+
+        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases,
+                boolean resolveIndices) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
+            this.resolveIndices = resolveIndices;
         }
 
         public ClusterState getState() {
@@ -544,6 +553,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         boolean isPreserveAliases() {
             return preserveAliases;
         }
+
+        public boolean isResolveIndices() {
+            return resolveIndices;
+        }
     }
 
     private interface ExpressionResolver {
@@ -555,7 +568,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
          * @return a new list with expressions based on the provided expressions
          */
         List<String> resolve(Context context, List<String> expressions);
-
     }
 
     /**
@@ -638,7 +650,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
 
                 final IndexMetaData.State excludeState = excludeState(options);
-                final Map<String, AliasOrIndex> matches = matches(metaData, expression);
+                final Map<String, AliasOrIndex> matches = matches(context, metaData, expression);
                 Set<String> expand = expand(context, excludeState, matches);
                 if (add) {
                     result.addAll(expand);
@@ -693,31 +705,43 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return excludeState;
         }
 
-        private static Map<String, AliasOrIndex> matches(MetaData metaData, String expression) {
+        public static Map<String, AliasOrIndex> matches(Context context, MetaData metaData, String expression) {
             if (Regex.isMatchAllPattern(expression)) {
                 // Can only happen if the expressions was initially: '-*'
-                return metaData.getAliasAndIndexLookup();
+                if (!context.isResolveIndices()) {
+                    return metaData.getAliasAndIndexLookup();
+                }
+                return metaData.getAliasAndIndexLookup().entrySet().stream()
+                        .filter(e -> !e.getValue().isAlias())
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(metaData, expression);
+                return suffixWildcard(context, metaData, expression);
             } else {
-                return otherWildcard(metaData, expression);
+                return otherWildcard(context, metaData, expression);
             }
         }
 
-        private static Map<String, AliasOrIndex> suffixWildcard(MetaData metaData, String expression) {
+        private static Map<String, AliasOrIndex> suffixWildcard(Context context, MetaData metaData, String expression) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
             char[] toPrefixCharArr = fromPrefix.toCharArray();
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
-            return metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
+            SortedMap<String,AliasOrIndex> subMap = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
+            if (context.isResolveIndices()) {
+                 return subMap.entrySet().stream()
+                        .filter(p -> !p.getValue().isAlias())
+                        .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue()));
+            }
+            return subMap;
         }
 
-        private static Map<String, AliasOrIndex> otherWildcard(MetaData metaData, String expression) {
+        private static Map<String, AliasOrIndex> otherWildcard(Context context, MetaData metaData, String expression) {
             final String pattern = expression;
             return metaData.getAliasAndIndexLookup()
                 .entrySet()
                 .stream()
+                .filter(e -> context.isResolveIndices() ? !e.getValue().isAlias() : true)
                 .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }

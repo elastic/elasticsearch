@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -123,6 +124,47 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("_all"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+    }
+
+    // issue #23960
+    public void testConcreteIndicesWildcardAndAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))
+                .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+                IndicesOptions.lenientExpandOpen());
+        IndexNameExpressionResolver.Context contextIndices = new IndexNameExpressionResolver.Context(
+                state, IndicesOptions.lenientExpandOpen(), System.currentTimeMillis(), false, true);
+
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(context, state.getMetaData(), "*").keySet(),
+                equalTo(newHashSet("bar_bar", "foo_foo", "foo")));
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(contextIndices, state.getMetaData(), "*").keySet(),
+                equalTo(newHashSet("bar_bar", "foo_foo")));
+
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(context, state.getMetaData(), "foo*").keySet(),
+                equalTo(newHashSet("foo", "foo_foo")));
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(contextIndices, state.getMetaData(), "foo*").keySet(),
+                equalTo(newHashSet("foo_foo")));
+
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(context, state.getMetaData(), "f*o").keySet(),
+                equalTo(newHashSet("foo", "foo_foo")));
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(contextIndices, state.getMetaData(), "f*o").keySet(),
+                equalTo(newHashSet("foo_foo")));
+
     }
 
     private IndexMetaData.Builder indexBuilder(String index) {

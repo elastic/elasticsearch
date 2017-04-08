@@ -331,7 +331,7 @@ public class StartDatafeedAction
         }
 
         public void stop(String reason) {
-            stop(reason, TimeValue.timeValueSeconds(20));
+            stop(reason, StopDatafeedAction.DEFAULT_TIMEOUT);
         }
 
         public void stop(String reason, TimeValue timeout) {

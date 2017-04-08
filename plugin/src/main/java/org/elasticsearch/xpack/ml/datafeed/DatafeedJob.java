@@ -193,7 +193,12 @@ class DatafeedJob {
             throw new EmptyDataCountException();
         }
 
-        client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+        // If the datafeed was stopped, then it is possible that by the time
+        // we call flush the job is closed. Thus, we don't flush unless the
+        // datafeed is stilll running.
+        if (isRunning()) {
+            client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+        }
     }
 
     private DataCounts postData(InputStream inputStream, XContentType xContentType)

@@ -319,7 +319,8 @@ public class DatafeedManager extends AbstractComponent {
                     FutureUtils.cancel(future);
                     auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     handler.accept(e);
-                    logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
+                    logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeed.getId(), datafeed.getJobId(),
+                            acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
                     if (autoCloseJob) {
                         closeJob();
                     }

@@ -42,9 +42,9 @@ public class RestStopDatafeedAction extends BaseRestHandler {
         } else {
             jobDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
             if (restRequest.hasParam(StopDatafeedAction.TIMEOUT.getPreferredName())) {
-                TimeValue openTimeout = restRequest.paramAsTime(
-                        StopDatafeedAction.TIMEOUT.getPreferredName(), TimeValue.timeValueSeconds(20));
-                jobDatafeedRequest.setTimeout(openTimeout);
+                TimeValue stopTimeout = restRequest.paramAsTime(
+                        StopDatafeedAction.TIMEOUT.getPreferredName(), StopDatafeedAction.DEFAULT_TIMEOUT);
+                jobDatafeedRequest.setStopTimeout(stopTimeout);
             }
             if (restRequest.hasParam(StopDatafeedAction.FORCE.getPreferredName())) {
                 jobDatafeedRequest.setForce(

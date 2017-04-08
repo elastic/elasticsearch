@@ -32,8 +32,9 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+            request.setStopTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
+        request.setForce(randomBoolean());
         return request;
     }
 

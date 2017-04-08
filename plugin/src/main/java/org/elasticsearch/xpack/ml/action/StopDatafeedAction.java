@@ -54,6 +54,7 @@ public class StopDatafeedAction
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/stop";
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField FORCE = new ParseField("force");
+    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private StopDatafeedAction() {
         super(NAME);
@@ -76,7 +77,7 @@ public class StopDatafeedAction
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((request, val) ->
-                    request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+                    request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareBoolean(Request::setForce, FORCE);
         }
 
@@ -93,12 +94,12 @@ public class StopDatafeedAction
         }
 
         private String datafeedId;
+        private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
 
         public Request(String jobId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(jobId, DatafeedConfig.ID.getPreferredName());
             setActions(StartDatafeedAction.NAME);
-            setTimeout(TimeValue.timeValueSeconds(20));
         }
 
         Request() {
@@ -106,6 +107,14 @@ public class StopDatafeedAction
 
         public String getDatafeedId() {
             return datafeedId;
+        }
+
+        public TimeValue getStopTimeout() {
+            return stopTimeout;
+        }
+
+        public void setStopTimeout(TimeValue stopTimeout) {
+            this.stopTimeout = ExceptionsHelper.requireNonNull(stopTimeout, TIMEOUT.getPreferredName());
         }
 
         public boolean isForce() {
@@ -131,6 +140,7 @@ public class StopDatafeedAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
+            stopTimeout = new TimeValue(in);
             force = in.readBoolean();
         }
 
@@ -138,21 +148,21 @@ public class StopDatafeedAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+            stopTimeout.writeTo(out);
             out.writeBoolean(force);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, getTimeout());
+            return Objects.hash(datafeedId, stopTimeout, force);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
-            if (getTimeout() != null) {
-                builder.field(TIMEOUT.getPreferredName(), getTimeout().getStringRep());
-            }
+            builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
+            builder.field(FORCE.getPreferredName(), force);
             builder.endObject();
             return builder;
         }
@@ -167,7 +177,7 @@ public class StopDatafeedAction
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) &&
-                    Objects.equals(getTimeout(), other.getTimeout()) &&
+                    Objects.equals(stopTimeout, other.stopTimeout) &&
                     Objects.equals(force, other.force);
         }
     }
@@ -254,7 +264,7 @@ public class StopDatafeedAction
         // This api returns when task has been cancelled, but that doesn't mean the persistent task has been removed from cluster state,
         // so wait for that to happen here.
         void waitForDatafeedStopped(long persistentTaskId, Request request, Response response, ActionListener<Response> listener) {
-            persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, Objects::isNull, request.getTimeout(),
+            persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, Objects::isNull, request.getStopTimeout(),
                     new WaitForPersistentTaskStatusListener<StartDatafeedAction.Request>() {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.Request> task) {
@@ -295,7 +305,7 @@ public class StopDatafeedAction
 
         @Override
         protected void taskOperation(Request request, StartDatafeedAction.DatafeedTask task, ActionListener<Response> listener) {
-            task.stop("stop_datafeed (api)", request.getTimeout());
+            task.stop("stop_datafeed (api)", request.getStopTimeout());
             listener.onResponse(new Response(true));
         }
 

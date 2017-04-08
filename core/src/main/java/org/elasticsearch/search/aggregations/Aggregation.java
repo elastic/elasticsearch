@@ -27,7 +27,10 @@ import java.util.Map;
  */
 public interface Aggregation {
 
-    /** Delimiter used when prefixing aggregation names with their type using the typed_keys parameter **/
+    /**
+     * Delimiter used when prefixing aggregation names with their type
+     * using the typed_keys parameter
+     */
     String TYPED_KEYS_DELIMITER = "#";
 
     /**

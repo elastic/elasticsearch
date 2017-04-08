@@ -127,7 +127,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         AwsEc2Service.PROXY_PORT_SETTING,
         AwsEc2Service.PROXY_USERNAME_SETTING,
         AwsEc2Service.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.REGION_SETTING,
         AwsEc2Service.READ_TIMEOUT,
         // Register EC2 specific settings: cloud.aws.ec2
         AwsEc2Service.CLOUD_EC2.KEY_SETTING,
@@ -137,7 +136,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
         AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
         AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.CLOUD_EC2.REGION_SETTING,
         AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING,
         AwsEc2Service.CLOUD_EC2.READ_TIMEOUT,
         // Register EC2 discovery settings: discovery.ec2

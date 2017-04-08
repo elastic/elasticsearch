@@ -210,41 +210,4 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING
         });
     }
-
-    public void testRegionWithAwsSettings() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.REGION_SETTING.getKey(), randomFrom("eu-west", "eu-west-1"))
-            .build();
-        String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, settings);
-        assertThat(endpoint, is("ec2.eu-west-1.amazonaws.com"));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.REGION_SETTING
-        });
-    }
-
-    public void testRegionWithAwsAndEc2Settings() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.REGION_SETTING.getKey(), randomFrom("eu-west", "eu-west-1"))
-            .put(AwsEc2Service.CLOUD_EC2.REGION_SETTING.getKey(), randomFrom("us-west", "us-west-1"))
-            .build();
-        String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, settings);
-        assertThat(endpoint, is("ec2.us-west-1.amazonaws.com"));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.REGION_SETTING,
-            AwsEc2Service.CLOUD_EC2.REGION_SETTING
-        });
-    }
-
-    public void testInvalidRegion() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.REGION_SETTING.getKey(), "does-not-exist")
-            .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            AwsEc2ServiceImpl.findEndpoint(logger, settings);
-        });
-        assertThat(e.getMessage(), containsString("No automatic endpoint could be derived from region"));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.REGION_SETTING
-        });
-    }
 }

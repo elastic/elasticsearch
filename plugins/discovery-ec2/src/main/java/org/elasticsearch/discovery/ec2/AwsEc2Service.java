@@ -77,11 +77,6 @@ interface AwsEc2Service {
     Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.proxy.password", "", SecureString::new,
         Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
     /**
-     * cloud.aws.region: Region. Shared with repository-s3 plugin
-     */
-    Setting<String> REGION_SETTING =
-        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Shared, Property.Deprecated);
-    /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with repository-s3 plugin
      */
     Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
@@ -136,12 +131,6 @@ interface AwsEc2Service {
          */
         Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
             SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
-        /**
-         * cloud.aws.ec2.region: Region specific for EC2 API calls. Defaults to cloud.aws.region.
-         * @see AwsEc2Service#REGION_SETTING
-         */
-        Setting<String> REGION_SETTING = new Setting<>("cloud.aws.ec2.region", AwsEc2Service.REGION_SETTING,
-            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
         /**
          * cloud.aws.ec2.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */

@@ -461,8 +461,10 @@ public class StartDatafeedAction
                     DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
                     String jobId = datafeed.getJobId();
                     if (assignment.getExecutorNode() == null) {
-                        auditor.warning(jobId, "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
-                                assignment.getExplanation() + "]");
+                        String msg = "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
+                                assignment.getExplanation() + "]";
+                        logger.warn(msg);
+                        auditor.warning(jobId, msg);
                     } else {
                         DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
                         auditor.info(jobId, "Starting datafeed [" + datafeedId + "] on node [" + node + "]");

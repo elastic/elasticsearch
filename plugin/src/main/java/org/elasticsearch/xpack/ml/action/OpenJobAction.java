@@ -407,6 +407,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 if (assignment.getExecutorNode() == null) {
                     String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
                             + assignment.getExplanation() + "]";
+                    logger.warn("[{}] {}", msg);
                     auditor.warning(request.getJobId(), msg);
                     throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
                 }

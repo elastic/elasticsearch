@@ -1,0 +1,10 @@
+[[breaking-changes-5.5]]
+== Breaking changes in 5.5
+
+[[breaking_55_plugins]]
+[float]
+=== Ignoring hidden folders
+
+Previous versions of Elasticsearch would skip hidden files and directories when
+scanning the plugins folder. This allows broken plugin installs to remain
+undetected so this leniency has been removed.

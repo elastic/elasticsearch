@@ -170,7 +170,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Path hidden = environment.pluginsFile().resolve(".hidden");
         Files.createDirectories(hidden);
 
-        Spawner spawner = new Spawner();
+        final Spawner spawner = new Spawner();
+        // if the spawner were not skipping hidden files this would explode
         spawner.spawnNativePluginControllers(environment);
     }
 

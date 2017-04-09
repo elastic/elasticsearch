@@ -90,7 +90,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     public void testMergeWithJob() {
         List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>();
-        List<DetectionRule> detectionRules1 = Collections.singletonList(new DetectionRule("client", null, Connective.OR,
+        List<DetectionRule> detectionRules1 = Collections.singletonList(new DetectionRule("mlcategory", null, Connective.OR,
                 Collections.singletonList(
                         new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5"), null))));
         detectorUpdates.add(new JobUpdate.DetectorUpdate(0, "description-1", detectionRules1));
@@ -120,7 +120,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
         Job.Builder jobBuilder = new Job.Builder("foo");
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
-        d1.setOverFieldName("client");
+        d1.setOverFieldName("mlcategory");
         Detector.Builder d2 = new Detector.Builder("min", "field");
         d2.setOverFieldName("host");
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));

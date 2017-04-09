@@ -119,7 +119,7 @@ public class FieldConfigWriterTests extends ESTestCase {
 
     public void testWrite_GivenConfigHasCategorizationField() throws IOException {
         Detector.Builder d = new Detector.Builder("metric", "Integer_Value");
-        d.setByFieldName("ts_hash");
+        d.setByFieldName("mlcategory");
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d.build()));
         builder.setCategorizationFieldName("foo");
@@ -128,7 +128,7 @@ public class FieldConfigWriterTests extends ESTestCase {
 
         createFieldConfigWriter().write();
 
-        verify(writer).write("detector.0.clause = metric(Integer_Value) by ts_hash categorizationfield=foo\n");
+        verify(writer).write("detector.0.clause = metric(Integer_Value) by mlcategory categorizationfield=foo\n");
         verifyNoMoreInteractions(writer);
     }
 
@@ -153,7 +153,7 @@ public class FieldConfigWriterTests extends ESTestCase {
 
     public void testWrite_GivenConfigHasCategorizationFieldAndFiltersAndInfluencer() throws IOException {
         Detector.Builder d = new Detector.Builder("metric", "Integer_Value");
-        d.setByFieldName("ts_hash");
+        d.setByFieldName("mlcategory");
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d.build()));
         builder.setInfluencers(Arrays.asList("sun"));
@@ -166,7 +166,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         createFieldConfigWriter().write();
 
         verify(writer).write(
-                "detector.0.clause = metric(Integer_Value) by ts_hash categorizationfield=myCategory\n" +
+                "detector.0.clause = metric(Integer_Value) by mlcategory categorizationfield=myCategory\n" +
                         "categorizationfilter.0 = foo\n" +
                         "categorizationfilter.1 = \" \"\n" +
                         "categorizationfilter.2 = \"abc,def\"\n" +

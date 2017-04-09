@@ -475,6 +475,23 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 .flatMap(Set::stream).collect(Collectors.toSet());
     }
 
+    /**
+     * Returns the set of by/over/partition terms
+     */
+    public Set<String> getByOverPartitionTerms() {
+        Set<String> terms = new HashSet<>();
+        if (byFieldName != null) {
+            terms.add(byFieldName);
+        }
+        if (overFieldName != null) {
+            terms.add(overFieldName);
+        }
+        if (partitionFieldName != null) {
+            terms.add(partitionFieldName);
+        }
+        return terms;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {

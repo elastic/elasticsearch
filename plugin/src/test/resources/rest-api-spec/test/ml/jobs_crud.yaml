@@ -182,7 +182,8 @@
           {
             "description":"Pre update description",
             "analysis_config" : {
-                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"}, {"function":"count"}],
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"},
+                    {"function":"count","by_field_name":"mlcategory"}],
                 "categorization_field_name": "some_category",
                 "categorization_filters" : ["cat1.*", "cat2.*"]
             },

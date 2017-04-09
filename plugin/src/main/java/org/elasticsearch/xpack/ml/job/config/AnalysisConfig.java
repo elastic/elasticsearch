@@ -263,11 +263,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     public Set<String> termFields() {
         Set<String> termFields = new TreeSet<>();
 
-        for (Detector d : getDetectors()) {
-            addIfNotNull(termFields, d.getByFieldName());
-            addIfNotNull(termFields, d.getOverFieldName());
-            addIfNotNull(termFields, d.getPartitionFieldName());
-        }
+        getDetectors().stream().forEach(d -> termFields.addAll(d.getByOverPartitionTerms()));
 
         for (String i : getInfluencers()) {
             addIfNotNull(termFields, i);
@@ -561,11 +557,12 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             }
             checkFieldIsNotNegativeIfSpecified(PERIOD.getPreferredName(), period);
 
-            verifyDetectorAreDefined(detectors);
+            verifyDetectorAreDefined();
             verifyFieldName(summaryCountFieldName);
             verifyFieldName(categorizationFieldName);
 
-            verifyCategorizationFilters(categorizationFilters, categorizationFieldName);
+            verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet();
+            verifyCategorizationFilters();
             checkFieldIsNotNegativeIfSpecified(RESULT_FINALIZATION_WINDOW.getPreferredName(), resultFinalizationWindow);
             verifyMultipleBucketSpans();
 
@@ -588,44 +585,58 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             }
         }
 
-        private static void verifyDetectorAreDefined(List<Detector> detectors) {
+        private void verifyDetectorAreDefined() {
             if (detectors == null || detectors.isEmpty()) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_NO_DETECTORS));
             }
         }
 
-        private static void verifyCategorizationFilters(List<String> filters, String categorizationFieldName) {
-            if (filters == null || filters.isEmpty()) {
+        private void verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet() {
+            Set<String> byOverPartitionFields = new TreeSet<>();
+            detectors.stream().forEach(d -> byOverPartitionFields.addAll(d.getByOverPartitionTerms()));
+            boolean isMlCategoryUsed = byOverPartitionFields.contains(ML_CATEGORY_FIELD);
+            if (isMlCategoryUsed && categorizationFieldName == null) {
+                throw new IllegalArgumentException(CATEGORIZATION_FIELD_NAME.getPreferredName()
+                        + " must be set for " + ML_CATEGORY_FIELD + " to be available");
+            }
+            if (categorizationFieldName != null && isMlCategoryUsed == false) {
+                throw new IllegalArgumentException(CATEGORIZATION_FIELD_NAME.getPreferredName()
+                        + " is set but " + ML_CATEGORY_FIELD + " is not used in any detector by/over/partition field");
+            }
+        }
+
+        private void verifyCategorizationFilters() {
+            if (categorizationFilters == null || categorizationFilters.isEmpty()) {
                 return;
             }
 
-            verifyCategorizationFieldNameSetIfFiltersAreSet(categorizationFieldName);
-            verifyCategorizationFiltersAreDistinct(filters);
-            verifyCategorizationFiltersContainNoneEmpty(filters);
-            verifyCategorizationFiltersAreValidRegex(filters);
+            verifyCategorizationFieldNameSetIfFiltersAreSet();
+            verifyCategorizationFiltersAreDistinct();
+            verifyCategorizationFiltersContainNoneEmpty();
+            verifyCategorizationFiltersAreValidRegex();
         }
 
-        private static void verifyCategorizationFieldNameSetIfFiltersAreSet(String categorizationFieldName) {
+        private void verifyCategorizationFieldNameSetIfFiltersAreSet() {
             if (categorizationFieldName == null) {
                 throw new IllegalArgumentException(Messages.getMessage(
                         Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_REQUIRE_CATEGORIZATION_FIELD_NAME));
             }
         }
 
-        private static void verifyCategorizationFiltersAreDistinct(List<String> filters) {
-            if (filters.stream().distinct().count() != filters.size()) {
+        private void verifyCategorizationFiltersAreDistinct() {
+            if (categorizationFilters.stream().distinct().count() != categorizationFilters.size()) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES));
             }
         }
 
-        private static void verifyCategorizationFiltersContainNoneEmpty(List<String> filters) {
-            if (filters.stream().anyMatch(f -> f.isEmpty())) {
+        private void verifyCategorizationFiltersContainNoneEmpty() {
+            if (categorizationFilters.stream().anyMatch(String::isEmpty)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY));
             }
         }
 
-        private static void verifyCategorizationFiltersAreValidRegex(List<String> filters) {
-            for (String filter : filters) {
+        private void verifyCategorizationFiltersAreValidRegex() {
+            for (String filter : categorizationFilters) {
                 if (!isValidRegex(filter)) {
                     throw new IllegalArgumentException(
                             Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX, filter));

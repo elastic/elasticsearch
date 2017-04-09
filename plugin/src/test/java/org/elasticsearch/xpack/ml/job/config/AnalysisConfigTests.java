@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisConfig> {
 
     @Override
@@ -28,11 +30,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public static AnalysisConfig.Builder createRandomized() {
+        boolean isCategorization = randomBoolean();
         List<Detector> detectors = new ArrayList<>();
         int numDetectors = randomIntBetween(1, 10);
         for (int i = 0; i < numDetectors; i++) {
             Detector.Builder builder = new Detector.Builder("count", null);
-            builder.setPartitionFieldName("part");
+            builder.setPartitionFieldName(isCategorization ? "mlcategory" : "part");
             detectors.add(builder.build());
         }
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
@@ -45,7 +48,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000));
             builder.setBucketSpan(bucketSpan);
         }
-        if (randomBoolean()) {
+        if (isCategorization) {
             builder.setCategorizationFieldName(randomAlphaOfLength(10));
             builder.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
@@ -234,6 +237,60 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(24000)));
     }
 
+    public void testBuild_GivenMlCategoryUsedAsByFieldButNoCategorizationFieldName() {
+        Detector.Builder detector = new Detector.Builder();
+        detector.setFunction("count");
+        detector.setByFieldName("mlcategory");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        ac.setCategorizationFieldName(null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, ac::build);
+        assertThat(e.getMessage(), equalTo("categorization_field_name must be set for mlcategory to be available"));
+    }
+
+    public void testBuild_GivenMlCategoryUsedAsOverFieldButNoCategorizationFieldName() {
+        Detector.Builder detector = new Detector.Builder();
+        detector.setFunction("count");
+        detector.setOverFieldName("mlcategory");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        ac.setCategorizationFieldName(null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, ac::build);
+        assertThat(e.getMessage(), equalTo("categorization_field_name must be set for mlcategory to be available"));
+    }
+
+    public void testBuild_GivenMlCategoryUsedAsPartitionFieldButNoCategorizationFieldName() {
+        Detector.Builder detector = new Detector.Builder();
+        detector.setFunction("count");
+        detector.setPartitionFieldName("mlcategory");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        ac.setCategorizationFieldName(null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, ac::build);
+        assertThat(e.getMessage(), equalTo("categorization_field_name must be set for mlcategory to be available"));
+    }
+
+    public void testBuild_GivenCategorizationFieldNameButNoUseOfMlCategory() {
+        Detector.Builder detector = new Detector.Builder();
+        detector.setFunction("count");
+        detector.setOverFieldName("foo");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        ac.setCategorizationFieldName("msg");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, ac::build);
+        assertThat(e.getMessage(), equalTo("categorization_field_name is set but mlcategory is " +
+                "not used in any detector by/over/partition field"));
+    }
+
+    public void testBuild_GivenMlCategoryUsedAsByFieldAndCategorizationFieldName() {
+        Detector.Builder detector = new Detector.Builder();
+        detector.setFunction("count");
+        detector.setOverFieldName("mlcategory");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        ac.setCategorizationFieldName("msg");
+        ac.build();
+    }
+
     public void testEquals_GivenSameReference() {
         AnalysisConfig config = createFullyPopulatedConfig();
         assertTrue(config.equals(config));
@@ -283,11 +340,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testEquals_GivenCategorizationField() {
-        AnalysisConfig.Builder builder = createConfigBuilder();
+        AnalysisConfig.Builder builder = createValidCategorizationConfig();
         builder.setCategorizationFieldName("foo");
         AnalysisConfig config1 = builder.build();
 
-        builder = createConfigBuilder();
+        builder = createValidCategorizationConfig();
         builder.setCategorizationFieldName("bar");
         AnalysisConfig config2 = builder.build();
 
@@ -370,11 +427,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testEquals_GivenDifferentCategorizationFilters() {
-        AnalysisConfig config1 = createFullyPopulatedConfig();
-        AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setCategorizationFilters(Arrays.asList("foo", "bar"));
-        builder.setCategorizationFieldName("cat");
-        AnalysisConfig config2 = builder.build();
+        AnalysisConfig.Builder configBuilder1 = createValidCategorizationConfig();
+        AnalysisConfig.Builder configBuilder2 = createValidCategorizationConfig();
+        configBuilder1.setCategorizationFilters(Arrays.asList("foo", "bar"));
+        configBuilder2.setCategorizationFilters(Arrays.asList("foo", "foobar"));
+        AnalysisConfig config1 = configBuilder1.build();
+        AnalysisConfig config2 = configBuilder2.build();
 
         assertFalse(config1.equals(config2));
         assertFalse(config2.equals(config1));
@@ -398,8 +456,10 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     private static AnalysisConfig createFullyPopulatedConfig() {
+        Detector.Builder detector = new Detector.Builder("min", "count");
+        detector.setOverFieldName("mlcategory");
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(
-                Collections.singletonList(new Detector.Builder("min", "count").build()));
+                Collections.singletonList(detector.build()));
         builder.setBucketSpan(TimeValue.timeValueHours(1));
         builder.setBatchSpan(TimeValue.timeValueHours(24));
         builder.setCategorizationFieldName("cat");
@@ -508,8 +568,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testVerify_GivenValidConfigWithCategorizationFieldNameAndCategorizationFilters() {
-        AnalysisConfig.Builder analysisConfig = createValidConfig();
-        analysisConfig.setCategorizationFieldName("myCategory");
+        AnalysisConfig.Builder analysisConfig = createValidCategorizationConfig();
         analysisConfig.setCategorizationFilters(Arrays.asList("foo", "bar"));
 
         analysisConfig.build();
@@ -668,8 +727,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testVerify_GivenDuplicateCategorizationFilters() {
-        AnalysisConfig.Builder config = createValidConfig();
-        config.setCategorizationFieldName("myCategory");
+        AnalysisConfig.Builder config = createValidCategorizationConfig();
         config.setCategorizationFilters(Arrays.asList("foo", "bar", "foo"));
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> config.build());
@@ -678,8 +736,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testVerify_GivenEmptyCategorizationFilter() {
-        AnalysisConfig.Builder config = createValidConfig();
-        config.setCategorizationFieldName("myCategory");
+        AnalysisConfig.Builder config = createValidCategorizationConfig();
         config.setCategorizationFilters(Arrays.asList("foo", ""));
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> config.build());
@@ -722,9 +779,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testVerify_GivenCategorizationFiltersContainInvalidRegex() {
-
-        AnalysisConfig.Builder config = createValidConfig();
-        config.setCategorizationFieldName("myCategory");
+        AnalysisConfig.Builder config = createValidCategorizationConfig();
         config.setCategorizationFilters(Arrays.asList("foo", "("));
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> config.build());
@@ -741,6 +796,18 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         analysisConfig.setBatchSpan(TimeValue.timeValueHours(2));
         analysisConfig.setLatency(TimeValue.ZERO);
         analysisConfig.setPeriod(0L);
+        return analysisConfig;
+    }
+
+    private static AnalysisConfig.Builder createValidCategorizationConfig() {
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setByFieldName("mlcategory");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+        analysisConfig.setBatchSpan(TimeValue.timeValueHours(2));
+        analysisConfig.setLatency(TimeValue.ZERO);
+        analysisConfig.setPeriod(0L);
+        analysisConfig.setCategorizationFieldName("msg");
         return analysisConfig;
     }
 }

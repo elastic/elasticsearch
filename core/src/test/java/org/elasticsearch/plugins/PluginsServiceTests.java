@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
@@ -33,6 +34,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
@@ -87,7 +89,7 @@ public class PluginsServiceTests extends ESTestCase {
             PluginsService.getPluginBundles(pluginsDir);
             fail();
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin"));
+            assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin [plugin-missing-descriptor]"));
         }
     }
 

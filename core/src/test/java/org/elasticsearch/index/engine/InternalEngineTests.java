@@ -1334,7 +1334,7 @@ public class InternalEngineTests extends ESTestCase {
                     version = i;
                     break;
                 case EXTERNAL_GTE:
-                    version = randomBoolean() && i > 0 ? i - 1 : i;
+                    version = randomBoolean() ? Math.max(i - 1, 0) : i;
                     break;
                 case FORCE:
                     version = randomNonNegativeLong();

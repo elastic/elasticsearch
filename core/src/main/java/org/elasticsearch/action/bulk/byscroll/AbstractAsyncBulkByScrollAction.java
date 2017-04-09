@@ -134,7 +134,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
-        bulkRetry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry)).using(threadPool);
+        bulkRetry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*

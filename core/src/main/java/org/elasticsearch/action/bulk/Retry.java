@@ -40,32 +40,14 @@ import java.util.function.Predicate;
  */
 public class Retry {
     private final Class<? extends Throwable> retryOnThrowable;
+    private final BackoffPolicy backoffPolicy;
+    private final ThreadPool threadPool;
 
-    private BackoffPolicy backoffPolicy;
-    private ThreadPool threadPool;
 
-    public static Retry on(Class<? extends Throwable> retryOnThrowable) {
-        return new Retry(retryOnThrowable);
-    }
-
-    Retry(Class<? extends Throwable> retryOnThrowable) {
+    public Retry(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, ThreadPool threadPool) {
         this.retryOnThrowable = retryOnThrowable;
-    }
-
-    /**
-     * @param backoffPolicy The backoff policy that defines how long and how often to wait for retries.
-     */
-    public Retry policy(BackoffPolicy backoffPolicy) {
         this.backoffPolicy = backoffPolicy;
-        return this;
-    }
-
-    /**
-     * @param threadPool The threadPool that will be used to schedule retries.
-     */
-    public Retry using(ThreadPool threadPool) {
         this.threadPool = threadPool;
-        return this;
     }
 
     /**
@@ -76,31 +58,9 @@ public class Retry {
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
      * @param settings settings
      */
-    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
-        PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
-        ActionListener<BulkResponse> completingListener = new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse bulkRequest) {
-                try {
-                    listener.onResponse(bulkRequest);
-                } finally {
-                    actionFuture.onResponse(bulkRequest);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    listener.onFailure(e);
-                } finally {
-                    actionFuture.onFailure(e);
-                }
-            }
-        };
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, completingListener, settings, threadPool);
+    public void withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
+        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, threadPool);
         r.execute(bulkRequest);
-
-        return actionFuture;
     }
 
     /**
@@ -114,13 +74,9 @@ public class Retry {
      * @throws Exception Any exception thrown by the callable.
      */
     public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
-        return withBackoff(consumer, bulkRequest, new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse bulkItemResponses) {}
-
-            @Override
-            public void onFailure(Exception e) {}
-        }, settings);
+        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        withBackoff(consumer, bulkRequest, future, settings);
+        return future;
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {

@@ -27,8 +27,9 @@ import java.io.IOException;
 
 public class ParsedHDRPercentileRanks extends ParsedPercentiles {
 
-    public ParsedHDRPercentileRanks() {
-        super("hdr_percentile_ranks");
+    @Override
+    protected String getType() {
+        return InternalHDRPercentileRanks.NAME;
     }
 
     private static ObjectParser<ParsedHDRPercentileRanks, Void> PARSER =

@@ -152,8 +152,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
             final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
             final boolean humanReadable = randomBoolean();
-            final XContentType xContentType = XContentType.JSON;//randomFrom(XContentType.values());
-            final BytesReference originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+            final XContentType xContentType = randomFrom(XContentType.values());
+            final BytesReference originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
 
             Aggregation parsedAggregation;
             try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, originalBytes)) {

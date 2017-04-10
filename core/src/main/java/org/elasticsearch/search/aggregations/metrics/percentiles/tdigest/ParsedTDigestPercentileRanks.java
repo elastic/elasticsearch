@@ -27,8 +27,9 @@ import java.io.IOException;
 
 public class ParsedTDigestPercentileRanks extends ParsedPercentiles {
 
-    public ParsedTDigestPercentileRanks() {
-        super("tdigest_percentile_ranks");
+    @Override
+    protected String getType() {
+        return InternalTDigestPercentileRanks.NAME;
     }
 
     private static ObjectParser<ParsedTDigestPercentileRanks, Void> PARSER =

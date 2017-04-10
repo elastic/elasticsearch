@@ -87,7 +87,7 @@ public class BootstrapForTesting {
 
         // check for jar hell
         try {
-            //JarHell.checkJarHell();
+            JarHell.checkJarHell();
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
         }

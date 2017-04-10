@@ -418,7 +418,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
                 state == IndexShardState.CLOSED :
-                "shard state is " + state + ", but routing is active " + newRouting;
+                "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             this.shardRouting = newRouting;
             persistMetadata(newRouting, currentRouting);
         }

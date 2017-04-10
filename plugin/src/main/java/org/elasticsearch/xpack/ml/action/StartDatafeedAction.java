@@ -40,7 +40,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -437,16 +436,15 @@ public class StartDatafeedAction
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, Request request,
-                                     ActionListener<TransportResponse.Empty> listener) {
+        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, Request request) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedManager = datafeedManager;
             datafeedManager.run(datafeedTask,
                     (error) -> {
                         if (error != null) {
-                            listener.onFailure(error);
+                            datafeedTask.markAsFailed(error);
                         } else {
-                            listener.onResponse(TransportResponse.Empty.INSTANCE);
+                            datafeedTask.markAsCompleted();
                         }
                     });
         }

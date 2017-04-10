@@ -5,11 +5,17 @@
  */
 package org.elasticsearch.xpack.persistent;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -25,6 +31,8 @@ public class AllocatedPersistentTask extends CancellableTask {
     private Exception failure;
 
     private PersistentTasksService persistentTasksService;
+    private Logger logger;
+    private TaskManager taskManager;
 
 
     public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask) {
@@ -52,9 +60,9 @@ public class AllocatedPersistentTask extends CancellableTask {
     }
 
     /**
-     * Updates the persistent state for the corresponding persistent task. 
-     * 
-     * This doesn't affect the status of this allocated task. 
+     * Updates the persistent state for the corresponding persistent task.
+     * <p>
+     * This doesn't affect the status of this allocated task.
      */
     public void updatePersistentStatus(Task.Status status, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
         persistentTasksService.updateStatus(persistentTaskId, allocationId, status, listener);
@@ -64,26 +72,21 @@ public class AllocatedPersistentTask extends CancellableTask {
         return persistentTaskId;
     }
 
-    void init(PersistentTasksService persistentTasksService, long persistentTaskId, long allocationId) {
+    void init(PersistentTasksService persistentTasksService, TaskManager taskManager, Logger logger, long persistentTaskId, long
+            allocationId) {
         this.persistentTasksService = persistentTasksService;
+        this.logger = logger;
+        this.taskManager = taskManager;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
     }
-    
+
     public Exception getFailure() {
         return failure;
     }
 
-    State markAsCompleted(Exception failure) {
-        State prevState = state.getAndSet(AllocatedPersistentTask.State.COMPLETED);
-        if (prevState == State.STARTED || prevState == State.CANCELLED) {
-            this.failure = failure;
-        }
-        return prevState;
-    }
-
     boolean markAsCancelled() {
-        return state.compareAndSet(AllocatedPersistentTask.State.STARTED, AllocatedPersistentTask.State.CANCELLED);
+        return state.compareAndSet(AllocatedPersistentTask.State.STARTED, AllocatedPersistentTask.State.PENDING_CANCEL);
     }
 
     public State getState() {
@@ -96,7 +99,53 @@ public class AllocatedPersistentTask extends CancellableTask {
 
     public enum State {
         STARTED,  // the task is currently running
-        CANCELLED, // the task is cancelled
+        PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
         COMPLETED     // the task is done running and trying to notify caller
+    }
+
+    public void markAsCompleted() {
+        completeAndNotifyIfNeeded(null);
+    }
+
+    public void markAsFailed(Exception e) {
+        if (CancelTasksRequest.DEFAULT_REASON.equals(getReasonCancelled())) {
+            completeAndNotifyIfNeeded(null);
+        } else {
+            completeAndNotifyIfNeeded(e);
+        }
+
+    }
+
+    private void completeAndNotifyIfNeeded(@Nullable Exception failure) {
+        State prevState = state.getAndSet(AllocatedPersistentTask.State.COMPLETED);
+        if (prevState == State.COMPLETED) {
+            logger.warn("attempt to complete task {} in the {} state", getPersistentTaskId(), prevState);
+        } else {
+            if (failure != null) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage(
+                        "task {} failed with an exception", getPersistentTaskId()), failure);
+            }
+            try {
+                this.failure = failure;
+                if (prevState == State.STARTED) {
+                    logger.trace("sending notification for completed task {}", getPersistentTaskId());
+                    persistentTasksService.sendCompletionNotification(getPersistentTaskId(), failure, new
+                            ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                                @Override
+                                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                                    logger.trace("notification for task {} was successful", getId());
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn((Supplier<?>) () ->
+                                            new ParameterizedMessage("notification for task {} failed", getPersistentTaskId()), e);
+                                }
+                            });
+                }
+            } finally {
+                taskManager.unregister(this);
+            }
+        }
     }
 }

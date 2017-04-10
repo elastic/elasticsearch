@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.persistent;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -19,9 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
@@ -67,7 +64,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         //   STARTED         COMPLETED     Noop - waiting for notification ack
 
         //   NULL            NULL          Noop - nothing to do
-        //   NULL            STARTED       Remove locally, Mark as CANCELLED, Cancel
+        //   NULL            STARTED       Remove locally, Mark as PENDING_CANCEL, Cancel
         //   NULL            COMPLETED     Remove locally
 
         // Master states:
@@ -77,10 +74,10 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         // Local state:
         // NULL - we don't have task registered locally in runningTasks
         // STARTED - registered in TaskManager, requires master notification when finishes
-        // CANCELLED - registered in TaskManager, doesn't require master notification when finishes
+        // PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
         // COMPLETED - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
 
-        // When task finishes if it is marked as STARTED or CANCELLED it is marked as COMPLETED and unregistered,
+        // When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
         // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
         // triggered by PersistentTaskListener
 
@@ -108,7 +105,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 AllocatedPersistentTask task = runningTasks.get(id);
                 if (task.getState() == AllocatedPersistentTask.State.COMPLETED) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
-                    finishTask(id);
+                    runningTasks.remove(id);
                 } else {
                     // task is running locally, but master doesn't know about it - that means that the persistent task was removed
                     // cancel the task without notifying master
@@ -127,14 +124,13 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 taskInProgress.getRequest());
         boolean processed = false;
         try {
-            task.init(persistentTasksService, taskInProgress.getId(), taskInProgress.getAllocationId());
-            PersistentTaskListener listener = new PersistentTaskListener(task);
+            task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
             try {
                 runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), task);
-                nodePersistentTasksExecutor.executeTask(taskInProgress.getRequest(), task, action, listener);
+                nodePersistentTasksExecutor.executeTask(taskInProgress.getRequest(), task, action);
             } catch (Exception e) {
                 // Submit task failure
-                listener.onFailure(e);
+                task.markAsFailed(e);
             }
             processed = true;
         } finally {
@@ -142,16 +138,6 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 // something went wrong - unregistering task
                 taskManager.unregister(task);
             }
-        }
-    }
-
-    /**
-     * Unregisters the locally running task. No notification to master will be send upon cancellation.
-     */
-    private void finishTask(PersistentTaskId persistentTaskId) {
-        AllocatedPersistentTask task = runningTasks.remove(persistentTaskId);
-        if (task != null) {
-            taskManager.unregister(task);
         }
     }
 
@@ -177,65 +163,6 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                         logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to cancel task {}", task.getPersistentTaskId()), e);
                     }
                 });
-            }
-        }
-    }
-
-    private void unregisterTask(AllocatedPersistentTask task, Exception e) {
-        AllocatedPersistentTask.State prevState = task.markAsCompleted(e);
-        if (prevState == AllocatedPersistentTask.State.CANCELLED) {
-            // The task was cancelled by master - no need to send notifications
-            taskManager.unregister(task);
-        } else if (prevState == AllocatedPersistentTask.State.STARTED) {
-            // The task finished locally, but master doesn't know about it - we need notify the master before we can unregister it
-            logger.trace("sending notification for completed task {}", task.getPersistentTaskId());
-            persistentTasksService.sendCompletionNotification(task.getPersistentTaskId(), e, new ActionListener<PersistentTask<?>>() {
-                @Override
-                public void onResponse(PersistentTask<?> persistentTask) {
-                    logger.trace("notification for task {} was successful", task.getId());
-                    taskManager.unregister(task);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn((Supplier<?>) () ->
-                            new ParameterizedMessage("notification for task {} failed", task.getPersistentTaskId()), e);
-                    taskManager.unregister(task);
-                }
-            });
-        } else {
-            logger.warn("attempt to complete task {} in the {} state", task.getPersistentTaskId(), prevState);
-        }
-    }
-
-    private class PersistentTaskListener implements ActionListener<Empty> {
-        private final AllocatedPersistentTask task;
-
-        PersistentTaskListener(final AllocatedPersistentTask task) {
-            this.task = task;
-        }
-
-        @Override
-        public void onResponse(Empty response) {
-            unregisterTask(task, null);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (task.isCancelled()) {
-                // The task was explicitly cancelled - no need to restart it, just log the exception if it's not TaskCancelledException
-                if (e instanceof TaskCancelledException == false) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage(
-                            "cancelled task {} failed with an exception, cancellation reason [{}]",
-                            task.getPersistentTaskId(), task.getReasonCancelled()), e);
-                }
-                if (CancelTasksRequest.DEFAULT_REASON.equals(task.getReasonCancelled())) {
-                    unregisterTask(task, null);
-                } else {
-                    unregisterTask(task, e);
-                }
-            } else {
-                unregisterTask(task, e);
             }
         }
     }

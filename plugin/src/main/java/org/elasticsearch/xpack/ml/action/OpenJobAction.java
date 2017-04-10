@@ -38,7 +38,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -414,14 +413,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
+        protected void nodeOperation(AllocatedPersistentTask task, Request request) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
             autodetectProcessManager.openJob(request.getJobId(), jobTask, request.isIgnoreDowntime(), e2 -> {
                 if (e2 == null) {
-                    listener.onResponse(new TransportResponse.Empty());
+                    task.markAsCompleted();
                 } else {
-                    listener.onFailure(e2);
+                    task.markAsFailed(e2);
                 }
             });
         }

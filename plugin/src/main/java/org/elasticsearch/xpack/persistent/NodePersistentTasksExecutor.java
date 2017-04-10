@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.persistent;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse.Empty;
 
 /**
  * This component is responsible for execution of persistent tasks.
@@ -24,21 +22,20 @@ public class NodePersistentTasksExecutor {
 
     public <Request extends PersistentTaskRequest> void executeTask(Request request,
                                                                     AllocatedPersistentTask task,
-                                                                    PersistentTasksExecutor<Request> action,
-                                                                    ActionListener<Empty> listener) {
+                                                                    PersistentTasksExecutor<Request> action) {
         threadPool.executor(action.getExecutor()).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                task.markAsFailed(e);
             }
 
             @SuppressWarnings("unchecked")
             @Override
             protected void doRun() throws Exception {
                 try {
-                    action.nodeOperation(task, request, listener);
+                    action.nodeOperation(task, request);
                 } catch (Exception ex) {
-                    listener.onFailure(ex);
+                    task.markAsFailed(ex);
                 }
 
             }

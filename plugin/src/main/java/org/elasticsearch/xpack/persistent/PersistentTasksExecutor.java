@@ -85,11 +85,10 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
     /**
      * This operation will be executed on the executor node.
      * <p>
-     * If nodeOperation throws an exception or triggers listener.onFailure() method, the task will be restarted,
-     * possibly on a different node. If listener.onResponse() is called, the task is considered to be successfully
-     * completed and will be removed from the cluster state and not restarted.
+     * NOTE: The nodeOperation has to throws an exception, trigger task.markAsCompleted() or task.completeAndNotifyIfNeeded() methods to
+     * indicate that the persistent task has finished.
      */
-    protected abstract void nodeOperation(AllocatedPersistentTask task, Request request, ActionListener<Empty> listener);
+    protected abstract void nodeOperation(AllocatedPersistentTask task, Request request);
 
     public String getExecutor() {
         return executor;

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,6 +41,11 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
                                                        Map<String, String> headers) {
                     headersRef.set(headers);
                     return null;
+                }
+
+                @Override
+                public Version esVersion() {
+                    return Version.CURRENT;
                 }
             };
         final Map<String, String> headers = new HashMap<>();

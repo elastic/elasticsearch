@@ -25,8 +25,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
+import java.io.IOException;
+
 public class ScriptDocValuesLongsTests extends ESTestCase {
-    public void testLongs() {
+    public void testLongs() throws IOException {
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
@@ -53,7 +55,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         }
     }
 
-    public void testDates() {
+    public void testDates() throws IOException {
         long[][] values = new long[between(3, 10)][];
         ReadableDateTime[][] dates = new ReadableDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {

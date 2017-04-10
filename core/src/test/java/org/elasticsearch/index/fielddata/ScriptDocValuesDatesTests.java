@@ -25,8 +25,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
+import java.io.IOException;
+
 public class ScriptDocValuesDatesTests extends ESTestCase {
-    public void test() {
+    public void test() throws IOException {
         long[][] values = new long[between(3, 10)][];
         ReadableDateTime[][] expectedDates = new ReadableDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {

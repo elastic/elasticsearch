@@ -2201,21 +2201,29 @@ public class TranslogTests extends ESTestCase {
             }
         }
 
-        final Set<Long> seenSeqNos = new HashSet<>();
-        for (final Map.Entry<Long, List<Long>> entry : generations.entrySet()) {
-            final long min = entry.getValue().stream().min(Long::compareTo).orElse(Long.MIN_VALUE);
-            final long max = entry.getValue().stream().max(Long::compareTo).orElse(Long.MAX_VALUE);
-            for (long seqNo = min; seqNo <= max; seqNo++) {
-                if (seenSeqNos.add(seqNo)) {
-                    assertThat(
-                            translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration,
-                            equalTo(entry.getKey()));
-                }
-            }
+        final Map<Long, Long> maxSeqNoByGeneration =
+                generations
+                        .entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                Map.Entry::getKey,
+                                e -> e.getValue().stream().max(Long::compareTo).orElse(Long.MAX_VALUE)));
+
+        for (long seqNo = 0; seqNo < operations; seqNo++) {
+            final long finalLongSeqNo = seqNo;
+            final Long operand =
+                    maxSeqNoByGeneration
+                            .entrySet()
+                            .stream()
+                            .filter(e -> finalLongSeqNo <= e.getValue())
+                            .map(Map.Entry::getKey).min(Long::compareTo)
+                            .orElse(Long.MIN_VALUE);
+            assertThat(translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration, equalTo(operand));
         }
 
-        assertThat(seenSeqNos, equalTo(new HashSet<>(seqNos)));
     }
+
+
 
     public void testSimpleCommit() throws IOException {
         final int operations = randomIntBetween(1, 4096);

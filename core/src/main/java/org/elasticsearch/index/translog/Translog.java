@@ -1348,11 +1348,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Gets the minimum generation that could contain the sequence number, or the current generation if there is no generation with the
-     * specified sequence number between the minimum and maximum sequence numbers.
+     * Gets the minimum generation that could contain any sequence number after the specified sequence number, or the current generation if
+     * there is no generation that could any such sequence number.
      *
      * @param seqNo the sequence number
-     * @return the minimum generation for the sequence number, or the current generation
+     * @return the minimum generation for the sequence number
      */
     public TranslogGeneration getMinGenerationForSeqNo(final long seqNo) {
         try (ReleasableLock ignored = writeLock.acquire()) {
@@ -1360,7 +1360,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     .stream()
                     .filter(r -> {
                         final Checkpoint checkpoint = r.getCheckpoint();
-                        return checkpoint.minSeqNo <= seqNo && seqNo <= checkpoint.maxSeqNo;
+                        return seqNo <= checkpoint.maxSeqNo;
                     })
                     .mapToLong(TranslogReader::getGeneration)
                     .min()

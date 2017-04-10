@@ -99,6 +99,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         } else {
             connectionPool = null;
         }
+        logger.info("Realm [{}] is in user-search mode - base_dn=[{}], attribute=[{}]",
+                config.name(), userSearchBaseDn, userAttribute);
     }
 
     static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, Logger logger)

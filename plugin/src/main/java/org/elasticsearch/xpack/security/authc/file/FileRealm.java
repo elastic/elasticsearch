@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 

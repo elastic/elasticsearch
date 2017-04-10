@@ -80,7 +80,14 @@ public class FileUserPasswdStore {
 
     public boolean verifyPassword(String username, SecuredString password) {
         char[] hash = users.get(username);
-        return hash != null && hasher.verify(password, hash);
+        if (hash == null) {
+            return false;
+        }
+        if (hasher.verify(password, hash) == false) {
+            logger.debug("User [{}] exists in file but authentication failed", username);
+            return false;
+        }
+        return true;
     }
 
     public boolean userExists(String username) {

@@ -107,6 +107,8 @@ public class DnRoleMapper {
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
         if (!Files.exists(path)) {
+            logger.warn("Role mapping file [{}] for realm [{}] does not exist. Role mapping will be skipped.",
+                    path.toAbsolutePath(), realmName);
             return emptyMap();
         }
 

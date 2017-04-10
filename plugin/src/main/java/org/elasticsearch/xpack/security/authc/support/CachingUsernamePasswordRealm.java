@@ -89,24 +89,26 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         UserWithHash userWithHash = cache.get(token.principal());
         if (userWithHash == null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("user not found in cache, proceeding with normal authentication");
+                logger.debug("user [{}] not found in cache for realm [{}], proceeding with normal authentication",
+                        token.principal(), name());
             }
             doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
                 if (user != null) {
-                    logger.debug("authenticated user [{}], with roles [{}]", token.principal(), user.roles());
+                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(), user.roles());
                 }
                 listener.onResponse(user);
             }, listener::onFailure));
         } else if (userWithHash.hasHash()) {
             if (userWithHash.verify(token.credentials())) {
-                logger.debug("authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(),
+                        userWithHash.user.roles());
                 listener.onResponse(userWithHash.user);
             } else {
                 cache.invalidate(token.principal());
                 doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
                     if (user != null) {
-                        logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(),
-                                user.roles());
+                        logger.debug("cached user's password changed. realm [{}] authenticated user [{}], with roles [{}]",
+                                name(), token.principal(), user.roles());
                     }
                     listener.onResponse(user);
                 }, listener::onFailure));
@@ -115,8 +117,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             cache.invalidate(token.principal());
             doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
                 if (user != null) {
-                    logger.debug("cached user came from a lookup and could not be used for authentication. authenticated user [{}]" +
-                            " with roles [{}]", token.principal(), user.roles());
+                    logger.debug("cached user came from a lookup and could not be used for authentication. " +
+                            "realm [{}] authenticated user [{}] with roles [{}]", name(), token.principal(), user.roles());
                 }
                 listener.onResponse(user);
             }, listener::onFailure));

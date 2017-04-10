@@ -241,7 +241,12 @@ public class AuthenticationService extends AbstractComponent {
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
                             }
                             userListener.onResponse(user);
-                        }, userListener::onFailure));
+                        }, (ex) -> {
+                            logger.warn(new ParameterizedMessage(
+                                    "An unexpected error occurred while attempting to authenticate [{}] against realm [{}]",
+                                    authenticationToken.principal(), realm.name()), ex);
+                            userListener.onFailure(ex);
+                        }));
                     } else {
                         userListener.onResponse(null);
                     }

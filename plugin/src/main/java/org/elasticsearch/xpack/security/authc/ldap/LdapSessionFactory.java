@@ -58,6 +58,7 @@ public class LdapSessionFactory extends SessionFactory {
             throw new IllegalArgumentException("missing required LDAP setting ["
                     + RealmSettings.getFullSettingKey(config, USER_DN_TEMPLATES_SETTING) + "]");
         }
+        logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
         groupResolver = groupResolver(settings);
     }
 

@@ -112,12 +112,12 @@ class AggregationDataExtractor implements DataExtractor {
                 .setSize(0)
                 .setQuery(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
 
-        context.aggs.getAggregatorFactories().forEach(a -> searchRequestBuilder.addAggregation(a));
-        context.aggs.getPipelineAggregatorFactories().forEach(a -> searchRequestBuilder.addAggregation(a));
+        context.aggs.getAggregatorFactories().forEach(searchRequestBuilder::addAggregation);
+        context.aggs.getPipelineAggregatorFactories().forEach(searchRequestBuilder::addAggregation);
         return searchRequestBuilder;
     }
 
-    private List<Histogram.Bucket> getHistogramBuckets(@Nullable Aggregations aggs) {
+    private List<? extends Histogram.Bucket> getHistogramBuckets(@Nullable Aggregations aggs) {
         if (aggs == null) {
             return Collections.emptyList();
         }
@@ -127,7 +127,7 @@ class AggregationDataExtractor implements DataExtractor {
         }
         if (aggsAsList.size() > 1) {
             throw new IllegalArgumentException("Multiple top level aggregations not supported; found: "
-                    + aggsAsList.stream().map(a -> a.getName()).collect(Collectors.toList()));
+                    + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList()));
         }
 
         Aggregation topAgg = aggsAsList.get(0);

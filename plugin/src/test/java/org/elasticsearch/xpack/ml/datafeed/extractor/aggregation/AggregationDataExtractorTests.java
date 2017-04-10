@@ -93,7 +93,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
             createHistogramBucket(1000L, 3, Arrays.asList(
                     createMax("time", 1999),
                     createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0)))),
-            createHistogramBucket(2000L, 0, Arrays.asList()),
+            createHistogramBucket(2000L, 0, Collections.emptyList()),
             createHistogramBucket(3000L, 7, Arrays.asList(
                     createMax("time", 3999),
                     createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))))
@@ -131,7 +131,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp))));
+            histogramBuckets.add(createHistogramBucket(timestamp, 3, Collections.singletonList(createMax("time", timestamp))));
             timestamp += 1000L;
         }
 
@@ -189,7 +189,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> extractor.next());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
         assertThat(e.getMessage(), containsString("Top level aggregation should be [histogram]"));
     }
 
@@ -225,7 +225,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp))));
+            histogramBuckets.add(createHistogramBucket(timestamp, 3, Collections.singletonList(createMax("time", timestamp))));
             timestamp += 1000L;
         }
 
@@ -253,7 +253,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createErrorResponse());
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testExtractionGivenSearchResponseHasShardFailures() throws IOException {
@@ -261,7 +261,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithShardFailures());
 
         assertThat(extractor.hasNext(), is(true));
-        IOException e = expectThrows(IOException.class, () -> extractor.next());
+        IOException e = expectThrows(IOException.class, extractor::next);
     }
 
     public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() throws IOException {
@@ -269,7 +269,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithUnavailableShards(2));
 
         assertThat(extractor.hasNext(), is(true));
-        IOException e = expectThrows(IOException.class, () -> extractor.next());
+        IOException e = expectThrows(IOException.class, extractor::next);
         assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [2] unavailable shards"));
     }
 
@@ -277,13 +277,14 @@ public class AggregationDataExtractorTests extends ESTestCase {
         return new AggregationDataExtractorContext(jobId, timeField, indexes, types, query, aggs, start, end, true);
     }
 
+    @SuppressWarnings("unchecked")
     private SearchResponse createSearchResponse(String histogramName, List<Histogram.Bucket> histogramBuckets) {
         Histogram histogram = mock(Histogram.class);
         when(histogram.getName()).thenReturn(histogramName);
-        when(histogram.getBuckets()).thenReturn(histogramBuckets);
+        when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
 
         Aggregations searchAggs = mock(Aggregations.class);
-        when(searchAggs.asList()).thenReturn(Arrays.asList(histogram));
+        when(searchAggs.asList()).thenReturn(Collections.singletonList(histogram));
         return createSearchResponse(searchAggs);
     }
 

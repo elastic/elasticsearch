@@ -279,10 +279,10 @@ export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export BATS=/project/qa/vagrant/build/bats
-export BATS_UTILS=/project/qa/vagrant/build/bats/utils
-export BATS_TESTS=/project/qa/vagrant/build/bats/tests
-export BATS_ARCHIVES=/project/qa/vagrant/build/bats/archives
+export BATS=/elasticsearch/qa/vagrant/build/bats
+export BATS_UTILS=/elasticsearch/qa/vagrant/build/bats/utils
+export BATS_TESTS=/elasticsearch/qa/vagrant/build/bats/tests
+export BATS_ARCHIVES=/elasticsearch/qa/vagrant/build/bats/archives
 export GRADLE_HOME=/opt/gradle-3.3
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars

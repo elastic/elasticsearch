@@ -56,7 +56,7 @@ public class ClientYamlTestExecutionContext {
 
     private final boolean randomizeContentType;
 
-    public ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
+    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.randomizeContentType = randomizeContentType;
     }
@@ -68,7 +68,7 @@ public class ClientYamlTestExecutionContext {
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
-        HashMap<String, String> requestParams = new HashMap<>(params);
+        Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
@@ -77,7 +77,7 @@ public class ClientYamlTestExecutionContext {
         }
 
         //make a copy of the headers before modifying them for this specific request
-        HashMap<String, String> requestHeaders = new HashMap<>(headers);
+        Map<String, String> requestHeaders = new HashMap<>(headers);
         for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
@@ -151,7 +151,8 @@ public class ClientYamlTestExecutionContext {
         }
     }
 
-    private ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+    // pkg-private for testing
+    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
                                                    HttpEntity entity, Map<String, String> headers) throws IOException  {
         return clientYamlTestClient.callApi(apiName, params, entity, headers);
     }

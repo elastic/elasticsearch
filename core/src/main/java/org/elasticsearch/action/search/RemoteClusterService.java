@@ -417,10 +417,14 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
 
     public void getRemoteConnectionInfos(ActionListener<Collection<RemoteConnectionInfo>> listener) {
         final Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
-        final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
-            remoteClusters.size(), Collections.emptyList());
-        for (RemoteClusterConnection connection : remoteClusters.values()) {
-            connection.getConnectionInfo(actionListener);
+        if (remoteClusters.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+        } else {
+            final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
+                remoteClusters.size(), Collections.emptyList());
+            for (RemoteClusterConnection connection : remoteClusters.values()) {
+                connection.getConnectionInfo(actionListener);
+            }
         }
     }
 }

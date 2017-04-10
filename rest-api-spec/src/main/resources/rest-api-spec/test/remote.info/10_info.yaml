@@ -1,0 +1,6 @@
+---
+"Get an empty emote info":
+  - do:
+      remote.info: {}
+  - is_true: ''
+

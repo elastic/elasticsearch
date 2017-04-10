@@ -30,29 +30,52 @@
 # under the License.
 
 # Load test utilities
-load $BATS_UTILS/utils.bash
 load $BATS_UTILS/packages.bash
+load $BATS_UTILS/tar.bash
+load $BATS_UTILS/utils.bash
 
-# Cleans everything for the 1st execution
-setup() {
-    skip_not_dpkg_or_rpm
-}
-
-@test "[BAD data.path] install" {
+@test "[BAD data.path] install package" {
     clean_before_test
+    skip_not_dpkg_or_rpm
     install_package
 }
 
-@test "[BAD data.path] setup funny path.data" {
+@test "[BAD data.path] setup funny path.data in package install" {
+    skip_not_dpkg_or_rpm
     local temp=`mktemp -d`
     chown elasticsearch:elasticsearch "$temp"
-    echo "path.data: [$temp]" > /etc/elasticsearch/elasticsearch.yml
+    echo "path.data: [$temp]" > "/etc/elasticsearch/elasticsearch.yml"
 }
 
-@test "[BAD data.path] start" {
+@test "[BAD data.path] start installed from package" {
+    skip_not_dpkg_or_rpm
     start_elasticsearch_service green
 }
 
-@test "[BAD data.path] check for bad dir" {
-    assert_file_not_exist /var/lib/elasticsearch/nodes
+@test "[BAD data.path] check for bad dir after starting from package" {
+    skip_not_dpkg_or_rpm
+    # assert_file_not_exist /var/lib/elasticsearch/nodes
+    # TODO flip these
+    assert_file_exist /var/lib/elasticsearch/nodes
+}
+
+@test "[BAD data.path] install tar" {
+    clean_before_test
+    install_archive
+}
+
+@test "[BAD data.path] setup funny path.data in tar install" {
+    local temp=`mktemp -d`
+    chown elasticsearch:elasticsearch "$temp"
+    echo "path.data: [$temp]" > "/tmp/elasticsearch/config/elasticsearch.yml"
+}
+
+@test "[BAD data.path] start installed from tar" {
+    start_elasticsearch_service green "" "-Edefault.path.data=/tmp/elasticsearch/data"
+}
+
+@test "[BAD data.path] check for bad dir after starting from tar" {
+    # assert_file_not_exist "/tmp/elasticsearch/data/nodes"
+    # TODO flip these
+    assert_file_exist "/tmp/elasticsearch/data/nodes"
 }

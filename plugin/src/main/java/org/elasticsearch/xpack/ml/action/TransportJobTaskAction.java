@@ -31,9 +31,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -57,26 +55,20 @@ public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        ClusterState state = clusterService.state();
+        String jobId = request.getJobId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        Set<String> executorNodes = new HashSet<>();
-        for (String resolvedJobId : request.getResolvedJobIds()) {
-            JobManager.getJobOrThrowIfUnknown(state, resolvedJobId);
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
-            if (jobTask == null || jobTask.isAssigned() == false) {
-                String message = "Cannot perform requested action because job [" + resolvedJobId
-                        + "] is not open";
-                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                return;
-            } else {
-                executorNodes.add(jobTask.getExecutorNode());
-            }
+        ClusterState state = clusterService.state();
+        JobManager.getJobOrThrowIfUnknown(state, jobId);
+        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+        if (jobTask == null || jobTask.isAssigned() == false) {
+            String message = "Cannot perform requested action because job [" + jobId + "] is not open";
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+        } else {
+            request.setNodes(jobTask.getExecutorNode());
+            super.doExecute(task, request, listener);
         }
-
-        request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
-        super.doExecute(task, request, listener);
     }
 
     @Override
@@ -133,53 +125,33 @@ public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction
     public static class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksRequest<R> {
 
         String jobId;
-        String[] resolvedJobIds;
 
         JobTaskRequest() {
         }
 
         JobTaskRequest(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-
-            // the default implementation just returns 1 jobId
-            this.resolvedJobIds = new String[] { jobId };
         }
 
         public String getJobId() {
             return jobId;
         }
 
-        protected String[] getResolvedJobIds() {
-            return resolvedJobIds;
-        }
-
-        protected void setResolvedJobIds(String[] resolvedJobIds) {
-            this.resolvedJobIds = resolvedJobIds;
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            resolvedJobIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeStringArray(resolvedJobIds);
         }
 
         @Override
         public boolean match(Task task) {
-            for (String id : resolvedJobIds) {
-                if (OpenJobAction.JobTask.match(task, id)) {
-                    return true;
-                }
-            }
-
-            return false;
+            return OpenJobAction.JobTask.match(task, jobId);
         }
     }
 }

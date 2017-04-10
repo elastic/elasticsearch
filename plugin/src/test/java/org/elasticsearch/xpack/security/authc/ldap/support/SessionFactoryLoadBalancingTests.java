@@ -9,6 +9,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -167,7 +168,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         Settings settings = buildLdapSettings(ldapUrls(), new String[] { userTemplate }, groupSearchBase,
                 LdapSearchScope.SUB_TREE, loadBalancing);
         RealmConfig config = new RealmConfig("test-session-factory", settings, Settings.builder().put("path.home",
-                createTempDir()).build());
+                createTempDir()).build(), new ThreadContext(Settings.EMPTY));
         return new TestSessionFactory(config, new SSLService(Settings.EMPTY, new Environment(config.globalSettings())));
     }
 

@@ -71,7 +71,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
         assertThat(store.usersCount(), is(0));
@@ -85,7 +85,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
 
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -120,7 +120,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
                 .put("files.users", testUsers.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 

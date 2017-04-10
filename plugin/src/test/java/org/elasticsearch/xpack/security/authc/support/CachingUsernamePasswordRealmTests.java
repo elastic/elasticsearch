@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.user.User;
@@ -47,7 +48,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                 .put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING.getKey(), ttl)
                 .build();
 
-        RealmConfig config = new RealmConfig("test_realm", settings, globalSettings);
+        RealmConfig config = new RealmConfig("test_realm", settings, globalSettings, new ThreadContext(Settings.EMPTY));
         CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
@@ -214,7 +215,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final SecuredString randomPassword = new SecuredString(randomAlphaOfLength(password.length()).toCharArray());
 
         final String passwordHash = new String(Hasher.BCRYPT.hash(password));
-        RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);
+        RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
@@ -276,7 +277,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testUserLookupConcurrency() throws Exception {
         final String username = "username";
 
-        RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);
+        RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
@@ -328,7 +329,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings settings, Settings global) {
-            super("failing", new RealmConfig("failing-test", settings, global));
+            super("failing", new RealmConfig("failing-test", settings, global, new ThreadContext(Settings.EMPTY)));
         }
 
         @Override
@@ -345,7 +346,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         ThrowingAuthenticationRealm(Settings settings, Settings globalSettings) {
-            super("throwing", new RealmConfig("throwing-test", settings, globalSettings));
+            super("throwing", new RealmConfig("throwing-test", settings, globalSettings, new ThreadContext(Settings.EMPTY)));
         }
 
         @Override
@@ -365,7 +366,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
 
         AlwaysAuthenticateCachingRealm(Settings globalSettings) {
-            super("always", new RealmConfig("always-test", Settings.EMPTY, globalSettings));
+            super("always", new RealmConfig("always-test", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY)));
         }
 
         @Override
@@ -387,7 +388,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
 
         LookupNotSupportedRealm(Settings globalSettings) {
-            super("lookup", new RealmConfig("lookup-notsupported-test", Settings.EMPTY, globalSettings));
+            super("lookup", new RealmConfig("lookup-notsupported-test", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY)));
         }
 
         @Override

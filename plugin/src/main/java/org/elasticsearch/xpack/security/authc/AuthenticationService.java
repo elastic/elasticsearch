@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -24,12 +25,12 @@ import org.elasticsearch.xpack.common.IteratingActionListener;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -315,6 +316,12 @@ public class AuthenticationService extends AbstractComponent {
          */
         private void consumeUser(User user) {
             if (user == null) {
+                final Map<Realm, Tuple<String, Exception>> failureDetails = Realm.getAuthenticationFailureDetails(threadContext);
+                failureDetails.forEach((realm, tuple) -> {
+                    final String message = tuple.v1();
+                    final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
+                    logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
+                });
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
                 if (runAsEnabled) {

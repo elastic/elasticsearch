@@ -19,6 +19,7 @@ import java.util.Set;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
@@ -35,6 +36,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
     private final XPackLicenseState licenseState;
+    private final ThreadContext threadContext;
     private final ReservedRealm reservedRealm;
 
     protected List<Realm> realms = Collections.emptyList();
@@ -44,11 +46,12 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     List<Realm> nativeRealmsOnly = Collections.emptyList();
 
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
-                  ReservedRealm reservedRealm) throws Exception {
+                  ThreadContext threadContext, ReservedRealm reservedRealm) throws Exception {
         super(settings);
         this.env = env;
         this.factories = factories;
         this.licenseState = licenseState;
+        this.threadContext = threadContext;
         this.reservedRealm = reservedRealm;
         assert factories.get(ReservedRealm.TYPE) == null;
         this.realms = initRealms();
@@ -145,7 +148,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + type + "] set for realm [" + name + "]");
             }
-            RealmConfig config = new RealmConfig(name, realmSettings, settings, env);
+            RealmConfig config = new RealmConfig(name, realmSettings, settings, env, threadContext);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}/{}] is disabled", type, name);
@@ -221,11 +224,11 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
         if (fileRealm != null) {
 
-            realms.add(fileRealm.create(new RealmConfig("default_" + FileRealm.TYPE, Settings.EMPTY, settings, env)));
+            realms.add(fileRealm.create(new RealmConfig("default_" + FileRealm.TYPE, Settings.EMPTY, settings, env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealm.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.create(new RealmConfig("default_" + NativeRealm.TYPE, Settings.EMPTY, settings, env)));
+            realms.add(indexRealmFactory.create(new RealmConfig("default_" + NativeRealm.TYPE, Settings.EMPTY, settings, env, threadContext)));
         }
     }
 

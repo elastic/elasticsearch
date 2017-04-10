@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
@@ -60,8 +61,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final SecurityLifecycleService securityLifecycleService;
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
-                         SecurityLifecycleService securityLifecycleService) {
-        super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env));
+                         SecurityLifecycleService securityLifecycleService, ThreadContext threadContext) {
+        super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env, threadContext));
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;

@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
@@ -16,19 +17,21 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
-import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -76,7 +79,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             final boolean hasSearchSettings = LdapUserSearchSessionFactory.hasUserSearchSettings(config);
             final boolean hasTemplates = LdapSessionFactory.USER_DN_TEMPLATES_SETTING.exists(config.settings());
             if (hasSearchSettings == false) {
-                if(hasTemplates == false) {
+                if (hasTemplates == false) {
                     throw new IllegalArgumentException("settings were not found for either user search [" +
                             RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactory.SEARCH_PREFIX) +
                             "] or user template [" +
@@ -130,7 +133,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
         final CancellableLdapRunnable cancellableLdapRunnable = new CancellableLdapRunnable(listener,
                 () -> sessionFactory.session(token.principal(), token.credentials(),
-                        new LdapSessionActionListener("authenticate", token.principal(), listener, roleMapper, logger)), logger);
+                        contextPreservingListener(new LdapSessionActionListener("authenticate", token.principal(), listener))), logger);
         threadPool.generic().execute(cancellableLdapRunnable);
         threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
     }
@@ -142,12 +145,24 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
             final CancellableLdapRunnable cancellableLdapRunnable = new CancellableLdapRunnable(listener,
                     () -> sessionFactory.unauthenticatedSession(username,
-                            new LdapSessionActionListener("lookup", username, listener, roleMapper, logger)), logger);
+                            contextPreservingListener(new LdapSessionActionListener("lookup", username, listener))), logger);
             threadPool.generic().execute(cancellableLdapRunnable);
             threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
         } else {
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * Wraps the provided <code>sessionListener</code> to preserve the {@link ThreadContext} associated with the
+     * current thread.
+     * Responses headers are not preserved, as they are not needed. Response output should not yet exist, nor should
+     * any be produced within the realm/ldap-session.
+     */
+    private ContextPreservingActionListener<LdapSession> contextPreservingListener(LdapSessionActionListener sessionListener) {
+        final Supplier<ThreadContext.StoredContext> toRestore = config.threadContext().newRestorableContext(false);
+        return new ContextPreservingActionListener<>(toRestore,
+                sessionListener);
     }
 
     @Override
@@ -193,22 +208,17 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
      * cases where the session is null or where an exception may be caught after a session has been established, which requires the
      * closing of the session.
      */
-    private static class LdapSessionActionListener implements ActionListener<LdapSession> {
+    private class LdapSessionActionListener implements ActionListener<LdapSession> {
 
         private final AtomicReference<LdapSession> ldapSessionAtomicReference = new AtomicReference<>();
         private String action;
-        private Logger logger;
         private final String username;
         private final ActionListener<User> userActionListener;
-        private final DnRoleMapper roleMapper;
 
-        LdapSessionActionListener(String action, String username, ActionListener<User> userActionListener,
-                                  DnRoleMapper roleMapper, Logger logger) {
+        LdapSessionActionListener(String action, String username, ActionListener<User> userActionListener) {
             this.action = action;
             this.username = username;
             this.userActionListener = userActionListener;
-            this.roleMapper = roleMapper;
-            this.logger = logger;
         }
 
         @Override
@@ -226,10 +236,10 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             if (ldapSessionAtomicReference.get() != null) {
                 IOUtils.closeWhileHandlingException(ldapSessionAtomicReference.get());
             }
-            logger.info("{} failed for user [{}]: {}", action, username, e.getMessage());
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("{} failed", action), e);
+                logger.debug(new ParameterizedMessage("Exception occurred during {} for {}", action, LdapRealm.this), e);
             }
+            setFailedAuthenticationDetails(action + " failed", e);
             userActionListener.onResponse(null);
         }
 

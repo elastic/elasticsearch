@@ -7,10 +7,14 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -19,6 +23,8 @@ import java.util.Map;
  * authentication mechanism supporting its own specific authentication token type.
  */
 public abstract class Realm implements Comparable<Realm> {
+
+    private static final String AUTHENTICATION_FAILURES_KEY = "_xpack_security_auth_failures";
 
     protected final Logger logger;
     protected final String type;
@@ -114,4 +120,30 @@ public abstract class Realm implements Comparable<Realm> {
          */
         Realm create(RealmConfig config) throws Exception;
     }
+
+    /**
+     * Provides a mechanism for a realm to report errors that were handled within a realm, but may
+     * provide useful diagnostics about why authentication failed.
+     */
+    protected final void setFailedAuthenticationDetails(String message, @Nullable Exception cause) {
+        final ThreadContext threadContext = config.threadContext();
+        Map<Realm, Tuple<String, Exception>> failures = threadContext.getTransient(AUTHENTICATION_FAILURES_KEY);
+        if (failures == null) {
+            failures = new LinkedHashMap<>();
+            threadContext.putTransient(AUTHENTICATION_FAILURES_KEY, failures);
+        }
+        failures.put(this, new Tuple<>(message, cause));
+    }
+
+    /**
+     * Retrieves any authentication failures messages that were set using {@link #setFailedAuthenticationDetails(String, Exception)}
+     */
+    static Map<Realm, Tuple<String, Exception>> getAuthenticationFailureDetails(ThreadContext threadContext) {
+        final Map<Realm, Tuple<String, Exception>> failures = threadContext.getTransient(AUTHENTICATION_FAILURES_KEY);
+        if (failures == null) {
+            return Collections.emptyMap();
+        }
+        return failures;
+    }
+
 }

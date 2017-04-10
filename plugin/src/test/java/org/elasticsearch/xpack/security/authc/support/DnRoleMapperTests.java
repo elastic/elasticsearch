@@ -9,6 +9,7 @@ import com.unboundid.ldap.sdk.DN;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -271,7 +272,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool));
 
@@ -285,7 +286,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY, true)
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, new ThreadContext(Settings.EMPTY));;
 
         DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool));
 
@@ -299,7 +300,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .put(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY, false)
                 .build();
-        RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings);
+        RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings, new ThreadContext(Settings.EMPTY));;
 
         DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool));
 
@@ -311,7 +312,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Settings realmSettings = Settings.builder()
                 .put("files.role_mapping", file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env);
+        RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env, new ThreadContext(Settings.EMPTY));
         return new DnRoleMapper(randomBoolean() ? LdapRealm.AD_TYPE : LdapRealm.LDAP_TYPE, config, watcherService);
     }
 }

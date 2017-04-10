@@ -55,7 +55,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testTokenSupport() {
-        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings);
+        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
         PkiRealm realm = new PkiRealm(config, mock(DnRoleMapper.class), sslService);
 
         assertThat(realm.supports(null), is(false));
@@ -67,7 +67,7 @@ public class PkiRealmTests extends ESTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings), mock(DnRoleMapper.class), sslService);
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)), mock(DnRoleMapper.class), sslService);
 
         X509AuthenticationToken token = realm.token(threadContext);
         assertThat(token, is(notNullValue()));
@@ -80,7 +80,7 @@ public class PkiRealmTests extends ESTestCase {
         X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[] { certificate }, "Elasticsearch Test Node",
                 "CN=Elasticsearch Test Node,");
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings), roleMapper, sslService);
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)), roleMapper, sslService);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
@@ -95,7 +95,7 @@ public class PkiRealmTests extends ESTestCase {
     public void testCustomUsernamePattern() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings),
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)),
                 roleMapper, sslService);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -118,7 +118,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("truststore.path", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
                 .put("truststore.password", "testnode")
                 .build();
-        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings), roleMapper, sslService);
+        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)), roleMapper, sslService);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -142,7 +142,7 @@ public class PkiRealmTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .put("truststore.password", "testnode-client-profile")
                 .build();
-        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings), roleMapper, sslService);
+        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)), roleMapper, sslService);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -161,7 +161,7 @@ public class PkiRealmTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .build();
         try {
-            new PkiRealm(new RealmConfig("mypki", settings, globalSettings), mock(DnRoleMapper.class), sslService);
+            new PkiRealm(new RealmConfig("mypki", settings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)), mock(DnRoleMapper.class), sslService);
             fail("exception should have been thrown");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[xpack.security.authc.realms.mypki.truststore.password] is not configured"));
@@ -211,7 +211,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
-                    () -> new PkiRealm(new RealmConfig("", Settings.EMPTY, settings), mock(DnRoleMapper.class),
+                    () -> new PkiRealm(new RealmConfig("", Settings.EMPTY, settings, new Environment(settings), new ThreadContext(settings)), mock(DnRoleMapper.class),
                             new SSLService(settings, new Environment(settings))));
         assertThat(e.getMessage(), containsString("has SSL with client authentication enabled"));
     }
@@ -223,7 +223,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", randomFrom(SSLClientAuth.OPTIONAL, SSLClientAuth.REQUIRED))
                 .build();
-        new PkiRealm(new RealmConfig("", Settings.EMPTY, settings), mock(DnRoleMapper.class),
+        new PkiRealm(new RealmConfig("", Settings.EMPTY, settings, new Environment(settings), new ThreadContext(settings)), mock(DnRoleMapper.class),
                 new SSLService(settings, new Environment(settings)));
     }
 

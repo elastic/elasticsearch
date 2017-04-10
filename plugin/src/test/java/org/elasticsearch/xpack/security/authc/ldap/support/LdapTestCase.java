@@ -12,6 +12,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
@@ -133,7 +134,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey(), true)
                 .build();
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("ldap1", settings, global);
+        RealmConfig config = new RealmConfig("ldap1", settings, global, new ThreadContext(Settings.EMPTY));
 
         return new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService);
     }

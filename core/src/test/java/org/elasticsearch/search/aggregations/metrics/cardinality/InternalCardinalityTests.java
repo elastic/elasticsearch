@@ -44,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class InternalCardinalityTests extends InternalAggregationTestCase<InternalCardinality> {
@@ -93,8 +92,8 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         String name = cardinality.getName();
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         boolean humanReadable = randomBoolean();
-        XContentType xContentType = XContentType.JSON; //randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(cardinality, xContentType, params, humanReadable);
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(cardinality, xContentType, params, humanReadable);
         ParsedCardinality parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());

@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;

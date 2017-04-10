@@ -2254,6 +2254,10 @@ public class TranslogTests extends ESTestCase {
             if (rarely()) {
                 final long generation = translog.currentFileGeneration();
                 translog.prepareCommit();
+                if (rarely()) {
+                    // simulate generation filling up and rolling between preparing the commit and committing
+                    translog.rollGeneration();
+                }
                 translog.commit(randomIntBetween(1, Math.toIntExact(generation)));
                 for (long g = 0; i < generation; g++) {
                     assertFileDeleted(translog, g);

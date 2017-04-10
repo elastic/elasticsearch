@@ -41,7 +41,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
     }
 
     private String name;
-    Map<String, Object> metadata;
+    protected Map<String, Object> metadata;
 
     @Override
     public final String getName() {

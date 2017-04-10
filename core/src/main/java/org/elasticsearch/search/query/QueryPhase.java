@@ -142,7 +142,6 @@ public class QueryPhase implements SearchPhase {
         queryResult.searchTimedOut(false);
 
         final boolean doProfile = searchContext.getProfilers() != null;
-        final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
         try {
             queryResult.from(searchContext.from());
@@ -165,12 +164,7 @@ public class QueryPhase implements SearchPhase {
                 if (searchContext.getProfilers() != null) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_COUNT, Collections.emptyList());
                 }
-                topDocsCallable = new Callable<TopDocs>() {
-                    @Override
-                    public TopDocs call() throws Exception {
-                        return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-                    }
-                };
+                topDocsCallable = () -> new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 // Perhaps have a dedicated scroll phase?
                 final ScrollContext scrollContext = searchContext.scrollContext();
@@ -238,38 +232,35 @@ public class QueryPhase implements SearchPhase {
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TOP_HITS, Collections.emptyList());
                 }
-                topDocsCallable = new Callable<TopDocs>() {
-                    @Override
-                    public TopDocs call() throws Exception {
-                        final TopDocs topDocs;
-                        if (topDocsCollector instanceof TopDocsCollector) {
-                            topDocs = ((TopDocsCollector<?>) topDocsCollector).topDocs();
-                        } else if (topDocsCollector instanceof CollapsingTopDocsCollector) {
-                            topDocs = ((CollapsingTopDocsCollector) topDocsCollector).getTopDocs();
-                        } else {
-                            throw new IllegalStateException("Unknown top docs collector " + topDocsCollector.getClass().getName());
-                        }
-                        if (scrollContext != null) {
-                            if (scrollContext.totalHits == -1) {
-                                // first round
-                                scrollContext.totalHits = topDocs.totalHits;
-                                scrollContext.maxScore = topDocs.getMaxScore();
-                            } else {
-                                // subsequent round: the total number of hits and
-                                // the maximum score were computed on the first round
-                                topDocs.totalHits = scrollContext.totalHits;
-                                topDocs.setMaxScore(scrollContext.maxScore);
-                            }
-                            if (searchContext.request().numberOfShards() == 1) {
-                                // if we fetch the document in the same roundtrip, we already know the last emitted doc
-                                if (topDocs.scoreDocs.length > 0) {
-                                    // set the last emitted doc
-                                    scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
-                                }
-                            }
-                        }
-                        return topDocs;
+                topDocsCallable = () -> {
+                    final TopDocs topDocs;
+                    if (topDocsCollector instanceof TopDocsCollector) {
+                        topDocs = ((TopDocsCollector<?>) topDocsCollector).topDocs();
+                    } else if (topDocsCollector instanceof CollapsingTopDocsCollector) {
+                        topDocs = ((CollapsingTopDocsCollector) topDocsCollector).getTopDocs();
+                    } else {
+                        throw new IllegalStateException("Unknown top docs collector " + topDocsCollector.getClass().getName());
                     }
+                    if (scrollContext != null) {
+                        if (scrollContext.totalHits == -1) {
+                            // first round
+                            scrollContext.totalHits = topDocs.totalHits;
+                            scrollContext.maxScore = topDocs.getMaxScore();
+                        } else {
+                            // subsequent round: the total number of hits and
+                            // the maximum score were computed on the first round
+                            topDocs.totalHits = scrollContext.totalHits;
+                            topDocs.setMaxScore(scrollContext.maxScore);
+                        }
+                        if (searchContext.request().numberOfShards() == 1) {
+                            // if we fetch the document in the same roundtrip, we already know the last emitted doc
+                            if (topDocs.scoreDocs.length > 0) {
+                                // set the last emitted doc
+                                scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
+                            }
+                        }
+                    }
+                    return topDocs;
                 };
             }
 

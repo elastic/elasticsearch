@@ -212,7 +212,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      * The method expects a valid top level aggregation to exist.
      */
     public long getHistogramIntervalMillis() {
-        AggregationBuilder topLevelAgg = getTopLevelAgg();
+        return getHistogramIntervalMillis(aggregations);
+    }
+
+    private static long getHistogramIntervalMillis(AggregatorFactories.Builder aggregations) {
+        AggregationBuilder topLevelAgg = getTopLevelAgg(aggregations);
         if (topLevelAgg == null) {
             throw new IllegalStateException("No aggregations exist");
         }
@@ -225,7 +229,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
     }
 
-    private AggregationBuilder getTopLevelAgg() {
+    private static AggregationBuilder getTopLevelAgg(AggregatorFactories.Builder aggregations) {
         if (aggregations == null || aggregations.getAggregatorFactories().isEmpty()) {
             return null;
         }
@@ -420,6 +424,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private static final int DEFAULT_SCROLL_SIZE = 1000;
         private static final TimeValue DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
+        private static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
 
         private String id;
         private String jobId;
@@ -531,6 +536,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
             validateAggregations();
+            setDefaultChunkingConfig();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, scriptFields, scrollSize,
                     source, chunkingConfig);
         }
@@ -557,6 +563,18 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 }
             } else {
                 throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+            }
+        }
+
+        private void setDefaultChunkingConfig() {
+            if (chunkingConfig == null) {
+                if (aggregations == null) {
+                    chunkingConfig = ChunkingConfig.newAuto();
+                } else {
+                    long histogramIntervalMillis = getHistogramIntervalMillis(aggregations);
+                    chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
+                            DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
+                }
             }
         }
 

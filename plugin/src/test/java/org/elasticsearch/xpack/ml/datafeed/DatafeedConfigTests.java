@@ -292,6 +292,20 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(e.getMessage(), containsString("When specifying a date_histogram calendar interval [8d]"));
     }
 
+    public void testDefaultChunkingConfig_GivenAggregations() {
+        assertThat(createDatafeedWithDateHistogram("1s").getChunkingConfig(),
+                equalTo(ChunkingConfig.newManual(TimeValue.timeValueSeconds(1000))));
+        assertThat(createDatafeedWithDateHistogram("2h").getChunkingConfig(),
+                equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(2000))));
+    }
+
+    public void testChunkingConfig_GivenExplicitSetting() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(createDatafeedWithDateHistogram("30s"));
+        builder.setChunkingConfig(ChunkingConfig.newAuto());
+
+        assertThat(builder.build().getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+    }
+
     public static String randomValidDatafeedId() {
         CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);

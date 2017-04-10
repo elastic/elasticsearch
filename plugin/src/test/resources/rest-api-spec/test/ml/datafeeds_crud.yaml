@@ -70,6 +70,12 @@ setup:
             "types":["type-bar"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
+  - match: { job_id: "job-1" }
+  - match: { indexes: ["index-foo"] }
+  - match: { types: ["type-bar"] }
+  - match: { scroll_size: 1000 }
+  - is_true: query.match_all
+  - match: { chunking_config: { mode: "auto" }}
 
 ---
 "Test put datafeed whose id is already taken":

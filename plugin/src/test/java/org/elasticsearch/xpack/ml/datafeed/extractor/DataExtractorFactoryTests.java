@@ -74,12 +74,28 @@ public class DataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class));
     }
 
-    public void testCreateDataExtractorFactoryGivenAggregation() {
+    public void testCreateDataExtractorFactoryGivenDefaultAggregation() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000)));
+
+        DataExtractorFactory dataExtractorFactory =
+                DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()));
+
+        assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
+    }
+
+    public void testCreateDataExtractorFactoryGivenAggregationWithOffChunk() {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000)));
 

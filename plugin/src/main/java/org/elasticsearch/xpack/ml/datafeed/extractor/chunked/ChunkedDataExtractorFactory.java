@@ -38,7 +38,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getScrollSize(),
                 start,
                 end,
-                datafeedConfig.getChunkingConfig() == null ? null : datafeedConfig.getChunkingConfig().getTimeSpan());
+                datafeedConfig.getChunkingConfig().getTimeSpan());
         return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext);
     }
 }

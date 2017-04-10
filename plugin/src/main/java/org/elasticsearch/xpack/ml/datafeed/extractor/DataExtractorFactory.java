@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
@@ -23,12 +22,7 @@ public interface DataExtractorFactory {
         boolean isScrollSearch = datafeedConfig.hasAggregations() == false;
         DataExtractorFactory dataExtractorFactory = isScrollSearch ? new ScrollDataExtractorFactory(client, datafeedConfig, job)
                 : new AggregationDataExtractorFactory(client, datafeedConfig, job);
-        ChunkingConfig chunkingConfig = datafeedConfig.getChunkingConfig();
-        if (chunkingConfig == null) {
-            chunkingConfig = isScrollSearch ? ChunkingConfig.newAuto() : ChunkingConfig.newOff();
-        }
-
-        return chunkingConfig.isEnabled() ? new ChunkedDataExtractorFactory(client, datafeedConfig, job, dataExtractorFactory)
-                : dataExtractorFactory;
+        return datafeedConfig.getChunkingConfig().isEnabled() ? new ChunkedDataExtractorFactory(
+                client, datafeedConfig, job, dataExtractorFactory) : dataExtractorFactory;
     }
 }

@@ -172,7 +172,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
             clusterService.addListener(new PersistentTasksNodeService(settings, persistentTasksService, persistentTasksExecutorRegistry,
-                    transportService.getTaskManager(), threadPool, executor));
+                    transportService.getTaskManager(), executor));
         }
 
         @Override

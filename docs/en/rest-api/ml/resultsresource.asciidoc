@@ -1,10 +1,250 @@
 [[ml-results-resource]]
 ==== Results Resources
 
-A results resource has the following properties:
+The results of a job are organized into _records_ and _buckets_.
+The results are aggregated and normalized in order to identify the mathematically
+significant anomalies.
 
-TBD
-////
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data. See <<ml-analysisconfig, analysis configuration objects>>.
-////
+When categorization is specified, the results also contain category definitions.
+
+* <<ml-results-records,Records>>
+* <<ml-results-influencers,Influencers>>
+* <<ml-results-buckets,Buckets>>
+* <<ml-results-categories,Categories>>
+
+[float]
+[[ml-results-records]]
+===== Records
+
+Records contain the analytic results. They detail the anomalous activity that
+has been identified in the input data based upon the detector configuration.
+For example, if you are looking for unusually large data transfers,
+an anomaly record would identify the source IP address, the destination,
+the time window during which it occurred, the expected and actual size of the
+transfer and the probability of this occurring.
+Something that is highly improbable is therefore highly anomalous.
+
+There can be many anomaly records depending upon the characteristics and size
+of the input data; in practice too many to be able to manually process.
+The {xpack} {ml} features therefore perform a sophisticated aggregation of
+the anomaly records into buckets.
+
+A record object has the following properties:
+
+`actual`::
+  TBD. For example, [633].
+
+`bucket_span`::
+  TBD. For example, 600.
+
+`detector_index`::
+  TBD. For example, 0.
+
+`function`::
+  TBD. For example, "low_non_zero_count".
+
+`function_description`::
+  TBD. For example, "count".
+
+`influencers`::
+ TBD. For example, [{
+    "influencer_field_name": "kpi_indicator",
+    "influencer_field_values": [
+      "online_purchases"]}].
+
+`initial_record_score`::
+  TBD. For example, 94.1386.
+
+`is_interim`::
+  TBD. For example, false.
+
+`job_id`::
+  TBD. For example, "it_ops_new_kpi".
+
+`kpi_indicator`::
+  TBD. For example, ["online_purchases"]
+
+`partition_field_name`::
+  TBD. For example, "kpi_indicator".
+
+`partition_field_value`::
+  TBD. For example, "online_purchases".
+
+`probability`::
+  TBD. For example, 0.0000772031.
+
+`record_score`::
+  TBD. For example, 94.1386.
+
+`result_type`::
+  TBD. For example, "record".
+
+`sequence_num`::
+  TBD. For example, 1.
+
+`timestamp`::
+(+date+) The start time of the bucket that contains the record,
+specified in ISO 8601 format. For example, 1454020800000. 
+
+`typical`::
+  TBD. For example, [3596.71].
+
+[float]
+[[ml-results-influencers]]
+===== Influencers
+
+Influencers are the entities that have contributed to, or are to blame for,
+the anomalies. Influencers are given an anomaly score, which is calculated
+based on the anomalies that have occurred in each bucket interval.
+For jobs with more than one detector, this gives a powerful view of the most
+anomalous entities.
+
+Upon identifying an influencer with a high score, you can investigate further
+by accessing the records resource for that bucket and enumerating the anomaly
+records that contain this influencer.
+
+An influencer object has the following properties:
+
+`bucket_span`::
+  TBD. For example, 300.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`influencer_score`::
+  TBD. For example: 94.1386.
+
+`initial_influencer_score`::
+  TBD. For example, 83.3831.
+
+`influencer_field_name`::
+  TBD. For example, "bucket_time".
+
+`influencer_field_value`::
+  TBD. For example, "online_purchases".
+
+`is_interim`::
+  TBD. For example, false.
+
+`kpi_indicator`::
+  TBD. For example, "online_purchases".
+
+`probability`::
+  TBD. For example, 0.0000109783.
+
+`result_type`::
+  TBD. For example, "influencer".
+
+//TBD: How is this different from the "bucket_influencer" type?
+
+`sequence_num`::
+`TBD. For example, 2.
+
+`timestamp`::
+  TBD. For example, 1454943900000.
+
+[float]
+[[ml-results-buckets]]
+===== Buckets
+
+Buckets are the grouped and time-ordered view of the job results.
+A bucket time interval is defined by `bucket_span`, which is specified in the
+job configuration.
+
+Each bucket has an `anomaly_score`, which is a statistically aggregated and
+normalized view of the combined anomalousness of the records. You can use this
+score for rate controlled alerting.
+
+//TBD: Still correct?
+//Each bucket also has a maxNormalizedProbability that is equal to the highest
+//normalizedProbability of the records with the bucket. This gives an indication
+// of the most anomalous event that has occurred within the time interval.
+//Unlike anomalyScore this does not take into account the number of correlated
+//anomalies that have happened.
+Upon identifying an anomalous bucket, you can investigate further by either
+expanding the bucket resource to show the records as nested objects or by
+accessing the records resource directly and filtering upon date range.
+
+A bucket resource has the following properties:
+
+`anomaly_score`::
+  (+number+) The aggregated and normalized anomaly score.
+  All the anomaly records in the bucket contribute to this score.
+
+`bucket_influencers`::
+  (+array+) An array of influencer objects.
+  For more information, see <<ml-results-influencers,influencers>>.
+
+`bucket_span`::
+  (+unsigned integer+) The length of the bucket in seconds. This value is
+  equal to the `bucket_span` value in the job configuration.
+
+`event_count`::
+  (+unsigned integer+) The number of input data records processed in this bucket.
+
+`initial_anomaly_score`::
+  (+number+) The value of `anomaly_score` at the time the bucket result was
+  created. This is normalized based on data which has already been seen;
+  this is not re-normalized and therefore is not adjusted for more recent data.
+//TBD. This description is unclear.
+
+`is_interim`::
+  (+boolean+) If true, then this bucket result is an interim result.
+  In other words, it is calculated based on partial input data.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`partition_scores`::
+  (+TBD+) TBD. For example, [].
+
+`processing_time_ms`::
+  (+unsigned integer+) The time in milliseconds taken to analyze the bucket
+  contents and produce results.
+
+`record_count`::
+  (+unsigned integer+) The number of anomaly records in this bucket.
+
+`result_type`::
+  (+string+) TBD. For example, "bucket".
+
+`timestamp`::
+  (+date+) The start time of the bucket, specified in ISO 8601 format.
+  For example, 1454020800000. This timestamp uniquely identifies the bucket.
+
+NOTE: Events that occur exactly at the timestamp of the bucket are included in
+the results for the bucket.
+
+[float]
+[[ml-results-categories]]
+===== Categories
+
+When `categorization_field_name` is specified in the job configuration, it is
+possible to view the definitions of the resulting categories. A category
+definition describes the common terms matched and contains examples of matched
+values.
+
+A category resource has the following properties:
+
+`category_id`::
+  (+unsigned integer+) A unique identifier for the category.
+
+`examples`::
+  (+array+) A list of examples of actual values that matched the category.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`max_matching_length`::
+  (+unsigned integer+) The maximum length of the fields that matched the
+  category.
+//TBD: Still true? "The value is increased by 10% to enable matching for
+//similar fields that have not been analyzed"
+
+`regex`::
+  (+string+) A regular expression that is used to search for values that match
+  the category.
+
+`terms`::
+  (+string+) A space separated list of the common tokens that are matched in
+  values of the category.

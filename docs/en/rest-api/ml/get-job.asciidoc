@@ -1,5 +1,5 @@
 [[ml-get-job]]
-==== Get Job Details
+==== Get Jobs
 
 The get jobs API allows you to retrieve configuration information about jobs.
 

@@ -50,8 +50,8 @@ The main {ml} resources can be accessed with a variety of endpoints:
 
 * <<ml-get-bucket,GET /results/buckets>>: List the buckets in the results
 * <<ml-get-bucket,GET /results/buckets/<bucket_id+++>+++>>: Get bucket details
-* <<ml-get-influencer,GET /results/categories>>: List the categories in the results
-* <<ml-get-influencer,GET /results/categories/<category_id+++>+++>>: Get category details
+* <<ml-get-category,GET /results/categories>>: List the categories in the results
+* <<ml-get-category,GET /results/categories/<category_id+++>+++>>: Get category details
 * <<ml-get-influencer,GET /results/influencers>>: Get influencer details
 * <<ml-get-record,GET /results/records>>: Get records from the results
 

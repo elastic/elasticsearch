@@ -7,7 +7,7 @@ A data feed resource has the following properties:
   (+object+) TBD
   The aggregations object describes the aggregations that are
   applied to the search query?
-  For more information, see <<{ref}search-aggregations.html,Aggregations>>.
+  For more information, see {ref}search-aggregations.html[Aggregations].
   For example:
   `{"@timestamp": {"histogram": {"field": "@timestamp",
   "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
@@ -18,7 +18,7 @@ A data feed resource has the following properties:
  (+string+) A numerical character string that uniquely identifies the data feed.
 
 `frequency`::
-   TBD. A time  For example: "150s"
+   TBD. For example: "150s"
 
 `indexes` (required)::
   (+array+) An array of index names. For example: ["it_ops_metrics"]
@@ -41,11 +41,11 @@ A data feed resource has the following properties:
 `types` (required)::
   (+array+) TBD. For example: ["network","sql","kpi"]
 
-  [[ml-datafeed-counts]]
-  ==== Data Feed Counts
+[[ml-datafeed-counts]]
+==== Data Feed Counts
 
-  The get data feed statistics API provides information about the operational
-  progress of a data feed. For example:
+The get data feed statistics API provides information about the operational
+progress of a data feed. For example:
 
 `assigment_explanation`::
   TBD

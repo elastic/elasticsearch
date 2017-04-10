@@ -14,7 +14,7 @@ Use machine learning to detect anomalies in time series data.
 
 * <<ml-put-datafeed,Create data feeds>>
 * <<ml-delete-datafeed,Delete data feeds>>
-* <<ml-get-datafeed,Get data feed details>>
+* <<ml-get-datafeed,Get data feeds>>
 * <<ml-get-datafeed-stats,Get data feed statistics>>
 * <<ml-preview-datafeed,Preview data feeds>>
 * <<ml-start-datafeed,Start data feeds>>
@@ -38,7 +38,7 @@ You can use APIs to perform the following activities:
 * <<ml-close-job,Close jobs>>
 * <<ml-put-job,Create jobs>>
 * <<ml-delete-job,Delete jobs>>
-* <<ml-get-job,Get job details>>
+* <<ml-get-job,Get jobs>>
 * <<ml-get-job-stats,Get job statistics>>
 * <<ml-flush-job,Flush jobs>>
 * <<ml-open-job,Open jobs>>
@@ -69,6 +69,11 @@ include::ml/update-snapshot.asciidoc[]
 
 [[ml-api-result-endpoint]]
 === Results
+
+* <<ml-get-bucket,Get buckets>>
+* <<ml-get-category,Get categories>>
+* <<ml-get-influencer,Get influencers>>
+* <<ml-get-record,Get records>>
 
 include::ml/get-bucket.asciidoc[]
 include::ml/get-category.asciidoc[]

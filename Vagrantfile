@@ -267,7 +267,7 @@ def provision(config,
       echo "==> Installing Gradle"
       curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
       unzip /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip 
+      rm -rf /tmp/gradle.zip
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable
       chown vagrant:vagrant /home/vagrant/.gradle
@@ -279,10 +279,10 @@ export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export BATS=/project/build/bats
-export BATS_UTILS=/project/build/bats/utils
-export BATS_TESTS=/project/build/bats/tests
-export BATS_ARCHIVES=/project/build/bats/archives
+export BATS=/project/qa/vagrant/build/bats
+export BATS_UTILS=/project/qa/vagrant/build/bats/utils
+export BATS_TESTS=/project/qa/vagrant/build/bats/tests
+export BATS_ARCHIVES=/project/qa/vagrant/build/bats/archives
 export GRADLE_HOME=/opt/gradle-3.3
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars

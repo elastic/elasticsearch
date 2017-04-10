@@ -42,8 +42,8 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
 
     @Override
-    public synchronized AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings) {
-        return cachedWrapper(super.client(metadata, repositorySettings));
+    public synchronized AmazonS3 client(Settings repositorySettings) {
+        return cachedWrapper(super.client(repositorySettings));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

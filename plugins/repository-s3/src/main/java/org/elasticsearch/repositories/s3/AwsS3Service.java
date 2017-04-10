@@ -74,11 +74,6 @@ interface AwsS3Service extends LifecycleComponent {
     Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.proxy.password", "", SecureString::new,
         Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared);
     /**
-     * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with discovery-ec2 plugin
-     */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer",
-        Property.NodeScope, Property.Deprecated, Property.Shared);
-    /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with discovery-ec2 plugin
      */
     Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
@@ -140,14 +135,6 @@ interface AwsS3Service extends LifecycleComponent {
         Setting<SecureString> PROXY_PASSWORD_SETTING =
             new Setting<>("cloud.aws.s3.proxy.password", AwsS3Service.PROXY_PASSWORD_SETTING, SecureString::new,
                 Property.NodeScope, Property.Filtered, Property.Deprecated);
-        /**
-         * cloud.aws.s3.signer: If you are using an old AWS API version, you can define a Signer. Specific for S3 API calls.
-         * Defaults to cloud.aws.signer.
-         * @see AwsS3Service#SIGNER_SETTING
-         */
-        Setting<String> SIGNER_SETTING =
-            new Setting<>("cloud.aws.s3.signer", AwsS3Service.SIGNER_SETTING, Function.identity(),
-                Property.NodeScope, Property.Deprecated);
         /**
          * cloud.aws.s3.endpoint: Endpoint.
          */

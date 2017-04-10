@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -373,7 +373,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
                 // Concatenates the type and the name of the suggestion (ex: completion#foo)
-                builder.startArray(String.join(InternalAggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
+                builder.startArray(String.join(Aggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
             } else {
                 builder.startArray(getName());
             }
@@ -389,7 +389,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
             String typeAndName = parser.currentName();
             // we need to extract the type prefix from the name and throw error if it is not present
-            int delimiterPos = typeAndName.indexOf(InternalAggregation.TYPED_KEYS_DELIMITER);
+            int delimiterPos = typeAndName.indexOf(Aggregation.TYPED_KEYS_DELIMITER);
             String type;
             String name;
             if (delimiterPos > 0) {

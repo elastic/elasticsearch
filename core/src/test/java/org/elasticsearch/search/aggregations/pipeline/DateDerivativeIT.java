@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -381,7 +382,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(4.0));
-        assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(4.0));
+        assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty(
+                "histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(4.0));
         assertThat((DateTime) propertiesKeys[1], equalTo(key));
         assertThat((long) propertiesDocCounts[1], equalTo(2L));
         assertThat((double) propertiesCounts[1], equalTo(5.0));
@@ -398,7 +400,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(10.0));
-        assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(10.0));
+        assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty(
+                "histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(10.0));
         assertThat((DateTime) propertiesKeys[2], equalTo(key));
         assertThat((long) propertiesDocCounts[2], equalTo(3L));
         assertThat((double) propertiesCounts[2], equalTo(15.0));

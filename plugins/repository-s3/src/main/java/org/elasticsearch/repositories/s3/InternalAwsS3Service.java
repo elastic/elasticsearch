@@ -147,13 +147,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         }
         clientConfiguration.setUseThrottleRetries(useThrottleRetries);
 
-        // #155: we might have 3rd party users using older S3 API version
-        String awsSigner = CLOUD_S3.SIGNER_SETTING.get(settings);
-        if (Strings.hasText(awsSigner)) {
-            logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
-        }
-
         TimeValue readTimeout = getConfigValue(null, settings, clientName,
                                                S3Repository.READ_TIMEOUT_SETTING, null, CLOUD_S3.READ_TIMEOUT);
         clientConfiguration.setSocketTimeout((int)readTimeout.millis());

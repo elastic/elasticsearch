@@ -38,6 +38,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
@@ -68,14 +69,15 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
     protected static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings) {
         AWSCredentialsProvider credentials;
 
-        String key = CLOUD_EC2.KEY_SETTING.get(settings);
-        String secret = CLOUD_EC2.SECRET_SETTING.get(settings);
-        if (key.isEmpty() && secret.isEmpty()) {
-            logger.debug("Using either environment variables, system properties or instance profile credentials");
-            credentials = new DefaultAWSCredentialsProviderChain();
-        } else {
-            logger.debug("Using basic key/secret credentials");
-            credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key, secret));
+        try (SecureString key = DISCOVERY_EC2.ACCESS_KEY_SETTING.get(settings);
+             SecureString secret = DISCOVERY_EC2.SECRET_KEY_SETTING.get(settings)) {
+            if (key.length() == 0 && secret.length() == 0) {
+                logger.debug("Using either environment variables, system properties or instance profile credentials");
+                credentials = new DefaultAWSCredentialsProviderChain();
+            } else {
+                logger.debug("Using basic key/secret credentials");
+                credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
+            }
         }
 
         return credentials;
@@ -86,26 +88,20 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
-        clientConfiguration.setProtocol(CLOUD_EC2.PROTOCOL_SETTING.get(settings));
+        clientConfiguration.setProtocol(DISCOVERY_EC2.PROTOCOL_SETTING.get(settings));
 
-        if (PROXY_HOST_SETTING.exists(settings) || CLOUD_EC2.PROXY_HOST_SETTING.exists(settings)) {
-            String proxyHost = CLOUD_EC2.PROXY_HOST_SETTING.get(settings);
-            Integer proxyPort = CLOUD_EC2.PROXY_PORT_SETTING.get(settings);
-            String proxyUsername = CLOUD_EC2.PROXY_USERNAME_SETTING.get(settings);
-            String proxyPassword = CLOUD_EC2.PROXY_PASSWORD_SETTING.get(settings);
+        if (PROXY_HOST_SETTING.exists(settings) || DISCOVERY_EC2.PROXY_HOST_SETTING.exists(settings)) {
+            String proxyHost = DISCOVERY_EC2.PROXY_HOST_SETTING.get(settings);
+            Integer proxyPort = DISCOVERY_EC2.PROXY_PORT_SETTING.get(settings);
+            try (SecureString proxyUsername = DISCOVERY_EC2.PROXY_USERNAME_SETTING.get(settings);
+                 SecureString proxyPassword = DISCOVERY_EC2.PROXY_PASSWORD_SETTING.get(settings)) {
 
-            clientConfiguration
-                .withProxyHost(proxyHost)
-                .withProxyPort(proxyPort)
-                .withProxyUsername(proxyUsername)
-                .withProxyPassword(proxyPassword);
-        }
-
-        // #155: we might have 3rd party users using older EC2 API version
-        String awsSigner = CLOUD_EC2.SIGNER_SETTING.get(settings);
-        if (Strings.hasText(awsSigner)) {
-            logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration);
+                clientConfiguration
+                    .withProxyHost(proxyHost)
+                    .withProxyPort(proxyPort)
+                    .withProxyUsername(proxyUsername.toString())
+                    .withProxyPassword(proxyPassword.toString());
+            }
         }
 
         // Increase the number of retries in case of 5xx API responses
@@ -125,82 +121,16 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
             10,
             false);
         clientConfiguration.setRetryPolicy(retryPolicy);
-        clientConfiguration.setSocketTimeout((int) CLOUD_EC2.READ_TIMEOUT.get(settings).millis());
+        clientConfiguration.setSocketTimeout((int) DISCOVERY_EC2.READ_TIMEOUT_SETTING.get(settings).millis());
 
         return clientConfiguration;
     }
 
     protected static String findEndpoint(Logger logger, Settings settings) {
         String endpoint = null;
-        if (CLOUD_EC2.ENDPOINT_SETTING.exists(settings)) {
-            endpoint = CLOUD_EC2.ENDPOINT_SETTING.get(settings);
+        if (DISCOVERY_EC2.ENDPOINT_SETTING.exists(settings) || CLOUD_EC2.ENDPOINT_SETTING.exists(settings)) {
+            endpoint = DISCOVERY_EC2.ENDPOINT_SETTING.get(settings);
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
-        } else if (REGION_SETTING.exists(settings) || CLOUD_EC2.REGION_SETTING.exists(settings)) {
-            final String region = CLOUD_EC2.REGION_SETTING.get(settings);
-            switch (region) {
-                case "us-east-1":
-                case "us-east":
-                    endpoint = "ec2.us-east-1.amazonaws.com";
-                    break;
-                case "us-east-2":
-                    endpoint = "ec2.us-east-2.amazonaws.com";
-                    break;
-                case "us-west":
-                case "us-west-1":
-                    endpoint = "ec2.us-west-1.amazonaws.com";
-                    break;
-                case "us-west-2":
-                    endpoint = "ec2.us-west-2.amazonaws.com";
-                    break;
-                case "ap-southeast":
-                case "ap-southeast-1":
-                    endpoint = "ec2.ap-southeast-1.amazonaws.com";
-                    break;
-                case "ap-south":
-                case "ap-south-1":
-                    endpoint = "ec2.ap-south-1.amazonaws.com";
-                    break;
-                case "us-gov-west":
-                case "us-gov-west-1":
-                    endpoint = "ec2.us-gov-west-1.amazonaws.com";
-                    break;
-                case "ap-southeast-2":
-                    endpoint = "ec2.ap-southeast-2.amazonaws.com";
-                    break;
-                case "ap-northeast":
-                case "ap-northeast-1":
-                    endpoint = "ec2.ap-northeast-1.amazonaws.com";
-                    break;
-                case "ap-northeast-2":
-                    endpoint = "ec2.ap-northeast-2.amazonaws.com";
-                    break;
-                case "eu-west":
-                case "eu-west-1":
-                    endpoint = "ec2.eu-west-1.amazonaws.com";
-                    break;
-                case "eu-west-2":
-                    endpoint = "ec2.eu-west-2.amazonaws.com";
-                    break;
-                case "eu-central":
-                case "eu-central-1":
-                    endpoint = "ec2.eu-central-1.amazonaws.com";
-                    break;
-                case "sa-east":
-                case "sa-east-1":
-                    endpoint = "ec2.sa-east-1.amazonaws.com";
-                    break;
-                case "cn-north":
-                case "cn-north-1":
-                    endpoint = "ec2.cn-north-1.amazonaws.com.cn";
-                    break;
-                case "ca-central":
-                case "ca-central-1":
-                    endpoint = "ec2.ca-central-1.amazonaws.com";
-                    break;
-                default:
-                    throw new IllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
-            }
-            logger.debug("using ec2 region [{}], with endpoint [{}]", region, endpoint);
         }
         return endpoint;
     }

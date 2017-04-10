@@ -42,6 +42,7 @@
   <suppress files="client[/\\]test[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientTestUtil.java" checks="LineLength" />
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]SyncResponseListenerTests.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]HeapBufferedAsyncResponseConsumerTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]Request.java" checks="LineLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestHighLevelClient.java" checks="LineLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]CrudIT.java" checks="LineLength" />
@@ -3894,15 +3895,15 @@
   <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]azure[/\\]AzureSnapshotRestoreListSnapshotsTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]azure[/\\]AzureSnapshotRestoreTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]azure[/\\]RepositoryAzureClientYamlTestSuiteIT.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]blobstore[/\\]gcs[/\\]GoogleCloudStorageBlobContainer.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]blobstore[/\\]gcs[/\\]GoogleCloudStorageBlobStore.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]blobstore[/\\]gcs[/\\]util[/\\]SocketAccess.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugin[/\\]repository[/\\]gcs[/\\]GoogleCloudStoragePlugin.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageBlobContainer.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageBlobStore.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]SocketAccess.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStoragePlugin.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageRepository.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageService.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]blobstore[/\\]gcs[/\\]GoogleCloudStorageBlobStoreContainerTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]blobstore[/\\]gcs[/\\]GoogleCloudStorageBlobStoreTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]blobstore[/\\]gcs[/\\]MockHttpTransport.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageBlobStoreContainerTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageBlobStoreTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]MockHttpTransport.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-gcs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]gcs[/\\]GoogleCloudStorageBlobStoreRepositoryTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-hdfs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]hdfs[/\\]HdfsBlobContainer.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-hdfs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]hdfs[/\\]HdfsBlobStore.java" checks="LineLength" />

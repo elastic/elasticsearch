@@ -155,3 +155,11 @@ setup:
       xpack.ml.delete_model_snapshot:
         job_id: "foo"
         snapshot_id: "active-snapshot"
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.delete_model_snapshot:
+        job_id: "non-existent-job"
+        snapshot_id: "foo"

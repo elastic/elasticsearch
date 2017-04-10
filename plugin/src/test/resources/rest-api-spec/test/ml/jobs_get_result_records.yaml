@@ -73,3 +73,10 @@ setup:
   - match: { records.0.timestamp: 1464739200000 }
   - match: { records.0.job_id: farequote}
   - match: { records.0.result_type: record}
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.get_records:
+        job_id: "non-existent-job"

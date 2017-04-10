@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -315,12 +316,14 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobProvider jobProvider;
+        private final JobManager jobManager;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider) {
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, JobManager jobManager) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
+            this.jobManager = jobManager;
         }
 
         @Override
@@ -329,6 +332,8 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
                     + " start = '{}', end='{}', sort={} descending={}, description filter={}",
                     request.getJobId(), request.getSnapshotId(), request.pageParams.getFrom(), request.pageParams.getSize(),
                     request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), request.getDescriptionString());
+
+            jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
             jobProvider.modelSnapshots(request.getJobId(), request.pageParams.getFrom(), request.pageParams.getSize(),
                     request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), request.getSnapshotId(),

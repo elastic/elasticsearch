@@ -1,19 +1,18 @@
 setup:
   - do:
-      indices.create:
-        index:  .ml-anomalies-farequote
-        body:
-          mappings:
-            result:
-              properties:
-                "job_id":
-                  type: keyword
-                "timestamp":
-                  type: date
-                "influencer_score":
-                  type: double
-                "result_type":
-                  type: keyword
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
   - do:
       index:
         index:  .ml-anomalies-farequote
@@ -71,3 +70,10 @@ setup:
 
   - match: { count: 1 }
   - match: { influencers.0.timestamp: 1464739200000 }
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.get_influencers:
+        job_id: "non-existent-job"

@@ -1,5 +1,19 @@
 setup:
   - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+  - do:
       index:
         index:  .ml-anomalies-farequote
         type:   category_definition
@@ -94,3 +108,10 @@ setup:
         body:
           from: 0
           size: 1
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.get_categories:
+        job_id: "non-existent-job"

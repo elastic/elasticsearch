@@ -219,3 +219,10 @@ setup:
 
   - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }
 
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.revert_model_snapshot:
+        job_id: "non-existent-job"
+        snapshot_id: "second"

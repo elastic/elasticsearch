@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
@@ -238,17 +239,21 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
 
         private final JobProvider jobProvider;
         private final Client client;
+        private final JobManager jobManager;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, Client client) {
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, Client client, JobManager jobManager) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
             this.client = client;
+            this.jobManager = jobManager;
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
+            jobManager.getJobOrThrowIfUnknown(request.jobId);
+
             Integer from = request.pageParams != null ? request.pageParams.getFrom() : null;
             Integer size = request.pageParams != null ? request.pageParams.getSize() : null;
             jobProvider.categoryDefinitions(request.jobId, request.categoryId, from, size,

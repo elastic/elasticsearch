@@ -1,13 +1,17 @@
 setup:
   - do:
-      indices.create:
-        index:  .ml-anomalies-foo
-        body:
-          mappings:
-            model_snapshot:
-              properties:
-                "timestamp":
-                  type: date
+      xpack.ml.put_job:
+        job_id: foo
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
 
   - do:
       index:
@@ -102,3 +106,10 @@ setup:
   - match: { count: 2 }
   - match: { model_snapshots.0.timestamp: 1464739200000 }
   - length: { model_snapshots: 1 }
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.get_model_snapshots:
+        job_id: "non-existent-job"

@@ -147,3 +147,10 @@ setup:
         body:
           timestamp: "2016-06-01T00:00:00Z"
           anomaly_score: "80.0"
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      xpack.ml.get_buckets:
+        job_id: "non-existent-job"

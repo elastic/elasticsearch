@@ -5,9 +5,10 @@ The cluster remote info API allows to retrieve all of the configured
 remote cluster information.
 
 [source,js]
---------------------------------------------------
-curl -XGET 'http://localhost:9200/_remote/info'
---------------------------------------------------
+----------------------------------
+GET /_remote/info
+----------------------------------
+// CONSOLE
 
 This command returns returns connection and endpoint information keyed by
 the configured remote cluster alias.

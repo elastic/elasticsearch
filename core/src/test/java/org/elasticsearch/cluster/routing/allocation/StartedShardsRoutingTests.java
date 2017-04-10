@@ -93,8 +93,11 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> building initial cluster state");
         AllocationId primaryId = AllocationId.newRelocation(AllocationId.newInitializing());
-        AllocationId replicaId = AllocationId.newRelocation(AllocationId.newInitializing());
+        AllocationId replicaId = AllocationId.newInitializing();
         boolean relocatingReplica = randomBoolean();
+        if (relocatingReplica) {
+            replicaId = AllocationId.newRelocation(replicaId);
+        }
 
         final IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(settings(Version.CURRENT))

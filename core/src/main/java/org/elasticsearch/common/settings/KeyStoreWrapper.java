@@ -272,9 +272,9 @@ public class KeyStoreWrapper implements SecureSettings {
             // TODO: in the future if we ever change any algorithms used above, we need
             // to create a new KeyStore here instead of using the existing one, so that
             // the encoded material inside the keystore is updated
-            assert type.equals(NEW_KEYSTORE_TYPE);
-            assert stringFactory.getAlgorithm().equals(NEW_KEYSTORE_STRING_KEY_ALGO);
-            assert fileFactory.getAlgorithm().equals(NEW_KEYSTORE_FILE_KEY_ALGO);
+            assert type.equals(NEW_KEYSTORE_TYPE) : "keystore type changed";
+            assert stringFactory.getAlgorithm().equals(NEW_KEYSTORE_STRING_KEY_ALGO) : "string pbe algo changed";
+            assert fileFactory.getAlgorithm().equals(NEW_KEYSTORE_FILE_KEY_ALGO) : "file pbe algo changed";
 
             ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
             keystore.get().store(keystoreBytesStream, password);
@@ -359,7 +359,7 @@ public class KeyStoreWrapper implements SecureSettings {
         bytes = Base64.getEncoder().encode(bytes);
         char[] chars = new char[bytes.length];
         for (int i = 0; i < chars.length; ++i) {
-            chars[i] = (char)bytes[i];
+            chars[i] = (char)bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
         }
         SecretKey secretKey = stringFactory.generateSecret(new PBEKeySpec(chars));
         keystore.get().setEntry(setting, new KeyStore.SecretKeyEntry(secretKey), keystorePassword.get());

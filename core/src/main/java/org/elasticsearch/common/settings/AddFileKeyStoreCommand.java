@@ -36,6 +36,7 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
@@ -80,7 +81,7 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
         if (argumentValues.size() == 1) {
             throw new UserException(ExitCodes.USAGE, "Missing file name");
         }
-        Path file = PathUtils.get(argumentValues.get(1));
+        Path file = getPath(argumentValues.get(1));
         if (Files.exists(file) == false) {
             throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
         }
@@ -90,5 +91,10 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
         }
         keystore.setFile(setting, Files.readAllBytes(file));
         keystore.save(env.configFile());
+    }
+
+    @SuppressForbidden(reason="file arg for cli")
+    private Path getPath(String file) {
+        return PathUtils.get(file);
     }
 }

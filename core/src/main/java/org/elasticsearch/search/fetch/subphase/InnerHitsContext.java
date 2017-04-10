@@ -48,9 +48,9 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
@@ -180,7 +180,8 @@ public final class InnerHitsContext {
                 return parentFilter.equals(other.parentFilter)
                         && childFilter.equals(other.childFilter)
                         && docId == other.docId
-                        && leafReader.getCoreCacheKey() == other.leafReader.getCoreCacheKey();
+                        && leafReader.getCoreCacheHelper().getKey() == other.leafReader
+                                .getCoreCacheHelper().getKey();
             }
 
             @Override
@@ -189,7 +190,7 @@ public final class InnerHitsContext {
                 hash = 31 * hash + parentFilter.hashCode();
                 hash = 31 * hash + childFilter.hashCode();
                 hash = 31 * hash + docId;
-                hash = 31 * hash + leafReader.getCoreCacheKey().hashCode();
+                hash = 31 * hash + leafReader.getCoreCacheHelper().getKey().hashCode();
                 return hash;
             }
 
@@ -199,13 +200,15 @@ public final class InnerHitsContext {
             }
 
             @Override
-            public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-                final Weight childWeight = childFilter.createWeight(searcher, false);
-                return new ConstantScoreWeight(this) {
+            public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost)
+                    throws IOException {
+                final Weight childWeight = childFilter.createWeight(searcher, false, boost);
+                return new ConstantScoreWeight(this, boost) {
                     @Override
                     public Scorer scorer(LeafReaderContext context) throws IOException {
                         // Nested docs only reside in a single segment, so no need to evaluate all segments
-                        if (!context.reader().getCoreCacheKey().equals(leafReader.getCoreCacheKey())) {
+                        if (!context.reader().getCoreCacheHelper().getKey()
+                                .equals(leafReader.getCoreCacheHelper().getKey())) {
                             return null;
                         }
 

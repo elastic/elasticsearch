@@ -158,6 +158,9 @@ gradle.taskGraph.whenReady { taskGraph ->
     project.bundlePlugin.from {
       zipTree(configurations.nativeBundle.singleFile)
     }
+    project.extractNativeLicenses.from {
+      zipTree(configurations.nativeBundle.singleFile)
+    }
   }
 }
 
@@ -271,6 +274,11 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
+task extractNativeLicenses(type: Copy) {
+  into "${buildDir}"
+  include 'platform/licenses/**'
+}
+
 // TODO: standardize packaging config for plugins
 bundlePlugin {
   from('bin/x-pack') {
@@ -279,6 +287,9 @@ bundlePlugin {
   from('config/x-pack') {
     into 'config'
   }
+  // We don't ship the individual nativeBundle licenses - instead
+  // they get combined into the top level NOTICES file we ship
+  exclude 'platform/licenses/**'
 }
 
 // add api jar for extension authors to compile against
@@ -311,6 +322,9 @@ project.afterEvaluate {
       }
     }
   }
+  // Add an extra licenses directory to the combined notices
+  project.tasks.findByName('generateNotice').dependsOn extractNativeLicenses
+  project.tasks.findByName('generateNotice').licensesDir new File("${project.buildDir}/platform/licenses")
 }
 
 integTestRunner {

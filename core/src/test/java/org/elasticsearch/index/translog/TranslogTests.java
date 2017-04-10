@@ -2113,12 +2113,13 @@ public class TranslogTests extends ESTestCase {
         for (int i = 0; i <= rolls; i++) {
             assertFileIsPresent(translog, generation + i);
         }
-        translog.commit(generation + rolls + 1);
+        translog.commit(generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls + 1));
         assertThat(translog.totalOperations(), equalTo(0));
-        for (int i = 0; i <= rolls; i++) {
+        for (int i = 0; i < rolls; i++) {
             assertFileDeleted(translog, generation + i);
         }
+        assertFileIsPresent(translog, generation + rolls);
         assertFileIsPresent(translog, generation + rolls + 1);
     }
 

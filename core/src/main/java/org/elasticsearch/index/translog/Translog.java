@@ -1428,6 +1428,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public void commit(final long committedGeneration) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
+            assert committedGeneration <= current.generation;
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
                 prepareCommit();
             }

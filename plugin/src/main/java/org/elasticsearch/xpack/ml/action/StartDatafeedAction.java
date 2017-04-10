@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -392,6 +393,12 @@ public class StartDatafeedAction
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(new ElasticsearchException("Starting datafeed ["
+                            + request.getDatafeedId() + "] timed out after [" + timeout + "]"));
+                }
             });
         }
     }
@@ -426,6 +433,14 @@ public class StartDatafeedAction
                 MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
                 PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                 StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks);
+                Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState, resolver);
+                if (assignment.getExecutorNode() == null) {
+                    DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
+                    String msg = "No node found to start datafeed [" + request.getDatafeedId()
+                            + "], allocation explanation [" + assignment.getExplanation() + "]";
+                    logger.warn("[{}] {}", datafeed.getJobId(), msg);
+                    throw new ElasticsearchException(msg);
+                }
             } else {
                 throw LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING);
             }
@@ -463,7 +478,7 @@ public class StartDatafeedAction
                     if (assignment.getExecutorNode() == null) {
                         String msg = "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
                                 assignment.getExplanation() + "]";
-                        logger.warn(msg);
+                        logger.warn("[{}] {}", datafeed.getJobId(), msg);
                         auditor.warning(jobId, msg);
                     } else {
                         DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());

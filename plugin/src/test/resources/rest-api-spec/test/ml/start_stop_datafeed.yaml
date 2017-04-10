@@ -191,3 +191,22 @@ setup:
         datafeed_id: "datafeed-1"
         start: "2017-02-01T01:00:00Z"
         end: "2017-02-01T01:00:00Z"
+
+---
+"Test start given datafeed index does not exist":
+  - do:
+      xpack.ml.update_datafeed:
+        datafeed_id: datafeed-1
+        body:  >
+          {
+            "indexes":["utopia"]
+          }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: "datafeed-job"
+
+  - do:
+      catch: /No node found to start datafeed \[datafeed-1\].*\[utopia\] does not exist.*/
+      xpack.ml.start_datafeed:
+        datafeed_id: "datafeed-1"

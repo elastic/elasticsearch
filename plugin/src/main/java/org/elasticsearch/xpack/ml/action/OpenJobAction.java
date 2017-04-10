@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -335,6 +336,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(new ElasticsearchException("Opening job ["
+                            + request.getJobId() + "] timed out after [" + timeout + "]"));
                 }
             });
         }

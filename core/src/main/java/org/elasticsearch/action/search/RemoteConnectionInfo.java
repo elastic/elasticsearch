@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * This class encapsulates all remote cluster infromation to be rendered on
+ * This class encapsulates all remote cluster information to be rendered on
  * <tt>_remote/info</tt> requests.
  */
 public final class RemoteConnectionInfo implements ToXContent {

@@ -19,11 +19,11 @@ the configured remote cluster alias.
 `seeds`::
 	The configured initial seed transport addresses of the remote cluster.
 
-`http_addressses`::
+`http_addresses`::
 	The published http addresses of all connected remote nodes.
 
 `connected`::
-	True if the there is at least one connection to the remote cluster.
+	True if there is at least one connection to the remote cluster.
 
 `num_nodes_connected`::
     The number of connected nodes in the remote cluster.

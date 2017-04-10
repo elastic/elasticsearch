@@ -69,6 +69,7 @@ public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction
                 String message = "Cannot perform requested action because job [" + resolvedJobId
                         + "] is not open";
                 listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+                return;
             } else {
                 executorNodes.add(jobTask.getExecutorNode());
             }

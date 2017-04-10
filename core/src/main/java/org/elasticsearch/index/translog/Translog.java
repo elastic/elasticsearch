@@ -1441,6 +1441,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Trims unreferenced translog generations. The guarantee here is that translog generations will be preserved for all outstanding views
+     * and from the last committed translog generation defined by {@link Translog#lastCommittedTranslogFileGeneration}.
+     */
     void trimUnreferencedReaders() {
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {

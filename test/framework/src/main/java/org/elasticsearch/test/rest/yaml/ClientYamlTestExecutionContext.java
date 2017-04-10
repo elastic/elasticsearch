@@ -76,9 +76,17 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        HttpEntity entity = createEntity(bodies, headers);
+        //make a copy of the headers before modifying them for this specific request
+        HashMap<String, String> requestHeaders = new HashMap<>(headers);
+        for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
+            if (stash.containsStashedValue(entry.getValue())) {
+                entry.setValue(stash.getValue(entry.getValue()).toString());
+            }
+        }
+
+        HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, headers);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();

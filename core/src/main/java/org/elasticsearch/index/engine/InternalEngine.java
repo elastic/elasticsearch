@@ -1686,7 +1686,7 @@ public class InternalEngine extends Engine {
      * @param writer   the index writer to commit
      * @param translog the translog
      * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
-     * @return the local checkpoint committed with the specified index writer
+     * @return the minimum translog generation for the local checkpoint committed with the specified index writer
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
     private long commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {

@@ -1347,6 +1347,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
+    /**
+     * Gets the minimum generation that could contain the sequence number, or the current generation if there is no generation with the
+     * specified sequence number between the minimum and maximum sequence numbers.
+     *
+     * @param seqNo the sequence number
+     * @return the minimum generation for the sequence number, or the current generation
+     */
     public TranslogGeneration getMinGenerationForSeqNo(final long seqNo) {
         try (ReleasableLock ignored = writeLock.acquire()) {
             final long minTranslogFileGeneration = readers

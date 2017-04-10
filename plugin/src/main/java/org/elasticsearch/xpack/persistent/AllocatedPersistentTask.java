@@ -74,24 +74,12 @@ public class AllocatedPersistentTask extends CancellableTask {
         return failure;
     }
 
-    boolean startNotification(Exception failure) {
-        boolean result = state.compareAndSet(AllocatedPersistentTask.State.STARTED, AllocatedPersistentTask.State.FAILED);
-        if (result) {
+    State markAsCompleted(Exception failure) {
+        State prevState = state.getAndSet(AllocatedPersistentTask.State.COMPLETED);
+        if (prevState == State.STARTED || prevState == State.CANCELLED) {
             this.failure = failure;
         }
-        return result;
-    }
-
-    boolean notificationFailed() {
-        return state.compareAndSet(AllocatedPersistentTask.State.FAILED, AllocatedPersistentTask.State.FAILED_NOTIFICATION);
-    }
-
-    boolean restartCompletionNotification() {
-        return state.compareAndSet(AllocatedPersistentTask.State.FAILED_NOTIFICATION, AllocatedPersistentTask.State.FAILED);
-    }
-
-    boolean markAsNotified() {
-        return state.compareAndSet(AllocatedPersistentTask.State.FAILED, AllocatedPersistentTask.State.NOTIFIED);
+        return prevState;
     }
 
     boolean markAsCancelled() {
@@ -109,8 +97,6 @@ public class AllocatedPersistentTask extends CancellableTask {
     public enum State {
         STARTED,  // the task is currently running
         CANCELLED, // the task is cancelled
-        FAILED,     // the task is done running and trying to notify caller
-        FAILED_NOTIFICATION, // the caller notification failed
-        NOTIFIED // the caller was notified, the task can be removed
+        COMPLETED     // the task is done running and trying to notify caller
     }
 }

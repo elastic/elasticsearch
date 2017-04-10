@@ -68,7 +68,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
-                registry, new TaskManager(Settings.EMPTY), mock(ThreadPool.class), executor);
+                registry, new TaskManager(Settings.EMPTY), executor);
 
         ClusterState state = ClusterState.builder(clusterService.state()).nodes(createTestNodes(nonLocalNodesCount, Settings.EMPTY))
                 .build();
@@ -153,9 +153,14 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, null, null, null) {
             @Override
-            public void sendCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
+            public void sendTaskManagerCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
+            }
+
+            @Override
+            public void sendCompletionNotification(long taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
+                fail("Shouldn't be called during Cluster State cancellation");
             }
         };
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestRequest> action = mock(PersistentTasksExecutor.class);
@@ -167,7 +172,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY);
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
-                registry, taskManager, mock(ThreadPool.class), executor);
+                registry, taskManager, executor);
 
         ClusterState state = ClusterState.builder(clusterService.state()).nodes(createTestNodes(nonLocalNodesCount, Settings.EMPTY))
                 .build();
@@ -215,89 +220,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check the the task is now removed from task manager
         assertThat(taskManager.getTasks().values(), empty());
-
-    }
-
-    public void testNotificationFailure() throws Exception {
-        Settings settings = Settings.builder()
-                .put("node.name", PersistentTasksNodeServiceTests.class.getSimpleName())
-                .build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        try {
-            ClusterService clusterService = createClusterService();
-            AtomicLong capturedTaskId = new AtomicLong(-1L);
-            AtomicReference<Exception> capturedException = new AtomicReference<>();
-            AtomicReference<ActionListener<PersistentTask<?>>> capturedListener = new AtomicReference<>();
-            PersistentTasksService persistentTasksService =
-                    new PersistentTasksService(Settings.EMPTY, clusterService, null, null) {
-                        @Override
-                        public void sendCompletionNotification(long taskId, Exception failure,
-                                                               ActionListener<PersistentTask<?>> listener) {
-                            capturedTaskId.set(taskId);
-                            capturedException.set(failure);
-                            capturedListener.set(listener);
-                        }
-                    };
-            @SuppressWarnings("unchecked") PersistentTasksExecutor<TestRequest> action = mock(PersistentTasksExecutor.class);
-            when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
-            when(action.getTaskName()).thenReturn("test");
-            PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
-                    Collections.singletonList(action));
-
-            int nonLocalNodesCount = randomInt(10);
-            MockExecutor executor = new MockExecutor();
-            TaskManager taskManager = new TaskManager(Settings.EMPTY);
-            PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
-                    registry, taskManager, threadPool, executor);
-
-            ClusterState state = ClusterState.builder(clusterService.state()).nodes(createTestNodes(nonLocalNodesCount, Settings.EMPTY))
-                    .build();
-
-            ClusterState newClusterState = state;
-            // Allocate first task
-            state = newClusterState;
-            newClusterState = addTask(state, "test", new TestRequest(), "this_node");
-            coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
-
-            // Fail the task
-            executor.get(0).listener.onFailure(new RuntimeException("test failure"));
-
-            // Check that notification was sent
-            assertThat(capturedException.get().getMessage(), equalTo("test failure"));
-            capturedException.set(null);
-
-            // Simulate failure to notify
-            capturedListener.get().onFailure(new IOException("simulated notification failure"));
-
-            // Allocate another task
-            state = newClusterState;
-            newClusterState = addTask(state, "test", new TestRequest(), "other_node");
-            coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
-
-            // Check that notification was sent again
-            assertBusy(() -> {
-                assertNotNull(capturedException.get());
-                assertThat(capturedException.get().getMessage(), equalTo("test failure"));
-            });
-
-            // Check the the task is still known by the task manager
-            assertThat(taskManager.getTasks().size(), equalTo(1));
-            long id = taskManager.getTasks().values().iterator().next().getParentTaskId().getId();
-
-            // This time acknowledge notification
-            capturedListener.get().onResponse(
-                    new PersistentTask<>(1, TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME, new TestRequest(), null));
-
-            // Reallocate failed task to another node
-            state = newClusterState;
-            newClusterState = reallocateTask(state, id, "other_node");
-            coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
-
-            // Check the the task is now removed from task manager
-            assertThat(taskManager.getTasks().values(), empty());
-        } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
-        }
 
     }
 

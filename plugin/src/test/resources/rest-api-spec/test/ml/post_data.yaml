@@ -38,13 +38,7 @@ setup:
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
-  - skip:
-      features: ["headers"]
-
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
         body:
@@ -59,7 +53,7 @@ setup:
 
   - match: { processed_record_count: 2 }
   - match: { processed_field_count: 4}
-  - gte: { input_bytes: 170 }
+  - gte: { input_bytes: 140 }
   - lte: { input_bytes: 180 }
   - match: { input_field_count: 6 }
   - match: { invalid_date_count: 0 }
@@ -91,7 +85,7 @@ setup:
 
   - match: { _source.processed_record_count: 2 }
   - match: { _source.processed_field_count: 4}
-  - gte: { _source.input_bytes: 170 }
+  - gte: { _source.input_bytes: 140 }
   - lte: { _source.input_bytes: 180 }
   - match: { _source.input_field_count: 6 }
   - match: { _source.invalid_date_count: 0 }

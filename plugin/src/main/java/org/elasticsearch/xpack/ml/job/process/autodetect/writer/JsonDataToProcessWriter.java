@@ -58,17 +58,67 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
-        try (XContentParser parser = XContentFactory.xContent(xContentType)
+        if (xContentType.equals(XContentType.JSON)) {
+            writeJsonXContent(inputStream);
+        } else if (xContentType.equals(XContentType.SMILE)) {
+            writeSmileXContent(inputStream);
+        } else {
+            throw new RuntimeException("XContentType [" + xContentType
+                    + "] is not supported by JsonDataToProcessWriter");
+        }
+
+        // this line can throw and will be propagated
+        dataCountsReporter.finishReporting(
+                ActionListener.wrap(
+                        response -> handler.accept(dataCountsReporter.incrementalStats(), null),
+                        e -> handler.accept(null, e)
+                ));
+    }
+
+    private void writeJsonXContent(InputStream inputStream) throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(xContentRegistry, inputStream)) {
             writeJson(parser);
-
-            // this line can throw and will be propagated
-            dataCountsReporter.finishReporting(
-                    ActionListener.wrap(
-                            response -> handler.accept(dataCountsReporter.incrementalStats(), null),
-                            e -> handler.accept(null, e)
-                    ));
         }
+    }
+
+    private void writeSmileXContent(InputStream inputStream) throws IOException {
+        while (true) {
+            byte[] nextObject = findNextObject(XContentType.SMILE.xContent().streamSeparator(), inputStream);
+            if (nextObject.length == 0) {
+                break;
+            }
+            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE)
+                    .createParser(xContentRegistry, nextObject)) {
+                writeJson(parser);
+            }
+        }
+    }
+
+    private byte[] findNextObject(byte marker, InputStream data) throws IOException {
+        // The underlying stream, MarkSupportingStreamInputWrapper, doesn't care about
+        // readlimit, so just set to -1.  We could pick a value, but I worry that if the
+        // underlying implementation changes it may cause strange behavior, whereas -1 should
+        // blow up immediately
+        assert(data.markSupported());
+        data.mark(-1);
+
+        int nextByte;
+        int counter = 0;
+        do {
+            nextByte = data.read();
+            counter += 1;
+
+            // marker & 0xFF to deal with Java's lack of unsigned bytes...
+            if (nextByte == (marker & 0xFF)) {
+                data.reset();
+                byte[] buffer = new byte[counter];
+                data.read(buffer);
+                return buffer;
+            }
+        } while (nextByte != -1);
+
+        return new byte[0];
     }
 
     private void writeJson(XContentParser parser) throws IOException {

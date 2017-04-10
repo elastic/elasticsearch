@@ -1,7 +1,3 @@
-setup:
-  - skip:
-        features: ["headers"]
-
 ---
 "Test CRUD on two jobs in shared index":
 
@@ -53,9 +49,6 @@ setup:
         job_id: farequote2
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
         body: >
@@ -63,13 +56,11 @@ setup:
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote2
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
 
   - do:
@@ -300,9 +291,6 @@ setup:
         job_id: farequote
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
         body: >

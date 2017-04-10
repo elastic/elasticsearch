@@ -323,9 +323,6 @@
         job_id: farequote
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
         body: >
@@ -383,9 +380,6 @@
         job_id: farequote
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
         body: >

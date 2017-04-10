@@ -54,13 +54,8 @@ setup:
 
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
-  - skip:
-      features: ["headers"]
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: job-stats-test
         body: >
@@ -89,13 +84,8 @@ setup:
 
 ---
 "Test get job stats for closed job":
-  - skip:
-      features: ["headers"]
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: job-stats-test
         body: >

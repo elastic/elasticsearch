@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -278,6 +282,43 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter, times(1)).reportRecordWritten(1, 3000);
         verify(dataCountsReporter, times(1)).reportRecordWritten(1, 4000);
         verify(dataCountsReporter, times(1)).reportDateParseError(0);
+        verify(dataCountsReporter).finishReporting(any());
+    }
+
+    public void testWrite_Smile() throws Exception {
+
+        BytesStreamOutput xsonOs = new BytesStreamOutput();
+        XContentGenerator xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
+        xsonGen.writeStartObject();
+        xsonGen.writeStringField("time", "1");
+        xsonGen.writeStringField("metric", "foo");
+        xsonGen.writeStringField("value", "1.0");
+        xsonGen.writeEndObject();
+        xsonGen.close();
+        xsonOs.writeByte(XContentType.SMILE.xContent().streamSeparator());
+
+        xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
+        xsonGen.writeStartObject();
+        xsonGen.writeStringField("time", "2");
+        xsonGen.writeStringField("metric", "bar");
+        xsonGen.writeStringField("value", "2.0");
+        xsonGen.writeEndObject();
+        xsonGen.flush();
+        xsonOs.writeByte(XContentType.SMILE.xContent().streamSeparator());
+
+        InputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(xsonOs.bytes()));
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, XContentType.SMILE, (r, e) -> {});
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        // The final field is the control field
+        expectedRecords.add(new String[]{"time", "value", "."});
+        expectedRecords.add(new String[]{"1", "1.0", ""});
+        expectedRecords.add(new String[]{"2", "2.0", ""});
+        assertWrittenRecordsEqualTo(expectedRecords);
+
         verify(dataCountsReporter).finishReporting(any());
     }
 

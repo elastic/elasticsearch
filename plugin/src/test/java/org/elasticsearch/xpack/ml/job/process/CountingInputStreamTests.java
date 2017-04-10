@@ -55,4 +55,24 @@ public class CountingInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testRead_WithResets() throws IOException {
+
+        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter();
+
+        final String TEXT = "To the man who only has a hammer, everything he encounters begins to look like a nail.";
+        InputStream source = new ByteArrayInputStream(TEXT.getBytes(StandardCharsets.UTF_8));
+
+        try (CountingInputStream counting = new CountingInputStream(source, dataCountsReporter)) {
+            while (counting.read() >= 0) {
+                if (randomInt(10) > 5) {
+                    counting.mark(-1);
+                }
+                if (randomInt(10) > 7) {
+                    counting.reset();
+                }
+            }
+            assertEquals(TEXT.length(), dataCountsReporter.incrementalStats().getInputBytes());
+        }
+    }
+
 }

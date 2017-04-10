@@ -18,6 +18,8 @@ import java.io.InputStream;
  */
 public class CountingInputStream extends FilterInputStream {
     private DataCountsReporter dataCountsReporter;
+    private int markPosition = 0;
+    private int currentPosition = 0;
 
     /**
      * @param in
@@ -37,6 +39,7 @@ public class CountingInputStream extends FilterInputStream {
     public int read() throws IOException {
         int read = in.read();
         dataCountsReporter.reportBytesRead(read < 0 ? 0 : 1);
+        currentPosition += read < 0 ? 0 : 1;
 
         return read;
     }
@@ -44,8 +47,8 @@ public class CountingInputStream extends FilterInputStream {
     @Override
     public int read(byte[] b) throws IOException {
         int read = in.read(b);
-
         dataCountsReporter.reportBytesRead(read < 0 ? 0 : read);
+        currentPosition += read < 0 ? 0 : read;
 
         return read;
     }
@@ -53,8 +56,22 @@ public class CountingInputStream extends FilterInputStream {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         int read = in.read(b, off, len);
-
         dataCountsReporter.reportBytesRead(read < 0 ? 0 : read);
+        currentPosition += read < 0 ? 0 : read;
+
         return read;
+    }
+
+    @Override
+    public synchronized void mark(int readlimit) {
+        super.mark(readlimit);
+        markPosition = currentPosition;
+    }
+
+    @Override
+    public synchronized void reset() throws IOException {
+        super.reset();
+        dataCountsReporter.reportBytesRead(-(currentPosition - markPosition));
+        currentPosition = markPosition;
     }
 }

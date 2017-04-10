@@ -59,7 +59,14 @@ setup:
 
 ---
 "Basic field stats":
+  - skip:
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
+
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           fields:  [foo, number]
 
@@ -87,10 +94,13 @@ setup:
 ---
 "Geo field stats":
   - skip:
-      version: " - 5.3.0"
-      reason:  geo_point fields don't return min/max for versions greater than 5.2.0
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
 
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           fields:  [geo, geo_shape]
 
@@ -116,7 +126,14 @@ setup:
 
 ---
 "Basic field stats with level set to indices":
+  - skip:
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
+
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           fields:  [foo, number]
           level: indices
@@ -164,10 +181,13 @@ setup:
 ---
 "Geo field stats with level set to indices":
   - skip:
-      version: " - 5.3.0"
-      reason:  geo_point fields don't return min/max for versions greater than 5.2.0
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
 
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           fields:  [geo, geo_shape]
           level: indices
@@ -196,10 +216,13 @@ setup:
 ---
 "Geopoint field stats":
   - skip:
-      version: " - 5.3.0"
-      reason:  geo_point type not handled for versions earlier than 6.0.0
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
 
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           fields:  [geo]
           level: indices
@@ -216,8 +239,14 @@ setup:
 
 ---
 "Field stats with filtering":
+  - skip:
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
 
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           level:  indices
           index:  test_1
@@ -234,6 +263,8 @@ setup:
   - is_false: conflicts
 
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           level:  indices
           index:  test_1
@@ -243,6 +274,11 @@ setup:
 
 ---
 "Field stats both source and fields":
+  - skip:
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
+
   - do:
       catch: request
       field_stats:
@@ -252,7 +288,14 @@ setup:
 
 ---
 "Field stats with conflicts":
+  - skip:
+      version: " - 5.99.99"
+      reason:  Deprecation was added in 6.0.0
+      features: warnings
+
   - do:
+      warnings:
+          - "[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields."
       field_stats:
           fields:  [foo, number, bar]
 

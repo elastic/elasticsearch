@@ -60,7 +60,7 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(RepositoryMetaData metadata, Settings settings) {
+        public AmazonS3 client(Settings settings) {
             return new DummyS3Client();
         }
     }

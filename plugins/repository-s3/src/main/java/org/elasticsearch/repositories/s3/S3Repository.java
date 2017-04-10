@@ -342,7 +342,7 @@ class S3Repository extends BlobStoreRepository {
             "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        AmazonS3 client = s3Service.client(metadata, metadata.settings());
+        AmazonS3 client = s3Service.client(metadata.settings());
         String region = InternalAwsS3Service.getRegion(metadata.settings(), settings);
         blobStore = new S3BlobStore(settings, client,
                 bucket, region, serverSideEncryption, bufferSize, cannedACL, storageClass);

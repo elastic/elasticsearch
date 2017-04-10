@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
@@ -304,10 +303,8 @@ public class MachineLearning implements ActionPlugin {
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
 
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
-                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, threadPool, licenseState, clusterService,
-                        autodetectProcessManager, auditor),
-                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, threadPool, licenseState,
-                        datafeedManager, auditor)
+                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, licenseState, clusterService, autodetectProcessManager),
+                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, licenseState, datafeedManager)
         ));
 
         return Arrays.asList(
@@ -323,7 +320,8 @@ public class MachineLearning implements ActionPlugin {
                 persistentTasksExecutorRegistry,
                 new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService),
                 auditor,
-                invalidLicenseEnforcer
+                invalidLicenseEnforcer,
+                new MlAssignmentNotifier(settings, auditor, clusterService)
         );
     }
 

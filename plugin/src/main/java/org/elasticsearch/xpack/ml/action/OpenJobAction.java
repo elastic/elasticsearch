@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,7 +47,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
@@ -377,19 +375,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         private final AutodetectProcessManager autodetectProcessManager;
         private final XPackLicenseState licenseState;
-        private final Auditor auditor;
-        private final ThreadPool threadPool;
 
         private volatile int maxConcurrentJobAllocations;
 
-        public OpenJobPersistentTasksExecutor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
-                                              ClusterService clusterService, AutodetectProcessManager autodetectProcessManager,
-                                              Auditor auditor) {
+        public OpenJobPersistentTasksExecutor(Settings settings, XPackLicenseState licenseState,
+                                              ClusterService clusterService, AutodetectProcessManager autodetectProcessManager) {
             super(settings, NAME, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.autodetectProcessManager = autodetectProcessManager;
-            this.auditor = auditor;
-            this.threadPool = threadPool;
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
@@ -397,9 +390,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
-            writeAssignmentNotification(request.getJobId(), assignment, clusterState);
-            return assignment;
+            return selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
         }
 
         @Override
@@ -415,7 +406,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
                             + assignment.getExplanation() + "]";
                     logger.warn("[{}] {}", request.getJobId(), msg);
-                    auditor.warning(request.getJobId(), msg);
                     throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
                 }
             } else {
@@ -440,27 +430,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(),
                     this.maxConcurrentJobAllocations, maxConcurrentJobAllocations);
             this.maxConcurrentJobAllocations = maxConcurrentJobAllocations;
-        }
-
-        private void writeAssignmentNotification(String jobId, Assignment assignment, ClusterState state) {
-            // Forking as this code is called from cluster state update thread:
-            // Should be ok as auditor uses index api which has its own tp
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("Failed to write assignment notification for job [" + jobId + "]", e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    if (assignment.getExecutorNode() == null) {
-                        auditor.warning(jobId, "No node found to open job. Reasons [" + assignment.getExplanation() + "]");
-                    } else {
-                        DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
-                        auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
-                    }
-                }
-            });
         }
     }
 

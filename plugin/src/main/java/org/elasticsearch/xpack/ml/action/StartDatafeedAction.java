@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +52,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
@@ -406,25 +403,18 @@ public class StartDatafeedAction
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<Request> {
         private final DatafeedManager datafeedManager;
         private final XPackLicenseState licenseState;
-        private final Auditor auditor;
-        private final ThreadPool threadPool;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
-                                                    DatafeedManager datafeedManager, Auditor auditor) {
+        public StartDatafeedPersistentTasksExecutor(Settings settings, XPackLicenseState licenseState, DatafeedManager datafeedManager) {
             super(settings, NAME, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.datafeedManager = datafeedManager;
-            this.auditor = auditor;
-            this.threadPool = threadPool;
             this.resolver = new IndexNameExpressionResolver(settings);
         }
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState, resolver);
-            writeAssignmentNotification(request.getDatafeedId(), assignment, clusterState);
-            return assignment;
+            return selectNode(logger, request.getDatafeedId(), clusterState, resolver);
         }
 
         @Override
@@ -459,33 +449,6 @@ public class StartDatafeedAction
                             listener.onResponse(TransportResponse.Empty.INSTANCE);
                         }
                     });
-        }
-
-        private void writeAssignmentNotification(String datafeedId, Assignment assignment, ClusterState state) {
-            // Forking as this code is called from cluster state update thread:
-            // Should be ok as auditor uses index api which has its own tp
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("Failed to write assignment notification for datafeed [" + datafeedId + "]", e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
-                    DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
-                    String jobId = datafeed.getJobId();
-                    if (assignment.getExecutorNode() == null) {
-                        String msg = "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
-                                assignment.getExplanation() + "]";
-                        logger.warn("[{}] {}", datafeed.getJobId(), msg);
-                        auditor.warning(jobId, msg);
-                    } else {
-                        DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
-                        auditor.info(jobId, "Starting datafeed [" + datafeedId + "] on node [" + node + "]");
-                    }
-                }
-            });
         }
 
     }

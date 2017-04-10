@@ -21,11 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * An internal {@link Histogram.Order} strategy which is identified by a unique id.
@@ -83,6 +86,28 @@ class InternalOrder extends Histogram.Order {
         return Objects.equals(id, other.id)
                 && Objects.equals(key, other.key)
                 && Objects.equals(asc, other.asc);
+    }
+
+    public static InternalOrder fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        String key = parser.currentName();
+
+        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+        String value = parser.text();
+
+        Histogram.Order[] orders = new Histogram.Order[]{KEY_DESC, KEY_ASC, COUNT_DESC, COUNT_ASC};
+        for (Histogram.Order order: orders) {
+            InternalOrder internalOrder = (InternalOrder) order;
+            if (internalOrder.key().equals(key)) {
+                if ("asc".equals(value) && internalOrder.asc()) {
+                    return internalOrder;
+                } else if ("desc".equals(value) && internalOrder.asc() == false) {
+                    return internalOrder;
+                }
+            }
+        }
+        return null;
     }
 
     static class Aggregation extends InternalOrder {

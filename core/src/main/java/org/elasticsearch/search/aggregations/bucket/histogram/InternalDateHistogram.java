@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -42,6 +44,9 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
 /**
  * Implementation of {@link Histogram}.
@@ -144,6 +149,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             if (format != DocValueFormat.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
             }
+            if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
+                builder.field(CommonFields.FORMAT.getPreferredName(), format);
+            }
+
             builder.field(CommonFields.KEY.getPreferredName(), key);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
@@ -157,6 +166,40 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         public boolean getKeyed() {
             return keyed;
+        }
+
+        public static Bucket fromXContent(XContentParser parser) throws IOException {
+            //TODO tlrx support keyed buckets
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+            long key = 0L;
+            long docCount = 0L;
+            List<InternalAggregation> aggregations = new ArrayList<>();
+            String currentFieldName;
+            DocValueFormat format = DocValueFormat.RAW;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                currentFieldName = parser.currentName();
+                if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                    if (token.isValue()) {
+                        key = parser.longValue();
+                    }
+                } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
+                    if (token.isValue()) {
+                        docCount = parser.longValue();
+                    }
+                } else if (CommonFields.KEY_AS_STRING.getPreferredName().equals(currentFieldName)) {
+                    if (token.isValue()) {
+                        parser.text();
+                    }
+                } else if (CommonFields.FORMAT.getPreferredName().equals(currentFieldName)) {
+                    format = DocValueFormat.fromXContent(parser);
+                } else {
+                    aggregations.add(parseTypedKeysObject(parser, TYPED_KEYS_DELIMITER, InternalAggregation.class));
+                }
+            }
+            //TODO tlrx Print out "keyed" and parse it back too
+            return new Bucket(key, docCount, false, format, new InternalAggregations(aggregations));
         }
     }
 
@@ -449,6 +492,15 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         } else {
             builder.endArray();
         }
+
+        if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
+            builder.field(CommonFields.FORMAT.getPreferredName(), format);
+            builder.field(CommonFields.KEYED.getPreferredName(), keyed);
+            builder.field(CommonFields.OFFSET.getPreferredName(), offset);
+            builder.field(CommonFields.MIN_DOC_COUNT.getPreferredName(), minDocCount);
+            builder.field(CommonFields.ORDER.getPreferredName(), order);
+        }
+
         return builder;
     }
 
@@ -496,5 +548,97 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     protected int doHashCode() {
         return Objects.hash(buckets, order, format, keyed, minDocCount, offset, emptyBucketInfo);
+    }
+
+    public static InternalDateHistogram fromXContent(XContentParser parser, String name) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        InternalDateHistogram.Builder builder = new InternalDateHistogram.Builder();
+        builder.setName(name);
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentBody(parser, builder);
+        }
+
+        parser.nextToken(); //TODO tlrx figure out why this extra one is needed
+        return builder.build();
+    }
+
+    private static void parseXContentBody(XContentParser parser, InternalDateHistogram.Builder builder) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (CommonFields.BUCKETS.getPreferredName().equals(currentFieldName)) {
+            XContentParser.Token endToken = null;
+            if (token == XContentParser.Token.START_OBJECT) {
+                endToken = XContentParser.Token.END_OBJECT;
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                endToken = XContentParser.Token.END_ARRAY;
+            }
+
+            if (endToken != null) {
+                final List<Bucket> buckets = new ArrayList<>();
+                while ((token = parser.nextToken()) != endToken) {
+                    buckets.add(Bucket.fromXContent(parser));
+                }
+                builder.setBuckets(buckets);
+            }
+        } else if (CommonFields.FORMAT.getPreferredName().equals(currentFieldName)) {
+            builder.setFormat(DocValueFormat.fromXContent(parser));
+        } else if (CommonFields.KEYED.getPreferredName().equals(currentFieldName)) {
+            if (token.isValue()) {
+                builder.setKeyed(parser.booleanValue());
+            }
+        } else if (CommonFields.OFFSET.getPreferredName().equals(currentFieldName)) {
+            if (token.isValue()) {
+                builder.setOffset(parser.longValue());
+            }
+        } else if (CommonFields.MIN_DOC_COUNT.getPreferredName().equals(currentFieldName)) {
+            if (token.isValue()) {
+                builder.setMinDocCount(parser.longValue());
+            }
+        } else if (CommonFields.ORDER.getPreferredName().equals(currentFieldName)) {
+            builder.setOrder(InternalOrder.fromXContent(parser));
+        } else {
+            parseCommonToXContent(parser, builder);
+        }
+    }
+
+    public static class Builder extends InternalAggregation.Builder {
+
+        private List<Bucket> buckets;
+        private DocValueFormat format;
+        private InternalOrder order;
+        private boolean keyed;
+        private long offset;
+        private long minDocCount;
+
+        public void setBuckets(List<Bucket> buckets) {
+            this.buckets = buckets;
+        }
+
+        public void setFormat(DocValueFormat format) {
+            this.format = format;
+        }
+
+        public void setKeyed(boolean keyed) {
+            this.keyed = keyed;
+        }
+
+        public void setOffset(long offset) {
+            this.offset = offset;
+        }
+
+        public void setMinDocCount(long minDocCount) {
+            this.minDocCount = minDocCount;
+        }
+
+        public void setOrder(InternalOrder order) {
+            this.order = order;
+        }
+
+        public InternalDateHistogram build() {
+            return new InternalDateHistogram(name, buckets, order, minDocCount, offset,
+            null, format, keyed, Collections.emptyList(), metaData);
+        }
     }
 }

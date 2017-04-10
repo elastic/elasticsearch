@@ -30,6 +30,9 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -43,8 +46,12 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
+
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
-public interface DocValueFormat extends NamedWriteable {
+public interface DocValueFormat extends NamedWriteable, ToXContentObject {
 
     /** Format a long value. This is used by terms and histogram aggregations
      *  to format keys for fields that use longs as a doc value representation
@@ -75,9 +82,11 @@ public interface DocValueFormat extends NamedWriteable {
 
     DocValueFormat RAW = new DocValueFormat() {
 
+        static final String NAME = "raw";
+
         @Override
         public String getWriteableName() {
-            return "raw";
+            return NAME;
         }
 
         @Override
@@ -118,6 +127,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().startObject(NAME).endObject().endObject();
         }
     };
 
@@ -179,13 +193,46 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(NAME);
+            builder.field("pattern", formatter.format());
+            builder.field("timezone", timeZone.getID());
+            builder.endObject();
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            //TODO tlrx This is wrong
+            DateTime that = (DateTime) o;
+            return Objects.equals(formatter.format(), that.formatter.format())
+                    && Objects.equals(formatter.locale(), that.formatter.locale())
+                    && Objects.equals(timeZone, that.timeZone);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(formatter.format(), formatter.locale(), timeZone);
+        }
     }
 
     DocValueFormat GEOHASH = new DocValueFormat() {
 
+        static final String NAME = "geo_hash";
+
         @Override
         public String getWriteableName() {
-            return "geo_hash";
+            return NAME;
         }
 
         @Override
@@ -221,13 +268,20 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().startObject(NAME).endObject().endObject();
+        }
     };
 
     DocValueFormat BOOLEAN = new DocValueFormat() {
 
+        static final String NAME = "bool";
+
         @Override
         public String getWriteableName() {
-            return "bool";
+            return NAME;
         }
 
         @Override
@@ -269,13 +323,20 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().startObject(NAME).endObject().endObject();
+        }
     };
 
     DocValueFormat IP = new DocValueFormat() {
 
+        static final String NAME = "ip";
+
         @Override
         public String getWriteableName() {
-            return "ip";
+            return NAME;
         }
 
         @Override
@@ -312,6 +373,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().startObject(NAME).endObject().endObject();
         }
     };
 
@@ -393,5 +459,55 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(NAME);
+            builder.field("pattern", pattern);
+            builder.endObject();
+            return builder.endObject();
+        }
+    }
+
+    static DocValueFormat fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        DocValueFormat docValueFormat = null;
+
+        String currentFieldName = parser.currentName();
+        if ("raw".equals(currentFieldName)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            docValueFormat = DocValueFormat.RAW;
+
+        } else if ("date_time".equals(currentFieldName)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+            String pattern = null, timezone = null;
+            while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if ("pattern".equals(currentFieldName)) {
+                        pattern = parser.text();
+                    } else if ("timezone".equals(currentFieldName)) {
+                        timezone = parser.text();
+                    } else {
+                        throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    }
+                } else {
+                    throwUnknownToken(token, parser.getTokenLocation());
+                }
+            }
+            docValueFormat = new DateTime(Joda.forPattern(pattern), DateTimeZone.forID(timezone));
+        }
+
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return docValueFormat;
     }
 }

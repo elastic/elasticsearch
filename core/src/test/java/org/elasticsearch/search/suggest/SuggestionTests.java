@@ -132,8 +132,8 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals(
-                    "Cannot parse suggestion response without type information. "
+            assertEquals("Cannot parse object of class [org.elasticsearch.search.suggest." +
+                    "Suggest$Suggestion] without type information. "
                     + "Set [typed_keys] parameter on the request to ensure the type information "
                     + "is added to the response output", e.getMessage());
         }

@@ -60,8 +60,8 @@ setup:
 ---
 "Basic field stats":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -94,8 +94,8 @@ setup:
 ---
 "Geo field stats":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -127,8 +127,8 @@ setup:
 ---
 "Basic field stats with level set to indices":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -181,8 +181,8 @@ setup:
 ---
 "Geo field stats with level set to indices":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -216,8 +216,8 @@ setup:
 ---
 "Geopoint field stats":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -240,8 +240,8 @@ setup:
 ---
 "Field stats with filtering":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -275,8 +275,8 @@ setup:
 ---
 "Field stats both source and fields":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:
@@ -289,8 +289,8 @@ setup:
 ---
 "Field stats with conflicts":
   - skip:
-      version: " - 5.99.99"
-      reason:  Deprecation was added in 6.0.0
+      version: " - 5.3.99"
+      reason:  Deprecation was added in 5.4.0
       features: warnings
 
   - do:

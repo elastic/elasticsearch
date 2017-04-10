@@ -33,5 +33,3 @@ the configured remote cluster alias.
 
 `initial_connect_timeout`::
 	The initial connect timeout for remote cluster connections.
-
---------------------------------------------------

@@ -204,7 +204,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public List<Range.Bucket> getBuckets() {
+    public List<InternalBinaryRange.Bucket> getBuckets() {
         return unmodifiableList(buckets);
     }
 

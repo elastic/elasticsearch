@@ -59,7 +59,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
@@ -340,7 +339,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, TestRequest request, ActionListener<Empty> listener) {
+        protected void nodeOperation(AllocatedPersistentTask task, TestRequest request) {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
@@ -355,10 +354,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                         return;
                     }
                     if ("finish".equals(testTask.getOperation())) {
-                        listener.onResponse(Empty.INSTANCE);
+                        task.markAsCompleted();
                         return;
                     } else if ("fail".equals(testTask.getOperation())) {
-                        listener.onFailure(new RuntimeException("Simulating failure"));
+                        task.markAsFailed(new RuntimeException("Simulating failure"));
                         return;
                     } else if ("update_status".equals(testTask.getOperation())) {
                         testTask.setOperation(null);
@@ -384,12 +383,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                         // Cancellation make cause different ways for the task to finish
                         if (randomBoolean()) {
                             if (randomBoolean()) {
-                                listener.onFailure(new TaskCancelledException(testTask.getReasonCancelled()));
+                                task.markAsFailed(new TaskCancelledException(testTask.getReasonCancelled()));
                             } else {
-                                listener.onResponse(Empty.INSTANCE);
+                                task.markAsCompleted();
                             }
                         } else {
-                            listener.onFailure(new RuntimeException(testTask.getReasonCancelled()));
+                            task.markAsFailed(new RuntimeException(testTask.getReasonCancelled()));
                         }
                         return;
                     } else {
@@ -397,7 +396,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                     }
                 }
             } catch (InterruptedException e) {
-                listener.onFailure(e);
+                task.markAsFailed(e);
             }
         }
     }

@@ -93,13 +93,9 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
     @After
     public void stopMonitoring() throws Exception {
-        Settings.Builder exporterSettings = Settings.builder()
-                .putNull("xpack.monitoring.exporters._local.enabled")
-                .putNull("xpack.monitoring.exporters._local.index.name.time_format")
-                .putNull(MonitoringSettings.INTERVAL.getKey());
-
+        logger.debug("stopping monitoring service");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(exporterSettings));
+                .setTransientSettings(Settings.builder().putNull(MonitoringSettings.INTERVAL.getKey())));
 
         logger.debug("deleting monitoring indices, checking multiple times in case of in-flight bulk requests");
         awaitBusy(() -> {
@@ -116,6 +112,12 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             }
             return false;
         });
+
+        logger.debug("disabling monitoring exporters");
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder()
+                        .putNull("xpack.monitoring.exporters._local.enabled")
+                        .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
     }
 
     @TestLogging("org.elasticsearch.xpack.monitoring:TRACE")

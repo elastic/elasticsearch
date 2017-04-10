@@ -19,6 +19,7 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -46,5 +47,13 @@ public class SimilarityServiceTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "Cannot redefine built-in Similarity [BM25]");
         }
+    }
+
+    public void testOverrideDefaultSimilarity() {
+        Settings settings = Settings.builder().put("index.similarity.default.type", "classic")
+                .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        assertTrue(service.getDefaultSimilarity() instanceof ClassicSimilarity);
     }
 }

@@ -117,14 +117,16 @@ public class SearchTransformTests extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx").get();
         Payload expectedPayload = new Payload.XContent(response);
 
-        // we need to remove the "took" field from teh response as this is the only field
-        // that most likely be different between the two... we don't really care about this
-        // field, we just want to make sure that the important parts of the response are the same
+        // we need to remove the "took" and "num_reduce_phases" fields from the response
+        // as they are the only fields most likely different between the two... we don't
+        // really care about these fields, we just want to make sure that the important
+        // parts of the response are the same
         Map<String, Object> resultData = result.payload().data();
         resultData.remove("took");
+        resultData.remove("num_reduce_phases");
         Map<String, Object> expectedData = expectedPayload.data();
         expectedData.remove("took");
-
+        expectedData.remove("num_reduce_phases");
         assertThat(resultData, equalTo(expectedData));
     }
 

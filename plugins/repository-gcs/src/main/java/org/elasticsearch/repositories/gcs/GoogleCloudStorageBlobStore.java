@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.batch.BatchRequest;
 import com.google.api.client.googleapis.batch.json.JsonBatchCallback;
@@ -29,14 +29,12 @@ import com.google.api.services.storage.Storage;
 import com.google.api.services.storage.model.Bucket;
 import com.google.api.services.storage.model.Objects;
 import com.google.api.services.storage.model.StorageObject;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.gcs.util.SocketAccess;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -45,9 +43,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -62,7 +57,7 @@ import java.util.stream.StreamSupport;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
-public class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
+class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
 
     /**
      * Google Cloud Storage batch requests are limited to 1000 operations
@@ -72,7 +67,7 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
     private final Storage client;
     private final String bucket;
 
-    public GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storageClient) {
+    GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storageClient) {
         super(settings);
         this.bucket = bucket;
         this.client = storageClient;

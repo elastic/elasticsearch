@@ -441,8 +441,8 @@ public class InternalEngine extends Engine {
         if (versionValue == null) {
             return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
-            return op.version() > versionValue.getVersion() ?
-                OpVsLuceneDocStatus.OP_NEWER : OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+            return op.versionType().isVersionConflictForWrites(versionValue.getVersion(), op.version(), versionValue.isDelete()) ?
+                OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
         }
     }
 

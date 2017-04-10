@@ -45,14 +45,4 @@ public interface Aggregations extends Iterable<Aggregation> {
      * Returns the aggregation that is associated with the specified name.
      */
     <A extends Aggregation> A get(String name);
-
-    /**
-     * Get the value of specified path in the aggregation.
-     * 
-     * @param path
-     *            the path to the property in the aggregation tree
-     * @return the value of the property
-     */
-    Object getProperty(String path);
-
 }

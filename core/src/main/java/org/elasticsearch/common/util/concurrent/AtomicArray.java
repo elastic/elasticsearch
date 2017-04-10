@@ -31,14 +31,6 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * to get the concrete values as a list using {@link #asList()}.
  */
 public class AtomicArray<E> {
-
-    private static final AtomicArray EMPTY = new AtomicArray(0);
-
-    @SuppressWarnings("unchecked")
-    public static <E> E empty() {
-        return (E) EMPTY;
-    }
-
     private final AtomicReferenceArray<E> array;
     private volatile List<E> nonNullList;
 
@@ -52,7 +44,6 @@ public class AtomicArray<E> {
     public int length() {
         return array.length();
     }
-
 
     /**
      * Sets the element at position {@code i} to the given value.

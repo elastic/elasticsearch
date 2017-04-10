@@ -48,8 +48,7 @@ public interface Histogram extends MultiBucketsAggregation {
      * @return  The buckets of this histogram (each bucket representing an interval in the histogram)
      */
     @Override
-    List<Bucket> getBuckets();
-
+    List<? extends Bucket> getBuckets();
 
     /**
      * A strategy defining the order in which the buckets in this histogram are ordered.

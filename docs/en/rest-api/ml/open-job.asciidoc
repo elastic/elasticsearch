@@ -20,7 +20,7 @@ The job is ready to resume its analysis from where it left off, once new data is
 ===== Path Parameters
 
 `job_id` (required)::
-(+string+)    Identifier for the job
+(+string+) Identifier for the job
 
 ===== Request Body
 

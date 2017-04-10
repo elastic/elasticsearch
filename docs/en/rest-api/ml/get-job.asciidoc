@@ -27,8 +27,7 @@ The API returns information about the job resource. For more information, see
 ////
 ===== Query Parameters
 
-`_stats`::
-(+boolean+; default: ++true++) If true (default false), will just validate the cluster definition but will not perform the creation
+None
 
 ===== Responses
 

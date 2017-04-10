@@ -7,12 +7,13 @@ The preview data feed API allows you to preview a data feed.
 
 `GET _xpack/ml/datafeeds/<feed_id>/_preview`
 
-////
+
 ===== Description
 
-Important:: Updates do not take effect until after then job is closed and new
-data is sent to it.
-////
+TBD
+//How much data does it return?
+The API returns example data by using the current data feed settings.
+
 ===== Path Parameters
 
 `feed_id` (required)::
@@ -21,25 +22,7 @@ data is sent to it.
 ////
 ===== Request Body
 
-The following properties can be updated after the job is created:
-
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>.  In particular, the following properties can be updated: `categorization_filters`, `detector_description`, TBD.
-
-`analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
-
-[NOTE]
-* You can update the `analysis_limits` only while the job is closed.
-* The `model_memory_limit` property value cannot be decreased.
-* If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
-increasing the `model_memory_limit` is not recommended.
-
-`description`::
-  (+string+) An optional description of the job.
-
-This expects data to be sent in JSON format using the POST `_data` API.
+None
 
 ===== Responses
 
@@ -52,33 +35,33 @@ TBD
 (BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-
+////
 ===== Examples
 
-The following example updates the `it-ops-kpi` job:
+The following example obtains a previews of the `datafeed-farequote` data feed:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/it-ops-kpi/_update
-{
-    "description":"New description",
-    "analysis_limits":{
-      "model_memory_limit": 8192
-    }
-}
+GET _xpack/ml/datafeeds/datafeed-farequote/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the job is updated, you receive the following results:
+The data that is returned for this example is as follows:
 ----
-{
-  "job_id": "it-ops-kpi",
-  "description": "New description",
+[
+  {
+    "@timestamp": 1454803200000,
+    "responsetime": 132.20460510253906
+  },
+  {
+    "@timestamp": 1454803200000,
+    "responsetime": 990.4628295898438
+  },
+  {
+    "@timestamp": 1454803200000,
+    "responsetime": 877.5927124023438
+  },
   ...
-  "analysis_limits": {
-    "model_memory_limit": 8192
-  ...
-}
+]
 ----
-////

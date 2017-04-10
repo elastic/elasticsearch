@@ -1,7 +1,7 @@
 [[ml-put-job]]
 ==== Create Jobs
 
-The create job API allows you to instantiate a {ml} job.
+The create job API enables you to instantiate a {ml} job.
 
 ===== Request
 

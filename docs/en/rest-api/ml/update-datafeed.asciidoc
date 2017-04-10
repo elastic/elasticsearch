@@ -10,75 +10,122 @@ The update data feed API allows you to update certain properties of a data feed.
 ////
 ===== Description
 
-Important:: Updates do not take effect until after then job is closed and new
-data is sent to it.
+TBD
+
 ////
 ===== Path Parameters
 
 `feed_id` (required)::
   (+string+) Identifier for the data feed
 
-////
 ===== Request Body
 
-The following properties can be updated after the job is created:
+The following properties can be updated after the data feed is created:
 
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>.  In particular, the following properties can be updated: `categorization_filters`, `detector_description`, TBD.
+aggregations::
+  (+object+) TBD.
 
-`analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
+frequency::
+   TBD: For example: "150s"
 
-[NOTE]
-* You can update the `analysis_limits` only while the job is closed.
-* The `model_memory_limit` property value cannot be decreased.
-* If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
-increasing the `model_memory_limit` is not recommended.
+indexes (required)::
+  (+array+) An array of index names. For example: ["it_ops_metrics"]
 
-`description`::
-  (+string+) An optional description of the job.
+job_id::
+ (+string+) A numerical character string that uniquely identifies the job.
 
-This expects data to be sent in JSON format using the POST `_data` API.
+query::
+  (+object+) The query that retrieves the data.
+  By default, this property has the following value: `{"match_all": {"boost": 1}}`.
 
+query_delay::
+  TBD. For example: "60s"
+
+scroll_size::
+  TBD. For example, 1000
+
+types (required)::
+  TBD. For example: ["network","sql","kpi"]
+
+For more information about these properties,
+see <<ml-datafeed-resource, Data Feed Resources>>.
+
+////
 ===== Responses
 
 TBD
-////
-////
+
 200
 (EmptyResponse) The cluster has been successfully deleted
 404
 (BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-
+////
 ===== Examples
 
 The following example updates the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/it-ops-kpi/_update
+POST _xpack/ml/datafeeds/datafeed-it-ops-kpi3/_update
 {
-    "description":"New description",
-    "analysis_limits":{
-      "model_memory_limit": 8192
+  "aggregations": {
+    "@timestamp": {
+      "histogram": {
+        "field": "@timestamp",
+        "interval": 30000,
+        "offset": 0,
+        "order": {
+          "_key": "asc"
+        },
+        "keyed": false,
+        "min_doc_count": 0
+      },
+      "aggregations": {
+        "events_per_min": {
+          "sum": {
+            "field": "events_per_min"
+          }
+        }
+      }
     }
+  },
+  "frequency": "160s"
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the job is updated, you receive the following results:
+When the data feed is updated, you receive the following results:
 ----
 {
+  "datafeed_id": "datafeed-it-ops-kpi",
   "job_id": "it-ops-kpi",
-  "description": "New description",
-  ...
-  "analysis_limits": {
-    "model_memory_limit": 8192
-  ...
+  "query_delay": "1m",
+  "frequency": "160s",
+...
+  "aggregations": {
+    "@timestamp": {
+      "histogram": {
+        "field": "@timestamp",
+        "interval": 30000,
+        "offset": 0,
+        "order": {
+          "_key": "asc"
+        },
+        "keyed": false,
+        "min_doc_count": 0
+      },
+      "aggregations": {
+        "events_per_min": {
+          "sum": {
+            "field": "events_per_min"
+          }
+        }
+      }
+    }
+  },
+  "scroll_size": 1000
 }
 ----
-////

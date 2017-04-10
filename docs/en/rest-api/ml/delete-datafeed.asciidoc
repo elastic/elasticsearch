@@ -7,25 +7,14 @@ The delete data feed API allows you to delete an existing data feed.
 
 `DELETE _xpack/ml/datafeeds/<feed_id>`
 
-////
 ===== Description
 
-All job configuration, model state and results are deleted.
+NOTE: You must stop the data feed before you can delete it.
 
-IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
-            job directly from the `.ml-*` indices using the Elasticsearch
-            DELETE Document API. When {security} is enabled, make sure no `write`
-            privileges are granted to anyone over the `.ml-*` indices.
-
-Before you can delete a job, you must delete the data feeds that are associated with it.
-//See <<>>.
-
-It is not currently possible to delete multiple jobs using wildcards or a comma separated list.
-////
 ===== Path Parameters
 
 `feed_id` (required)::
-  (+string+)    Identifier for the data feed
+  (+string+) Identifier for the data feed
 ////
 ===== Responses
 

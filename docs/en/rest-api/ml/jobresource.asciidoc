@@ -52,8 +52,8 @@ An analysis configuration object has the following properties:
   Requires `period` to be specified
 ////
 
-`bucket_span`::
-  (+unsigned integer+, required) The size of the interval that the analysis is aggregated into, measured in seconds.
+`bucket_span` (required)::
+  (+unsigned integer+) The size of the interval that the analysis is aggregated into, measured in seconds.
   The default value is 300 seconds (5 minutes).
 
 `categorization_field_name`::
@@ -69,8 +69,8 @@ An analysis configuration object has the following properties:
   that should not be taken into consideration for defining categories.
   For example, you can exclude SQL statements that appear in your log files.
 
-`detectors`::
-  (+array+, required) An array of detector configuration objects,
+`detectors` (required)::
+  (+array+) An array of detector configuration objects,
   which describe the anomaly detectors that are used in the job.
   See <<ml-detectorconfig,detector configuration objects>>.
 
@@ -154,8 +154,8 @@ Each detector has the following properties:
 
 NOTE: The `field_name` cannot contain double quotes or backslashes.
 
-`function`::
-  (+string+, required) The analysis function that is used.
+`function` (required)::
+  (+string+) The analysis function that is used.
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`.
   The default function is `metric`, which looks for anomalies in all of `min`, `max`,
   and `mean`.

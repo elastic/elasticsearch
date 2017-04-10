@@ -1,43 +1,57 @@
 [[ml-put-datafeed]]
 ==== Create Data Feeds
 
-The create data feed API allows you to instantiate a data feed.
+The create data feed API enables you to instantiate a data feed.
 
 ===== Request
 
 `PUT _xpack/ml/datafeeds/<feed_id>`
 
-////
+
 ===== Description
 
-TBD
-////
+You must create a job before you create a data feed.  You can associate only one
+data feed to each job.
+
 ===== Path Parameters
 
 `feed_id` (required)::
-  (+string+) Identifier for the data feed
+  (+string+) A numerical character string that uniquely identifies the data feed.
 
-////
 ===== Request Body
 
+aggregations::
+  (+object+) TBD.  For example: {"@timestamp": {"histogram": {"field": "@timestamp",
+  "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
+  "min_doc_count": 0}, "aggregations": {"events_per_min": {"sum": {
+  "field": "events_per_min"}}}}}
 
-`description`::
-  (+string+) An optional description of the job.
+frequency::
+   TBD: For example: "150s"
 
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>.
+indexes (required)::
+  (+array+) An array of index names. For example: ["it_ops_metrics"]
 
-`data_description`::
-  (+object+) Describes the format of the input data.
-  See <<ml-datadescription,data description objects>>.
+job_id (required)::
+ (+string+) A numerical character string that uniquely identifies the job.
 
-`analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
+query::
+  (+object+) The query that retrieves the data.
+  By default, this property has the following value: `{"match_all": {"boost": 1}}`.
 
+query_delay::
+  TBD. For example: "60s"
 
-This expects data to be sent in JSON format using the POST `_data` API.
+scroll_size::
+  TBD. For example, 1000
 
+types (required)::
+  TBD. For example: ["network","sql","kpi"]
+
+For more information about these properties,
+see <<ml-datafeed-resource, Data Feed Resources>>.  
+
+////
 ===== Responses
 
 TBD
@@ -48,62 +62,55 @@ TBD
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
 
-
+////
 ===== Examples
 
-The following example creates the `it-ops-kpi` job:
+The following example creates the `datafeed-it-ops-kpi` data feed:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/it-ops-kpi
+PUT _xpack/ml/datafeeds/datafeed-it-ops-kpi
 {
-    "description":"First simple job",
-    "analysis_config":{
-      "bucket_span": "5m",
-      "latency": "0ms",
-      "detectors":[
-        {
-          "detector_description": "low_sum(events_per_min)",
-          "function":"low_sum",
-          "field_name": "events_per_min"
-        }
+  "job_id": "it-ops-kpi",
+  "query":
+  {
+   "match_all":
+   {
+     "boost": 1
+   }
+  },
+  "indexes": [
+        "it_ops_metrics"
+      ],
+  "types": [
+        "kpi",
+        "sql",
+        "network"
       ]
-    },
-    "data_description": {
-    "time_field":"@timestamp",
-    "time_format":"epoch_ms"
-    }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the job is created, you receive the following results:
+When the data feed is created, you receive the following results:
 ----
 {
+  "datafeed_id": "datafeed-it-ops-kpi",
   "job_id": "it-ops-kpi",
-  "description": "First simple job",
-  "create_time": 1491247016391,
-  "analysis_config": {
-    "bucket_span": "5m",
-    "latency": "0ms",
-    "detectors": [
-      {
-        "detector_description": "low_sum(events_per_min)",
-        "function": "low_sum",
-        "field_name": "events_per_min",
-        "detector_rules": []
-      }
-    ],
-    "influencers": [],
-    "use_per_partition_normalization": false
+  "query_delay": "1m",
+  "indexes": [
+    "it_ops_metrics"
+  ],
+  "types": [
+    "kpi",
+    "sql",
+    "network"
+  ],
+  "query": {
+    "match_all": {
+      "boost": 1
+    }
   },
-  "data_description": {
-    "time_field": "@timestamp",
-    "time_format": "epoch_ms"
-  },
-  "model_snapshot_retention_days": 1,
-  "results_index_name": "shared"
+  "scroll_size": 1000
 }
 ----
-////

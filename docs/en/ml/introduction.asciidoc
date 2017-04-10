@@ -5,8 +5,8 @@ Machine learning in {xpack} automates the analysis of time-series data by
 creating accurate baselines of normal behaviors in the data, and identifying
 anomalous patterns in that data.
 
-Driven by proprietary machine learning algorithms, anomalies related to temporal
-deviations in values/counts/frequencies, statistical rarity, and unusual
+Driven by proprietary machine learning algorithms, anomalies related to
+temporal deviations in values/counts/frequencies, statistical rarity, and unusual
 behaviors for a member of a population are detected, scored and linked with
 statistically significant influencers in the data.
 
@@ -15,11 +15,51 @@ that you don’t need to specify algorithms, models, or other data
 science-related configurations in order to get the benefits of {ml}.
 //image::graph-network.jpg["Graph network"]
 
+[float]
 === Integration with the Elastic Stack
 
 Machine learning is tightly integrated with the Elastic Stack.
 Data is pulled from {es} for analysis and anomaly results are displayed in
 {kb} dashboards.
+
+[float]
+[[ml-concepts]]
+=== Basic Concepts
+
+There are a few concepts that are core to {ml} in {xpack}.
+Understanding these concepts from the outset will tremendously help ease the
+learning process.
+
+Jobs::
+  Machine learning jobs contain the configuration information and metadata
+  necessary to perform an analytics task. For a list of the properties associated
+  with a job, see <<ml-job-resource, Job Resources>>.
+
+Data feeds::
+  Jobs can analyze either a batch of data from a data store or a stream of data
+  in real-time. The latter involves data that is retrieved from {es} and is
+  referred to as a _data feed_.
+
+Detectors::
+  Part of the configuration information associated with a job, detectors define
+  the type of analysis that needs to be done (for example, max, average, rare).
+  They also specify which fields to analyze. You can have more than one detector
+  in a job, which is more efficient than running multiple jobs against the same
+  data stream. For a list of the properties associated with detectors, see
+  <<ml-detectorconfig, Detector Configuration Objects>>.
+
+Buckets::
+  Part of the configuration information associated with a job, the _bucket span_
+  defines the time interval across which the job analyzes. When setting the
+  bucket span, take into account the granularity at which you want to analyze,
+  the frequency of the input data, and the frequency at which alerting is required.
+
+
+
+
+
+
+
 
 //[float]
 //== Where to Go Next

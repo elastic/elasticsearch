@@ -3,8 +3,63 @@
 
 A data feed resource has the following properties:
 
-TBD
-////
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data. See <<ml-analysisconfig, analysis configuration objects>>.
-////
+`aggregations`::
+  (+object+) TBD
+  The aggregations object describes the aggregations that are
+  applied to the search query?
+  For more information, see <<{ref}search-aggregations.html,Aggregations>>.
+  For example:
+  `{"@timestamp": {"histogram": {"field": "@timestamp",
+  "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
+  "min_doc_count": 0}, "aggregations": {"events_per_min": {"sum": {
+  "field": "events_per_min"}}}}}`.
+
+`datafeed_id`::
+ (+string+) A numerical character string that uniquely identifies the data feed.
+
+`frequency`::
+   TBD. A time  For example: "150s"
+
+`indexes` (required)::
+  (+array+) An array of index names. For example: ["it_ops_metrics"]
+
+`job_id` (required)::
+ (+string+) A numerical character string that uniquely identifies the job.
+
+`query`::
+  (+object+) TBD. The query that retrieves the data.
+  By default, this property has the following value: `{"match_all": {"boost": 1}}`.
+
+`query_delay`::
+  TBD. For example: "60s"
+
+`scroll_size`::
+  TBD.
+  The maximum number of hits to be returned with each batch of search results?
+  The default value is `1000`.
+
+`types` (required)::
+  (+array+) TBD. For example: ["network","sql","kpi"]
+
+  [[ml-datafeed-counts]]
+  ==== Data Feed Counts
+
+  The get data feed statistics API provides information about the operational
+  progress of a data feed. For example:
+
+`assigment_explanation`::
+  TBD
+  For example: ""
+
+`node`::
+  (+object+) TBD
+  The node that is running the query?
+  For example: `{"id": "0-o0tOoRTwKFZifatTWKNw","name": "0-o0tOo",
+  "ephemeral_id": "DOZltLxLS_SzYpW6hQ9hyg","transport_address": "127.0.0.1:9300",
+  "attributes": {"max_running_jobs": "10"}}
+
+`state`::
+  (+string+) The status of the data feed,
+  which can be one of the following values:
+  * started:: The data feed is actively receiving data.
+  * stopped:: The data feed is stopped and will not receive data until it is re-started.

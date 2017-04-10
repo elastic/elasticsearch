@@ -13,6 +13,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
@@ -44,7 +46,6 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private static final String EARLIEST_TIME = "earliest_time";
     private static final String LATEST_TIME = "latest_time";
-    private static final String VALUE_SUFFIX = ".value";
 
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
@@ -122,8 +123,10 @@ public class ChunkedDataExtractor implements DataExtractor {
         long latestTime = 0;
         long totalHits = response.getHits().getTotalHits();
         if (totalHits > 0) {
-            earliestTime = (long) Double.parseDouble(aggregations.getProperty(EARLIEST_TIME + VALUE_SUFFIX).toString());
-            latestTime = (long) Double.parseDouble(aggregations.getProperty(LATEST_TIME + VALUE_SUFFIX).toString());
+            Min min = aggregations.get(EARLIEST_TIME);
+            earliestTime = (long) min.getValue();
+            Max max = aggregations.get(LATEST_TIME);
+            latestTime = (long) max.getValue();
         }
         return new DataSummary(earliestTime, latestTime, totalHits);
     }

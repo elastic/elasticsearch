@@ -17,6 +17,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -413,8 +415,12 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         Aggregations aggs = mock(Aggregations.class);
-        when(aggs.getProperty("earliest_time.value")).thenReturn((double) earliestTime);
-        when(aggs.getProperty("latest_time.value")).thenReturn((double) latestTime);
+        Min min = mock(Min.class);
+        when(min.getValue()).thenReturn((double) earliestTime);
+        when(aggs.get("earliest_time")).thenReturn(min);
+        Max max = mock(Max.class);
+        when(max.getValue()).thenReturn((double) latestTime);
+        when(aggs.get("latest_time")).thenReturn(max);
         when(searchResponse.getAggregations()).thenReturn(aggs);
         return searchResponse;
     }

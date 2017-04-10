@@ -62,7 +62,6 @@ public class StoreFileMetaData implements Writeable {
         name = in.readString();
         length = in.readVLong();
         checksum = in.readString();
-        // TODO Why not Version.parse?
         try {
             writtenBy = Version.parse(in.readString());
         } catch (ParseException e) {

@@ -60,6 +60,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         this.clientsSettings = clientsSettings;
     }
 
+    @Override
     public synchronized AmazonS3 client(Settings repositorySettings) {
         String clientName = CLIENT_NAME.get(repositorySettings);
         AmazonS3Client client = clientsCache.get(clientName);

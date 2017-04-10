@@ -26,9 +26,6 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.s3.AwsS3Service;
-import org.elasticsearch.repositories.s3.InternalAwsS3Service;
-import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -187,7 +184,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, null, 3, false,
+        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, false,
             ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
@@ -203,7 +200,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.read_timeout", "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", null, 3, false, 10000);
+            "aws_proxy_password", 3, false, 10000);
     }
 
     public void testAWSConfigurationWithAwsSettingsBackcompat() {
@@ -213,18 +210,16 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.PROXY_PORT_SETTING.getKey(), 8080)
             .put(AwsS3Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsS3Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsS3Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .put(AwsS3Service.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", "AWS3SignerType", 3, false, 10000);
+            "aws_proxy_password", 3, false, 10000);
          assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 AwsS3Service.PROXY_USERNAME_SETTING,
                 AwsS3Service.PROXY_PASSWORD_SETTING,
                 AwsS3Service.PROTOCOL_SETTING,
                 AwsS3Service.PROXY_HOST_SETTING,
                 AwsS3Service.PROXY_PORT_SETTING,
-                AwsS3Service.SIGNER_SETTING,
                 AwsS3Service.READ_TIMEOUT});
     }
 
@@ -235,32 +230,28 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.PROXY_PORT_SETTING.getKey(), 8080)
             .put(AwsS3Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsS3Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsS3Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .put(AwsS3Service.READ_TIMEOUT.getKey(), "5s")
             .put(AwsS3Service.CLOUD_S3.PROTOCOL_SETTING.getKey(), "https")
             .put(AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING.getKey(), "s3_proxy_host")
             .put(AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING.getKey(), 8081)
             .put(AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING.getKey(), "s3_proxy_username")
             .put(AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING.getKey(), "s3_proxy_password")
-            .put(AwsS3Service.CLOUD_S3.SIGNER_SETTING.getKey(), "NoOpSignerType")
             .put(AwsS3Service.CLOUD_S3.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
-            "s3_proxy_password", "NoOpSignerType", 3, false, 10000);
+            "s3_proxy_password", 3, false, 10000);
          assertSettingDeprecationsAndWarnings(new Setting<?>[] {
                 AwsS3Service.PROXY_USERNAME_SETTING,
                 AwsS3Service.PROXY_PASSWORD_SETTING,
                 AwsS3Service.PROTOCOL_SETTING,
                 AwsS3Service.PROXY_HOST_SETTING,
                 AwsS3Service.PROXY_PORT_SETTING,
-                AwsS3Service.SIGNER_SETTING,
                 AwsS3Service.READ_TIMEOUT,
                 AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING,
                 AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING,
                 AwsS3Service.CLOUD_S3.PROTOCOL_SETTING,
                 AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING,
                 AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING,
-                AwsS3Service.CLOUD_S3.SIGNER_SETTING,
                 AwsS3Service.CLOUD_S3.READ_TIMEOUT});
     }
 
@@ -269,7 +260,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
-            null, null, 10, false, 50000);
+            null, 10, false, 50000);
     }
 
     public void testRepositoryMaxRetries() {
@@ -278,7 +269,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
-            null, null, 20, false, 50000);
+            null, 20, false, 50000);
     }
 
     protected void launchAWSConfigurationTest(Settings settings,
@@ -288,7 +279,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                               int expectedProxyPort,
                                               String expectedProxyUsername,
                                               String expectedProxyPassword,
-                                              String expectedSigner,
                                               Integer expectedMaxRetries,
                                               boolean expectedUseThrottleRetries,
                                               int expectedReadTimeout) {
@@ -306,7 +296,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(configuration.getProxyPort(), is(expectedProxyPort));
         assertThat(configuration.getProxyUsername(), is(expectedProxyUsername));
         assertThat(configuration.getProxyPassword(), is(expectedProxyPassword));
-        assertThat(configuration.getSignerOverride(), is(expectedSigner));
         assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
         assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));

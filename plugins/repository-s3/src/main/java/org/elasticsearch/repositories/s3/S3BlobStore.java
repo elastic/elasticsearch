@@ -19,9 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
@@ -51,21 +49,18 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final boolean serverSideEncryption;
 
-    private final int numberOfRetries;
-
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
     S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption,
-                       ByteSizeValue bufferSize, int maxRetries, String cannedACL, String storageClass) {
+                ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
-        this.numberOfRetries = maxRetries;
         this.storageClass = initStorageClass(storageClass);
 
         // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
@@ -100,10 +95,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public int bufferSizeInBytes() {
         return bufferSize.bytesAsInt();
-    }
-
-    public int numberOfRetries() {
-        return numberOfRetries;
     }
 
     @Override
@@ -150,16 +141,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
             }
             return null;
         });
-    }
-
-    protected boolean shouldRetry(AmazonClientException e) {
-        if (e instanceof AmazonS3Exception) {
-            AmazonS3Exception s3e = (AmazonS3Exception) e;
-            if (s3e.getStatusCode() == 400 && "RequestTimeout".equals(s3e.getErrorCode())) {
-                return true;
-            }
-        }
-        return e.isRetryable();
     }
 
     @Override

@@ -65,11 +65,11 @@ class S3Repository extends BlobStoreRepository {
 
     /** The access key (ie login id) for connecting to s3. */
     public static final AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
-        key -> SecureSetting.secureString(key, Repositories.KEY_SETTING, false));
+        key -> SecureSetting.secureString(key, Repositories.KEY_SETTING));
 
     /** The secret key (ie password) for connecting to s3. */
     public static final AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
-        key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING, false));
+        key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING));
 
     /** An override for the s3 endpoint to connect to. */
     public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
@@ -89,11 +89,11 @@ class S3Repository extends BlobStoreRepository {
 
     /** The username of a proxy to connect to s3 through. */
     public static final AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING, false));
+        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING));
 
     /** The password of a proxy to connect to s3 through. */
     public static final AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING, false));
+        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING));
 
     /** The socket timeout for connecting to s3. */
     public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
@@ -311,8 +311,6 @@ class S3Repository extends BlobStoreRepository {
 
         boolean serverSideEncryption = getValue(metadata.settings(), settings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
         ByteSizeValue bufferSize = getValue(metadata.settings(), settings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
-        Integer maxRetries = getValue(metadata.settings(), settings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
-        boolean useThrottleRetries = getValue(metadata.settings(), settings, Repository.USE_THROTTLE_RETRIES_SETTING, Repositories.USE_THROTTLE_RETRIES_SETTING);
         this.chunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
@@ -326,21 +324,12 @@ class S3Repository extends BlobStoreRepository {
         String storageClass = getValue(metadata.settings(), settings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
         String cannedACL = getValue(metadata.settings(), settings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
 
-        // If the user defined a path style access setting, we rely on it otherwise we use the default
-        // value set by the SDK
-        Boolean pathStyleAccess = null;
-        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
-            Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
-            pathStyleAccess = getValue(metadata.settings(), settings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
-        }
-
         logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
-            "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}], path_style_access [{}]",
-            bucket, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
-            storageClass, pathStyleAccess);
+            "buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        AmazonS3 client = s3Service.client(metadata.settings(), maxRetries, useThrottleRetries, pathStyleAccess);
-        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
+        AmazonS3 client = s3Service.client(metadata, metadata.settings());
+        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {

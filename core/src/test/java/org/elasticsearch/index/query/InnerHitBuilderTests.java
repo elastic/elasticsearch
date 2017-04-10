@@ -126,11 +126,8 @@ public class InnerHitBuilderTests extends ESTestCase {
             InnerHitBuilder innerHit = randomInnerHits(true, false);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder);
-            if (randomBoolean()) {
-                shuffled.prettyPrint();
-            }
-
+            //fields is printed out as an object but parsed into a List where order matters, we disable shuffling
+            XContentBuilder shuffled = shuffleXContent(builder, "fields");
             XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(parser);
             InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
@@ -236,7 +233,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
     }
 
-    public void testBuild_ingoreUnmappedNestQuery() throws Exception {
+    public void testBuildIgnoreUnmappedNestQuery() throws Exception {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getObjectMapper("path")).thenReturn(null);
         SearchContext searchContext = mock(SearchContext.class);

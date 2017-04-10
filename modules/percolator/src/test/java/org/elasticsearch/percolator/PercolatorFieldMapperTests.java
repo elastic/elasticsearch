@@ -27,12 +27,12 @@ import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -445,113 +446,27 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), equalTo("a document can only contain one percolator query"));
     }
 
-    public void testRangeQueryWithNowRangeIsForbidden() throws Exception {
-        addQueryMapping();
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                        jsonBuilder().startObject()
-                                .field(fieldName, rangeQuery("date_field").from("2016-01-01||/D").to("now"))
-                                .endObject().bytes(),
-                                XContentType.JSON));
-            }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        e = expectThrows(MapperParsingException.class, () -> {
-            mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                        jsonBuilder().startObject()
-                                .field(fieldName, rangeQuery("date_field").from("2016-01-01||/D").to("now/D"))
-                                .endObject().bytes(),
-                                XContentType.JSON));
-                }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        e = expectThrows(MapperParsingException.class, () -> {
-            mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                        jsonBuilder().startObject()
-                                .field(fieldName, rangeQuery("date_field").from("now-1d").to("now"))
-                                .endObject().bytes(),
-                                XContentType.JSON));
-                }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        e = expectThrows(MapperParsingException.class, () -> {
-                mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                    jsonBuilder().startObject()
-                        .field(fieldName, rangeQuery("date_field").from("now"))
-                        .endObject().bytes(),
-                        XContentType.JSON));
-            }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        e = expectThrows(MapperParsingException.class, () -> {
-                mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                    jsonBuilder().startObject()
-                        .field(fieldName, rangeQuery("date_field").to("now"))
-                        .endObject().bytes(),
-                        XContentType.JSON));
-            }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-    }
-
-    // https://github.com/elastic/elasticsearch/issues/22355
-    public void testVerifyRangeQueryWithNullBounds() throws Exception {
-        addQueryMapping();
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-                mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                    jsonBuilder().startObject()
-                        .field(fieldName, rangeQuery("date_field").from("now").to(null))
-                        .endObject().bytes(),
-                        XContentType.JSON));
-
-            }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        e = expectThrows(MapperParsingException.class, () -> {
-                mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-                    jsonBuilder().startObject()
-                        .field(fieldName, rangeQuery("date_field").from(null).to("now"))
-                        .endObject().bytes(),
-                        XContentType.JSON));
-
-            }
-        );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-
-        // No validation failures:
-        mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-            jsonBuilder().startObject()
-                .field(fieldName, rangeQuery("date_field").from("2016-01-01").to(null))
-                .endObject().bytes(),
-                XContentType.JSON));
-
-        mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
-            jsonBuilder().startObject()
-                .field(fieldName, rangeQuery("date_field").from(null).to("2016-01-01"))
-                .endObject().bytes(),
-                XContentType.JSON));
-
-    }
-
     public void testUnsupportedQueries() {
         RangeQueryBuilder rangeQuery1 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("2017-01-01||/D");
         RangeQueryBuilder rangeQuery2 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("now");
         PercolatorFieldMapper.verifyQuery(rangeQuery1);
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(rangeQuery2));
-        PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(rangeQuery1));
-        expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(rangeQuery2)));
-        PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder((rangeQuery1)));
-        expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder(rangeQuery2)));
-        PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
-        expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery2, new MatchAllQueryBuilder())));
-        PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
-        expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery2, new RandomScoreFunctionBuilder())));
+        PercolatorFieldMapper.verifyQuery(rangeQuery2);
 
         HasChildQueryBuilder hasChildQuery = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
+        expectThrows(IllegalArgumentException.class, () ->
+                PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
+        expectThrows(IllegalArgumentException.class, () ->
+                PercolatorFieldMapper.verifyQuery(new DisMaxQueryBuilder().add(hasChildQuery)));
+        PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder((rangeQuery1)));
+        expectThrows(IllegalArgumentException.class, () ->
+                PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder(hasChildQuery)));
+        PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
+        expectThrows(IllegalArgumentException.class, () ->
+                PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(hasChildQuery, new MatchAllQueryBuilder())));
+        PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
+        expectThrows(IllegalArgumentException.class, () ->
+                PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(hasChildQuery, new RandomScoreFunctionBuilder())));
+
         expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasChildQuery));
         expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
 

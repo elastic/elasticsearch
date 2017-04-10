@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.Protocol;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,8 +37,6 @@ public class Ec2DiscoverySettingsTests extends ESTestCase {
         .put(AwsEc2Service.PROXY_PORT_SETTING.getKey(), 10000)
         .put(AwsEc2Service.PROXY_USERNAME_SETTING.getKey(), "global-proxy-username")
         .put(AwsEc2Service.PROXY_PASSWORD_SETTING.getKey(), "global-proxy-password")
-        .put(AwsEc2Service.SIGNER_SETTING.getKey(), "global-signer")
-        .put(AwsEc2Service.REGION_SETTING.getKey(), "global-region")
         .build();
 
     private static final Settings EC2 = Settings.builder()
@@ -48,8 +47,6 @@ public class Ec2DiscoverySettingsTests extends ESTestCase {
         .put(AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING.getKey(), 20000)
         .put(AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING.getKey(), "ec2-proxy-username")
         .put(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.getKey(), "ec2-proxy-password")
-        .put(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING.getKey(), "ec2-signer")
-        .put(AwsEc2Service.CLOUD_EC2.REGION_SETTING.getKey(), "ec2-region")
         .put(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING.getKey(), "ec2-endpoint")
         .build();
 
@@ -65,9 +62,16 @@ public class Ec2DiscoverySettingsTests extends ESTestCase {
         assertThat(AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING.get(nodeSettings), is(10000));
         assertThat(AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING.get(nodeSettings), is("global-proxy-username"));
         assertThat(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.get(nodeSettings), is("global-proxy-password"));
-        assertThat(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING.get(nodeSettings), is("global-signer"));
-        assertThat(AwsEc2Service.CLOUD_EC2.REGION_SETTING.get(nodeSettings), is("global-region"));
         assertThat(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING.get(nodeSettings), isEmptyString());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
+                AwsEc2Service.KEY_SETTING,
+                AwsEc2Service.SECRET_SETTING,
+                AwsEc2Service.PROTOCOL_SETTING,
+                AwsEc2Service.PROXY_HOST_SETTING,
+                AwsEc2Service.PROXY_PORT_SETTING,
+                AwsEc2Service.PROXY_USERNAME_SETTING,
+                AwsEc2Service.PROXY_PASSWORD_SETTING,
+        });
     }
 
     /**
@@ -82,9 +86,24 @@ public class Ec2DiscoverySettingsTests extends ESTestCase {
         assertThat(AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING.get(nodeSettings), is(20000));
         assertThat(AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING.get(nodeSettings), is("ec2-proxy-username"));
         assertThat(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.get(nodeSettings), is("ec2-proxy-password"));
-        assertThat(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING.get(nodeSettings), is("ec2-signer"));
-        assertThat(AwsEc2Service.CLOUD_EC2.REGION_SETTING.get(nodeSettings), is("ec2-region"));
         assertThat(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING.get(nodeSettings), is("ec2-endpoint"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
+            AwsEc2Service.KEY_SETTING,
+            AwsEc2Service.SECRET_SETTING,
+            AwsEc2Service.PROTOCOL_SETTING,
+            AwsEc2Service.PROXY_HOST_SETTING,
+            AwsEc2Service.PROXY_PORT_SETTING,
+            AwsEc2Service.PROXY_USERNAME_SETTING,
+            AwsEc2Service.PROXY_PASSWORD_SETTING,
+            AwsEc2Service.CLOUD_EC2.KEY_SETTING,
+            AwsEc2Service.CLOUD_EC2.SECRET_SETTING,
+            AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING,
+            AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING,
+            AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
+            AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
+            AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
+            AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING
+        });
     }
 
     private Settings buildSettings(Settings... global) {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs.util;
+package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedRunnable;
@@ -34,7 +34,7 @@ import java.security.PrivilegedExceptionAction;
  * needs {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access
  * in {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-public final class SocketAccess {
+final class SocketAccess {
 
     private SocketAccess() {}
 

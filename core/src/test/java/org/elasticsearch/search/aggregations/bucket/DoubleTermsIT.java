@@ -30,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -467,10 +468,10 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
-        assertThat(terms.getProperty("_bucket_count"), equalTo(5));
-        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) terms.getProperty("sum.value");
+        assertThat(((InternalAggregation)terms).getProperty("_bucket_count"), equalTo(5));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)terms).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)terms).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)terms).getProperty("sum.value");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);

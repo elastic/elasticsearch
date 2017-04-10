@@ -25,6 +25,7 @@ import java.util.function.Function;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -72,11 +73,6 @@ interface AwsS3Service extends LifecycleComponent {
      */
     Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.proxy.password", "", SecureString::new,
         Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared);
-    /**
-     * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with discovery-ec2 plugin
-     */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer",
-        Property.NodeScope, Property.Deprecated, Property.Shared);
     /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with discovery-ec2 plugin
      */
@@ -140,14 +136,6 @@ interface AwsS3Service extends LifecycleComponent {
             new Setting<>("cloud.aws.s3.proxy.password", AwsS3Service.PROXY_PASSWORD_SETTING, SecureString::new,
                 Property.NodeScope, Property.Filtered, Property.Deprecated);
         /**
-         * cloud.aws.s3.signer: If you are using an old AWS API version, you can define a Signer. Specific for S3 API calls.
-         * Defaults to cloud.aws.signer.
-         * @see AwsS3Service#SIGNER_SETTING
-         */
-        Setting<String> SIGNER_SETTING =
-            new Setting<>("cloud.aws.s3.signer", AwsS3Service.SIGNER_SETTING, Function.identity(),
-                Property.NodeScope, Property.Deprecated);
-        /**
          * cloud.aws.s3.endpoint: Endpoint.
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.s3.endpoint", Property.NodeScope);
@@ -159,5 +147,8 @@ interface AwsS3Service extends LifecycleComponent {
             Setting.timeSetting("cloud.aws.s3.read_timeout", AwsS3Service.READ_TIMEOUT, Property.NodeScope, Property.Deprecated);
     }
 
-    AmazonS3 client(Settings repositorySettings, Integer maxRetries, boolean useThrottleRetries, Boolean pathStyleAccess);
+    /**
+     * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
+     */
+    AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings);
 }

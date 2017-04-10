@@ -569,7 +569,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = getRemoteConnectionInfo(connection);
                     assertNotNull(remoteConnectionInfo);
-                    assertFalse(remoteConnectionInfo.connected);
+                    assertEquals(0, remoteConnectionInfo.numNodesConnected);
                     assertEquals(0, remoteConnectionInfo.seedNodes.size());
                     assertEquals(0, remoteConnectionInfo.httpAddresses.size());
                     assertEquals(maxNumConnections, remoteConnectionInfo.connectionsPerCluster);
@@ -583,7 +583,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
                     remoteConnectionInfo = getRemoteConnectionInfo(connection);
                     assertNotNull(remoteConnectionInfo);
-                    assertTrue(remoteConnectionInfo.connected);
+                    assertEquals(connection.getNumNodesConnected(), remoteConnectionInfo.numNodesConnected);
                     assertEquals(Math.min(3, maxNumConnections), connection.getNumNodesConnected());
                     assertEquals(3, remoteConnectionInfo.seedNodes.size());
                     assertEquals(remoteConnectionInfo.httpAddresses.size(), Math.min(3, maxNumConnections));
@@ -601,24 +601,24 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster",
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1)),
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,80)),
-            4, true, TimeValue.timeValueMinutes(30));
+            4, 3, TimeValue.timeValueMinutes(30));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, null);
         builder.endObject();
         assertEquals("{\"test_cluster\":{\"seeds\":[\"0.0.0.0:1\"],\"http_addresses\":[\"0.0.0.0:80\"],\"connected\":true," +
-            "\"connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"}}", builder.string());
+            "\"num_nodes_connected\":3,\"max_connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"}}", builder.string());
 
         stats = new RemoteConnectionInfo("some_other_cluster",
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1), new TransportAddress(TransportAddress.META_ADDRESS,2)),
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,80), new TransportAddress(TransportAddress.META_ADDRESS,81)),
-            2, false, TimeValue.timeValueSeconds(30));
+            2, 0, TimeValue.timeValueSeconds(30));
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, null);
         builder.endObject();
-        assertEquals("{\"some_other_cluster\":{\"seeds\":[\"0.0.0.0:1\",\"0.0.0.0:2\"],\"http_addresses\":" +
-            "[\"0.0.0.0:80\",\"0.0.0.0:81\"],\"connected\":false,\"connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"}}",
+        assertEquals("{\"some_other_cluster\":{\"seeds\":[\"0.0.0.0:1\",\"0.0.0.0:2\"],\"http_addresses\":[\"0.0.0.0:80\",\"0.0.0.0:81\"],"
+                + "\"connected\":false,\"num_nodes_connected\":0,\"max_connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"}}",
             builder.string());
     }
 

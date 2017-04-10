@@ -4,10 +4,10 @@
   - do:
       remote.info: {}
   - match: { my_remote_cluster.connected: true }
-  - match: { my_remote_cluster.connections_per_cluster: 1}
+  - match: { my_remote_cluster.num_nodes_connected: 1}
+  - match: { my_remote_cluster.max_connections_per_cluster: 1}
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
   - is_true: my_remote_cluster.http_addresses.0
-
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
@@ -37,8 +37,11 @@
   - match: { test_remote_cluster.seeds.0: $remote_ip }
   - match: { my_remote_cluster.seeds.0: $remote_ip }
 
-  - match: { my_remote_cluster.connections_per_cluster: 1}
-  - match: { test_remote_cluster.connections_per_cluster: 1}
+  - match: { my_remote_cluster.num_nodes_connected: 1}
+  - match: { test_remote_cluster.num_nodes_connected: 1}
+
+  - match: { my_remote_cluster.max_connections_per_cluster: 1}
+  - match: { test_remote_cluster.max_connections_per_cluster: 1}
 
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }

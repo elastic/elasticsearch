@@ -26,26 +26,29 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * This class encapsulates all remote cluster infromation to be rendered on
+ * <tt>_remote/info</tt> requests.
+ */
 public final class RemoteConnectionInfo implements ToXContent {
     final Collection<TransportAddress> seedNodes;
     final Collection<TransportAddress> httpAddresses;
     final int connectionsPerCluster;
-    final boolean connected;
     final TimeValue initialConnectionTimeout;
+    final int numNodesConnected;
     final String clusterAlias;
 
     RemoteConnectionInfo(String clusterAlias, Collection<TransportAddress> seedNodes,
                          Collection<TransportAddress> httpAddresses,
-                         int connectionsPerCluster, boolean connected,
+                         int connectionsPerCluster, int numNodesConnected,
                          TimeValue initialConnectionTimeout) {
         this.clusterAlias = clusterAlias;
         this.seedNodes = seedNodes;
         this.httpAddresses = httpAddresses;
         this.connectionsPerCluster = connectionsPerCluster;
-        this.connected = connected;
+        this.numNodesConnected = numNodesConnected;
         this.initialConnectionTimeout = initialConnectionTimeout;
     }
-
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -61,8 +64,9 @@ public final class RemoteConnectionInfo implements ToXContent {
                 builder.value(addr.toString());
             }
             builder.endArray();
-            builder.field("connected", connected);
-            builder.field("connections_per_cluster", connectionsPerCluster);
+            builder.field("connected", numNodesConnected > 0);
+            builder.field("num_nodes_connected", numNodesConnected);
+            builder.field("max_connections_per_cluster", connectionsPerCluster);
             builder.field("initial_connect_timeout", initialConnectionTimeout);
         }
         builder.endObject();

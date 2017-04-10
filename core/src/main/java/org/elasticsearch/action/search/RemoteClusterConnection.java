@@ -538,8 +538,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         if (anyNode.isPresent() == false) {
             // not connected we return immediately
             RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
-                Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections,
-                false, RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+                Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections, 0,
+                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
             listener.onResponse(remoteConnectionStats);
         } else {
             NodesInfoRequest request = new NodesInfoRequest();
@@ -574,7 +574,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     }
                     RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
                         seedNodes.stream().map(n -> n.getAddress()).collect(Collectors.toSet()), httpAddresses, maxNumRemoteConnections,
-                        connectedNodes.isEmpty() == false, RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+                        connectedNodes.size(), RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
                     listener.onResponse(remoteConnectionInfo);
                 }
 
@@ -595,5 +595,4 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     int getNumNodesConnected() {
         return connectedNodes.size();
     }
-
 }

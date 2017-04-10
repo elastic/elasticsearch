@@ -1397,6 +1397,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Prepares a translog commit by setting the current committing generation and rolling the translog generation.
+     *
+     * @throws IOException if an I/O exception occurred while rolling the translog generation
+     */
     public void prepareCommit() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
@@ -1410,6 +1415,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Commits the translog and sets the last committed translog generation to the specified generation. The specified committed generation
+     * will be used when trimming unreferenced translog generations such that generations from the committed generation will be preserved.
+     *
+     * If {@link Translog#prepareCommit()} was not called before calling commit, this method will be invoked too causing the translog
+     * generation to be rolled.
+     *
+     * @param committedGeneration the minimum translog generation to preserve after trimming unreferenced generations
+     * @throws IOException if an I/O exception occurred preparing the translog commit
+     */
     public void commit(final long committedGeneration) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();

@@ -456,10 +456,22 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
 
+    /**
+     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
+     */
+    @Deprecated
     FieldStatsRequestBuilder prepareFieldStats();
 
+    /**
+     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
+     */
+    @Deprecated
     ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 
+    /**
+     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
+     */
+    @Deprecated
     void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
 
     /**

@@ -19,26 +19,18 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesTermsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.util.BitSet;
+import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -48,9 +40,9 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
@@ -131,7 +123,8 @@ public final class InnerHitsContext {
             }
             BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
             Query childFilter = childObjectMapper.nestedTypeFilter();
-            Query q = Queries.filtered(query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
+            int parentDocId = hitContext.readerContext().docBase + hitContext.docId();
+            Query q = Queries.filtered(query(), new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId));
 
             if (size() == 0) {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
@@ -153,120 +146,6 @@ public final class InnerHitsContext {
                     clearReleasables(Lifetime.COLLECTION);
                 }
                 return topDocsCollector.topDocs(from(), size());
-            }
-        }
-
-        // A filter that only emits the nested children docs of a specific nested parent doc
-        static class NestedChildrenQuery extends Query {
-
-            private final BitSetProducer parentFilter;
-            private final Query childFilter;
-            private final int docId;
-            private final LeafReader leafReader;
-
-            NestedChildrenQuery(BitSetProducer parentFilter, Query childFilter, FetchSubPhase.HitContext hitContext) {
-                this.parentFilter = parentFilter;
-                this.childFilter = childFilter;
-                this.docId = hitContext.docId();
-                this.leafReader = hitContext.readerContext().reader();
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (sameClassAs(obj) == false) {
-                    return false;
-                }
-                NestedChildrenQuery other = (NestedChildrenQuery) obj;
-                return parentFilter.equals(other.parentFilter)
-                        && childFilter.equals(other.childFilter)
-                        && docId == other.docId
-                        && leafReader.getCoreCacheKey() == other.leafReader.getCoreCacheKey();
-            }
-
-            @Override
-            public int hashCode() {
-                int hash = classHash();
-                hash = 31 * hash + parentFilter.hashCode();
-                hash = 31 * hash + childFilter.hashCode();
-                hash = 31 * hash + docId;
-                hash = 31 * hash + leafReader.getCoreCacheKey().hashCode();
-                return hash;
-            }
-
-            @Override
-            public String toString(String field) {
-                return "NestedChildren(parent=" + parentFilter + ",child=" + childFilter + ")";
-            }
-
-            @Override
-            public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-                final Weight childWeight = childFilter.createWeight(searcher, false);
-                return new ConstantScoreWeight(this) {
-                    @Override
-                    public Scorer scorer(LeafReaderContext context) throws IOException {
-                        // Nested docs only reside in a single segment, so no need to evaluate all segments
-                        if (!context.reader().getCoreCacheKey().equals(leafReader.getCoreCacheKey())) {
-                            return null;
-                        }
-
-                        // If docId == 0 then we a parent doc doesn't have child docs, because child docs are stored
-                        // before the parent doc and because parent doc is 0 we can safely assume that there are no child docs.
-                        if (docId == 0) {
-                            return null;
-                        }
-
-                        final BitSet parents = parentFilter.getBitSet(context);
-                        final int firstChildDocId = parents.prevSetBit(docId - 1) + 1;
-                        // A parent doc doesn't have child docs, so we can early exit here:
-                        if (firstChildDocId == docId) {
-                            return null;
-                        }
-
-                        final Scorer childrenScorer = childWeight.scorer(context);
-                        if (childrenScorer == null) {
-                            return null;
-                        }
-                        DocIdSetIterator childrenIterator = childrenScorer.iterator();
-                        final DocIdSetIterator it = new DocIdSetIterator() {
-
-                            int doc = -1;
-
-                            @Override
-                            public int docID() {
-                                return doc;
-                            }
-
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return advance(doc + 1);
-                            }
-
-                            @Override
-                            public int advance(int target) throws IOException {
-                                target = Math.max(firstChildDocId, target);
-                                if (target >= docId) {
-                                    // We're outside the child nested scope, so it is done
-                                    return doc = NO_MORE_DOCS;
-                                } else {
-                                    int advanced = childrenIterator.advance(target);
-                                    if (advanced >= docId) {
-                                        // We're outside the child nested scope, so it is done
-                                        return doc = NO_MORE_DOCS;
-                                    } else {
-                                        return doc = advanced;
-                                    }
-                                }
-                            }
-
-                            @Override
-                            public long cost() {
-                                return Math.min(childrenIterator.cost(), docId - firstChildDocId);
-                            }
-
-                        };
-                        return new ConstantScoreScorer(this, score(), it);
-                    }
-                };
             }
         }
 

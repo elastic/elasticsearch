@@ -255,7 +255,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public List<Histogram.Bucket> getBuckets() {
+    public List<InternalHistogram.Bucket> getBuckets() {
         return Collections.unmodifiableList(buckets);
     }
 

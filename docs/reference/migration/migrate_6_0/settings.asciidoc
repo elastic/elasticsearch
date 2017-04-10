@@ -1,6 +1,32 @@
 [[breaking_60_settings_changes]]
 === Settings changes
 
+==== Duplicate keys in configuration file
+
+In previous versions of Elasticsearch, the configuration file was allowed to
+contain duplicate keys. For example:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: my-node
+
+node
+  attr:
+    rack: my-rack
+--------------------------------------------------
+
+In Elasticsearch 6.0.0, this is no longer permitted. Instead, this must be
+specified in a single key as:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: my-node
+  attr:
+    rack: my-rack
+--------------------------------------------------
+
 ==== Coercion of boolean settings
 
 Previously, Elasticsearch recognized the strings `true`, `false`, `on`, `off`, `yes`, `no`, `0`, `1` as booleans. Elasticsearch 6.0

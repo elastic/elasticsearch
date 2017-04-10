@@ -35,12 +35,12 @@ class DeleteVersionValue extends VersionValue {
     }
 
     @Override
-    public long time() {
+    public long getTime() {
         return this.time;
     }
 
     @Override
-    public boolean delete() {
+    public boolean isDelete() {
         return true;
     }
 
@@ -52,8 +52,8 @@ class DeleteVersionValue extends VersionValue {
     @Override
     public String toString() {
         return "DeleteVersionValue{" +
-            "version=" + version() + ", " +
-            "time=" + time +
+            "version=" + getVersion() +
+            ",time=" + time +
             '}';
     }
 }

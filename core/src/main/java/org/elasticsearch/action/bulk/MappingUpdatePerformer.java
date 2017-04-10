@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -29,13 +30,9 @@ import java.util.Objects;
 public interface MappingUpdatePerformer {
 
     /**
-     * Determine if any mappings need to be updated, and update them on the master node if
-     * necessary. Returnes a failure Exception in the event updating the mappings fails or null if
-     * successful.
+     * Update the mappings on the master.
      */
-    void updateMappingsIfNeeded(Engine.Index operation,
-                                ShardId shardId,
-                                String type) throws Exception;
+    void updateMappings(Mapping update, ShardId shardId, String type) throws Exception;
 
     /**
      *  Throws a {@code ReplicationOperation.RetryOnPrimaryException} if the operation needs to be

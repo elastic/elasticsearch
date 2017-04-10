@@ -39,7 +39,6 @@ abstract class S3OutputStream extends OutputStream {
     private S3BlobStore blobStore;
     private String bucketName;
     private String blobName;
-    private int numberOfRetries;
     private boolean serverSideEncryption;
 
     private byte[] buffer;
@@ -48,11 +47,10 @@ abstract class S3OutputStream extends OutputStream {
 
     private int flushCount = 0;
 
-    S3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, int numberOfRetries, boolean serverSideEncryption) {
+    S3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, boolean serverSideEncryption) {
         this.blobStore = blobStore;
         this.bucketName = bucketName;
         this.blobName = blobName;
-        this.numberOfRetries = numberOfRetries;
         this.serverSideEncryption = serverSideEncryption;
 
         if (bufferSizeInBytes < MULTIPART_MIN_SIZE.getBytes()) {
@@ -105,10 +103,6 @@ abstract class S3OutputStream extends OutputStream {
 
     public int getBufferSize() {
         return buffer.length;
-    }
-
-    public int getNumberOfRetries() {
-        return numberOfRetries;
     }
 
     public boolean isServerSideEncryption() {

@@ -23,13 +23,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -167,9 +167,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo("1"));
         assertThat(bucket.getDocCount(), equalTo(6L));
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getProperty("_count"), equalTo(5L));
+        assertThat(((InternalAggregation)reverseNested).getProperty("_count"), equalTo(5L));
         Terms tags = reverseNested.getAggregations().get("field1");
-        assertThat(reverseNested.getProperty("field1"), sameInstance(tags));
+        assertThat(((InternalAggregation)reverseNested).getProperty("field1"), sameInstance(tags));
         List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(6));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));

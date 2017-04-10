@@ -36,12 +36,15 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
@@ -57,9 +60,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         this.clientsSettings = clientsSettings;
     }
 
-    @Override
-    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
-                                        boolean useThrottleRetries, Boolean pathStyleAccess) {
+    public synchronized AmazonS3 client(Settings repositorySettings) {
         String clientName = CLIENT_NAME.get(repositorySettings);
         AmazonS3Client client = clientsCache.get(clientName);
         if (client != null) {
@@ -72,7 +73,27 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
                 "Existing client configs: " +
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
+
         String endpoint = findEndpoint(logger, clientSettings, repositorySettings);
+        Integer maxRetries = getValue(repositorySettings, settings,
+            S3Repository.Repository.MAX_RETRIES_SETTING,
+            S3Repository.Repositories.MAX_RETRIES_SETTING);
+        boolean useThrottleRetries = getValue(repositorySettings, settings,
+            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING,
+            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
+        // If the user defined a path style access setting, we rely on it,
+        // otherwise we use the default value set by the SDK
+        Boolean pathStyleAccess = null;
+        if (S3Repository.Repository.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings) ||
+            S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
+            pathStyleAccess = getValue(repositorySettings, settings,
+                S3Repository.Repository.PATH_STYLE_ACCESS_SETTING,
+                S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
+        }
+
+        logger.debug("creating S3 client with client_name [{}], endpoint [{}], max_retries [{}], " +
+                "use_throttle_retries [{}], path_style_access [{}]",
+            clientName, endpoint, maxRetries, useThrottleRetries, pathStyleAccess);
 
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
         ClientConfiguration configuration = buildConfiguration(logger, clientSettings, repositorySettings, maxRetries, endpoint, useThrottleRetries);
@@ -114,12 +135,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             clientConfiguration.setMaxErrorRetry(maxRetries);
         }
         clientConfiguration.setUseThrottleRetries(useThrottleRetries);
-
-        if (Strings.hasText(clientSettings.awsSigner)) {
-            logger.debug("using AWS API signer [{}]", clientSettings.awsSigner);
-            AwsSigner.configureSigner(clientSettings.awsSigner, clientConfiguration, endpoint);
-        }
-
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
 
         return clientConfiguration;

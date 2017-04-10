@@ -125,8 +125,17 @@ public class HighlightBuilderTests extends ESTestCase {
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
-            highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder);
+
+            XContentBuilder shuffled;
+            if (randomBoolean()) {
+                //this way `fields` is printed out as a json array
+                highlightBuilder.useExplicitFieldOrder(true);
+                highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                shuffled = shuffleXContent(builder);
+            } else {
+                highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                shuffled = shuffleXContent(builder, "fields");
+            }
 
             XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(parser);

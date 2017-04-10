@@ -36,6 +36,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -74,7 +75,6 @@ import java.util.function.BiFunction;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
@@ -106,6 +106,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
+    private final Settings settings;
 
     /**
      * This BiFunction is used to apply various changes depending of the Reindex action and  the search hit,
@@ -115,18 +116,25 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
     public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
+                                           ActionListener<BulkByScrollResponse> listener) {
+        this(task, logger, client, threadPool, mainRequest, scriptService, clusterState, listener, client.settings());
+    }
+
+    public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
-            ActionListener<BulkByScrollResponse> listener) {
+            ActionListener<BulkByScrollResponse> listener, Settings settings) {
         this.task = task;
         this.logger = logger;
         this.client = client;
+        this.settings = settings;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.clusterState = clusterState;
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
-        bulkRetry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry));
+        bulkRetry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry)).using(threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
@@ -329,7 +337,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        bulkRetry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withAsyncBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 onBulkResponse(thisBatchStartTime, response);
@@ -339,7 +347,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             public void onFailure(Exception e) {
                 finishHim(e);
             }
-        });
+        }, settings);
     }
 
     /**

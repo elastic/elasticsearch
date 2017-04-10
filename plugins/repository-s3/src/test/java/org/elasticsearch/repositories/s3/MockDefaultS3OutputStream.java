@@ -42,7 +42,7 @@ public class MockDefaultS3OutputStream extends DefaultS3OutputStream {
     private int numberOfUploadRequests = 0;
 
     public MockDefaultS3OutputStream(int bufferSizeInBytes) {
-        super(null, "test-bucket", "test-blobname", bufferSizeInBytes, 3, false);
+        super(null, "test-bucket", "test-blobname", bufferSizeInBytes, false);
     }
 
     @Override

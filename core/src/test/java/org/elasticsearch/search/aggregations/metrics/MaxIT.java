@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -138,9 +139,9 @@ public class MaxIT extends AbstractNumericTestCase {
         assertThat(max.getName(), equalTo("max"));
         double expectedMaxValue = 10.0;
         assertThat(max.getValue(), equalTo(expectedMaxValue));
-        assertThat((Max) global.getProperty("max"), equalTo(max));
-        assertThat((double) global.getProperty("max.value"), equalTo(expectedMaxValue));
-        assertThat((double) max.getProperty("value"), equalTo(expectedMaxValue));
+        assertThat((Max) ((InternalAggregation)global).getProperty("max"), equalTo(max));
+        assertThat((double) ((InternalAggregation)global).getProperty("max.value"), equalTo(expectedMaxValue));
+        assertThat((double) ((InternalAggregation)max).getProperty("value"), equalTo(expectedMaxValue));
     }
 
     @Override

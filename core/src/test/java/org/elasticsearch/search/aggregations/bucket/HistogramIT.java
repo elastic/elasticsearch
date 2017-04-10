@@ -990,7 +990,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         Histogram histogram = r.getAggregations().get("histo");
-        List<Bucket> buckets = histogram.getBuckets();
+        List<? extends Bucket> buckets = histogram.getBuckets();
         assertEquals(2, buckets.size());
         assertEquals(-0.65, (double) buckets.get(0).getKey(), 0.01d);
         assertEquals(1, buckets.get(0).getDocCount());

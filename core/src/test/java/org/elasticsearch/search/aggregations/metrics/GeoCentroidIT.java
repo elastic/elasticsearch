@@ -157,9 +157,8 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoHashGrid grid = response.getAggregations().get("geoGrid");
         assertThat(grid, notNullValue());
         assertThat(grid.getName(), equalTo("geoGrid"));
-        List<GeoHashGrid.Bucket> buckets = grid.getBuckets();
-        for (int i=0; i < buckets.size(); ++i) {
-            GeoHashGrid.Bucket cell = buckets.get(i);
+        List<? extends GeoHashGrid.Bucket> buckets = grid.getBuckets();
+        for (GeoHashGrid.Bucket cell : buckets) {
             String geohash = cell.getKeyAsString();
             GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
             GeoCentroid centroidAgg = cell.getAggregations().get(aggName);

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.LowLevelHttpRequest;

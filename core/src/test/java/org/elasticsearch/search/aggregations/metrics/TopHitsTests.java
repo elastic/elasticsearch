@@ -160,7 +160,9 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             }
         }
         if (randomBoolean()) {
-            factory.highlighter(HighlightBuilderTests.randomHighlighterBuilder());
+            // parent test shuffles xContent, we need to make sure highlight fields are ordered
+            factory.highlighter(
+                    HighlightBuilderTests.randomHighlighterBuilder().useExplicitFieldOrder(true));
         }
         return factory;
     }

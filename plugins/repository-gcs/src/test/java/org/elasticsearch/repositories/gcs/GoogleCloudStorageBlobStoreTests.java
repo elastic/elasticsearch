@@ -17,16 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.repositories.ESBlobStoreTestCase;
 
 import java.io.IOException;
 import java.util.Locale;
 
-public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+public class GoogleCloudStorageBlobStoreTests extends ESBlobStoreTestCase {
+
     @Override
     protected BlobStore newBlobStore() throws IOException {
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);

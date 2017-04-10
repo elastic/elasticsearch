@@ -87,6 +87,10 @@ public abstract class SecureSetting<T> extends Setting<T> {
         checkDeprecation(settings);
         final SecureSettings secureSettings = settings.getSecureSettings();
         if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
+            if (super.exists(settings)) {
+                throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
+                    " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+            }
             return getFallback(settings);
         }
         try {
@@ -117,14 +121,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.
      */
     public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback,
-                                                     boolean allowLegacy, Property... properties) {
-        final Setting<String> legacy;
-        if (allowLegacy) {
-            Property[] legacyProperties = ArrayUtils.concat(properties, LEGACY_PROPERTIES, Property.class);
-            legacy = Setting.simpleString(name, legacyProperties);
-        } else {
-            legacy = null;
-        }
+                                                     Property... properties) {
         return new SecureSetting<SecureString>(name, properties) {
             @Override
             protected SecureString getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
@@ -132,25 +129,10 @@ public abstract class SecureSetting<T> extends Setting<T> {
             }
             @Override
             SecureString getFallback(Settings settings) {
-                if (legacy != null && legacy.exists(settings)) {
-                    return new SecureString(legacy.get(settings).toCharArray());
-                }
                 if (fallback != null) {
                     return fallback.get(settings);
                 }
                 return new SecureString(new char[0]); // this means "setting does not exist"
-            }
-            @Override
-            protected void checkDeprecation(Settings settings) {
-                super.checkDeprecation(settings);
-                if (legacy != null) {
-                    legacy.checkDeprecation(settings);
-                }
-            }
-            @Override
-            public boolean exists(Settings settings) {
-                // handle legacy, which is internal to this setting
-                return super.exists(settings) || legacy != null && legacy.exists(settings);
             }
         };
     }

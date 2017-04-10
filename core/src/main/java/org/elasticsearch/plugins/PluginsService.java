@@ -305,10 +305,6 @@ public class PluginsService extends AbstractComponent {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
-                if (FileSystemUtils.isHidden(plugin)) {
-                    logger.trace("--- skip hidden plugin file[{}]", plugin.toAbsolutePath());
-                    continue;
-                }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
                 final PluginInfo info;
                 try {

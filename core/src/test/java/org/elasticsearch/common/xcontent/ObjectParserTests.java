@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -31,14 +32,16 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
 
 public class ObjectParserTests extends ESTestCase {
 
     public void testBasics() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"test\" : \"foo\",\n"
                 + "  \"test_number\" : 2,\n"
@@ -448,7 +451,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": {\n"
                 + "  \"a\": {}"
                 + "}}");
@@ -459,7 +462,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrder() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "]}");
@@ -470,7 +473,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}, \"b\": {}}"
                 + "]}");
@@ -482,7 +485,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectNoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {}"
                 + "]}");
@@ -494,7 +497,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  \"junk\""
                 + "]}");
@@ -591,6 +594,107 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("test"), ObjectParser.ValueType.STRING);
         TestStruct s = objectParser.parse(parser, new TestStruct(), null);
         assertEquals(s.test, "foo");
+    }
+
+    public void testUnknownFieldParser() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        String randomName = "unknown_" + randomIntBetween(1, 9);
+        b.startObject();
+        {
+            b.field("test", "foo");
+            b.field(randomName, "foo2");
+        }
+        b.endObject();
+        b = shuffleXContent(b);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
+
+        class Test {
+            public String test;
+            public String unknown;
+            public String name;
+
+            public void setUnknown(String name, String unknown) {
+                this.name = name;
+                this.unknown = unknown;
+            }
+        }
+        ObjectParser<Test, Void> objectParser = new ObjectParser<>("foo", false, null);
+        objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("test"),
+                ObjectParser.ValueType.STRING);
+        objectParser.declareUnknownFieldParser((value, tuple) -> {
+            value.setUnknown(tuple.v1(), tuple.v2());
+        }, (p, c) -> {
+            String name = p.currentName();
+            String value = p.text();
+            return new Tuple<>(name, value);
+        }, ObjectParser.ValueType.STRING);
+        Test s = objectParser.parse(parser, new Test(), null);
+        assertEquals(s.test, "foo");
+        assertEquals(s.unknown, "foo2");
+        assertEquals(s.name, randomName);
+    }
+
+    public void testUnknownFieldParserInnerObject() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        String randomType1 = randomAlphaOfLength(5);
+        String randomName1 = randomAlphaOfLength(5);
+        String randomType2 = randomAlphaOfLength(5);
+        String randomName2 = randomAlphaOfLength(5);
+        b.startObject();
+        {
+            b.field("value", "foo");
+            b.startObject(randomType1 + "#" + randomName1);
+            {
+                b.field("value", "bar");
+            }
+            b.endObject();
+            b.startObject(randomType2 + "#" + randomName2);
+            {
+                b.field("value", "baz");
+            }
+            b.endObject();
+        }
+        b.endObject();
+        b = shuffleXContent(b);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
+
+        class Test {
+            public String value;
+            public String name;
+            public String type;
+            public Map<String, Test> innerObjects = new HashMap<>();
+
+            public void addInnerObject(Test inner) {
+                this.innerObjects.put(inner.name, inner);
+            }
+        }
+
+        ObjectParser<Test, Void> objectParser = new ObjectParser<>("testParser", false, null);
+        objectParser.declareField((i, c, x) -> c.value = i.text(), new ParseField("value"),
+                ObjectParser.ValueType.STRING);
+        objectParser.declareUnknownFieldParser(Test::addInnerObject,
+        (p, c) -> {
+            String nameAndType = p.currentName();
+            int pos = nameAndType.indexOf("#");
+            Test innerObject = objectParser.parse(p, new Test(), null);
+            innerObject.type = nameAndType.substring(0, pos);
+            innerObject.name = nameAndType.substring(pos + 1);
+            return innerObject;
+        }, ObjectParser.ValueType.OBJECT);
+
+        Test s = objectParser.parse(parser, new Test(), null);
+        assertEquals(s.value, "foo");
+        assertNull(s.name);
+        assertNull(s.type);
+
+        assertNotNull(s.innerObjects);
+        assertEquals(s.innerObjects.get(randomName1).name, randomName1);
+        assertEquals(s.innerObjects.get(randomName1).type, randomType1);
+        assertEquals(s.innerObjects.get(randomName1).value, "bar");
+
+        assertEquals(s.innerObjects.get(randomName2).name, randomName2);
+        assertEquals(s.innerObjects.get(randomName2).type, randomType2);
+        assertEquals(s.innerObjects.get(randomName2).value, "baz");
     }
 
     static class NamedObjectHolder {

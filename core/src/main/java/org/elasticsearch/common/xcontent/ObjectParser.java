@@ -30,6 +30,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -87,6 +88,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      * never when parsing requests from users.
      */
     private final boolean ignoreUnknownFields;
+
+    /**
+     * A special purpose field parser that gets used when no other of the registered parsers match.
+     */
+    private FieldParser unknownFieldParser;
 
     /**
      * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
@@ -212,6 +218,69 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             throw new IllegalArgumentException("[parser] is required");
         }
         declareField((p, v, c) -> consumer.accept(v, parser.parse(p, c)), parseField, type);
+    }
+
+    /**
+     * Declares a parser for fields of which names are not known upfront when creating the ObjectParser.
+     * As an example, in the aggregation output we have things like:
+     * <pre><code>
+     * "aggregations" : {
+     *   "genres" : {  <--- arbitrary aggregation name
+     *      "doc_count_error_upper_bound": 0,
+     *      "sum_other_doc_count": 0,
+     *      "buckets" : [
+     *          {
+     *              "key" : "jazz",
+     *              "doc_count" : 10
+     *              "total_number_of_ratings": { <--- arbitrary aggregation name
+     *                  "value": 2691
+     *              }
+     *          },
+     *          [...]
+     *      ]
+     *   }
+     * }
+     *
+     * Since field names are arbitrary in these cases, we cannot match them with a ParseField like we do
+     * in other places when using ObjectParser. This method can be used to register a "fall-back"
+     * parser for any field that isn't matched by any previous field parser.
+     * It accepts a dedicated ContextParser and a consumer for the value that is produced.
+     *
+     * @param consumer handle the values once they have been parsed
+     * @param parser parses each nested object
+     * @param type the accepted values for this field
+     */
+    public <T> void declareUnknownFieldParser(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ValueType type) {
+        Objects.requireNonNull(consumer, "[consumer] is required");
+        Objects.requireNonNull(parser, "[parser] is required");
+        Objects.requireNonNull(type, "[type] is required");
+        if (this.ignoreUnknownFields == true) {
+            throw new IllegalArgumentException("ObjectParser [" + name + " is configured with ignoreUnknownFields=true. "
+                    + "This makes declaring a parser for unknown fields illegal.");
+        }
+        this.unknownFieldParser = new MatchAllFieldParser((p, v, c) -> consumer.accept(v, parser.parse(p, c)), type);
+    }
+
+    private class MatchAllFieldParser extends FieldParser {
+
+        MatchAllFieldParser(Parser<Value, Context> parser, ValueType type) {
+            super(parser, type.supportedTokens(), null, type);
+        }
+
+        @Override
+        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
+            if (supportedTokens.contains(token) == false) {
+                throw new IllegalArgumentException(
+                        "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + token);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "FieldParser{" + "MatchAllFieldParser, supportedTokens=" + supportedTokens
+                    + ", type=" + type.name() + '}';
+        }
+
     }
 
     public <T> void declareObjectOrDefault(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser,
@@ -342,17 +411,21 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     private FieldParser getParser(String fieldName) {
         FieldParser parser = fieldParserMap.get(fieldName);
-        if (parser == null && false == ignoreUnknownFields) {
-            throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
+        if (parser == null) {
+            if (this.unknownFieldParser != null) {
+                parser = this.unknownFieldParser;
+            } else if (false == this.ignoreUnknownFields) {
+                throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
+            }
         }
         return parser;
     }
 
     private class FieldParser {
         private final Parser<Value, Context> parser;
-        private final EnumSet<XContentParser.Token> supportedTokens;
+        protected final EnumSet<XContentParser.Token> supportedTokens;
         private final ParseField parseField;
-        private final ValueType type;
+        protected final ValueType type;
 
         FieldParser(Parser<Value, Context> parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
             this.parser = parser;

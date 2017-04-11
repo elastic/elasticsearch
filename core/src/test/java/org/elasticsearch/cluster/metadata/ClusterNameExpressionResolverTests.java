@@ -45,12 +45,12 @@ public class ClusterNameExpressionResolverTests extends ESTestCase {
 
     public void testNoWildCardNoMatch() {
         List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2");
-        assertNull(clusters);
+        assertTrue(clusters.isEmpty());
     }
 
     public void testWildCardNoMatch() {
         List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totally*2");
-        assertNull(clusters);
+        assertTrue(clusters.isEmpty());
     }
 
     public void testSimpleWildCard() {

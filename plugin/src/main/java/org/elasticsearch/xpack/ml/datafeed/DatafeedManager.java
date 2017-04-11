@@ -53,7 +53,7 @@ import static org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForP
 
 public class DatafeedManager extends AbstractComponent {
 
-    private static final String INF_SYMBOL = "\u221E";
+    private static final String INF_SYMBOL = "forever";
 
     private final Client client;
     private final ClusterService clusterService;

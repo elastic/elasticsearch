@@ -102,6 +102,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -2271,23 +2273,43 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testCommitWithOpenView() throws IOException {
-        final int operations = randomIntBetween(1, 1 << 16);
+        final int operations = randomIntBetween(1, 4096);
         long seqNo = 0;
-        long last;
+        long lastCommittedGeneration = -1;
         for (int i = 0; i < operations; i++) {
             translog.add(new Translog.NoOp(seqNo++, 0, "test"));
             if (rarely()) {
-                try (Translog.View ignored = translog.newView()) {
+                if (randomBoolean()) {
+                    try (Translog.View ignored = translog.newView()) {
+                        final long viewGeneration = lastCommittedGeneration;
+                        translog.prepareCommit();
+                        final long committedGeneration = randomIntBetween(
+                                Math.max(1, Math.toIntExact(lastCommittedGeneration)),
+                                Math.toIntExact(translog.currentFileGeneration()));
+                        translog.commit(committedGeneration);
+                        lastCommittedGeneration = committedGeneration;
+                        // with an open view, committing should preserve generations back to the last committed generation
+                        for (long g = 1; g < Math.min(lastCommittedGeneration, viewGeneration); g++) {
+                            assertFileDeleted(translog, g);
+                        }
+                        // the view generation could be -1 if no commit has been performed
+                        final long max = Math.max(1, Math.min(lastCommittedGeneration, viewGeneration));
+                        for (long g = max; g < translog.currentFileGeneration(); g++) {
+                            assertFileIsPresent(translog, g);
+                        }
+                    }
+                } else {
                     final long generation = translog.currentFileGeneration();
                     translog.prepareCommit();
-                    final long committedGeneration =
-                            randomIntBetween(1, Math.toIntExact(generation));
+                    final long committedGeneration = randomIntBetween(
+                            Math.max(1, Math.toIntExact(lastCommittedGeneration)),
+                            Math.toIntExact(generation));
                     translog.commit(committedGeneration);
-                    last = committedGeneration;
-                    for (long g = 0; i < last; g++) {
+                    lastCommittedGeneration = committedGeneration;
+                    for (long g = 1; g < lastCommittedGeneration; g++) {
                         assertFileDeleted(translog, g);
                     }
-                    for (long g = last; i < translog.currentFileGeneration(); g++) {
+                    for (long g = lastCommittedGeneration; g < translog.currentFileGeneration(); g++) {
                         assertFileIsPresent(translog, g);
                     }
                 }

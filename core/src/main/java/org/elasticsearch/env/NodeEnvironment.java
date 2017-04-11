@@ -266,12 +266,12 @@ public final class NodeEnvironment  implements Closeable {
             this.nodeLockId = nodeLockId;
             this.locks = locks;
             this.nodePaths = nodePaths;
-            if (environment.defaultPathData() != null) {
-                assert defaultNodePath != null;
-                this.defaultNodePath = defaultNodePath;
-            } else {
+            if (environment.defaultPathData() == null) {
                 assert defaultNodePath == null;
                 this.defaultNodePath = null;
+            } else {
+                assert defaultNodePath != null;
+                this.defaultNodePath = defaultNodePath;
             }
 
             maybeLogPathDetails();

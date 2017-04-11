@@ -16,6 +16,7 @@ cluster:monitor/main
 cluster:monitor/nodes/hot_threads
 cluster:monitor/nodes/info
 cluster:monitor/nodes/stats
+cluster:monitor/remote/info
 cluster:monitor/state
 cluster:monitor/stats
 cluster:monitor/task

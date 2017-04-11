@@ -61,6 +61,12 @@ teardown:
 
   - match: {transient: {search.remote.test_remote_cluster.seeds: $remote_ip}}
 
+  # we do another search here since this will enforce the connection to be established
+  # otherwise the cluster might not have been connected yet.
+  - do:
+      search:
+        index: test_remote_cluster:test_index
+
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       remote.info: {}

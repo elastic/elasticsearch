@@ -162,7 +162,6 @@ public class Environment {
                 } else {
                     this.defaultPathData = defaultPathData;
                 }
-
             } else {
                 defaultPathData = null;
             }

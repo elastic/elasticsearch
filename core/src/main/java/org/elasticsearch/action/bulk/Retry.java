@@ -51,8 +51,8 @@ public class Retry {
     }
 
     /**
-     * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
-     * provided listener. Retries will be attempted using the provided schedule function
+     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
+     * provided listener. Retries will be scheduled using the class's thread pool.
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
@@ -64,16 +64,15 @@ public class Retry {
     }
 
     /**
-     * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be attempted using
-     * the provided schedule function.
+     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be scheduled using
+     * the class's thread pool.
      *
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
      * @param settings settings
-     * @return the bulk response as returned by the client.
-     * @throws Exception Any exception thrown by the callable.
+     * @return a future representing the bulk response returned by the client.
      */
-    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
+    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) {
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         withBackoff(consumer, bulkRequest, future, settings);
         return future;

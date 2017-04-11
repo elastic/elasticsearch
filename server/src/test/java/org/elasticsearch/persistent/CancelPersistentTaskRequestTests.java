@@ -18,14 +18,16 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 
 public class CancelPersistentTaskRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomLong());
+        return new Request(randomAsciiOfLength(10));
     }
 
     @Override

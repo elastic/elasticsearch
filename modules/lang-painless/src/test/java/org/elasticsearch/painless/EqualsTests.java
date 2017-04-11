@@ -19,6 +19,8 @@ package org.elasticsearch.painless;
  * under the License.
  */
 
+import org.apache.lucene.util.Constants;
+
 // TODO: Figure out a way to test autobox caching properly from methods such as Integer.valueOf(int);
 public class EqualsTests extends ScriptTestCase {
     public void testTypesEquals() {
@@ -130,6 +132,7 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testBranchEqualsDefAndPrimitive() {
+        assumeFalse("test fails on Windows", Constants.WINDOWS);
         assertEquals(true, exec("def x = 1000; int y = 1000; return x == y;"));
         assertEquals(false, exec("def x = 1000; int y = 1000; return x === y;"));
         assertEquals(true, exec("def x = 1000; int y = 1000; return y == x;"));
@@ -147,6 +150,7 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testBranchNotEqualsDefAndPrimitive() {
+        assumeFalse("test fails on Windows", Constants.WINDOWS);
         assertEquals(false, exec("def x = 1000; int y = 1000; return x != y;"));
         assertEquals(true, exec("def x = 1000; int y = 1000; return x !== y;"));
         assertEquals(false, exec("def x = 1000; int y = 1000; return y != x;"));

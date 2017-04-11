@@ -2183,48 +2183,47 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testMinGenerationForSeqNo() throws IOException {
+        final long initialGeneration = translog.getGeneration().translogFileGeneration;
         final int operations = randomIntBetween(1, 4096);
-        final List<Long> seqNos =
-                LongStream.range(0, operations).boxed().collect(Collectors.toList());
+        final List<Long> seqNos = LongStream.range(0, operations).boxed().collect(Collectors.toList());
         Randomness.shuffle(seqNos);
-        final Map<Long, List<Long>> generations = new HashMap<>();
 
         for (int i = 0; i < operations; i++) {
             final Long seqNo = seqNos.get(i);
             translog.add(new Translog.NoOp(seqNo, 0, "test"));
-            final List<Long> seqNoForGeneration =
-                    generations.computeIfAbsent(
-                            translog.currentFileGeneration(),
-                            g -> new ArrayList<>());
-            seqNoForGeneration.add(seqNo);
             if (rarely()) {
                 translog.rollGeneration();
             }
         }
 
-        final Map<Long, Long> maxSeqNoByGeneration =
-                generations
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                e -> e.getValue().stream().max(Long::compareTo).orElse(Long.MAX_VALUE)));
+        Map<Long, Set<Long>> generations = new HashMap<>();
 
+        translog.commit(initialGeneration);
         for (long seqNo = 0; seqNo < operations; seqNo++) {
-            final long finalLongSeqNo = seqNo;
-            final Long operand =
-                    maxSeqNoByGeneration
-                            .entrySet()
-                            .stream()
-                            .filter(e -> finalLongSeqNo <= e.getValue())
-                            .map(Map.Entry::getKey).min(Long::compareTo)
-                            .orElse(Long.MIN_VALUE);
-            assertThat(translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration, equalTo(operand));
+            final Set<Long> seenSeqNos = new HashSet<>();
+            final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
+            for (long g = generation; g < translog.currentFileGeneration(); g++) {
+                if (!generations.containsKey(g)) {
+                    final Set<Long> generationSeenSeqNos = new HashSet<>();
+                    final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
+                    try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
+                        Translog.Snapshot snapshot = reader.newSnapshot();
+                        Translog.Operation operation;
+                        while ((operation = snapshot.next()) != null) {
+                            generationSeenSeqNos.add(operation.seqNo());
+                        }
+                    }
+                    generations.put(g, generationSeenSeqNos);
+
+                }
+                seenSeqNos.addAll(generations.get(g));
+            }
+
+            final Set<Long> expected = LongStream.range(seqNo, operations).boxed().collect(Collectors.toSet());
+            seenSeqNos.retainAll(expected);
+            assertThat(seenSeqNos, equalTo(expected));
         }
-
     }
-
-
 
     public void testSimpleCommit() throws IOException {
         final int operations = randomIntBetween(1, 4096);

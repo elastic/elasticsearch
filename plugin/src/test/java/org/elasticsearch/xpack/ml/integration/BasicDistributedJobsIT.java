@@ -308,7 +308,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertEquals("Expected no violations, but got [" + violations + "]", 0, violations.size());
     }
 
-    @TestLogging("org.elasticsearch.xpack.ml.action:DEBUG,org.elasticsearch.xpack.persistent:TRACE")
+    @TestLogging("org.elasticsearch.xpack.ml.action:DEBUG,org.elasticsearch.xpack.persistent:DEBUG," +
+            "org.elasticsearch.xpack.ml.job.process.autodetect:DEBUG")
     public void testMlIndicesNotAvailable() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start non ml node, but that will hold the indices

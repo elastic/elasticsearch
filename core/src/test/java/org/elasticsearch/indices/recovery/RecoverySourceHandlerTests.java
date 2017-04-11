@@ -204,7 +204,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         document.add(new TextField("test", "test", Field.Store.YES));
         final Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        final SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
+        final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
         document.add(versionField);
         document.add(seqID.seqNo);

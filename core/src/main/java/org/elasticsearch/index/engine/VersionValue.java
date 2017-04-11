@@ -32,8 +32,15 @@ class VersionValue implements Accountable {
     /** the version of the document. used for versioned indexed operations and as a BWC layer, where no seq# are set yet */
     private final long version;
 
-    VersionValue(long version) {
+    /** the seq number of the operation that last changed the associated uuid */
+    private final long seqNo;
+    /** the the term of the operation that last changed the associated uuid */
+    private final long term;
+
+    VersionValue(long version, long seqNo, long term) {
         this.version = version;
+        this.seqNo = seqNo;
+        this.term = term;
     }
 
     public long getTime() {
@@ -46,6 +53,14 @@ class VersionValue implements Accountable {
 
     public boolean isDelete() {
         return false;
+    }
+
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    public long getTerm() {
+        return term;
     }
 
     @Override
@@ -61,6 +76,9 @@ class VersionValue implements Accountable {
     @Override
     public String toString() {
         return "VersionValue{" +
-            "version=" + version + "}";
+            "version=" + version +
+            ", seqNo=" + seqNo +
+            ", term=" + term +
+            '}';
     }
 }

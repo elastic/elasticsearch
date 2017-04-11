@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -98,9 +99,11 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 assertTrue(closeResponse.isClosed());
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
                 assertBusy(() -> {
-                    GetJobsStatsAction.Response statsResponse =
-                            client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-                    assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
+                    for (Client client : clients()) {
+                        GetJobsStatsAction.Response statsResponse =
+                                client.execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                        assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
+                    }
                 });
                 return;
             }

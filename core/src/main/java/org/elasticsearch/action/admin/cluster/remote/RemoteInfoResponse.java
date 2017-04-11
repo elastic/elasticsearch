@@ -27,6 +27,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 public final class RemoteInfoResponse extends ActionResponse implements ToXContentObject {
@@ -36,12 +39,8 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
     RemoteInfoResponse() {
     }
 
-    public RemoteInfoResponse(List<RemoteConnectionInfo> infos) {
-        this.infos = infos;
-    }
-
-    public List<RemoteConnectionInfo> getRemoteConnectionInfo() {
-        return infos;
+    RemoteInfoResponse(Collection<RemoteConnectionInfo> infos) {
+        this.infos = Collections.unmodifiableList(new ArrayList<>(infos));
     }
 
     @Override
@@ -53,6 +52,7 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        infos = in.readList(RemoteConnectionInfo::new);
     }
 
     @Override

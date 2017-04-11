@@ -48,7 +48,6 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     @Override
     protected void doExecute(RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
         remoteClusterService.getRemoteConnectionInfos(ActionListener.wrap(remoteConnectionInfos
-                -> listener.onResponse(new RemoteInfoResponse(new ArrayList<>(remoteConnectionInfos))),
-                listener::onFailure));
+                -> listener.onResponse(new RemoteInfoResponse(remoteConnectionInfos)), listener::onFailure));
     }
 }

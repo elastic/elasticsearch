@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.remote;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse, RemoteInfoRequestBuilder> {
+public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse, RemoteInfoRequestBuilder> {
 
     public RemoteInfoRequestBuilder(ElasticsearchClient client, RemoteInfoAction action) {
         super(client, action, new RemoteInfoRequest());

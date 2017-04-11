@@ -264,7 +264,7 @@ public class MultiOrdinalsTests extends ESTestCase {
         assertThat(FieldData.isMultiValued(docs), equalTo(true));
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             long[] ords = ordinalPlan[doc];
-            assertEquals(ords.length > 0, docs.advance(doc));
+            assertEquals(ords.length > 0, docs.advanceExact(doc));
             if (ords.length > 0) {
                 for (long ord : ords) {
                     assertThat(docs.nextOrd(), equalTo(ord));

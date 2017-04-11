@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -79,6 +80,7 @@ public class SimpleLuceneTests extends ESTestCase {
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
         document.add(new IntPoint("test", 2));
+        document.add(new StoredField("test", 2));
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);

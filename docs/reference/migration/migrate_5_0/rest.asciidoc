@@ -66,7 +66,7 @@ empty, that means that the node is a coordinating only node.
 
 Previously, JSON documents were allowed with unquoted field names, which isn't
 strictly JSON and broke some Elasticsearch clients. If documents were already
-indexed with unquoted fields in a previous vesrion of Elasticsearch, some
+indexed with unquoted fields in a previous version of Elasticsearch, some
 operations may throw errors. To accompany this, a commented out JVM option has
 been added to the `jvm.options` file:
 `-Delasticsearch.json.allow_unquoted_field_names`.

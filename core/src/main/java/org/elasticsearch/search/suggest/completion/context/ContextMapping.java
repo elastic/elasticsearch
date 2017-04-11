@@ -113,7 +113,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
             while (parser.nextToken() != Token.END_ARRAY) {
                 queryContexts.add(fromXContent(context));
             }
-        } else if (token != Token.VALUE_NULL) {
+        } else {
             queryContexts.add(fromXContent(context));
         }
         

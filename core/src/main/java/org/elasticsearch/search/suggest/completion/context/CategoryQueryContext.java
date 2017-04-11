@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -109,12 +110,16 @@ public final class CategoryQueryContext implements ToXContent {
         XContentParser.Token token = parser.currentToken();
         Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {
-            CATEGORY_PARSER.parse(parser, builder, null);
+            try {
+                CATEGORY_PARSER.parse(parser, builder, null);
+            } catch(ParsingException e) {
+                throw new ElasticsearchParseException("category context must be a string, number or boolean");
+            } 
         } else if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_BOOLEAN
                 || token == XContentParser.Token.VALUE_NUMBER) {
             builder.setCategory(parser.text());
         } else {
-            throw new ElasticsearchParseException("category context must be an object or string");
+            throw new ElasticsearchParseException("category context must be an object, string, number or boolean");
         }
         return builder.build();
     }

@@ -111,16 +111,12 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
             throws IOException, ElasticsearchParseException {
         final Set<CharSequence> contexts = new HashSet<>();
         Token token = parser.currentToken();
-        if (token == Token.VALUE_NULL) {
-            return contexts;
-        } else if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
+        if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
             contexts.add(parser.text());
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
                     contexts.add(parser.text());
-                } else if (token == Token.VALUE_NULL) {
-                    continue;
                 } else {
                     throw new ElasticsearchParseException(
                             "context array must have string, number or boolean values, but was [" + token + "]");

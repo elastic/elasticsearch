@@ -419,7 +419,7 @@ If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
 gradle setupBats
-vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
+cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
 cd $BATS_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------

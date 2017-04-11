@@ -116,7 +116,7 @@ public class MultiOrdinals extends Ordinals {
         private final PackedLongValues ords;
         private final ValuesHolder values;
 
-        private int currentDoc;
+        private int currentDoc = -1;
         private long currentStartOffset;
         private long currentEndOffset;
 

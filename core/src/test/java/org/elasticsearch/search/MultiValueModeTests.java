@@ -561,7 +561,7 @@ public class MultiValueModeTests extends ESTestCase {
             }
         }
         final SortedDocValues singleValues = new AbstractSortedDocValues() {
-            private int docID;
+            private int docID = -1;
             @Override
             public boolean advanceExact(int target) throws IOException {
                 docID = target;

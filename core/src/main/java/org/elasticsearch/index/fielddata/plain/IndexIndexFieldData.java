@@ -81,7 +81,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
             final BytesRef term = new BytesRef(index);
             final SortedDocValues sortedValues = new AbstractSortedDocValues() {
 
-                private int docID;
+                private int docID = -1;
 
                 @Override
                 public BytesRef lookupOrd(int ord) {

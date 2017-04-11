@@ -264,7 +264,9 @@ public class Node implements Closeable {
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
             tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
-            checkForIndexDataInDefaultPathData(nodeEnvironment, logger);
+            if (DiscoveryNode.nodeRequiresLocalStorage(tmpSettings)) {
+                checkForIndexDataInDefaultPathData(nodeEnvironment, logger);
+            }
             // this must be captured after the node name is possibly added to the settings
             final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,24 +104,6 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     @Override
     public <A extends Aggregation> A get(String name) {
         return (A) asMap().get(name);
-    }
-
-    @Override
-    public Object getProperty(String path) {
-        AggregationPath aggPath = AggregationPath.parse(path);
-        return getProperty(aggPath.getPathElementsAsStringList());
-    }
-
-    public Object getProperty(List<String> path) {
-        if (path.isEmpty()) {
-            return this;
-        }
-        String aggName = path.get(0);
-        InternalAggregation aggregation = get(aggName);
-        if (aggregation == null) {
-            throw new IllegalArgumentException("Cannot find an aggregation named [" + aggName + "]");
-        }
-        return aggregation.getProperty(path.subList(1, path.size()));
     }
 
     /**

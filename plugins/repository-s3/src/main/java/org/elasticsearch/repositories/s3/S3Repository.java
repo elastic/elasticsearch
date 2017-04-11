@@ -328,7 +328,7 @@ class S3Repository extends BlobStoreRepository {
             "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        AmazonS3 client = s3Service.client(metadata, metadata.settings());
+        AmazonS3 client = s3Service.client(metadata.settings());
         blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);

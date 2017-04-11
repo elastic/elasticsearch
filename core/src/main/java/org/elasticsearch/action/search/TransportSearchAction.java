@@ -60,7 +60,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
-            "action.search.shard_count.limit", 1000L, 1L, Property.Dynamic, Property.NodeScope);
+            "action.search.shard_count.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.NodeScope);
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;

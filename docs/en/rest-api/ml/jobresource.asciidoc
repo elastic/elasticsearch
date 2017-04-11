@@ -45,13 +45,6 @@ A job resource has the following properties:
 
 An analysis configuration object has the following properties:
 
-`batch_span`::
-  (+unsigned integer+) The interval into which to batch seasonal data, measured in seconds.
-  This is an advanced option which is usually left as the default value.
-////
-  Requires `period` to be specified
-////
-
 `bucket_span` (required)::
   (+unsigned integer+) The size of the interval that the analysis is aggregated into, measured in seconds.
   The default value is 300 seconds (5 minutes).
@@ -105,11 +98,6 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify `by_fi
 `overlapping_buckets`::
   (+boolean+) If set to `true`, an additional analysis occurs that runs out of phase by half a bucket length.
   This requires more system resources and enhances detection of anomalies that span bucket boundaries.
-
-`period`::
-  (+unsigned integer+) The repeat interval for periodic data in multiples of `batch_span`.
-  If this property is not specified, daily and weekly periodicity are automatically determined.
-  This is an advanced option which is usually left as the default value.
 
 `summary_count_field_name`::
   (+string+) If not null, the data fed to the job is expected to be pre-summarized.

@@ -18,7 +18,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
 
     private static final String USER = "test_user";
     private static final String PASS = "changeme";

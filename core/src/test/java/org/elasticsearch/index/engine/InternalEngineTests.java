@@ -1367,18 +1367,9 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testOutOfOrderDocsOnReplica() throws IOException {
         final List<Engine.Operation> ops = generateSingleDocHistory(true,
-            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), false, 2, 2, 20);
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE), false, 2, 2, 20);
         assertOpsOnReplica(ops, replicaEngine, true);
     }
-
-    public void testNonStandardVersioningOnReplica() throws IOException {
-        // TODO: this can be folded into testOutOfOrderDocsOnReplica once out of order
-        // is detected using seq#
-        final List<Engine.Operation> ops = generateSingleDocHistory(true,
-            randomFrom(VersionType.EXTERNAL_GTE, VersionType.FORCE), false, 2, 2, 20);
-        assertOpsOnReplica(ops, replicaEngine, false);
-    }
-
 
     public void testOutOfOrderDocsOnReplicaOldPrimary() throws IOException {
         IndexSettings oldSettings = IndexSettingsModule.newIndexSettings("testOld", Settings.builder()

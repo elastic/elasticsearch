@@ -2277,37 +2277,21 @@ public class TranslogTests extends ESTestCase {
         for (int i = 0; i < operations; i++) {
             translog.add(new Translog.NoOp(seqNo++, 0, "test"));
             if (rarely()) {
-                if (randomBoolean()) {
-                    try (Translog.View ignored = translog.newView()) {
-                        final long viewGeneration = lastCommittedGeneration;
-                        translog.prepareCommit();
-                        final long committedGeneration = randomIntBetween(
-                                Math.max(1, Math.toIntExact(lastCommittedGeneration)),
-                                Math.toIntExact(translog.currentFileGeneration()));
-                        translog.commit(committedGeneration);
-                        lastCommittedGeneration = committedGeneration;
-                        // with an open view, committing should preserve generations back to the last committed generation
-                        for (long g = 1; g < Math.min(lastCommittedGeneration, viewGeneration); g++) {
-                            assertFileDeleted(translog, g);
-                        }
-                        // the view generation could be -1 if no commit has been performed
-                        final long max = Math.max(1, Math.min(lastCommittedGeneration, viewGeneration));
-                        for (long g = max; g < translog.currentFileGeneration(); g++) {
-                            assertFileIsPresent(translog, g);
-                        }
-                    }
-                } else {
-                    final long generation = translog.currentFileGeneration();
+                try (Translog.View ignored = translog.newView()) {
+                    final long viewGeneration = lastCommittedGeneration;
                     translog.prepareCommit();
                     final long committedGeneration = randomIntBetween(
                             Math.max(1, Math.toIntExact(lastCommittedGeneration)),
-                            Math.toIntExact(generation));
+                            Math.toIntExact(translog.currentFileGeneration()));
                     translog.commit(committedGeneration);
                     lastCommittedGeneration = committedGeneration;
-                    for (long g = 1; g < lastCommittedGeneration; g++) {
+                    // with an open view, committing should preserve generations back to the last committed generation
+                    for (long g = 1; g < Math.min(lastCommittedGeneration, viewGeneration); g++) {
                         assertFileDeleted(translog, g);
                     }
-                    for (long g = lastCommittedGeneration; g < translog.currentFileGeneration(); g++) {
+                    // the view generation could be -1 if no commit has been performed
+                    final long max = Math.max(1, Math.min(lastCommittedGeneration, viewGeneration));
+                    for (long g = max; g < translog.currentFileGeneration(); g++) {
                         assertFileIsPresent(translog, g);
                     }
                 }

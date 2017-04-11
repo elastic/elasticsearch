@@ -80,6 +80,9 @@ public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction
             innerTaskOperation(request, task, listener, state);
         } else {
             logger.warn("Unexpected job state based on cluster state version [{}]", state.getVersion());
+            // Note that DatafeedJob relies on this exception being thrown to detect the state
+            // conflict and stop the datafeed. If this exception type/status changes, DatafeedJob
+            // also needs to change.
             listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot perform requested action because job [" +
                     request.getJobId() + "] is not open"));
         }

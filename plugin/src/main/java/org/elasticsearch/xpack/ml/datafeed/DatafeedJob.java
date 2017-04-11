@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -168,11 +170,16 @@ class DatafeedJob {
                         Thread.currentThread().interrupt();
                     }
                     LOGGER.debug("[" + jobId + "] error while posting data", e);
+
+                    // a conflict exception means the job state is not open any more.
+                    // we should therefore stop the datafeed.
+                    boolean shouldStop = isConflictException(e);
+
                     // When an analysis problem occurs, it means something catastrophic has
                     // happened to the c++ process. We sent a batch of data to the c++ process
                     // yet we do not know how many of those were processed. It is better to
                     // advance time in order to avoid importing duplicate data.
-                    error = new AnalysisProblemException(e);
+                    error = new AnalysisProblemException(shouldStop, e);
                     break;
                 }
                 recordCount += counts.getProcessedRecordCount();
@@ -197,7 +204,7 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is stilll running.
         if (isRunning()) {
-            client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+            flushJob(flushRequest);
         }
     }
 
@@ -212,6 +219,11 @@ class DatafeedJob {
         return response.getDataCounts();
     }
 
+    private boolean isConflictException(Exception e) {
+        return e instanceof ElasticsearchStatusException
+                && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT;
+    }
+
     private long nextRealtimeTimestamp() {
         long epochMs = currentTimeSupplier.get() + frequencyMs;
         return toIntervalStartEpochMs(epochMs) + NEXT_TASK_DELAY_MS;
@@ -221,12 +233,32 @@ class DatafeedJob {
         return (epochMs / frequencyMs) * frequencyMs;
     }
 
+    private void flushJob(FlushJobAction.Request flushRequest) {
+        try {
+            client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+        } catch (Exception e) {
+            LOGGER.debug("[" + jobId + "] error while flushing job", e);
+
+            // a conflict exception means the job state is not open any more.
+            // we should therefore stop the datafeed.
+            boolean shouldStop = isConflictException(e);
+
+            // When an analysis problem occurs, it means something catastrophic has
+            // happened to the c++ process. We sent a batch of data to the c++ process
+            // yet we do not know how many of those were processed. It is better to
+            // advance time in order to avoid importing duplicate data.
+            throw new AnalysisProblemException(shouldStop, e);
+        }
+    }
+
     class AnalysisProblemException extends RuntimeException {
 
+        final boolean shouldStop;
         final long nextDelayInMsSinceEpoch = nextRealtimeTimestamp();
 
-        AnalysisProblemException(Throwable cause) {
+        AnalysisProblemException(boolean shouldStop, Throwable cause) {
             super(cause);
+            this.shouldStop = shouldStop;
         }
     }
 

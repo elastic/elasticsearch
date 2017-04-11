@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -171,13 +172,15 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
     }
 
-    public void testAnalysisProblem() throws Exception {
+    public void testPostAnalysisProblem() throws Exception {
         client = mock(Client.class);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
-        when(client.execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("_job_id")))).thenThrow(new RuntimeException());
+        when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(new RuntimeException());
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
-        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        DatafeedJob.AnalysisProblemException analysisProblemException =
+                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        assertThat(analysisProblemException.shouldStop, is(false));
 
         currentTime = 3001;
         expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
@@ -190,6 +193,53 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
         verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testPostAnalysisProblemIsConflict() throws Exception {
+        client = mock(Client.class);
+        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
+        when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob.AnalysisProblemException analysisProblemException =
+                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        assertThat(analysisProblemException.shouldStop, is(true));
+
+        currentTime = 3001;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> endTimeCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), endTimeCaptor.capture());
+        assertEquals(0L, startTimeCaptor.getAllValues().get(0).longValue());
+        assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
+        assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
+        assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
+        verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testFlushAnalysisProblem() throws Exception {
+        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(new RuntimeException());
+
+        currentTime = 60000L;
+        long frequencyMs = 100;
+        long queryDelayMs = 1000;
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
+        DatafeedJob.AnalysisProblemException analysisProblemException =
+                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
+        assertThat(analysisProblemException.shouldStop, is(false));
+    }
+
+    public void testFlushAnalysisProblemIsConflict() throws Exception {
+        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
+
+        currentTime = 60000L;
+        long frequencyMs = 100;
+        long queryDelayMs = 1000;
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
+        DatafeedJob.AnalysisProblemException analysisProblemException =
+                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
+        assertThat(analysisProblemException.shouldStop, is(true));
     }
 
     private DatafeedJob createDatafeedJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,

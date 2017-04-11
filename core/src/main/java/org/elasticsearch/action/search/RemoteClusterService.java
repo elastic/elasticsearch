@@ -24,9 +24,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Booleans;
@@ -51,6 +51,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -412,5 +413,18 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     @Override
     public void close() throws IOException {
         IOUtils.close(remoteClusters.values());
+    }
+
+    public void getRemoteConnectionInfos(ActionListener<Collection<RemoteConnectionInfo>> listener) {
+        final Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
+        if (remoteClusters.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+        } else {
+            final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
+                remoteClusters.size(), Collections.emptyList());
+            for (RemoteClusterConnection connection : remoteClusters.values()) {
+                connection.getConnectionInfo(actionListener);
+            }
+        }
     }
 }

@@ -59,7 +59,7 @@ final class RemoteRequestBuilders {
     static Map<String, String> initialSearchParams(SearchRequest searchRequest, Version remoteVersion) {
         Map<String, String> params = new HashMap<>();
         if (searchRequest.scroll() != null) {
-            params.put("scroll", searchRequest.scroll().keepAlive().toString());
+            params.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
         params.put("size", Integer.toString(searchRequest.source().size()));
         if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
@@ -69,7 +69,7 @@ final class RemoteRequestBuilders {
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort
-            if (remoteVersion.before(Version.V_2_1_0)) {
+            if (remoteVersion.before(Version.fromId(2010099))) {
                 for (SortBuilder<?> sort : searchRequest.source().sorts()) {
                     if (sort instanceof FieldSortBuilder) {
                         FieldSortBuilder f = (FieldSortBuilder) sort;
@@ -90,7 +90,7 @@ final class RemoteRequestBuilders {
                 params.put("sort", sorts.toString());
             }
         }
-        if (remoteVersion.before(Version.V_2_0_0)) {
+        if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
         }
@@ -168,11 +168,11 @@ final class RemoteRequestBuilders {
     }
 
     static Map<String, String> scrollParams(TimeValue keepAlive) {
-        return singletonMap("scroll", keepAlive.toString());
+        return singletonMap("scroll", keepAlive.getStringRep());
     }
 
     static HttpEntity scrollEntity(String scroll, Version remoteVersion) {
-        if (remoteVersion.before(Version.V_2_0_0)) {
+        if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
             return new StringEntity(scroll, ContentType.TEXT_PLAIN);
         }
@@ -186,7 +186,7 @@ final class RemoteRequestBuilders {
     }
 
     static HttpEntity clearScrollEntity(String scroll, Version remoteVersion) {
-        if (remoteVersion.before(Version.V_2_0_0)) {
+        if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
             return new StringEntity(scroll, ContentType.TEXT_PLAIN);
         }

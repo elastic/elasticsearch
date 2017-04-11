@@ -21,6 +21,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 In the above case, the `comment` field will be highlighted for each
 search hit (there will be another element in each search hit, called
@@ -76,12 +77,21 @@ highlighting using the postings highlighter on it:
 
 [source,js]
 --------------------------------------------------
+PUT /example
 {
-    "type_name" : {
-        "comment" : {"index_options" : "offsets"}
+  "mappings": {
+    "doc" : {
+      "properties": {
+        "comment" : {
+          "type": "text",
+          "index_options" : "offsets"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 [NOTE]
 Note that the postings highlighter is meant to perform simple query terms
@@ -118,12 +128,21 @@ the index to be bigger):
 
 [source,js]
 --------------------------------------------------
+PUT /example
 {
-    "type_name" : {
-        "comment" : {"term_vector" : "with_positions_offsets"}
+  "mappings": {
+    "doc" : {
+      "properties": {
+        "comment" : {
+          "type": "text",
+          "term_vector" : "with_positions_offsets"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Unified Highlighter
 
@@ -166,6 +185,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 ==== Force highlighting on source
 
@@ -187,6 +207,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 [[tags]]
 ==== Highlighting Tags
@@ -212,6 +233,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 Using the fast vector highlighter there can be more tags, and the "importance"
 is ordered.
@@ -233,11 +255,12 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 There are also built in "tag" schemas, with currently a single schema
 called `styled` with the following `pre_tags`:
 
-[source,js]
+[source,html]
 --------------------------------------------------
 <em class="hlt1">, <em class="hlt2">, <em class="hlt3">,
 <em class="hlt4">, <em class="hlt5">, <em class="hlt6">,
@@ -265,7 +288,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
+// TEST[setup:twitter]
 
 ==== Encoder
 
@@ -295,6 +318,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 The `fragment_size` is ignored when using the postings highlighter, as it
 outputs sentences regardless of their length.
@@ -318,6 +342,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 If the `number_of_fragments` value is set to `0` then no fragments are
 produced, instead the whole content of the field is returned, and of
@@ -341,6 +366,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 When using `fvh` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
@@ -373,6 +399,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 
 ==== Highlight query
@@ -445,6 +472,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 Note that the score of text fragment in this case is calculated by the Lucene
 highlighting framework. For implementation details you can check the
@@ -478,6 +506,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 [[field-match]]
 ==== Require Field Match
@@ -503,6 +532,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 [[boundary-scanners]]
 ==== Boundary Scanners
@@ -562,6 +592,8 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
+
 The above matches both "run with scissors" and "running with scissors"
 and would highlight "running" and "scissors" but not "run". If both
 phrases appear in a large document then "running with scissors" is
@@ -590,6 +622,8 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
+
 The above highlights "run" as well as "running" and "scissors" but
 still sorts "running with scissors" above "run with scissors" because
 the plain match ("running") is boosted.
@@ -616,6 +650,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 The above query wouldn't highlight "run" or "scissor" but shows that
 it is just fine not to list the field to which the matches are combined
@@ -639,6 +674,7 @@ There is a small amount of overhead involved with setting
         }
     }
 --------------------------------------------------
+// NOTCONSOLE
 to
 [source,js]
 --------------------------------------------------
@@ -651,6 +687,7 @@ to
         }
     }
 --------------------------------------------------
+// NOTCONSOLE
 ===================================================================
 
 [[phrase-limit]]
@@ -672,12 +709,18 @@ json spec objects are unordered but if you need to be explicit about the order
 that fields are highlighted then you can use an array for `fields` like this:
 [source,js]
 --------------------------------------------------
+GET /_search
+{
     "highlight": {
         "fields": [
-            {"title":{ /*params*/ }},
-            {"text":{ /*params*/ }}
+            { "title": {} },
+            { "text": {} }
         ]
     }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
 None of the highlighters built into Elasticsearch care about the order that the
 fields are highlighted but a plugin may.

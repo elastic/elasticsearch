@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -211,7 +212,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         Percentiles percentiles = global.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
         assertThat(percentiles.getName(), equalTo("percentiles"));
-        assertThat(global.getProperty("percentiles"), sameInstance(percentiles));
+        assertThat(((InternalAggregation)global).getProperty("percentiles"), sameInstance(percentiles));
 
     }
 

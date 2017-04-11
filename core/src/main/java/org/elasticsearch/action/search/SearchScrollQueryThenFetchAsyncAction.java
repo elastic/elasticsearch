@@ -55,7 +55,6 @@ final class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     final AtomicArray<QuerySearchResult> queryResults;
     final AtomicArray<FetchSearchResult> fetchResults;
-    private volatile ScoreDoc[] sortedShardDocs;
     private final AtomicInteger successfulOps;
 
     SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
@@ -171,16 +170,15 @@ final class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void executeFetchPhase() throws Exception {
-        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults.asList(), queryResults.length());
-        if (sortedShardDocs.length == 0) {
-            finishHim(searchPhaseController.reducedQueryPhase(queryResults.asList()));
+        final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList(),
+            true);
+        if (reducedQueryPhase.scoreDocs.length == 0) {
+            finishHim(reducedQueryPhase);
             return;
         }
 
-        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList());
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs,
-            queryResults.length());
+        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), reducedQueryPhase.scoreDocs);
+        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, queryResults.length());
         final CountDown counter = new CountDown(docIdsToLoad.length);
         for (int i = 0; i < docIdsToLoad.length; i++) {
             final int index = i;
@@ -222,8 +220,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase,
-                fetchResults.asList(), fetchResults::get);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, queryPhase, fetchResults.asList(),
+                fetchResults::get);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
@@ -60,7 +61,7 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
         SearchProfileShardResults shardResult = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(shardResult, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(shardResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         SearchProfileShardResults parsed = null;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);

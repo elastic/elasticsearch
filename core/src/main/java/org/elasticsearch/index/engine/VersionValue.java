@@ -29,24 +29,24 @@ class VersionValue implements Accountable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
 
+    /** the version of the document. used for versioned indexed operations and as a BWC layer, where no seq# are set yet */
     private final long version;
 
     VersionValue(long version) {
         this.version = version;
     }
 
-    public long time() {
+    public long getTime() {
         throw new UnsupportedOperationException();
     }
 
-    public long version() {
+    public long getVersion() {
         return version;
     }
 
-    public boolean delete() {
+    public boolean isDelete() {
         return false;
     }
-
 
     @Override
     public long ramBytesUsed() {
@@ -61,7 +61,6 @@ class VersionValue implements Accountable {
     @Override
     public String toString() {
         return "VersionValue{" +
-            "version=" + version +
-            '}';
+            "version=" + version + "}";
     }
 }

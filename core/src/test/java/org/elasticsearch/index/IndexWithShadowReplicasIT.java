@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
@@ -87,6 +88,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Tests for indices that use shadow replicas and a shared filesystem
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "shadow replicas will be removed in master - https://github.com/elastic/elasticsearch/pull/23906")
 public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     private Settings nodeSettings(Path dataPath) {

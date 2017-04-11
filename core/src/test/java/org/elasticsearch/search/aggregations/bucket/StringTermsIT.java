@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -256,8 +257,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
-        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)terms).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)terms).getProperty("_count");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
@@ -589,9 +590,9 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
-        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) terms.getProperty("count.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)terms).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)terms).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)terms).getProperty("count.value");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);

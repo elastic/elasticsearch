@@ -37,7 +37,7 @@ bin/elasticsearch-keystore list
 === Adding string settings
 
 Sensitive string settings, like authentication credentials for cloud
-plugins, can be adding using the `add` command:
+plugins, can be added using the `add` command:
 
 [source,sh]
 ----------------------------------------------------------------

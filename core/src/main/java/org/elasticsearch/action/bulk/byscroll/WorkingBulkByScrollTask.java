@@ -178,14 +178,14 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
             AbstractRunnable prepareBulkRequestRunnable) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
-            TimeValue delay = throttleWaitTime(lastBatchStartTime, lastBatchSize);
+            TimeValue delay = throttleWaitTime(lastBatchStartTime, timeValueNanos(System.nanoTime()), lastBatchSize);
             delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
                     delay, new RunOnce(prepareBulkRequestRunnable)));
         }
     }
 
-    TimeValue throttleWaitTime(TimeValue lastBatchStartTime, int lastBatchSize) {
-        long earliestNextBatchStartTime = lastBatchStartTime.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
+    TimeValue throttleWaitTime(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
+        long earliestNextBatchStartTime = now.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
         return timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime()));
     }
 

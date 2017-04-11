@@ -29,7 +29,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.uid.Versions.DocIdAndVersion;
+import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
@@ -49,53 +49,72 @@ final class PerThreadIDAndVersionLookup {
 
     /** terms enum for uid field */
     private final TermsEnum termsEnum;
+
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
+
+    /** used for assertions to make sure class usage meets assumptions */
+    private final Object readerKey;
 
     /**
      * Initialize lookup for the provided segment
      */
     PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
-        TermsEnum termsEnum = null;
-
         Fields fields = reader.fields();
-        if (fields != null) {
-            Terms terms = fields.terms(UidFieldMapper.NAME);
-            if (terms != null) {
-                termsEnum = terms.iterator();
-                assert termsEnum != null;
-                assert reader.getNumericDocValues(VersionFieldMapper.NAME) != null;
-            }
+        Terms terms = fields.terms(UidFieldMapper.NAME);
+        termsEnum = terms.iterator();
+        if (termsEnum == null) {
+            throw new IllegalArgumentException("reader misses the [" + UidFieldMapper.NAME +
+                "] field");
         }
-
-        this.termsEnum = termsEnum;
+        if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
+            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME +
+                "] field");
+        }
+        Object readerKey = null;
+        assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
+        this.readerKey = readerKey;
     }
 
     /** Return null if id is not found. */
-    public DocIdAndVersion lookup(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context)
+        throws IOException {
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
+            "context's reader is not the same as the reader class was initialized on.";
+        int docID = getDocID(id, liveDocs);
+
+        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+            final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
+            if (versions == null) {
+                throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
+            }
+            if (versions.advanceExact(docID) == false) {
+                throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
+            }
+            return new DocIdAndVersion(docID, versions.longValue(), context);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * returns the internal lucene doc id for the given id bytes.
+     * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
+     * */
+    private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
         if (termsEnum.seekExact(id)) {
+            int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             docsEnum = termsEnum.postings(docsEnum, 0);
-            int docID = DocIdSetIterator.NO_MORE_DOCS;
             for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
                 if (liveDocs != null && liveDocs.get(d) == false) {
                     continue;
                 }
                 docID = d;
             }
-
-            if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
-                if (versions == null) {
-                    throw new AssertionError("Segment misses the _version field: " + context.reader());
-                }
-                if (versions.advanceExact(docID) == false) {
-                    throw new AssertionError("Document misses the _version field: " + docID + " in segment " + context.reader());
-                }
-                return new DocIdAndVersion(docID, versions.longValue(), context);
-            }
+            return docID;
+        } else {
+            return DocIdSetIterator.NO_MORE_DOCS;
         }
-
-        return null;
     }
 }

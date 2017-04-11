@@ -163,14 +163,14 @@ public class Environment {
                     this.defaultPathData = defaultPathData;
                 }
             } else {
-                defaultPathData = null;
+                this.defaultPathData = null;
             }
         } else {
             dataFiles = new Path[]{homeFile.resolve("data")};
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
             assert !DEFAULT_PATH_DATA_SETTING.exists(settings)
                     : "expected default.path.data to be unset but was [" + DEFAULT_PATH_DATA_SETTING.get(settings) + "]";
-            defaultPathData = null;
+            this.defaultPathData = null;
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(cleanPath(PATH_SHARED_DATA_SETTING.get(settings)));

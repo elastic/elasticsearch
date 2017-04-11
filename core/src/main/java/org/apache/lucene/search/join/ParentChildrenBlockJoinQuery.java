@@ -37,7 +37,6 @@ import java.util.Set;
  * indexed together in the same block. The provided child query determines which matching
  * child doc is being returned.
  *
- * @lucene.experimental
  */
 // FORKED: backported from lucene 6.5 to ES, because lucene 6.4 doesn't have this query
 public class ParentChildrenBlockJoinQuery extends Query {

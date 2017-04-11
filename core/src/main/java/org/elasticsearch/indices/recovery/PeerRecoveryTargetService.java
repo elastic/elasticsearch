@@ -126,17 +126,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         }
     }
 
-    /**
-     * Cancel all ongoing recoveries for the given shard.
-     *
-     * @param reason  reason for cancellation
-     * @param shardId shard ID for which to cancel recoveries
-     * @return {@code true} if a recovery was cancelled
-     */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
-    }
-
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());

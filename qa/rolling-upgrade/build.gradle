@@ -124,6 +124,7 @@ check.dependsOn(integTest)
 
 dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
 // copy x-pack plugin info so it is on the classpath and security manager has the right permissions

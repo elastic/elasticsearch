@@ -675,6 +675,9 @@ public enum MultiValueMode implements Writeable {
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
+            if (missingValue == null) {
+                return singleton;
+            }
             return new AbstractBinaryDocValues() {
 
                 private boolean hasValue;
@@ -693,17 +696,22 @@ public enum MultiValueMode implements Writeable {
         } else {
             return new AbstractBinaryDocValues() {
 
-                private boolean hasValue;
+                private BytesRef value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    hasValue = values.advanceExact(target);
-                    return true;
+                    if (values.advanceExact(target)) {
+                        value = pick(values);
+                        return true;
+                    } else {
+                        value = missingValue;
+                        return missingValue != null;
+                    }
                 }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
-                    return hasValue ? pick(values) : missingValue;
+                    return value;
                 }
             };
         }

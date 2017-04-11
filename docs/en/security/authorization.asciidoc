@@ -120,6 +120,18 @@ Grants access necessary for the Logstash system user to send data to Elasticsear
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
 
+[[built-in-roles-watcher-user]]
+`watcher_user`::
++
+Grants read access to the `.watches` index, the get watch action and the watcher
+stats.
+
+[[built-in-roles-watcher-admin]]
+`watcher_admin`::
++
+Grants write access to the `.watches` index, read access to the watch history and
+the triggered watches index and allows to execute all watcher actions.
+
 [[defining-roles]]
 === Defining Roles
 

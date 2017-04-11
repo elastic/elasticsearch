@@ -15,6 +15,9 @@ settings update, rerouting, or managing users and roles.
 All cluster read-only operations, like cluster health & state, hot threads, node
 info, node & cluster stats, snapshot/restore status, pending cluster tasks.
 
+`monitor_watcher`::
+All read only watcher operations, such as getting a watch and watcher stats.
+
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
 This includes snapshotting,updating settings, and rerouting. This privilege does
@@ -29,6 +32,9 @@ All operations on index templates.
 
 `manage_pipeline`::
 All operations on ingest pipelines.
+
+`manage_watcher`::
+All watcher operations, such as putting watches, executing, activate or acknowledging.
 
 `transport_client`::
 All privileges necessary for a transport client to connect.

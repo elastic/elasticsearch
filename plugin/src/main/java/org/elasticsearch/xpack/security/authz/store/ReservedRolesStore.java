@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
-
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
 public class ReservedRolesStore {
 
@@ -69,6 +71,19 @@ public class ReservedRolesStore {
                 .put("machine_learning_admin", new RoleDescriptor("machine_learning_admin", new String[] { "manage_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-*").privileges("view_index_metadata", "read")
+                                        .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("watcher_admin", new RoleDescriptor("watcher_admin", new String[] { "manage_watcher" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX, TriggeredWatchStore.INDEX_NAME,
+                                        HistoryStore.INDEX_PREFIX + "*").privileges("read").build() },
+                        null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("watcher_user", new RoleDescriptor("watcher_user", new String[] { "monitor_watcher" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX)
+                                        .privileges("read")
+                                        .build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(HistoryStore.INDEX_PREFIX + "*")
+                                        .privileges("read")
                                         .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .immutableMap();
     }

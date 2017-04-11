@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.security.action.user.PutUserAction;
@@ -41,7 +42,19 @@ import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsAction;
+import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -65,6 +78,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("remote_monitoring_agent"), is(true));
         assertThat(ReservedRolesStore.isReserved("monitoring_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -360,5 +375,68 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+    }
+
+    public void testWatcherAdminRole() {
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_admin");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        assertThat(role.cluster().check(PutWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(GetWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(DeleteWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(ExecuteWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(AckWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(ActivateWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(WatcherServiceAction.NAME), is(true));
+        assertThat(role.cluster().check(WatcherStatsAction.NAME), is(true));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        String historyIndex = HistoryStore.getHistoryIndexNameForTime(now);
+        for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStore.INDEX_NAME }) {
+            assertOnlyReadAllowed(role, index);
+        }
+    }
+
+    public void testWatcherUserRole() {
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        assertThat(role.cluster().check(PutWatchAction.NAME), is(false));
+        assertThat(role.cluster().check(GetWatchAction.NAME), is(true));
+        assertThat(role.cluster().check(DeleteWatchAction.NAME), is(false));
+        assertThat(role.cluster().check(ExecuteWatchAction.NAME), is(false));
+        assertThat(role.cluster().check(AckWatchAction.NAME), is(false));
+        assertThat(role.cluster().check(ActivateWatchAction.NAME), is(false));
+        assertThat(role.cluster().check(WatcherServiceAction.NAME), is(false));
+        assertThat(role.cluster().check(WatcherStatsAction.NAME), is(true));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(TriggeredWatchStore.INDEX_NAME), is(false));
+
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        String historyIndex = HistoryStore.getHistoryIndexNameForTime(now);
+        for (String index : new String[]{ Watch.INDEX, historyIndex }) {
+            assertOnlyReadAllowed(role, index);
+        }
+    }
+
+    private void assertOnlyReadAllowed(Role role, String index) {
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
     }
 }

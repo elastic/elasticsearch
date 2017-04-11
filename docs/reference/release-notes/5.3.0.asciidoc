@@ -1,6 +1,8 @@
 [[release-notes-5.3.0]]
 == 5.3.0 Release Notes
 
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
 Also see <<breaking-changes-5.3>>.
 
 [[breaking-5.3.0]]

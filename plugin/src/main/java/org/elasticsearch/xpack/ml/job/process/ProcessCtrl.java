@@ -88,11 +88,9 @@ public class ProcessCtrl {
     /*
      * Arguments used by autodetect
      */
-    static final String BATCH_SPAN_ARG = "--batchspan=";
     static final String LATENCY_ARG = "--latency=";
     static final String RESULT_FINALIZATION_WINDOW_ARG = "--resultFinalizationWindow=";
     static final String MULTIVARIATE_BY_FIELDS_ARG = "--multivariateByFields";
-    static final String PERIOD_ARG = "--period=";
     static final String PERSIST_INTERVAL_ARG = "--persistInterval=";
     static final String MAX_QUANTILE_INTERVAL_ARG = "--maxQuantileInterval=";
     static final String SUMMARY_COUNT_FIELD_ARG = "--summarycountfield=";
@@ -166,9 +164,7 @@ public class ProcessCtrl {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig != null) {
             addIfNotNull(analysisConfig.getBucketSpan(), BUCKET_SPAN_ARG, command);
-            addIfNotNull(analysisConfig.getBatchSpan(), BATCH_SPAN_ARG, command);
             addIfNotNull(analysisConfig.getLatency(), LATENCY_ARG, command);
-            addIfNotNull(analysisConfig.getPeriod(), PERIOD_ARG, command);
             addIfNotNull(analysisConfig.getSummaryCountFieldName(),
                     SUMMARY_COUNT_FIELD_ARG, command);
             addIfNotNull(analysisConfig.getMultipleBucketSpans(),

@@ -37,7 +37,6 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         detectors.add(detector.build());
 
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
-        analysisConfig.setBatchSpan(TimeValue.timeValueMinutes(5));
         job.setAnalysisConfig(analysisConfig);
 
         PutJobAction.Response putJobResponse = mlClient

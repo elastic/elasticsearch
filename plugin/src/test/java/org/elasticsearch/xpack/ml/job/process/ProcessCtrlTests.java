@@ -36,10 +36,8 @@ public class ProcessCtrlTests extends ESTestCase {
         Detector.Builder detectorBuilder = new Detector.Builder("metric", "value");
         detectorBuilder.setPartitionFieldName("foo");
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
-        acBuilder.setBatchSpan(TimeValue.timeValueSeconds(100));
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(120));
         acBuilder.setLatency(TimeValue.timeValueSeconds(360));
-        acBuilder.setPeriod(20L);
         acBuilder.setSummaryCountFieldName("summaryField");
         acBuilder.setOverlappingBuckets(true);
         acBuilder.setMultivariateByFields(true);
@@ -53,12 +51,10 @@ public class ProcessCtrlTests extends ESTestCase {
         job.setDataDescription(dd);
 
         List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, true, pid);
-        assertEquals(17, command.size());
+        assertEquals(15, command.size());
         assertTrue(command.contains(ProcessCtrl.AUTODETECT_PATH));
-        assertTrue(command.contains(ProcessCtrl.BATCH_SPAN_ARG + "100"));
         assertTrue(command.contains(ProcessCtrl.BUCKET_SPAN_ARG + "120"));
         assertTrue(command.contains(ProcessCtrl.LATENCY_ARG + "360"));
-        assertTrue(command.contains(ProcessCtrl.PERIOD_ARG + "20"));
         assertTrue(command.contains(ProcessCtrl.SUMMARY_COUNT_FIELD_ARG + "summaryField"));
         assertTrue(command.contains(ProcessCtrl.RESULT_FINALIZATION_WINDOW_ARG + "2"));
         assertTrue(command.contains(ProcessCtrl.MULTIVARIATE_BY_FIELDS_ARG));

@@ -53,7 +53,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
     public void testVerify_GivenNoLatency() {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setBatchSpan(TimeValue.timeValueSeconds(1800));
         ac.setBucketSpan(TimeValue.timeValueSeconds(100));
         builder.setAnalysisConfig(ac);
         Job job = builder.build(new Date());

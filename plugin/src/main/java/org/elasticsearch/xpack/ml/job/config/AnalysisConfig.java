@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * <p>
  * The configuration can contain multiple detectors, a new anomaly detector will
  * be created for each detector configuration. The fields
- * <code>bucketSpan, batchSpan, summaryCountFieldName and categorizationFieldName</code>
+ * <code>bucketSpan, summaryCountFieldName and categorizationFieldName</code>
  * apply to all detectors.
  * <p>
  * If a value has not been set it will be <code>null</code>
@@ -52,11 +52,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
      */
     private static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
     private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    private static final ParseField BATCH_SPAN = new ParseField("batch_span");
     private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
     public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     private static final ParseField LATENCY = new ParseField("latency");
-    private static final ParseField PERIOD = new ParseField("period");
     private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
     private static final ParseField DETECTORS = new ParseField("detectors");
     private static final ParseField INFLUENCERS = new ParseField("influencers");
@@ -79,13 +77,10 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Detector.PARSER.apply(p, c).build(), DETECTORS);
         PARSER.declareString((builder, val) ->
                 builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
-        PARSER.declareString((builder, val) ->
-                builder.setBatchSpan(TimeValue.parseTimeValue(val, BATCH_SPAN.getPreferredName())), BATCH_SPAN);
         PARSER.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
         PARSER.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
         PARSER.declareString((builder, val) ->
                 builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
-        PARSER.declareLong(Builder::setPeriod, PERIOD);
         PARSER.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
         PARSER.declareStringArray(Builder::setInfluencers, INFLUENCERS);
         PARSER.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
@@ -101,11 +96,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
      * These values apply to all detectors
      */
     private final TimeValue bucketSpan;
-    private final TimeValue batchSpan;
     private final String categorizationFieldName;
     private final List<String> categorizationFilters;
     private final TimeValue latency;
-    private final Long period;
     private final String summaryCountFieldName;
     private final List<Detector> detectors;
     private final List<String> influencers;
@@ -115,15 +108,13 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     private final List<TimeValue> multipleBucketSpans;
     private final boolean usePerPartitionNormalization;
 
-    private AnalysisConfig(TimeValue bucketSpan, TimeValue batchSpan, String categorizationFieldName, List<String> categorizationFilters,
-                           TimeValue latency, Long period, String summaryCountFieldName, List<Detector> detectors,
+    private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
+                           TimeValue latency, String summaryCountFieldName, List<Detector> detectors,
                            List<String> influencers, Boolean overlappingBuckets, Long resultFinalizationWindow,
                            Boolean multivariateByFields, List<TimeValue> multipleBucketSpans, boolean usePerPartitionNormalization) {
         this.detectors = detectors;
         this.bucketSpan = bucketSpan;
-        this.batchSpan = batchSpan;
         this.latency = latency;
-        this.period = period;
         this.categorizationFieldName = categorizationFieldName;
         this.categorizationFilters = categorizationFilters;
         this.summaryCountFieldName = summaryCountFieldName;
@@ -137,11 +128,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
 
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = new TimeValue(in);
-        batchSpan = in.readOptionalWriteable(TimeValue::new);
         categorizationFieldName = in.readOptionalString();
         categorizationFilters = in.readBoolean() ? in.readList(StreamInput::readString) : null;
         latency = in.readOptionalWriteable(TimeValue::new);
-        period = in.readOptionalLong();
         summaryCountFieldName = in.readOptionalString();
         detectors = in.readList(Detector::new);
         influencers = in.readList(StreamInput::readString);
@@ -155,7 +144,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         bucketSpan.writeTo(out);
-        out.writeOptionalWriteable(batchSpan);
         out.writeOptionalString(categorizationFieldName);
         if (categorizationFilters != null) {
             out.writeBoolean(true);
@@ -164,7 +152,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalWriteable(latency);
-        out.writeOptionalLong(period);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
         out.writeStringList(influencers);
@@ -189,15 +176,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         return bucketSpan;
     }
 
-    /**
-     * Interval into which to batch seasonal data
-     *
-     * @return The batchspan or <code>null</code> if not set
-     */
-    public TimeValue getBatchSpan() {
-        return batchSpan;
-    }
-
     public String getCategorizationFieldName() {
         return categorizationFieldName;
     }
@@ -213,16 +191,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
      */
     public TimeValue getLatency() {
         return latency;
-    }
-
-    /**
-     * The repeat interval for periodic data in multiples of
-     * {@linkplain #getBatchSpan()}
-     *
-     * @return The period or <code>null</code> if not set
-     */
-    public Long getPeriod() {
-        return period;
     }
 
     /**
@@ -367,9 +335,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan.getStringRep());
-        if (batchSpan != null) {
-            builder.field(BATCH_SPAN.getPreferredName(), batchSpan.getStringRep());
-        }
         if (categorizationFieldName != null) {
             builder.field(CATEGORIZATION_FIELD_NAME.getPreferredName(), categorizationFieldName);
         }
@@ -378,9 +343,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         }
         if (latency != null) {
             builder.field(LATENCY.getPreferredName(), latency.getStringRep());
-        }
-        if (period != null) {
-            builder.field(PERIOD.getPreferredName(), period);
         }
         if (summaryCountFieldName != null) {
             builder.field(SUMMARY_COUNT_FIELD_NAME.getPreferredName(), summaryCountFieldName);
@@ -415,10 +377,8 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         return Objects.equals(latency, that.latency) &&
                 usePerPartitionNormalization == that.usePerPartitionNormalization &&
                 Objects.equals(bucketSpan, that.bucketSpan) &&
-                Objects.equals(batchSpan, that.batchSpan) &&
                 Objects.equals(categorizationFieldName, that.categorizationFieldName) &&
                 Objects.equals(categorizationFilters, that.categorizationFilters) &&
-                Objects.equals(period, that.period) &&
                 Objects.equals(summaryCountFieldName, that.summaryCountFieldName) &&
                 Objects.equals(detectors, that.detectors) &&
                 Objects.equals(influencers, that.influencers) &&
@@ -431,7 +391,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(
-                bucketSpan, batchSpan, categorizationFieldName, categorizationFilters, latency, period,
+                bucketSpan, categorizationFieldName, categorizationFilters, latency,
                 summaryCountFieldName, detectors, influencers, overlappingBuckets, resultFinalizationWindow,
                 multivariateByFields, multipleBucketSpans, usePerPartitionNormalization
         );
@@ -443,9 +403,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
 
         private List<Detector> detectors;
         private TimeValue bucketSpan = DEFAULT_BUCKET_SPAN;
-        private TimeValue batchSpan;
         private TimeValue latency;
-        private Long period;
         private String categorizationFieldName;
         private List<String> categorizationFilters;
         private String summaryCountFieldName;
@@ -463,9 +421,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         public Builder(AnalysisConfig analysisConfig) {
             this.detectors = analysisConfig.detectors;
             this.bucketSpan = analysisConfig.bucketSpan;
-            this.batchSpan = analysisConfig.batchSpan;
             this.latency = analysisConfig.latency;
-            this.period = analysisConfig.period;
             this.categorizationFieldName = analysisConfig.categorizationFieldName;
             this.categorizationFilters = analysisConfig.categorizationFilters;
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
@@ -485,16 +441,8 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             this.bucketSpan = bucketSpan;
         }
 
-        public void setBatchSpan(TimeValue batchSpan) {
-            this.batchSpan = batchSpan;
-        }
-
         public void setLatency(TimeValue latency) {
             this.latency = latency;
-        }
-
-        public void setPeriod(long period) {
-            this.period = period;
         }
 
         public void setCategorizationFieldName(String categorizationFieldName) {
@@ -536,8 +484,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         /**
          * Checks the configuration is valid
          * <ol>
-         * <li>Check that if non-null BucketSpan, BatchSpan, Latency and Period are
-         * &gt;= 0</li>
+         * <li>Check that if non-null BucketSpan and Latency are &gt;= 0</li>
          * <li>Check that if non-null Latency is &lt;= MAX_LATENCY</li>
          * <li>Check there is at least one detector configured</li>
          * <li>Check all the detectors are configured correctly</li>
@@ -549,13 +496,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
          */
         public AnalysisConfig build() {
             TimeUtils.checkPositiveMultiple(bucketSpan, TimeUnit.SECONDS, BUCKET_SPAN);
-            if (batchSpan != null) {
-                TimeUtils.checkPositiveMultiple(batchSpan, TimeUnit.SECONDS, BATCH_SPAN);
-            }
             if (latency != null) {
                 TimeUtils.checkNonNegativeMultiple(latency, TimeUnit.SECONDS, LATENCY);
             }
-            checkFieldIsNotNegativeIfSpecified(PERIOD.getPreferredName(), period);
 
             verifyDetectorAreDefined();
             verifyFieldName(summaryCountFieldName);
@@ -573,8 +516,8 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
                 checkNoInfluencersAreSet(influencers);
             }
 
-            return new AnalysisConfig(bucketSpan, batchSpan, categorizationFieldName, categorizationFilters,
-                    latency, period, summaryCountFieldName, detectors, influencers, overlappingBuckets,
+            return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters,
+                    latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
                     resultFinalizationWindow, multivariateByFields, multipleBucketSpans, usePerPartitionNormalization);
         }
 
@@ -696,7 +639,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
                     return true;
                 }
             }
-            return field.chars().anyMatch(ch -> Character.isISOControl(ch));
+            return field.chars().anyMatch(Character::isISOControl);
         }
 
         private static boolean isValidRegex(String exp) {

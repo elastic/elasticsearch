@@ -512,14 +512,14 @@ public class Node implements Closeable {
             final String message = String.format(
                     Locale.ROOT,
                     "detected index data in default.path.data [%s] where there should not be any",
-                    nodeEnv.defaultNodePath().path);
+                    nodeEnv.defaultNodePath().indicesPath);
             logger.error(message);
             for (final String availableIndexFolder : availableIndexFolders) {
                 logger.info(
                         "index folder [{}] in default.path.data [{}] must be moved to any of {}",
                         availableIndexFolder,
-                        nodeEnv.defaultNodePath().path,
-                        nodeEnv.nodeDataPaths());
+                        nodeEnv.defaultNodePath().indicesPath,
+                        Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
             }
             throw new IllegalStateException(message);
         }

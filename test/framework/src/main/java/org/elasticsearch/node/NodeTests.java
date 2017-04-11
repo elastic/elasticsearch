@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -203,7 +202,7 @@ public class NodeTests extends ESTestCase {
             final String message = String.format(
                     Locale.ROOT,
                     "detected index data in default.path.data [%s] where there should not be any",
-                    defaultPathData.resolve("nodes/0"));
+                    defaultPathData.resolve("nodes/0/indices"));
             assertThat(e, hasToString(containsString(message)));
         } else {
             try (Node ignored = constructor.get()) {
@@ -242,15 +241,15 @@ public class NodeTests extends ESTestCase {
                 final String message = String.format(
                         Locale.ROOT,
                         "detected index data in default.path.data [%s] where there should not be any",
-                        defaultPathData.resolve("nodes/0"));
+                        defaultPathData.resolve("nodes/0/indices"));
                 assertThat(e, hasToString(containsString(message)));
                 verify(mock).error(message);
                 for (final String index : indices) {
                     verify(mock).info(
                             "index folder [{}] in default.path.data [{}] must be moved to any of {}",
                             index,
-                            nodeEnv.defaultNodePath().path,
-                            nodeEnv.nodeDataPaths());
+                            nodeEnv.defaultNodePath().indicesPath,
+                            Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
                 }
                 verifyNoMoreInteractions(mock);
             } else {

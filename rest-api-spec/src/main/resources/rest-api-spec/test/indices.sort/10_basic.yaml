@@ -1,0 +1,72 @@
+---
+"Index Sort":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new feature that has been added in 6.0.0
+
+  - do:
+      indices.create:
+        index: test
+        wait_for_active_shards: 1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+            index.sort.field: _type
+          mappings:
+            t: {}
+
+  - do:
+      index:
+        index: test
+        type:  test_z
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: test
+        type:  test_a
+        id:    "2"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: test
+        type:  test_m
+        id:    "3"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: test
+        type:  test_b
+        id:    "4"
+        body:  { "foo": "hello world" }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: _doc
+
+  - match: {hits.total: 4 }
+  - length: {hits.hits: 4 }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "4" }
+  - match: {hits.hits.2._id: "3" }
+  - match: {hits.hits.3._id: "1" }

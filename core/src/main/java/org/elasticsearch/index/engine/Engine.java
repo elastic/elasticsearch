@@ -705,6 +705,7 @@ public abstract class Engine implements Closeable {
                 }
                 final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
+                segment.segmentSort = info.info.getIndexSort();
                 if (verbose) {
                     segment.ramTree = Accountables.namedAccountable("root", segmentReader);
                 }

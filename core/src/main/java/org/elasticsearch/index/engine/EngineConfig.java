@@ -25,6 +25,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
@@ -69,6 +70,8 @@ public final class EngineConfig {
     private final long maxUnsafeAutoIdTimestamp;
     @Nullable
     private final ReferenceManager.RefreshListener refreshListeners;
+    @Nullable
+    private final Sort indexSort;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -113,7 +116,7 @@ public final class EngineConfig {
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
-                        long maxUnsafeAutoIdTimestamp) {
+                        long maxUnsafeAutoIdTimestamp, Sort indexSort) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -143,6 +146,7 @@ public final class EngineConfig {
         assert maxUnsafeAutoIdTimestamp >= IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP :
             "maxUnsafeAutoIdTimestamp must be >= -1 but was " + maxUnsafeAutoIdTimestamp;
         this.maxUnsafeAutoIdTimestamp = maxUnsafeAutoIdTimestamp;
+        this.indexSort = indexSort;
     }
 
     /**
@@ -334,5 +338,12 @@ public final class EngineConfig {
      */
     public long getMaxUnsafeAutoIdTimestamp() {
         return indexSettings.getValue(INDEX_OPTIMIZE_AUTO_GENERATED_IDS) ? maxUnsafeAutoIdTimestamp : Long.MAX_VALUE;
+    }
+
+    /**
+     * Return the sort order of this index, or null if the index has no sort.
+     */
+    public Sort getIndexSort() {
+        return indexSort;
     }
 }

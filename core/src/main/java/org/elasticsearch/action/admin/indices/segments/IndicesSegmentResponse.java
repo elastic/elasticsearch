@@ -19,6 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -140,6 +144,9 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
                         if (segment.getMergeId() != null) {
                             builder.field(Fields.MERGE_ID, segment.getMergeId());
                         }
+                        if (segment.getSegmentSort() != null) {
+                            toXContent(builder, segment.getSegmentSort());
+                        }
                         if (segment.ramTree != null) {
                             builder.startArray(Fields.RAM_TREE);
                             for (Accountable child : segment.ramTree.getChildResources()) {
@@ -162,6 +169,23 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
         builder.endObject();
         return builder;
+    }
+
+    static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
+        builder.startArray(Fields.SORT);
+        for (SortField field : sort.getSort()) {
+            builder.startObject();
+            builder.field(Fields.FIELD, field.getField());
+            if (field instanceof SortedNumericSortField) {
+                builder.field(Fields.MODE, ((SortedNumericSortField) field).getSelector().toString());
+            } else if (field instanceof SortedSetSortField) {
+                builder.field(Fields.MODE, ((SortedSetSortField) field).getSelector().toString());
+            }
+            builder.field(Fields.MISSING, field.getMissingValue());
+            builder.field(Fields.REVERSE, field.getReverse());
+            builder.endObject();
+        }
+        builder.endArray();
     }
 
     static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
@@ -206,5 +230,10 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         static final String RAM_TREE = "ram_tree";
         static final String DESCRIPTION = "description";
         static final String CHILDREN = "children";
+        static final String SORT = "sort";
+        static final String FIELD = "field";
+        static final String MODE = "mode";
+        static final String MISSING = "missing";
+        static final String REVERSE = "reverse";
     }
 }

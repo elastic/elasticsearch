@@ -18,9 +18,10 @@ A `data_counts` object has the following properties:
 `processed_record_count`::
   (+long+) The number of records that have been processed by the job.
   This value includes records with missing fields, since they are nonetheless analyzed.
+  +
   The following records are not processed:
   * Records not in chronological order and outside the latency window
-  * Records with invalid timestamps
+  * Records with invalid timestamp
   * Records filtered by an exclude transform
 
 `processed_field_count`::
@@ -107,11 +108,9 @@ NOTE: The `over` field values are counted separately for each detector and parti
 
 `memory_status`::
   (+string+) The status of the mathematical models. This property can have one of the following values:
-      "ok":: The models stayed below the configured value.
-      "soft_limit":: The models used more than 60% of the configured memory limit and older unused models will
-      be pruned to free up space.
-      "hard_limit":: The models used more space than the configured memory limit. As a result,
-      not all incoming data was processed.
+  `ok`::: The models stayed below the configured value.
+  `soft_limit`::: The models used more than 60% of the configured memory limit and older unused models will be pruned to free up space.
+  `hard_limit`::: The models used more space than the configured memory limit. As a result, not all incoming data was processed.
 
 `log_time`::
   TBD

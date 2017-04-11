@@ -1,10 +1,82 @@
 [[ml-snapshot-resource]]
 ==== Model Snapshot Resources
 
+////
+Model snapshots are saved to disk periodically.
+By default, this is occurs approximately every 3 hours.
+//TBD: Can you change this setting?
+
+By default, model snapshots are retained for one day. You can change this
+behavior with by updating the `model_snapshot_retention_days` for the job.
+When choosing a new value, consider the following:
+
+* Persistence enables resilience in the event of a system failure.
+* Persistence allows for snapshots to be reverted.
+* The time taken to persist a job is proportional to the size of the model in memory.
+//* The smallest allowed value is 3600 (1 hour).
+////
+
 A model snapshot resource has the following properties:
 
-TBD
-////
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data. See <<ml-analysisconfig, analysis configuration objects>>.
-////
+`description`::
+  (+string+) An optional description of the job.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`latest_record_time_stamp`::
+  (++) TBD. For example: 1455232663000.
+
+`latest_result_time_stamp`::
+  (++) TBD. For example: 1455229800000.
+
+`model_size_stats`::
+  (+object+) TBD.
+
+`retain`::
+  (+boolean+) TBD. For example: false.
+
+`snapshot_id`::
+  (+string+) A numerical character string that uniquely identifies the model
+  snapshot. For example: "1491852978".
+
+`snapshot_doc_count`::
+  (++) TBD. For example: 1.
+
+`timestamp`::
+  (+date+) The creation timestamp for the snapshot, specified in ISO 8601 format.
+  For example: 1491852978000.
+
+===== Model Size Statistics
+
+The `model_size_stats` object has the following properties:
+
+`bucket_allocation_failures_count`::
+  (++) TBD. For example: 0.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`log_time`::
+  (++) TBD. For example: 1491852978000.
+
+`memory_status`::
+  (++) TBD. For example: "ok".
+
+`model_bytes`::
+  (++) TBD. For example: 100393.
+
+`result_type`::
+  (++) TBD. For example: "model_size_stats".
+
+`timestamp`::
+  (++) TBD. For example: 1455229800000.
+
+`total_by_field_count`::
+  (++) TBD. For example: 13.
+
+`total_over_field_count`::
+  (++) TBD. For example: 0.
+
+`total_partition_field_count`::
+  (++) TBD. For example: 2.

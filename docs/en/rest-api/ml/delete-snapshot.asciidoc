@@ -7,21 +7,15 @@ The delete model snapshot API allows you to delete an existing model snapshot.
 
 `DELETE _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
-////
+
 ===== Description
 
-All job configuration, model state and results are deleted.
+IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
+first revert to a different one.
 
-IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
-            job directly from the `.ml-*` indices using the Elasticsearch
-            DELETE Document API. When {security} is enabled, make sure no `write`
-            privileges are granted to anyone over the `.ml-*` indices.
+//TBD: Where do you see restorePriority? Per old docs, the active model snapshot
+//is "...the snapshot with the highest restorePriority".
 
-Before you can delete a job, you must delete the data feeds that are associated with it.
-//See <<>>.
-
-It is not currently possible to delete multiple jobs using wildcards or a comma separated list.
-////
 ===== Path Parameters
 
 `job_id` (required)::

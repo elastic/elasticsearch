@@ -48,8 +48,7 @@ The get data feed statistics API provides information about the operational
 progress of a data feed. For example:
 
 `assigment_explanation`::
-  TBD
-  For example: ""
+  TBD. For example: ""
 
 `node`::
   (+object+) TBD
@@ -61,5 +60,5 @@ progress of a data feed. For example:
 `state`::
   (+string+) The status of the data feed,
   which can be one of the following values:
-  * started:: The data feed is actively receiving data.
-  * stopped:: The data feed is stopped and will not receive data until it is re-started.
+    started:: The data feed is actively receiving data.
+    stopped:: The data feed is stopped and will not receive data until it is re-started.

@@ -32,62 +32,105 @@ the anomaly records into buckets.
 A record object has the following properties:
 
 `actual`::
-  TBD. For example, [633].
+  (+number+) The actual value for the bucket.
 
 `bucket_span`::
-  TBD. For example, 600.
+  (+number+) The length of the bucket in seconds.
+  This value matches the `bucket_span` that is specified in the job.
+
+//`byFieldName`::
+//TBD: This field did not appear in my results, but it might be a valid property.
+// (+string+) The name of the analyzed field, if it was specified in the detector.
+
+//`byFieldValue`::
+//TBD: This field did not appear in my results, but it might be a valid property.
+// (+string+) The value of `by_field_name`, if it was specified in the detecter.
+
+//`causes`
+//TBD: This field did not appear in my results, but it might be a valid property.
+// (+array+) If an over field was specified in the detector, this property
+// contains an array of anomaly records that are the causes for the anomaly
+// that has been identified for the over field.
+// If no over fields exist. this field will not be present.
+// This sub-resource contains the most anomalous records for the `over_field_name`.
+// For scalability reasons, a maximum of the 10 most significant causes of
+// the anomaly will be returned. As part of the core analytical modeling,
+// these low-level anomaly records are aggregated for their parent over field record.
+// The causes resource contains similar elements to the record resource,
+// namely actual, typical, *FieldName and *FieldValue.
+// Probability and scores are not applicable to causes.
 
 `detector_index`::
-  TBD. For example, 0.
+  (+number+) A unique identifier for the detector.
+
+//`fieldName`::
+//  TBD: This field did not appear in my results, but it might be a valid property.
+//  (+string+) Certain functions require a field to operate on. For those functions,
+//  this is the name of the field to be analyzed.
 
 `function`::
-  TBD. For example, "low_non_zero_count".
+  (+string+) The function in which the anomaly occurs.
 
 `function_description`::
-  TBD. For example, "count".
+  (+string+) The description of the function in which the anomaly occurs, as
+  specified in the detector configuration information.
 
 `influencers`::
- TBD. For example, [{
-    "influencer_field_name": "kpi_indicator",
-    "influencer_field_values": [
-      "online_purchases"]}].
+ (+array+) If `influencers` was specified in the detector configuration, then
+ this array contains influencers that contributed to or were to blame for an
+ anomaly.
 
 `initial_record_score`::
-  TBD. For example, 94.1386.
+  (++) TBD. For example, 94.1386.
 
 `is_interim`::
-  TBD. For example, false.
+  (+boolean+) If true, then this anomaly record is an interim result.
+  In other words, it is calculated based on partial input data
 
 `job_id`::
-  TBD. For example, "it_ops_new_kpi".
+  (+string+) A numerical character string that uniquely identifies the job.
 
 `kpi_indicator`::
-  TBD. For example, ["online_purchases"]
+  (++) TBD. For example, ["online_purchases"]
 
 `partition_field_name`::
-  TBD. For example, "kpi_indicator".
+  (+string+) The name of the partition field that was used in the analysis, if
+  such a field was specified in the detector.
+
+//`overFieldName`::
+//  TBD: This field did not appear in my results, but it might be a valid property.
+//  (+string+) The name of the over field, if `over_field_name` was specified
+// in the detector.
 
 `partition_field_value`::
-  TBD. For example, "online_purchases".
+  (+string+) The value of the partition field that was used in the analysis, if
+  `partition_field_name` was specified in the detector.
 
 `probability`::
-  TBD. For example, 0.0000772031.
+  (+number+) The probability of the individual anomaly occurring.
+  This value is in the range 0 to 1. For example, 0.0000772031.
+//This value is held to a high precision of over 300 decimal places.
+//In scientific notation, a value of 3.24E-300 is highly unlikely and therefore
+//highly anomalous.
 
 `record_score`::
-  TBD. For example, 94.1386.
+  (+number+) An anomaly score for the bucket time interval.
+  The score is calculated based on a sophisticated aggregation of the anomalies
+  in the bucket.
+//Use this score for rate-controlled alerting.
 
 `result_type`::
-  TBD. For example, "record".
+  (+string+) TBD. For example, "record".
 
 `sequence_num`::
-  TBD. For example, 1.
+  (++) TBD. For example, 1.
 
 `timestamp`::
-(+date+) The start time of the bucket that contains the record,
-specified in ISO 8601 format. For example, 1454020800000. 
+  (+date+) The start time of the bucket that contains the record, specified in
+  ISO 8601 format. For example, 1454020800000.
 
 `typical`::
-  TBD. For example, [3596.71].
+  (+number+) The typical value for the bucket, according to analytical modeling.
 
 [float]
 [[ml-results-influencers]]
@@ -106,42 +149,53 @@ records that contain this influencer.
 An influencer object has the following properties:
 
 `bucket_span`::
-  TBD. For example, 300.
+  (++) TBD. For example, 300.
+
+// Same as for buckets? i.e. (+unsigned integer+) The length of the bucket in seconds.
+// This value is equal to the `bucket_span` value in the job configuration.
 
 `job_id`::
   (+string+) A numerical character string that uniquely identifies the job.
 
 `influencer_score`::
-  TBD. For example: 94.1386.
+  (+number+) An anomaly score for the influencer in this bucket time interval.
+  The score is calculated based upon a sophisticated aggregation of the anomalies
+  in the bucket for this entity. For example: 94.1386.
 
 `initial_influencer_score`::
-  TBD. For example, 83.3831.
+  (++) TBD. For example, 83.3831.
 
 `influencer_field_name`::
-  TBD. For example, "bucket_time".
+  (+string+) The field name of the influencer.
 
 `influencer_field_value`::
-  TBD. For example, "online_purchases".
+  (+string+) The entity that influenced, contributed to, or was to blame for the
+  anomaly.
 
 `is_interim`::
-  TBD. For example, false.
+  (+boolean+) If true, then this is an interim result.
+  In other words, it is calculated based on partial input data.
 
 `kpi_indicator`::
-  TBD. For example, "online_purchases".
+  (++) TBD. For example, "online_purchases".
 
 `probability`::
-  TBD. For example, 0.0000109783.
+  (+number+) The probability that the influencer has this behavior.
+  This value is in the range 0 to 1. For example, 0.0000109783.
+// For example, 0.03 means 3%. This value is held to a high precision of over
+//300 decimal places. In scientific notation, a value of 3.24E-300 is highly
+//unlikely and therefore highly anomalous.
 
 `result_type`::
-  TBD. For example, "influencer".
-
+  (++) TBD. For example, "influencer".
 //TBD: How is this different from the "bucket_influencer" type?
 
 `sequence_num`::
-`TBD. For example, 2.
+  (++) TBD. For example, 2.
 
 `timestamp`::
-  TBD. For example, 1454943900000.
+  (+date+) Influencers are produced in buckets. This value is the start time
+  of the bucket, specified in ISO 8601 format. For example, 1454943900000.
 
 [float]
 [[ml-results-buckets]]

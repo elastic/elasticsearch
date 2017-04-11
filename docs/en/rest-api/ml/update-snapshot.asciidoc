@@ -7,12 +7,14 @@ The update model snapshot API allows you to update certain properties of a snaps
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
-////
+
 ===== Description
 
-Important:: Updates do not take effect until after then job is closed and new
-data is sent to it.
-////
+//TBD. Is the following still true?
+
+Updates to the configuration are only applied after the job has been closed
+and new data has been sent to it.
+
 ===== Path Parameters
 
 `job_id` (required)::
@@ -23,30 +25,15 @@ data is sent to it.
 
 ===== Request Body
 
-The following properties can be updated after the job is created:
-
-TBD
-
-////
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>.  In particular, the following properties can be updated: `categorization_filters`, `detector_description`, TBD.
-
-`analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
-
-[NOTE]
-* You can update the `analysis_limits` only while the job is closed.
-* The `model_memory_limit` property value cannot be decreased.
-* If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
-increasing the `model_memory_limit` is not recommended.
+The following properties can be updated after the model snapshot is created:
 
 `description`::
-  (+string+) An optional description of the job.
+  (+string+) An optional description of the model snapshot.
 
+`retain`::
+  (+boolean+) TBD.
 
-This expects data to be sent in JSON format using the POST `_data` API.
-
+////
 ===== Responses
 
 TBD
@@ -56,34 +43,34 @@ TBD
 (BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-
+////
 
 ===== Examples
 
-The following example updates the `it-ops-kpi` job:
+The following example updates the snapshot identified as `1491852978`:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/it-ops-kpi/_update
+POST
+_xpack/ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
 {
-    "description":"New description",
-    "analysis_limits":{
-      "model_memory_limit": 8192
-    }
+  "description": "Snapshot 1",
+  "retain": true
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the job is updated, you receive the following results:
+When the snapshot is updated, you receive the following results:
 ----
 {
-  "job_id": "it-ops-kpi",
-  "description": "New description",
-  ...
-  "analysis_limits": {
-    "model_memory_limit": 8192
-  ...
+  "acknowledged": true,
+  "model": {
+    "job_id": "it_ops_new_logs",
+    "timestamp": 1491852978000,
+    "description": "Snapshot 1",
+...
+    "retain": true
+  }
 }
 ----
-////

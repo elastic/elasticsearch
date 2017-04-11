@@ -19,20 +19,44 @@ OUTDATED?: The get job API can also be applied to all jobs by using `_all` as th
   (+string+) Identifier for the job.
 
 `snapshot_id`::
-  (+string+) Identifier for the job. If you do not specify this optional parameter,
+  (+string+) Identifier for the model snapshot. If you do not specify this optional parameter,
   the API returns information about all model snapshots that you have authority to view.
 
-////
+===== Request Body
+
+`desc`::
+  (+boolean+) If true, the results are sorted in descending order.
+
+`description`::
+  (+string+) Returns snapshots that match this description.
+//TBD: I couldn't get this to work. What description value is it using?
+NOTE: It might be necessary to URL encode the description.
+
+`end`::
+  (+date+) Returns snapshots with timestamps earlier than this time.
+
+`from`::
+  (+integer+) Skips the specified number of snapshots.
+
+`size`::
+  (+integer+) Specifies the maximum number of snapshots to obtain.
+
+`sort`::
+  (+string+) Specifies the sort field for the requested snapshots.
+//By default, the snapshots are sorted by the xxx value.
+
+`start`::
+  (+string+) Returns snapshots with timestamps after this time.
+
 ===== Results
 
-The API returns information about the job resource. For more information, see
-<<ml-job-resource,job resources>>.
+The API returns the following information:
 
-===== Query Parameters
+`model_snapshots`::
+  (+array+) An array of model snapshot objects. For more information, see
+  <<ml-snapshot-resource,Model Snapshots>>.
 
-`_stats`::
-(+boolean+; default: ++true++) If true (default false), will just validate the cluster definition but will not perform the creation
-
+////
 ===== Responses
 
 200
@@ -41,46 +65,50 @@ The API returns information about the job resource. For more information, see
 (BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+////
 
 ===== Examples
 
-.Example results for a single job
+The following example gets model snapshot information for the
+`it_ops_new_logs` job:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/ml/anomaly_detectors/it_ops_new_logs/model_snapshots
+{
+  "start": "1491852977000"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+In this example, the API provides a single result:
 ----
 {
   "count": 1,
-  "jobs": [
-      {
-      "job_id": "it-ops-kpi",
-      "description": "First simple job",
-      "create_time": 1491007356077,
-      "finished_time": 1491007365347,
-      "analysis_config": {
-        "bucket_span": "5m",
-        "latency": "0ms",
-        "summary_count_field_name": "doc_count",
-        "detectors": [
-          {
-            "detector_description": "low_sum(events_per_min)",
-            "function": "low_sum",
-            "field_name": "events_per_min",
-            "detector_rules": []
-          }
-        ],
-        "influencers": [],
-        "use_per_partition_normalization": false
+  "model_snapshots": [
+    {
+      "job_id": "it_ops_new_logs",
+      "timestamp": 1491852978000,
+      "description": "State persisted due to job close at 2017-04-10T12:36:18-0700",
+      "snapshot_id": "1491852978",
+      "snapshot_doc_count": 1,
+      "model_size_stats": {
+        "job_id": "it_ops_new_logs",
+        "result_type": "model_size_stats",
+        "model_bytes": 100393,
+        "total_by_field_count": 13,
+        "total_over_field_count": 0,
+        "total_partition_field_count": 2,
+        "bucket_allocation_failures_count": 0,
+        "memory_status": "ok",
+        "log_time": 1491852978000,
+        "timestamp": 1455229800000
       },
-      "data_description": {
-        "time_field": "@timestamp",
-        "time_format": "epoch_ms"
-      },
-      "model_plot_config": {
-        "enabled": true
-      },
-      "model_snapshot_retention_days": 1,
-      "model_snapshot_id": "1491007364",
-      "results_index_name": "shared"
+      "latest_record_time_stamp": 1455232663000,
+      "latest_result_time_stamp": 1455229800000,
+      "retain": false
     }
   ]
 }
 ----
-////

@@ -62,6 +62,11 @@ include::ml/validate-job.asciidoc[]
 [[ml-api-snapshot-endpoint]]
 === Model Snapshots
 
+* <<ml-delete-snapshot,Delete model snapshots>>
+* <<ml-get-snapshot,Get model snapshots>>
+* <<ml-revert-snapshot,Revert model snapshots>>
+* <<ml-update-snapshot,Update model snapshots>>
+
 include::ml/delete-snapshot.asciidoc[]
 include::ml/get-snapshot.asciidoc[]
 include::ml/revert-snapshot.asciidoc[]
@@ -82,6 +87,13 @@ include::ml/get-record.asciidoc[]
 
 [[ml-api-definitions]]
 === Definitions
+
+* <<ml-datafeed-resource,Data feeds>>
+* <<ml-datafeed-counts,Data feed counts>>
+* <<ml-job-resource,Jobs>>
+* <<ml-jobcounts,Job counts>>
+* <<ml-snapshot-resource,Model snapshots>>
+* <<ml-results-resource,Results>>
 
 include::ml/datafeedresource.asciidoc[]
 include::ml/jobresource.asciidoc[]

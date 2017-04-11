@@ -55,11 +55,11 @@ The get records API allows you to retrieve anomaly records for a job.
 
 ===== Results
 
-  The API returns the following information:
+The API returns the following information:
 
-  `records`::
-    (+array+) An array of record objects. For more information, see
-    <<ml-results-records,Records>>.
+`records`::
+  (+array+) An array of record objects. For more information, see
+  <<ml-results-records,Records>>.
 
 ////
   ===== Responses

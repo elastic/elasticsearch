@@ -38,20 +38,19 @@ The API returns the following usage information:
 
 `state`::
   (+string+) The status of the job, which can be one of the following values:
+  `open`::: The job is actively receiving and processing data.
+  `closed`::: The job finished successfully with its model state persisted.
+  The job is still available to accept further data.
+  `closing`::: TBD
+  `failed`::: The job did not finish successfully due to an error.
+  This situation can occur due to invalid input data. In this case,
+  sending corrected data to a failed job re-opens the job and
+  resets it to an open state.
 
-    open:: The job is actively receiving and processing data.
-
-    closed:: The job finished successfully with its model state persisted.
-    The job is still available to accept further data.
-
-    closing:: TBD 
-
-NOTE: If you send data in a periodic cycle and close the job at the end of each transaction,
-the job is marked as closed in the intervals between when data is sent.
-For example, if data is sent every minute and it takes 1 second to process, the job has a closed state for 59 seconds.
-
-    failed:: The job did not finish successfully due to an error. NOTE: This can occur due to invalid input data.
-    In this case, sending corrected data to a failed job re-opens the job and resets it to a running state.
+NOTE: If you send data in a periodic cycle and close the job at the end of
+each transaction, the job is marked as closed in the intervals between
+when data is sent. For example, if data is sent every minute and it takes
+1 second to process, the job has a closed state for 59 seconds.
 
 ////
 ===== Responses

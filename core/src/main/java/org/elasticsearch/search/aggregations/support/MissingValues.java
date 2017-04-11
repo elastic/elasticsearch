@@ -58,8 +58,11 @@ public enum MissingValues {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                values.advanceExact(doc);
-                count = values.docValueCount();
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
@@ -131,8 +134,11 @@ public enum MissingValues {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                values.advanceExact(doc);
-                count = values.docValueCount();
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
@@ -148,8 +154,11 @@ public enum MissingValues {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                values.advanceExact(doc);
-                count = values.docValueCount();
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
@@ -325,8 +334,11 @@ public enum MissingValues {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                values.advanceExact(doc);
-                count = values.docValueCount();
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;

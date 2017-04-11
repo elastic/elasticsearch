@@ -34,9 +34,15 @@ public class FieldDataTests extends ESTestCase {
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
         NumericDocValues values = new AbstractNumericDocValues() {
+            private int docID = -1;
             @Override
             public boolean advanceExact(int target) throws IOException {
+                docID = target;
                 return true;
+            }
+            @Override
+            public int docID() {
+                return docID;
             }
             @Override
             public long longValue() throws IOException {

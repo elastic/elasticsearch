@@ -100,8 +100,11 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
                 }
                 return new AbstractNumericDocValues() {
 
+                    private int docID = -1;
+
                     @Override
                     public boolean advanceExact(int target) throws IOException {
+                        docID = target;
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
                                 throw new IllegalArgumentException(
@@ -111,6 +114,11 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
                         } else {
                             return false;
                         }
+                    }
+
+                    @Override
+                    public int docID() {
+                        return docID;
                     }
 
                     @Override

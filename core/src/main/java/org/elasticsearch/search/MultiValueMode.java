@@ -465,6 +465,11 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 @Override
+                public int docID() {
+                    return singleton.docID();
+                }
+
+                @Override
                 public long longValue() throws IOException {
                     return hasValue ? singleton.longValue() : missingValue;
                 }
@@ -478,6 +483,11 @@ public enum MultiValueMode implements Writeable {
                 public boolean advanceExact(int target) throws IOException {
                     hasValue = values.advanceExact(target);
                     return true;
+                }
+
+                @Override
+                public int docID() {
+                    return values.docID();
                 }
 
                 @Override
@@ -511,7 +521,7 @@ public enum MultiValueMode implements Writeable {
 
         return new AbstractNumericDocValues() {
 
-            int lastSeenRootDoc = 0;
+            int lastSeenRootDoc = -1;
             long lastEmittedValue = missingValue;
 
             @Override
@@ -519,6 +529,9 @@ public enum MultiValueMode implements Writeable {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
+                    return true;
+                } else if (rootDoc == 0) {
+                    lastEmittedValue = missingValue;
                     return true;
                 }
                 final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
@@ -532,6 +545,11 @@ public enum MultiValueMode implements Writeable {
                 lastSeenRootDoc = rootDoc;
                 lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
                 return true;
+            }
+
+            @Override
+            public int docID() {
+                return lastSeenRootDoc;
             }
 
             @Override

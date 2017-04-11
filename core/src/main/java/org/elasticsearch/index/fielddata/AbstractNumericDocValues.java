@@ -33,11 +33,6 @@ import java.io.IOException;
 public abstract class AbstractNumericDocValues extends NumericDocValues {
 
     @Override
-    public int docID() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public int nextDoc() throws IOException {
         throw new UnsupportedOperationException();
     }

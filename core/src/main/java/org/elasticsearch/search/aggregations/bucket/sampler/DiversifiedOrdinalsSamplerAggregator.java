@@ -96,6 +96,11 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                         }
 
                         @Override
+                        public int docID() {
+                            return singleValues.docID();
+                        }
+
+                        @Override
                         public long longValue() throws IOException {
                             return singleValues.ordValue();
                         }
@@ -119,6 +124,11 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                         } else {
                             return false;
                         }
+                    }
+
+                    @Override
+                    public int docID() {
+                        return globalOrds.docID();
                     }
 
                     @Override

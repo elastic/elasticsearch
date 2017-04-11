@@ -105,6 +105,11 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
                     }
 
                     @Override
+                    public int docID() {
+                        return values.docID();
+                    }
+
+                    @Override
                     public long longValue() throws IOException {
                         return values.nextValue();
                     }

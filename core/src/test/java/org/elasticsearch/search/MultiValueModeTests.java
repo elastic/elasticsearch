@@ -87,11 +87,15 @@ public class MultiValueModeTests extends ESTestCase {
             }
         }
         final NumericDocValues singleValues = new AbstractNumericDocValues() {
-            int docId;
+            int docId = -1;
             @Override
             public boolean advanceExact(int target) throws IOException {
                 this.docId = target;
                 return docsWithValue == null ? true : docsWithValue.get(docId);
+            }
+            @Override
+            public int docID() {
+                return docId;
             }
             @Override
             public long longValue() {

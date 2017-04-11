@@ -29,13 +29,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class ClusterNameExpressionResolver extends AbstractComponent {
+public final class ClusterNameExpressionResolver extends AbstractComponent {
 
     private final WildcardExpressionResolver wildcardResolver = new WildcardExpressionResolver();
 
     public ClusterNameExpressionResolver(Settings settings) {
         super(settings);
-        new WildcardExpressionResolver();
     }
 
     public List<String> resolveClusterNames(Set<String> remoteClusters, String clusterExpression) {
@@ -44,7 +43,7 @@ public class ClusterNameExpressionResolver extends AbstractComponent {
         } else if (Regex.isSimpleMatchPattern(clusterExpression)) {
             return wildcardResolver.resolve(remoteClusters, clusterExpression);
         } else {
-            return null;
+            return Collections.emptyList();
         }
     }
 
@@ -57,7 +56,7 @@ public class ClusterNameExpressionResolver extends AbstractComponent {
 
             Set<String> matches = matches(remoteClusters, clusterExpression);
             if (matches.isEmpty()) {
-                return null;
+                return Collections.emptyList();
             } else {
                 return new ArrayList<>(matches);
             }

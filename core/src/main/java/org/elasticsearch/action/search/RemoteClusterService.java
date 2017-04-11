@@ -213,7 +213,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
             if (i >= 0) {
                 String remoteClusterName = index.substring(0, i);
                 List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
-                if (clusters != null) {
+                if (clusters.isEmpty()) {
                     if (indexExists.test(index)) {
                         // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
                         // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias

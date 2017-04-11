@@ -79,7 +79,7 @@ import java.util.function.Predicate;
  * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-public final class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener, Closeable {
+final class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener, Closeable {
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;

@@ -19,7 +19,7 @@ setup:
         name: "x_cluster_role"
         body:  >
             {
-              "cluster": ["all"],
+              "cluster": ["monitor"],
               "indices": [
                 {
                   "names": "*",

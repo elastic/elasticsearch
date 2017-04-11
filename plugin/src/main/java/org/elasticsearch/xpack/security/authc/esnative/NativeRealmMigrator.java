@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.common.GroupedActionListener;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -39,8 +39,6 @@ import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-
-import java.util.ArrayList;
 
 /**
  * Performs migration steps for the {@link NativeRealm} and {@link ReservedRealm}.

@@ -81,6 +81,8 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
             final BytesRef term = new BytesRef(index);
             final SortedDocValues sortedValues = new AbstractSortedDocValues() {
 
+                private int docID;
+
                 @Override
                 public BytesRef lookupOrd(int ord) {
                     return term;
@@ -98,7 +100,13 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
+                    docID = target;
                     return true;
+                }
+
+                @Override
+                public int docID() {
+                    return docID;
                 }
             };
             return (SortedSetDocValues) DocValues.singleton(sortedValues);

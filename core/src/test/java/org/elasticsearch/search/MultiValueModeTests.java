@@ -462,6 +462,7 @@ public class MultiValueModeTests extends ESTestCase {
             @Override
             public boolean advanceExact(int doc) {
                 this.doc = doc;
+                i = 0;
                 return array[doc].length > 0;
             }
 
@@ -566,6 +567,12 @@ public class MultiValueModeTests extends ESTestCase {
                 docID = target;
                 return array[docID] != -1;
             }
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
             @Override
             public int ordValue() {
                 return array[docID];

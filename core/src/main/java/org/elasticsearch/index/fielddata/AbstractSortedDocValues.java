@@ -33,11 +33,6 @@ import java.io.IOException;
 public abstract class AbstractSortedDocValues extends SortedDocValues {
 
     @Override
-    public int docID() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public int nextDoc() throws IOException {
         throw new UnsupportedOperationException();
     }

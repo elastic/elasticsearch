@@ -68,6 +68,7 @@ public class SinglePackedOrdinals extends Ordinals {
         private final PackedInts.Reader reader;
         private final ValuesHolder values;
         
+        private int currentDoc;
         private int currentOrd;
 
         Docs(SinglePackedOrdinals parent, ValuesHolder values) {
@@ -93,8 +94,14 @@ public class SinglePackedOrdinals extends Ordinals {
 
         @Override
         public boolean advanceExact(int docID) throws IOException {
+            currentDoc = docID;
             currentOrd = (int) (reader.get(docID) - 1);
             return currentOrd != -1;
+        }
+
+        @Override
+        public int docID() {
+            return currentDoc;
         }
     }
 }

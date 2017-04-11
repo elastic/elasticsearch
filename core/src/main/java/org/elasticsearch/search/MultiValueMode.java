@@ -778,6 +778,11 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 @Override
+                public int docID() {
+                    return values.docID();
+                }
+
+                @Override
                 public int ordValue() {
                     try {
                         return pick(values);
@@ -855,6 +860,11 @@ public enum MultiValueMode implements Writeable {
                 lastSeenRootDoc = rootDoc;
                 lastEmittedOrd = pick(selectedValues, innerDocs, firstNestedDoc, rootDoc);
                 return true;
+            }
+
+            @Override
+            public int docID() {
+                return lastSeenRootDoc;
             }
 
             @Override

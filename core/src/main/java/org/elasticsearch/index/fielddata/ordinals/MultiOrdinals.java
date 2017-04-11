@@ -116,6 +116,7 @@ public class MultiOrdinals extends Ordinals {
         private final PackedLongValues ords;
         private final ValuesHolder values;
 
+        private int currentDoc;
         private long currentStartOffset;
         private long currentEndOffset;
 
@@ -133,9 +134,15 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
+            currentDoc = docId;
             currentStartOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             currentEndOffset = endOffsets.get(docId);
             return currentStartOffset != currentEndOffset;
+        }
+
+        @Override
+        public int docID() {
+            return currentDoc;
         }
 
         @Override

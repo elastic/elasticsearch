@@ -186,6 +186,11 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         }
 
         @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
         public int getValueCount() {
             if (exists) {
                 return in.getValueCount();

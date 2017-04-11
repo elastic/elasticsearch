@@ -278,6 +278,11 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 public boolean advanceExact(int target) throws IOException {
                     return segmentValues.advanceExact(target);
                 }
+
+                @Override
+                public int docID() {
+                    return segmentValues.docID();
+                }
             };
         }
 

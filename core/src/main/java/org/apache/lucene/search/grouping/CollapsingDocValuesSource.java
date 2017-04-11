@@ -195,6 +195,11 @@ abstract class CollapsingDocValuesSource<T> {
                             }
 
                             @Override
+                            public int docID() {
+                                return sorted.docID();
+                            }
+
+                            @Override
                             public int ordValue() {
                                 return ord;
                             }

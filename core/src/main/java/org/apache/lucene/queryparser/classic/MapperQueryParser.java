@@ -101,13 +101,13 @@ public class MapperQueryParser extends QueryParser {
         setAnalyzer(settings.analyzer());
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
+        setSplitOnWhitespace(settings.splitOnWhitespace());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
-        setSplitOnWhitespace(settings.splitOnWhitespace());
     }
 
     /**

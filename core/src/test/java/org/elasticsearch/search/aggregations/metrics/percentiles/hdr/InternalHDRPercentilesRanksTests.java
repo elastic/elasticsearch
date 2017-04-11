@@ -20,8 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
@@ -30,6 +31,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
 
 public class InternalHDRPercentilesRanksTests extends InternalAggregationTestCase<InternalHDRPercentileRanks> {
 
@@ -63,8 +66,13 @@ public class InternalHDRPercentilesRanksTests extends InternalAggregationTestCas
         return InternalHDRPercentileRanks::new;
     }
 
-    protected ContextParser<Object, Aggregation> instanceParser() {
-        return (parser, context) -> ParsedHDRPercentileRanks.fromXContent(parser, (String) context);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(singletonList(
+                new NamedXContentRegistry.Entry(
+                        Aggregation.class,
+                        new ParseField(InternalHDRPercentileRanks.NAME),
+                        (parser, context) -> ParsedHDRPercentileRanks.fromXContent(parser, (String) context))));
     }
 
     @Override

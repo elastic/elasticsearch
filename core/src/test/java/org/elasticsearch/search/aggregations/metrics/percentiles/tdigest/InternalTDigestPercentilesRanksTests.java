@@ -19,8 +19,9 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
@@ -29,6 +30,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
 
 public class InternalTDigestPercentilesRanksTests extends InternalAggregationTestCase<InternalTDigestPercentileRanks> {
 
@@ -74,8 +77,13 @@ public class InternalTDigestPercentilesRanksTests extends InternalAggregationTes
         return InternalTDigestPercentileRanks::new;
     }
 
-    protected ContextParser<Object, Aggregation> instanceParser() {
-        return (parser, context) -> ParsedTDigestPercentileRanks.fromXContent(parser, (String) context);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(singletonList(
+                new NamedXContentRegistry.Entry(
+                        Aggregation.class,
+                        new ParseField(InternalTDigestPercentileRanks.NAME),
+                        (parser, context) -> ParsedTDigestPercentileRanks.fromXContent(parser, (String) context))));
     }
 
     @Override

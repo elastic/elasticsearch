@@ -573,8 +573,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         }
                     }
                     RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
-                        seedNodes.stream().map(n -> n.getAddress()).collect(Collectors.toSet()), httpAddresses, maxNumRemoteConnections,
-                        connectedNodes.size(), RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+                        seedNodes.stream().map(n -> n.getAddress()).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
+                        maxNumRemoteConnections, connectedNodes.size(),
+                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
                     listener.onResponse(remoteConnectionInfo);
                 }
 

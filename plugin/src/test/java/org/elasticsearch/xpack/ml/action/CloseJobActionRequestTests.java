@@ -58,10 +58,10 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id").build(new Date()), false);
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id", "job_id",
                 Collections.singletonList("*")));
-        Map<Long, PersistentTask<?>> tasks = new HashMap<>();
-        PersistentTask<?> jobTask = createJobTask(1L, "job_id", null, JobState.OPENED);
-        tasks.put(1L, jobTask);
-        tasks.put(2L, createTask(2L, "datafeed_id", 0L, null, DatafeedState.STARTED));
+        Map<String, PersistentTask<?>> tasks = new HashMap<>();
+        PersistentTask<?> jobTask = createJobTask("1L", "job_id", null, JobState.OPENED, 1L);
+        tasks.put("1L", jobTask);
+        tasks.put("2L", createTask("2L", "datafeed_id", 0L, null, DatafeedState.STARTED, 2L));
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,
@@ -74,14 +74,14 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         assertEquals("cannot close job [job_id], datafeed hasn't been stopped", e.getMessage());
 
         tasks = new HashMap<>();
-        tasks.put(1L, jobTask);
+        tasks.put("1L", jobTask);
         if (randomBoolean()) {
-            tasks.put(2L, createTask(2L, "datafeed_id", 0L, null, DatafeedState.STOPPED));
+            tasks.put("2L", createTask("2L", "datafeed_id", 0L, null, DatafeedState.STOPPED, 3L));
         }
         ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,
-                                new PersistentTasksCustomMetaData(1L, tasks))).build();
+                                new PersistentTasksCustomMetaData(3L, tasks))).build();
         CloseJobAction.validateAndReturnJobTask("job_id", cs2);
     }
 
@@ -102,15 +102,15 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id_3", "job_id_3",
                 Collections.singletonList("*")));
 
-        Map<Long, PersistentTask<?>> tasks = new HashMap<>();
-        PersistentTask<?> jobTask = createJobTask(1L, "job_id_1", null, JobState.OPENED);
-        tasks.put(1L, jobTask);
+        Map<String, PersistentTask<?>> tasks = new HashMap<>();
+        PersistentTask<?> jobTask = createJobTask("1L", "job_id_1", null, JobState.OPENED, 1L);
+        tasks.put("1L", jobTask);
 
-        jobTask = createJobTask(2L, "job_id_2", null, JobState.CLOSED);
-        tasks.put(2L, jobTask);
+        jobTask = createJobTask("2L", "job_id_2", null, JobState.CLOSED, 2L);
+        tasks.put("2L", jobTask);
 
-        jobTask = createJobTask(3L, "job_id_3", null, JobState.FAILED);
-        tasks.put(3L, jobTask);
+        jobTask = createJobTask("3L", "job_id_3", null, JobState.FAILED, 3L);
+        tasks.put("3L", jobTask);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
@@ -122,14 +122,16 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
                 CloseJobAction.resolveAndValidateJobId("_all", cs1));
     }
 
-    public static PersistentTask<StartDatafeedAction.Request> createTask(long id,
+    public static PersistentTask<StartDatafeedAction.Request> createTask(String id,
                                                                          String datafeedId,
                                                                          long startTime,
                                                                          String nodeId,
-                                                                         DatafeedState state) {
+                                                                         DatafeedState state,
+                                                                         long allocationId) {
         PersistentTask<StartDatafeedAction.Request> task =
                 new PersistentTask<>(id, StartDatafeedAction.NAME,
                         new StartDatafeedAction.Request(datafeedId, startTime),
+                        allocationId,
                         new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
         task = new PersistentTask<>(task, state);
         return task;

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -389,11 +390,11 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                Assignment assignment, String param) {
         return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasksCustomMetaData.TYPE,
-                tasks.addTask(randomAlphaOfLength(10), new TestRequest(param), assignment).build()));
+                tasks.addTask(UUIDs.base64UUID(), randomAlphaOfLength(10), new TestRequest(param), assignment).build()));
     }
 
     private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node) {
-        tasks.addTask(action, new TestRequest(param), new Assignment(node, "explanation: " + action));
+        tasks.addTask(UUIDs.base64UUID(), action, new TestRequest(param), new Assignment(node, "explanation: " + action));
     }
 
     private DiscoveryNode newNode(String nodeId) {

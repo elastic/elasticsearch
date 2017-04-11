@@ -55,7 +55,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private long taskId;
+        private String taskId;
 
         private long allocationId;
 
@@ -65,13 +65,13 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
         }
 
-        public Request(long taskId, long allocationId, Task.Status status) {
+        public Request(String taskId, long allocationId, Task.Status status) {
             this.taskId = taskId;
             this.allocationId = allocationId;
             this.status = status;
         }
 
-        public void setTaskId(long taskId) {
+        public void setTaskId(String taskId) {
             this.taskId = taskId;
         }
 
@@ -86,7 +86,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            taskId = in.readLong();
+            taskId = in.readString();
             allocationId = in.readLong();
             status = in.readOptionalNamedWriteable(Task.Status.class);
         }
@@ -94,7 +94,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeLong(taskId);
+            out.writeString(taskId);
             out.writeLong(allocationId);
             out.writeOptionalNamedWriteable(status);
         }
@@ -109,7 +109,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return taskId == request.taskId && allocationId == request.allocationId &&
+            return Objects.equals(taskId, request.taskId) && allocationId == request.allocationId &&
                     Objects.equals(status, request.status);
         }
 
@@ -126,7 +126,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             super(client, action, new Request());
         }
 
-        public final RequestBuilder setTaskId(long taskId) {
+        public final RequestBuilder setTaskId(String taskId) {
             request.setTaskId(taskId);
             return this;
         }

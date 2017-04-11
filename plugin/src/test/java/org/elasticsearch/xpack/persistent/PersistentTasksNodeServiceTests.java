@@ -76,11 +76,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         boolean added = false;
         if (nonLocalNodesCount > 0) {
             for (int i = 0; i < randomInt(5); i++) {
-                tasks.addTask("test_action", new TestRequest("other_" + i),
+                tasks.addTask(UUIDs.base64UUID(), "test_action", new TestRequest("other_" + i),
                         new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node"));
                 if (added == false && randomBoolean()) {
                     added = true;
-                    tasks.addTask("test", new TestRequest("this_param"),
+                    tasks.addTask(UUIDs.base64UUID(), "test", new TestRequest("this_param"),
                             new Assignment("this_node", "test assignment on this node"));
                 }
             }
@@ -118,8 +118,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Finish both tasks
             executor.get(0).task.markAsFailed(new RuntimeException());
             executor.get(1).task.markAsCompleted();
-            long failedTaskId = executor.get(0).task.getParentTaskId().getId();
-            long finishedTaskId = executor.get(1).task.getParentTaskId().getId();
+            String failedTaskId = executor.get(0).task.getPersistentTaskId();
+            String finishedTaskId = executor.get(1).task.getPersistentTaskId();
             executor.clear();
 
             // Add task on some other node
@@ -158,7 +158,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             }
 
             @Override
-            public void sendCompletionNotification(long taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
+            public void sendCompletionNotification(String taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
             }
         };
@@ -184,8 +184,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check the the task is know to the task manager
         assertThat(taskManager.getTasks().size(), equalTo(1));
-        Task runningTask = taskManager.getTasks().values().iterator().next();
-        long persistentId = runningTask.getParentTaskId().getId();
+        AllocatedPersistentTask runningTask = (AllocatedPersistentTask)taskManager.getTasks().values().iterator().next();
+        String persistentId = runningTask.getPersistentTaskId();
         long localId = runningTask.getId();
         // Make sure it returns correct status
         Task.Status status = runningTask.getStatus();
@@ -227,10 +227,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder builder =
                 PersistentTasksCustomMetaData.builder(state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
         return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE,
-                builder.addTask(action, request, new Assignment(node, "test assignment")).build())).build();
+                builder.addTask(UUIDs.base64UUID(), action, request, new Assignment(node, "test assignment")).build())).build();
     }
 
-    private ClusterState reallocateTask(ClusterState state, long taskId, String node) {
+    private ClusterState reallocateTask(ClusterState state, String taskId, String node) {
         PersistentTasksCustomMetaData.Builder builder =
                 PersistentTasksCustomMetaData.builder(state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
         assertTrue(builder.hasTask(taskId));
@@ -238,7 +238,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 builder.reassignTask(taskId, new Assignment(node, "test assignment")).build())).build();
     }
 
-    private ClusterState removeTask(ClusterState state, long taskId) {
+    private ClusterState removeTask(ClusterState state, String taskId) {
         PersistentTasksCustomMetaData.Builder builder =
                 PersistentTasksCustomMetaData.builder(state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
         assertTrue(builder.hasTask(taskId));

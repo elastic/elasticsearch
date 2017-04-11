@@ -35,7 +35,7 @@ import static java.util.Objects.requireNonNull;
  * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
  */
 public class PersistentTasksNodeService extends AbstractComponent implements ClusterStateListener {
-    private final Map<PersistentTaskId, AllocatedPersistentTask> runningTasks = new HashMap<>();
+    private final Map<Long, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;
     private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
     private final TaskManager taskManager;
@@ -84,24 +84,24 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node
             String localNodeId = event.state().getNodes().getLocalNodeId();
-            Set<PersistentTaskId> notVisitedTasks = new HashSet<>(runningTasks.keySet());
+            Set<Long> notVisitedTasks = new HashSet<>(runningTasks.keySet());
             if (tasks != null) {
                 for (PersistentTask<?> taskInProgress : tasks.tasks()) {
                     if (localNodeId.equals(taskInProgress.getExecutorNode())) {
-                        PersistentTaskId persistentTaskId = new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId());
-                        AllocatedPersistentTask persistentTask = runningTasks.get(persistentTaskId);
+                        Long allocationId = taskInProgress.getAllocationId();
+                        AllocatedPersistentTask persistentTask = runningTasks.get(allocationId);
                         if (persistentTask == null) {
                             // New task - let's start it
                             startTask(taskInProgress);
                         } else {
                             // The task is still running
-                            notVisitedTasks.remove(persistentTaskId);
+                            notVisitedTasks.remove(allocationId);
                         }
                     }
                 }
             }
 
-            for (PersistentTaskId id : notVisitedTasks) {
+            for (Long id : notVisitedTasks) {
                 AllocatedPersistentTask task = runningTasks.get(id);
                 if (task.getState() == AllocatedPersistentTask.State.COMPLETED) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
@@ -126,7 +126,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         try {
             task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
             try {
-                runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), task);
+                runningTasks.put(taskInProgress.getAllocationId(), task);
                 nodePersistentTasksExecutor.executeTask(taskInProgress.getRequest(), task, action);
             } catch (Exception e) {
                 // Submit task failure
@@ -145,52 +145,26 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
      * Unregisters and then cancels the locally running task using the task manager. No notification to master will be send upon
      * cancellation.
      */
-    private void cancelTask(PersistentTaskId persistentTaskId) {
-        AllocatedPersistentTask task = runningTasks.remove(persistentTaskId);
-        if (task != null) {
-            if (task.markAsCancelled()) {
-                // Cancel the local task using the task manager
-                persistentTasksService.sendTaskManagerCancellation(task.getId(), new ActionListener<CancelTasksResponse>() {
-                    @Override
-                    public void onResponse(CancelTasksResponse cancelTasksResponse) {
-                        logger.trace("Persistent task with id {} was cancelled", task.getId());
+    private void cancelTask(Long allocationId) {
+        AllocatedPersistentTask task = runningTasks.remove(allocationId);
+        if (task.markAsCancelled()) {
+            // Cancel the local task using the task manager
+            persistentTasksService.sendTaskManagerCancellation(task.getId(), new ActionListener<CancelTasksResponse>() {
+                @Override
+                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                    logger.trace("Persistent task with id {} was cancelled", task.getId());
 
-                    }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // There is really nothing we can do in case of failure here
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to cancel task {}", task.getPersistentTaskId()), e);
-                    }
-                });
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    // There is really nothing we can do in case of failure here
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to cancel task {}", task.getPersistentTaskId()), e);
+                }
+            });
         }
     }
 
-    private static class PersistentTaskId {
-        private final long id;
-        private final long allocationId;
-
-        PersistentTaskId(long id, long allocationId) {
-            this.id = id;
-            this.allocationId = allocationId;
-        }
-
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PersistentTaskId that = (PersistentTaskId) o;
-            return id == that.id &&
-                    allocationId == that.allocationId;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(id, allocationId);
-        }
-    }
 
     public static class Status implements Task.Status {
         public static final String NAME = "persistent_executor";

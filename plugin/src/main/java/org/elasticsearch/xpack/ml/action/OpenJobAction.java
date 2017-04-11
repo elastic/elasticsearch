@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -317,13 +318,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                         listener.onFailure(e);
                     }
                 };
-                persistentTasksService.startPersistentTask(NAME, request, finalListener);
+                persistentTasksService.startPersistentTask(UUIDs.base64UUID(), NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
         }
 
-        void waitForJobStarted(long taskId, Request request, ActionListener<Response> listener) {
+        void waitForJobStarted(String taskId, Request request, ActionListener<Response> listener) {
             JobPredicate predicate = new JobPredicate();
             persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, request.timeout,
                     new WaitForPersistentTaskStatusListener<Request>() {

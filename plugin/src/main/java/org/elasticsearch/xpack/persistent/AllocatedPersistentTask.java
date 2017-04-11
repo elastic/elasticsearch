@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Represents a executor node operation that corresponds to a persistent task
  */
 public class AllocatedPersistentTask extends CancellableTask {
-    private long persistentTaskId;
+    private String persistentTaskId;
     private long allocationId;
 
     private final AtomicReference<State> state;
@@ -68,11 +68,11 @@ public class AllocatedPersistentTask extends CancellableTask {
         persistentTasksService.updateStatus(persistentTaskId, allocationId, status, listener);
     }
 
-    public long getPersistentTaskId() {
+    public String getPersistentTaskId() {
         return persistentTaskId;
     }
 
-    void init(PersistentTasksService persistentTasksService, TaskManager taskManager, Logger logger, long persistentTaskId, long
+    void init(PersistentTasksService persistentTasksService, TaskManager taskManager, Logger logger, String persistentTaskId, long
             allocationId) {
         this.persistentTasksService = persistentTasksService;
         this.logger = logger;

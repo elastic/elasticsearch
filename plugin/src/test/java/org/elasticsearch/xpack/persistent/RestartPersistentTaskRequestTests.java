@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.persistent;
 
-import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction.Request;
 
 public class RestartPersistentTaskRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomLong(), null);
+        return new Request(randomAlphaOfLength(10), null);
     }
 
     @Override

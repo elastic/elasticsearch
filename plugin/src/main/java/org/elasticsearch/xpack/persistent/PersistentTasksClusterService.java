@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.persistent;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -46,15 +47,19 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param request  request
      * @param listener the listener that will be called when task is started
      */
-    public <Request extends PersistentTaskRequest> void createPersistentTask(String action, Request request,
+    public <Request extends PersistentTaskRequest> void createPersistentTask(String taskId, String action, Request request,
                                                                              ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                PersistentTasksCustomMetaData.Builder builder = builder(currentState);
+                if (builder.hasTask(taskId)) {
+                    throw new ResourceAlreadyExistsException("task with id {" + taskId + "} already exist");
+                }
                 validate(action, clusterService.state(), request);
                 final Assignment assignment;
                 assignment = getAssignement(action, currentState, request);
-                return update(currentState, builder(currentState).addTask(action, request, assignment));
+                return update(currentState, builder.addTask(taskId, action, request, assignment));
             }
 
             @Override
@@ -67,7 +72,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                 if (tasks != null) {
-                    listener.onResponse(tasks.getTask(tasks.getCurrentId()));
+                    listener.onResponse(tasks.getTask(taskId));
                 } else {
                     listener.onResponse(null);
                 }
@@ -83,7 +88,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param failure  the reason for restarting the task or null if the task completed successfully
      * @param listener the listener that will be called when task is removed
      */
-    public void completePersistentTask(long id, Exception failure, ActionListener<PersistentTask<?>> listener) {
+    public void completePersistentTask(String id, Exception failure, ActionListener<PersistentTask<?>> listener) {
         final String source;
         if (failure != null) {
             logger.warn("persistent task " + id + " failed", failure);
@@ -124,7 +129,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param id       the id of a persistent task
      * @param listener the listener that will be called when task is removed
      */
-    public void removePersistentTask(long id, ActionListener<PersistentTask<?>> listener) {
+    public void removePersistentTask(String id, ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -152,12 +157,12 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
     /**
      * Update task status
      *
-     * @param id       the id of a persistent task
-     * @param allocationId   the expected allocation id of the persistent task
-     * @param status   new status
-     * @param listener the listener that will be called when task is removed
+     * @param id           the id of a persistent task
+     * @param allocationId the expected allocation id of the persistent task
+     * @param status       new status
+     * @param listener     the listener that will be called when task is removed
      */
-    public void updatePersistentTaskStatus(long id, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
+    public void updatePersistentTaskStatus(String id, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("update task status", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

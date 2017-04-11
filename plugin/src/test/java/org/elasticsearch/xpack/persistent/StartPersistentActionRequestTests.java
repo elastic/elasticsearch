@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.persistent;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction.Request;
@@ -28,7 +29,7 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
         if (randomBoolean()) {
             testRequest.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
         }
-        return new Request(randomAlphaOfLengthBetween(1, 20), new TestRequest());
+        return new Request(UUIDs.base64UUID(), randomAlphaOfLengthBetween(1, 20), new TestRequest());
     }
 
     @Override

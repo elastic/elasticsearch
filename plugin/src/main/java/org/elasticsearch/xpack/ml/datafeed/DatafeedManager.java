@@ -293,7 +293,7 @@ public class DatafeedManager extends AbstractComponent {
 
     public class Holder {
 
-        private final long taskId;
+        private final String taskId;
         private final DatafeedConfig datafeed;
         // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
@@ -303,7 +303,7 @@ public class DatafeedManager extends AbstractComponent {
         private final Consumer<Exception> handler;
         volatile Future<?> future;
 
-        Holder(long taskId, DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
+        Holder(String taskId, DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
                        Consumer<Exception> handler) {
             this.taskId = taskId;
             this.datafeed = datafeed;

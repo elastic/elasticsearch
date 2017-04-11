@@ -45,9 +45,10 @@ public class PersistentTasksService extends AbstractComponent {
      * Creates the specified persistent task and attempts to assign it to a node.
      */
     @SuppressWarnings("unchecked")
-    public <Request extends PersistentTaskRequest> void startPersistentTask(String taskName, Request request,
+    public <Request extends PersistentTaskRequest> void startPersistentTask(String taskId, String taskName, Request request,
                                                                             ActionListener<PersistentTask<Request>> listener) {
-        CreatePersistentTaskAction.Request createPersistentActionRequest = new CreatePersistentTaskAction.Request(taskName, request);
+        CreatePersistentTaskAction.Request createPersistentActionRequest =
+                new CreatePersistentTaskAction.Request(taskId, taskName, request);
         try {
             client.execute(CreatePersistentTaskAction.INSTANCE, createPersistentActionRequest, ActionListener.wrap(
                     o -> listener.onResponse((PersistentTask<Request>) o.getTask()), listener::onFailure));
@@ -59,7 +60,7 @@ public class PersistentTasksService extends AbstractComponent {
     /**
      * Notifies the PersistentTasksClusterService about successful (failure == null) completion of a task or its failure
      */
-    public void sendCompletionNotification(long taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
+    public void sendCompletionNotification(String taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
         CompletionPersistentTaskAction.Request restartRequest = new CompletionPersistentTaskAction.Request(taskId, failure);
         try {
             client.execute(CompletionPersistentTaskAction.INSTANCE, restartRequest,
@@ -90,7 +91,7 @@ public class PersistentTasksService extends AbstractComponent {
      * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentStatus} instead
      */
-    void updateStatus(long taskId, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
+    void updateStatus(String taskId, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
         UpdatePersistentTaskStatusAction.Request updateStatusRequest =
                 new UpdatePersistentTaskStatusAction.Request(taskId, allocationId, status);
         try {
@@ -104,7 +105,7 @@ public class PersistentTasksService extends AbstractComponent {
     /**
      * Cancels if needed and removes a persistent task
      */
-    public void cancelPersistentTask(long taskId, ActionListener<PersistentTask<?>> listener) {
+    public void cancelPersistentTask(String taskId, ActionListener<PersistentTask<?>> listener) {
         RemovePersistentTaskAction.Request removeRequest = new RemovePersistentTaskAction.Request(taskId);
         try {
             client.execute(RemovePersistentTaskAction.INSTANCE, removeRequest, ActionListener.wrap(o -> listener.onResponse(o.getTask()),
@@ -118,7 +119,7 @@ public class PersistentTasksService extends AbstractComponent {
      * Checks if the persistent task with giving id (taskId) has the desired state and if it doesn't
      * waits of it.
      */
-    public void waitForPersistentTaskStatus(long taskId, Predicate<PersistentTask<?>> predicate, @Nullable TimeValue timeout,
+    public void waitForPersistentTaskStatus(String taskId, Predicate<PersistentTask<?>> predicate, @Nullable TimeValue timeout,
                                             WaitForPersistentTaskStatusListener<?> listener) {
         ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         if (predicate.test(PersistentTasksCustomMetaData.getTaskWithId(stateObserver.setAndGetObservedState(), taskId))) {

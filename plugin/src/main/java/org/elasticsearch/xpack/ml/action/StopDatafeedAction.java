@@ -313,7 +313,7 @@ public class StopDatafeedAction
                 }
             } else {
                 Set<String> executorNodes = new HashSet<>();
-                Map<String, Long> datafeedIdToPersistentTaskId = new HashMap<>();
+                Map<String, String> datafeedIdToPersistentTaskId = new HashMap<>();
 
                 for (String datafeedId : resolvedDatafeeds) {
                     PersistentTask<?> datafeedTask = validateAndReturnDatafeedTask(datafeedId, mlMetadata, tasks);
@@ -350,10 +350,11 @@ public class StopDatafeedAction
         // Wait for datafeed to be marked as stopped in cluster state, which means the datafeed persistent task has been removed
         // This api returns when task has been cancelled, but that doesn't mean the persistent task has been removed from cluster state,
         // so wait for that to happen here.
-        void waitForDatafeedStopped(Map<String, Long> datafeedIdToPersistentTaskId, Request request, Response response, ActionListener<Response> listener) {
+        void waitForDatafeedStopped(Map<String, String> datafeedIdToPersistentTaskId, Request request, Response response,
+                                    ActionListener<Response> listener) {
             persistentTasksService.waitForPersistentTasksStatus(persistentTasksCustomMetaData -> {
-                for (Map.Entry<String, Long> entry : datafeedIdToPersistentTaskId.entrySet()) {
-                    long persistentTaskId = entry.getValue();
+                for (Map.Entry<String, String> entry : datafeedIdToPersistentTaskId.entrySet()) {
+                    String persistentTaskId = entry.getValue();
                     if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
                         return false;
                     }

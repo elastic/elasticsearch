@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.persistent;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,11 +46,12 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         int numberOfTasks = randomInt(10);
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         for (int i = 0; i < numberOfTasks; i++) {
-            tasks.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)),
+            String taskId = UUIDs.base64UUID();
+            tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)),
                     randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
-                tasks.updateTaskStatus(tasks.getCurrentId(), new Status(randomAlphaOfLength(10)));
+                tasks.updateTaskStatus(taskId, new Status(randomAlphaOfLength(10)));
             }
         }
         return tasks.build();
@@ -71,31 +74,30 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
-        PersistentTasksCustomMetaData tasksInProgress = (PersistentTasksCustomMetaData) testInstance;
-        Builder builder = new Builder();
+        Builder builder = new Builder((PersistentTasksCustomMetaData) testInstance);
         switch (randomInt(3)) {
             case 0:
                 addRandomTask(builder);
                 break;
             case 1:
-                if (tasksInProgress.tasks().isEmpty()) {
+                if (builder.getCurrentTaskIds().isEmpty()) {
                     addRandomTask(builder);
                 } else {
-                    builder.reassignTask(pickRandomTask(tasksInProgress), randomAssignment());
+                    builder.reassignTask(pickRandomTask(builder), randomAssignment());
                 }
                 break;
             case 2:
-                if (tasksInProgress.tasks().isEmpty()) {
+                if (builder.getCurrentTaskIds().isEmpty()) {
                     addRandomTask(builder);
                 } else {
-                    builder.updateTaskStatus(pickRandomTask(tasksInProgress), randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
+                    builder.updateTaskStatus(pickRandomTask(builder), randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
                 }
                 break;
             case 3:
-                if (tasksInProgress.tasks().isEmpty()) {
+                if (builder.getCurrentTaskIds().isEmpty()) {
                     addRandomTask(builder);
                 } else {
-                    builder.removeTask(pickRandomTask(tasksInProgress));
+                    builder.removeTask(pickRandomTask(builder));
                 }
                 break;
         }
@@ -134,13 +136,14 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         return builder;
     }
 
-    private Builder addRandomTask(Builder builder) {
-        builder.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)), randomAssignment());
-        return builder;
+    private String addRandomTask(Builder builder) {
+        String taskId = UUIDs.base64UUID();
+        builder.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)), randomAssignment());
+        return taskId;
     }
 
-    private long pickRandomTask(PersistentTasksCustomMetaData testInstance) {
-        return randomFrom(new ArrayList<>(testInstance.tasks())).getId();
+    private String pickRandomTask(PersistentTasksCustomMetaData.Builder testInstance) {
+        return randomFrom(new ArrayList<>(testInstance.getCurrentTaskIds()));
     }
 
     @Override
@@ -189,7 +192,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     public void testBuilder() {
         PersistentTasksCustomMetaData persistentTasks = null;
-        long lastKnownTask = -1;
+        String lastKnownTask = "";
         for (int i = 0; i < randomIntBetween(10, 100); i++) {
             final Builder builder;
             if (randomBoolean()) {
@@ -199,54 +202,46 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             }
             boolean changed = false;
             for (int j = 0; j < randomIntBetween(1, 10); j++) {
-                switch (randomInt(5)) {
+                switch (randomInt(4)) {
                     case 0:
-                        lastKnownTask = addRandomTask(builder).getCurrentId();
+                        lastKnownTask = addRandomTask(builder);
                         changed = true;
                         break;
                     case 1:
                         if (builder.hasTask(lastKnownTask)) {
                             changed = true;
+                            builder.reassignTask(lastKnownTask, randomAssignment());
+                        } else {
+                            String fLastKnownTask = lastKnownTask;
+                            expectThrows(ResourceNotFoundException.class, () -> builder.reassignTask(fLastKnownTask, randomAssignment()));
                         }
-                        builder.reassignTask(lastKnownTask, randomAssignment());
                         break;
                     case 2:
                         if (builder.hasTask(lastKnownTask)) {
-                            PersistentTask<?> task = builder.build().getTask(lastKnownTask);
-                            if (randomBoolean()) {
-                                // Trying to reassign to the same node
-                                builder.assignTask(lastKnownTask, (s, request) -> task.getAssignment());
-                            } else {
-                                // Trying to reassign to a different node
-                                Assignment randomAssignment = randomAssignment();
-                                builder.assignTask(lastKnownTask, (s, request) -> randomAssignment);
-                                // should change if the task was unassigned and was reassigned to a different node or started
-                                if ((task.isAssigned() == false && randomAssignment.isAssigned())) {
-                                    changed = true;
-                                }
-                            }
+                            changed = true;
+                            builder.updateTaskStatus(lastKnownTask, randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
                         } else {
-                            // task doesn't exist - shouldn't change
-                            builder.assignTask(lastKnownTask, (s, request) -> randomAssignment());
+                            String fLastKnownTask = lastKnownTask;
+                            expectThrows(ResourceNotFoundException.class, () -> builder.updateTaskStatus(fLastKnownTask, null));
                         }
                         break;
                     case 3:
                         if (builder.hasTask(lastKnownTask)) {
                             changed = true;
+                            builder.removeTask(lastKnownTask);
+                        } else {
+                            String fLastKnownTask = lastKnownTask;
+                            expectThrows(ResourceNotFoundException.class, () -> builder.removeTask(fLastKnownTask));
                         }
-                        builder.updateTaskStatus(lastKnownTask, randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
                         break;
                     case 4:
                         if (builder.hasTask(lastKnownTask)) {
                             changed = true;
+                            builder.finishTask(lastKnownTask);
+                        } else {
+                            String fLastKnownTask = lastKnownTask;
+                            expectThrows(ResourceNotFoundException.class, () -> builder.finishTask(fLastKnownTask));
                         }
-                        builder.removeTask(lastKnownTask);
-                        break;
-                    case 5:
-                        if (builder.hasTask(lastKnownTask)) {
-                            changed = true;
-                        }
-                        builder.finishTask(lastKnownTask);
                         break;
                 }
             }

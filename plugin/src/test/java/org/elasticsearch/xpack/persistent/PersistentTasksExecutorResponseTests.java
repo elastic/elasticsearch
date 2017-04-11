@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.persistent;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -19,9 +20,9 @@ public class PersistentTasksExecutorResponseTests extends AbstractStreamableTest
     protected PersistentTaskResponse createTestInstance() {
         if (randomBoolean()) {
             return new PersistentTaskResponse(
-                    new PersistentTask<PersistentTaskRequest>(randomLong(), randomAsciiOfLength(10),
+                    new PersistentTask<PersistentTaskRequest>(UUIDs.base64UUID(), randomAsciiOfLength(10),
                             new TestPersistentTasksPlugin.TestRequest("test"),
-                            PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT));
+                            randomLong(), PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT));
         } else {
             return new PersistentTaskResponse(null);
         }

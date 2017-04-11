@@ -441,7 +441,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         private void normalCloseJob(ClusterState currentState, Task task, Request request,
                 ActionListener<Response> listener) {
-            Map<String, Long> jobIdToPersistentTaskId = new HashMap<>();
+            Map<String, String> jobIdToPersistentTaskId = new HashMap<>();
 
             for (String jobId : request.resolvedJobIds) {
                 auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
@@ -460,11 +460,11 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         // Wait for job to be marked as closed in cluster state, which means the job persistent task has been removed
         // This api returns when job has been closed, but that doesn't mean the persistent task has been removed from cluster state,
         // so wait for that to happen here.
-        void waitForJobClosed(Request request, Map<String, Long> jobIdToPersistentTaskId, Response response,
+        void waitForJobClosed(Request request, Map<String, String> jobIdToPersistentTaskId, Response response,
                 ActionListener<Response> listener) {
             persistentTasksService.waitForPersistentTasksStatus(persistentTasksCustomMetaData -> {
-                for (Map.Entry<String, Long> entry : jobIdToPersistentTaskId.entrySet()) {
-                    long persistentTaskId = entry.getValue();
+                for (Map.Entry<String, String> entry : jobIdToPersistentTaskId.entrySet()) {
+                    String persistentTaskId = entry.getValue();
                     if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
                         return false;
                     }

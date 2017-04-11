@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -44,17 +45,18 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
     public void testFullClusterRestart() throws Exception {
         PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
         int numberOfTasks = randomIntBetween(1, 10);
-        long[] taskIds = new long[numberOfTasks];
+        String[] taskIds = new String[numberOfTasks];
         List<PlainActionFuture<PersistentTask<TestRequest>>> futures = new ArrayList<>(numberOfTasks);
 
         for (int i = 0; i < numberOfTasks; i++) {
             PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
             futures.add(future);
-            service.startPersistentTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
+            taskIds[i] = UUIDs.base64UUID();
+            service.startPersistentTask(taskIds[i], TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
         }
 
         for (int i = 0; i < numberOfTasks; i++) {
-            taskIds[i] = futures.get(i).get().getId();
+            assertThat(futures.get(i).get().getId(), equalTo(taskIds[i]));
         }
 
         PersistentTasksCustomMetaData tasksInProgress = internalCluster().clusterService().state().getMetaData()

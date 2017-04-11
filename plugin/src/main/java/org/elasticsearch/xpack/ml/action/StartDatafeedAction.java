@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -364,13 +365,13 @@ public class StartDatafeedAction
                         listener.onFailure(e);
                     }
                 };
-                persistentTasksService.startPersistentTask(NAME, request, finalListener);
+                persistentTasksService.startPersistentTask(UUIDs.base64UUID(), NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
         }
 
-        void waitForDatafeedStarted(long taskId, Request request, ActionListener<Response> listener) {
+        void waitForDatafeedStarted(String taskId, Request request, ActionListener<Response> listener) {
             Predicate<PersistentTask<?>> predicate = persistentTask -> {
                 if (persistentTask == null) {
                     return false;

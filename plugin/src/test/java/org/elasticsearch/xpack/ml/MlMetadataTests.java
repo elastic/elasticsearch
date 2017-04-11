@@ -150,10 +150,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
-        PersistentTask<OpenJobAction.Request> task = createJobTask(0L, "1", null, JobState.CLOSED);
+        PersistentTask<OpenJobAction.Request> task = createJobTask("0L", "1", null, JobState.CLOSED, 0L);
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> builder2.deleteJob("1", new PersistentTasksCustomMetaData(0L, Collections.singletonMap(0L, task))));
+                () -> builder2.deleteJob("1", new PersistentTasksCustomMetaData(0L, Collections.singletonMap("0L", task))));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
@@ -273,7 +273,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
         PersistentTask<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTask<>(0, StartDatafeedAction.NAME, request, INITIAL_ASSIGNMENT);
+                new PersistentTask<>("0", StartDatafeedAction.NAME, request, 0L, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress =
                 new PersistentTasksCustomMetaData(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 
@@ -335,7 +335,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
         PersistentTask<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTask<>(0, StartDatafeedAction.NAME, request, INITIAL_ASSIGNMENT);
+                new PersistentTask<>("0", StartDatafeedAction.NAME, request, 0L, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress =
                 new PersistentTasksCustomMetaData(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 

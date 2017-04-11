@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.persistent;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractStreamableTestCase;
@@ -17,7 +18,7 @@ public class UpdatePersistentTaskRequestTests extends AbstractStreamableTestCase
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomLong(), randomLong(), new Status(randomAlphaOfLength(10)));
+        return new Request(UUIDs.base64UUID(), randomLong(), new Status(randomAlphaOfLength(10)));
     }
 
     @Override

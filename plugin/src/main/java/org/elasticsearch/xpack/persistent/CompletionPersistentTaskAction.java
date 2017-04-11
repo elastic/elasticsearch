@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * Action that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
@@ -56,7 +58,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private long taskId;
+        private String taskId;
 
         private Exception exception;
 
@@ -64,7 +66,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
         }
 
-        public Request(long taskId, Exception exception) {
+        public Request(String taskId, Exception exception) {
             this.taskId = taskId;
             this.exception = exception;
         }
@@ -72,20 +74,24 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            taskId = in.readLong();
+            taskId = in.readString();
             exception = in.readException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeLong(taskId);
+            out.writeString(taskId);
             out.writeException(exception);
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (taskId == null) {
+                validationException = addValidationError("task id is missing", validationException);
+            }
+            return validationException;
         }
 
         @Override
@@ -93,7 +99,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return taskId == request.taskId &&
+            return Objects.equals(taskId, request.taskId) &&
                     Objects.equals(exception, request.exception);
         }
 

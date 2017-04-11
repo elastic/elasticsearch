@@ -57,6 +57,8 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
     public static class Request extends MasterNodeRequest<Request> {
 
+        private String taskId;
+
         private String action;
 
         private PersistentTaskRequest request;
@@ -65,7 +67,8 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         }
 
-        public Request(String action, PersistentTaskRequest request) {
+        public Request(String taskId, String action, PersistentTaskRequest request) {
+            this.taskId = taskId;
             this.action = action;
             this.request = request;
         }
@@ -73,6 +76,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+            taskId = in.readString();
             action = in.readString();
             request = in.readNamedWriteable(PersistentTaskRequest.class);
         }
@@ -80,6 +84,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(taskId);
             out.writeString(action);
             out.writeNamedWriteable(request);
         }
@@ -87,6 +92,9 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
+            if (this.taskId == null) {
+                validationException = addValidationError("task id must be specified", validationException);
+            }
             if (this.action == null) {
                 validationException = addValidationError("action must be specified", validationException);
             }
@@ -101,13 +109,13 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request1 = (Request) o;
-            return Objects.equals(action, request1.action) &&
+            return Objects.equals(taskId, request1.taskId) && Objects.equals(action, request1.action) &&
                     Objects.equals(request, request1.request);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(action, request);
+            return Objects.hash(taskId, action, request);
         }
 
         public String getAction() {
@@ -116,6 +124,14 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         public void setAction(String action) {
             this.action = action;
+        }
+
+        public String getTaskId() {
+            return taskId;
+        }
+
+        public void setTaskId(String taskId) {
+            this.taskId = taskId;
         }
 
         public PersistentTaskRequest getRequest() {
@@ -133,6 +149,11 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         protected RequestBuilder(ElasticsearchClient client, CreatePersistentTaskAction action) {
             super(client, action, new Request());
+        }
+
+        public RequestBuilder setTaskId(String taskId) {
+            request.setTaskId(taskId);
+            return this;
         }
 
         public RequestBuilder setAction(String action) {
@@ -185,7 +206,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         @Override
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.createPersistentTask(request.action, request.request,
+            persistentTasksClusterService.createPersistentTask(request.taskId, request.action, request.request,
                     new ActionListener<PersistentTask<?>>() {
 
                 @Override

@@ -284,7 +284,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
         } else if (randomBoolean()) {
             // simulate promotion
-            indexShard = newShard(shardId, false);
+            indexShard = newStartedShard(false);
             ShardRouting replicaRouting = indexShard.routingEntry();
             indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,

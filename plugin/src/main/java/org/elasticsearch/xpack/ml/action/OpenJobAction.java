@@ -112,7 +112,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         private String jobId;
         private boolean ignoreDowntime = true;
-        private TimeValue timeout = TimeValue.timeValueSeconds(20);
+        // A big state can take a while to restore.  For symmetry with the _close endpoint any
+        // changes here should be reflected there too.
+        private TimeValue timeout = MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT;
 
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());

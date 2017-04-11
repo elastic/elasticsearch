@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -112,7 +113,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         private String jobId;
         private boolean force = false;
-        private TimeValue timeout = TimeValue.timeValueMinutes(20);
+        // A big state can take a while to persist.  For symmetry with the _open endpoint any
+        // changes here should be reflected there too.
+        private TimeValue timeout = MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT;
 
         String[] resolvedJobIds;
 

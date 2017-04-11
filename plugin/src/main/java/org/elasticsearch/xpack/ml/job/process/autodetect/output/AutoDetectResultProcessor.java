@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
@@ -228,7 +229,7 @@ public class AutoDetectResultProcessor {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
             // until the state is persisted, and that can take a while
-            if (completionLatch.await(30, TimeUnit.MINUTES) == false) {
+            if (completionLatch.await(MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
             // Input stream has been completely processed at this point.

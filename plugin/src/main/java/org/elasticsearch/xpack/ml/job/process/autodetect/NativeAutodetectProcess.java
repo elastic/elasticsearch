@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
@@ -140,7 +141,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
-            stateProcessorFuture.get(30, TimeUnit.MINUTES);
+            stateProcessorFuture.get(MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
             // the log processor should have stopped by now too - assume processing the logs will
             // take no more than 5 seconds longer than processing the state (usually it should
             // finish first)

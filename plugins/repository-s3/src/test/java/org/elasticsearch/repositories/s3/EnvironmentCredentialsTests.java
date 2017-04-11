@@ -26,8 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 public class EnvironmentCredentialsTests extends ESTestCase {
 
     public void test() {
-        AWSCredentialsProvider provider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
+        AWSCredentialsProvider provider = InternalAwsS3Service.buildCredentials(logger, deprecationLogger, clientSettings, Settings.EMPTY);
         // NOTE: env vars are setup by the test runner in gradle
         assertEquals("env_access", provider.getCredentials().getAWSAccessKeyId());
         assertEquals("env_secret", provider.getCredentials().getAWSSecretKey());

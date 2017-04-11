@@ -25,8 +25,8 @@ import org.elasticsearch.test.ESTestCase;
 
 public class SyspropCredentialsTests extends ESTestCase {
     public void test() {
-        AWSCredentialsProvider provider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
+        AWSCredentialsProvider provider = InternalAwsS3Service.buildCredentials(logger, deprecationLogger, clientSettings, Settings.EMPTY);
         // NOTE: sys props are setup by the test runner in gradle
         assertEquals("sysprop_access", provider.getCredentials().getAWSAccessKeyId());
         assertEquals("sysprop_secret", provider.getCredentials().getAWSSecretKey());

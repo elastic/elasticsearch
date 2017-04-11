@@ -129,8 +129,8 @@ in the following form: `${pluginName}_${operation}`.
 
 The following example disables scripting for `update` and `plugin` operations,
 regardless of the script source or language. Scripts can still be executed
-from as part of `aggregations`, `search` and plugins execution though, as the
-above defaults still get applied.
+as part of `aggregations`, `search` and plugins execution though, as the above
+defaults still get applied.
 
 [source,yaml]
 -----------------------------------

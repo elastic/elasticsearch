@@ -58,13 +58,13 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public BytesRef nextValue() {
-                return values[doc][doc++];
+                return values[doc][i++];
             }
 
             @Override
             public boolean advanceExact(int docId) {
                 doc = docId;
-                doc = 0;
+                i = 0;
                 return values[doc].length > 0;
             }
 
@@ -119,8 +119,8 @@ public class MissingValuesTests extends ESTestCase {
             @Override
             public boolean advanceExact(int docID) {
                 doc = docID;
-                doc = 0;
-                return values[doc].length > 0;
+                i = 0;
+                return ords[doc].length > 0;
             }
 
             @Override
@@ -135,8 +135,8 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextOrd() {
-                if (doc < ords[doc].length) {
-                    return ords[doc][doc++];
+                if (i < ords[doc].length) {
+                    return ords[doc][i++];
                 } else {
                     return NO_MORE_ORDS;
                 }
@@ -156,8 +156,9 @@ public class MissingValuesTests extends ESTestCase {
             for (int i = 0; i < numDocs; ++i) {
                 assertTrue(withMissingReplaced.advanceExact(i));
                 if (ords[i].length > 0) {
-                    for (long ord : ords[i]) {
-                        assertEquals(ord, withMissingReplaced.nextOrd());
+                    for (int ord : ords[i]) {
+                        assertEquals(values[ord],
+                                withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
                     assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
@@ -185,13 +186,13 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextValue() {
-                return values[doc][doc++];
+                return values[doc][i++];
             }
 
             @Override
             public boolean advanceExact(int docId) {
                 doc = docId;
-                doc = 0;
+                i = 0;
                 return values[doc].length > 0;
             }
 
@@ -233,12 +234,13 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public double nextValue() {
-                return values[doc][doc++];
+                return values[doc][i++];
             }
 
             @Override
             public boolean advanceExact(int docId) {
                 doc = docId;
+                i = 0;
                 return true;
             }
 

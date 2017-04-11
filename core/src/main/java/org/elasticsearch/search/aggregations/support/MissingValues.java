@@ -241,7 +241,7 @@ public enum MissingValues {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 hasOrds = values.advanceExact(doc);
-                nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                nextMissingOrd = missingOrd;
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
@@ -294,7 +294,7 @@ public enum MissingValues {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 hasOrds = values.advanceExact(doc);
-                nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                nextMissingOrd = insertedOrd;
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;

@@ -2249,6 +2249,7 @@ public class TranslogTests extends ESTestCase {
     public void testPrepareCommitAndCommit() throws IOException {
         final int operations = randomIntBetween(1, 4096);
         long seqNo = 0;
+        long last = -1;
         for (int i = 0; i < operations; i++) {
             translog.add(new Translog.NoOp(seqNo++, 0, "test"));
             if (rarely()) {
@@ -2258,7 +2259,9 @@ public class TranslogTests extends ESTestCase {
                     // simulate generation filling up and rolling between preparing the commit and committing
                     translog.rollGeneration();
                 }
-                translog.commit(randomIntBetween(1, Math.toIntExact(generation)));
+                final int committedGeneration = randomIntBetween(Math.max(1, Math.toIntExact(last)), Math.toIntExact(generation));
+                translog.commit(committedGeneration);
+                last = committedGeneration;
                 for (long g = 0; i < generation; g++) {
                     assertFileDeleted(translog, g);
                 }

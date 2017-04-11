@@ -1428,7 +1428,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public void commit(final long committedGeneration) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
-            assert committedGeneration <= current.generation;
+            if (committedGeneration > current.generation) {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "tried to commit generation [%d] later than the current generation [%d]",
+                        committedGeneration,
+                        current.generation);
+                throw new IllegalStateException(message);
+            }
+            final Long min = readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).orElse(Long.MIN_VALUE);
+            if (committedGeneration < min) {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "tried to commit generation [%d] before minimum generation [%d]",
+                        committedGeneration,
+                        min);
+                throw new IllegalStateException(message);
+            }
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
                 prepareCommit();
             }

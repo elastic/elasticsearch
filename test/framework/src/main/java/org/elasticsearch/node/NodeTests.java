@@ -196,7 +196,7 @@ public class NodeTests extends ESTestCase {
                 Files.createDirectories(defaultPathData.resolve("nodes/0/indices").resolve(index));
             }
         }
-        Supplier<MockNode> constructor = () -> new MockNode(settings, Collections.singletonList(MockTcpTransportPlugin.class));
+        final Supplier<MockNode> constructor = () -> new MockNode(settings, Collections.singletonList(MockTcpTransportPlugin.class));
         if (indexExists) {
             final IllegalStateException e = expectThrows(IllegalStateException.class, constructor::get);
             final String message = String.format(

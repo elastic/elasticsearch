@@ -19,8 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.search.RemoteClusterService;
-import org.elasticsearch.action.search.RemoteConnectionInfo;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,40 +31,28 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
-import java.util.Collection;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
-    private final RemoteClusterService remoteClusterService;
-
-    public RestRemoteClusterInfoAction(Settings settings, RestController controller,
-                                       RemoteClusterService remoteClusterService) {
+    public RestRemoteClusterInfoAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "_remote/info", this);
-        this.remoteClusterService = remoteClusterService;
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client)
         throws IOException {
-        return channel -> remoteClusterService.getRemoteConnectionInfos(
-            new RestResponseListener<Collection<RemoteConnectionInfo>>(channel) {
+        return channel -> client.execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest(),
+            new RestBuilderListener<RemoteInfoResponse>(channel) {
             @Override
-            public RestResponse buildResponse(
-                Collection<RemoteConnectionInfo> remoteConnectionInfos) throws Exception {
-                try (XContentBuilder xContentBuilder = channel.newBuilder()) {
-                    xContentBuilder.startObject();
-                    for (RemoteConnectionInfo info : remoteConnectionInfos) {
-                        info.toXContent(xContentBuilder, request);
-                    }
-                    xContentBuilder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, xContentBuilder);
-                }
+            public RestResponse buildResponse(RemoteInfoResponse response, XContentBuilder builder) throws Exception {
+                response.toXContent(builder, request);
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

@@ -132,33 +132,6 @@ public class ReplicationOperationTests extends ESTestCase {
         assertThat(primary.knownLocalCheckpoints, equalTo(replicasProxy.generatedLocalCheckpoints));
     }
 
-
-    public void testReplicationWithShadowIndex() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
-
-        final ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
-        final long primaryTerm = state.getMetaData().index(index).primaryTerm(0);
-        final IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().shardRoutingTable(shardId);
-        final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
-
-        Request request = new Request(shardId);
-        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
-        final TestReplicationOperation op = new TestReplicationOperation(request,
-            new TestPrimary(primaryShard, primaryTerm), listener, false,
-            new TestReplicaProxy(), () -> state, logger, "test");
-        op.execute();
-        assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
-        assertThat(request.processedOnReplicas, equalTo(Collections.emptySet()));
-        assertTrue("listener is not marked as done", listener.isDone());
-        ShardInfo shardInfo = listener.actionGet().getShardInfo();
-        assertThat(shardInfo.getFailed(), equalTo(0));
-        assertThat(shardInfo.getFailures(), arrayWithSize(0));
-        assertThat(shardInfo.getSuccessful(), equalTo(1));
-        assertThat(shardInfo.getTotal(), equalTo(indexShardRoutingTable.getSize()));
-    }
-
-
     public void testDemotedPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
@@ -310,7 +283,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
             new TestPrimary(primaryShard, primaryTerm),
-            listener, randomBoolean(), new TestReplicaProxy(), () -> state, logger, "test");
+                listener, new TestReplicaProxy(), () -> state, logger, "test");
 
         if (passesActiveShardCheck) {
             assertThat(op.checkActiveShardCount(), nullValue());
@@ -519,13 +492,14 @@ public class ReplicationOperationTests extends ESTestCase {
     class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result> {
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
-            this(request, primary, listener, true, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
+            this(request, primary, listener, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
         }
 
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
-                ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas,
-                Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
-            super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType);
+                                 ActionListener<TestPrimary.Result> listener,
+                                 Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier,
+                                 Logger logger, String opType) {
+            super(request, primary, listener, replicas, clusterStateSupplier, logger, opType);
         }
     }
 

@@ -454,7 +454,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("unknown secure setting [some.secure.setting]"));
 
         ClusterSettings clusterSettings2 = new ClusterSettings(settings,
-            Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null)));
         clusterSettings2.validate(settings);
     }
 
@@ -463,7 +463,7 @@ public class ScopedSettingsTests extends ESTestCase {
         secureSettings.setString("some.secure.setting", "secret");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null)));
 
         Settings diffed = clusterSettings.diff(Settings.EMPTY, settings);
         assertTrue(diffed.isEmpty());

@@ -106,11 +106,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(unassignedShard.index());
         final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
-        final boolean recoverOnAnyNode = recoverOnAnyNode(indexMetaData);
 
         assert inSyncAllocationIds.isEmpty() == false;
         // use in-sync allocation ids to select nodes
-        final NodeShardsResult nodeShardsResult = buildNodeShardsResult(unassignedShard, snapshotRestore || recoverOnAnyNode,
+        final NodeShardsResult nodeShardsResult = buildNodeShardsResult(unassignedShard, snapshotRestore,
             allocation.getIgnoreNodes(unassignedShard.shardId()), inSyncAllocationIds, shardState, logger);
         final boolean enoughAllocationsFound = nodeShardsResult.orderedAllocationCandidates.size() > 0;
         logger.debug("[{}][{}]: found {} allocation candidates of {} based on allocation ids: [{}]", unassignedShard.index(),
@@ -121,10 +120,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 // let BalancedShardsAllocator take care of allocating this shard
                 logger.debug("[{}][{}]: missing local data, will restore from [{}]",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard.recoverySource());
-                return AllocateUnassignedDecision.NOT_TAKEN;
-            } else if (recoverOnAnyNode) {
-                // let BalancedShardsAllocator take care of allocating this shard
-                logger.debug("[{}][{}]: missing local data, recover from any node", unassignedShard.index(), unassignedShard.id());
                 return AllocateUnassignedDecision.NOT_TAKEN;
             } else {
                 // We have a shard that was previously allocated, but we could not find a valid shard copy to allocate the primary.
@@ -329,19 +324,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
         return new NodesToAllocate(Collections.unmodifiableList(yesNodeShards), Collections.unmodifiableList(throttledNodeShards),
                                       Collections.unmodifiableList(noNodeShards));
-    }
-
-    /**
-     * Return {@code true} if the index is configured to allow shards to be
-     * recovered on any node
-     */
-    private boolean recoverOnAnyNode(IndexMetaData metaData) {
-        // don't use the setting directly, not to trigger verbose deprecation logging
-        return (metaData.isOnSharedFilesystem(metaData.getSettings()) || metaData.isOnSharedFilesystem(this.settings))
-            && (metaData.getSettings().getAsBooleanLenientForPreEs6Indices(
-                metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, deprecationLogger) ||
-                this.settings.getAsBooleanLenientForPreEs6Indices
-                    (metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, deprecationLogger));
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

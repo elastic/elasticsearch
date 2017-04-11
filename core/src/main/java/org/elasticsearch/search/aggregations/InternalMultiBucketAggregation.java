@@ -63,13 +63,16 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
     @Override
+    public abstract List<? extends InternalBucket> getBuckets();
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
         } else if (path.get(0).equals("_bucket_count")) {
             return getBuckets().size();
         } else {
-            List<? extends Bucket> buckets = getBuckets();
+            List<? extends InternalBucket> buckets = getBuckets();
             Object[] propertyArray = new Object[buckets.size()];
             for (int i = 0; i < buckets.size(); i++) {
                 propertyArray[i] = buckets.get(i).getProperty(getName(), path);
@@ -79,7 +82,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     public abstract static class InternalBucket implements Bucket {
-        @Override
+
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
                 return this;

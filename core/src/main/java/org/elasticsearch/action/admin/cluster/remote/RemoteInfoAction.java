@@ -17,19 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.action.admin.cluster.remote;
 
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-import java.io.IOException;
-import java.util.Locale;
+public final class RemoteInfoAction extends Action<RemoteInfoRequest, RemoteInfoResponse, RemoteInfoRequestBuilder> {
 
-public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+    public static final String NAME = "cluster:monitor/remote/info";
+    public static final RemoteInfoAction INSTANCE = new RemoteInfoAction();
+
+    public RemoteInfoAction() {
+        super(NAME);
+    }
+
     @Override
-    protected BlobStore newBlobStore() throws IOException {
-        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, MockHttpTransport.newStorage(bucket, getTestName()));
+    public RemoteInfoRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RemoteInfoRequestBuilder(client, INSTANCE);
+    }
+
+    @Override
+    public RemoteInfoResponse newResponse() {
+        return new RemoteInfoResponse();
     }
 }

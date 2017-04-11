@@ -221,10 +221,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final AtomicBoolean active = new AtomicBoolean();
     /**
-     * Allows for the registration of listeners that are called when a change becomes visible for search. This is nullable because
-     * {@linkplain ShadowIndexShard} doesn't support this.
+     * Allows for the registration of listeners that are called when a change becomes visible for search.
      */
-    @Nullable
     private final RefreshListeners refreshListeners;
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
@@ -416,6 +414,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // active primaries.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
+                state == IndexShardState.CLOSED :
+                "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             this.shardRouting = newRouting;
             persistMetadata(newRouting, currentRouting);
         }
@@ -498,6 +499,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the previous shard state
      */
     private IndexShardState changeState(IndexShardState newState, String reason) {
+        assert Thread.holdsLock(mutex);
         logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;
@@ -1921,9 +1923,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Build {@linkplain RefreshListeners} for this shard. Protected so {@linkplain ShadowIndexShard} can override it to return null.
+     * Build {@linkplain RefreshListeners} for this shard.
      */
-    protected RefreshListeners buildRefreshListeners() {
+    private RefreshListeners buildRefreshListeners() {
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),

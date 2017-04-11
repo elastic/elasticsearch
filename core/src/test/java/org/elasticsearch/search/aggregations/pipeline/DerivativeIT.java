@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
@@ -279,7 +280,8 @@ public class DerivativeIT extends ESIntegTestCase {
                 assertThat(sumDeriv, notNullValue());
                 long sumDerivValue = expectedSum - expectedSumPreviousBucket;
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
+                assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
+                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
                         equalTo((double) sumDerivValue));
             } else {
                 assertThat(sumDeriv, nullValue());
@@ -324,7 +326,8 @@ public class DerivativeIT extends ESIntegTestCase {
                 assertThat(sumDeriv, notNullValue());
                 long sumDerivValue = expectedSum - expectedSumPreviousBucket;
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
+                assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
+                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
                         equalTo((double) sumDerivValue));
             } else {
                 assertThat(sumDeriv, nullValue());
@@ -451,7 +454,7 @@ public class DerivativeIT extends ESIntegTestCase {
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
@@ -480,7 +483,7 @@ public class DerivativeIT extends ESIntegTestCase {
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         double lastSumValue = Double.NaN;
@@ -522,7 +525,7 @@ public class DerivativeIT extends ESIntegTestCase {
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         double lastSumValue = Double.NaN;
@@ -561,7 +564,7 @@ public class DerivativeIT extends ESIntegTestCase {
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
 
         double lastSumValue = Double.NaN;

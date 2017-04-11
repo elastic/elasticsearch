@@ -25,7 +25,6 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.security.auth.DestroyFailedException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.CharBuffer;
@@ -41,10 +40,14 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
@@ -54,7 +57,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 
 /**
  * A wrapper around a Java KeyStore which provides supplements the keystore with extra metadata.
@@ -67,20 +69,35 @@ import org.elasticsearch.ElasticsearchException;
  */
 public class KeyStoreWrapper implements SecureSettings {
 
+    /** An identifier for the type of data that may be stored in a keystore entry. */
+    private enum KeyType {
+        STRING,
+        FILE
+    }
+
     /** The name of the keystore file to read and write. */
     private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    private static final int FORMAT_VERSION = 1;
+    private static final int FORMAT_VERSION = 2;
+
+    /** The oldest metadata format version that can be read. */
+    private static final int MIN_FORMAT_VERSION = 1;
 
     /** The keystore type for a newly created keystore. */
     private static final String NEW_KEYSTORE_TYPE = "PKCS12";
 
-    /** The algorithm used to store password for a newly created keystore. */
-    private static final String NEW_KEYSTORE_SECRET_KEY_ALGO = "PBE";//"PBEWithHmacSHA256AndAES_128";
+    /** The algorithm used to store string setting contents. */
+    private static final String NEW_KEYSTORE_STRING_KEY_ALGO = "PBE";
+
+    /** The algorithm used to store file setting contents. */
+    private static final String NEW_KEYSTORE_FILE_KEY_ALGO = "PBE";
 
     /** An encoder to check whether string values are ascii. */
     private static final CharsetEncoder ASCII_ENCODER = StandardCharsets.US_ASCII.newEncoder();
+
+    /** The metadata format version used to read the current keystore wrapper. */
+    private final int formatVersion;
 
     /** True iff the keystore has a password needed to read. */
     private final boolean hasPassword;
@@ -88,8 +105,16 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The type of the keystore, as passed to {@link java.security.KeyStore#getInstance(String)} */
     private final String type;
 
-    /** A factory necessary for constructing instances of secrets in a {@link KeyStore}. */
-    private final SecretKeyFactory secretFactory;
+    /** A factory necessary for constructing instances of string secrets in a {@link KeyStore}. */
+    private final SecretKeyFactory stringFactory;
+
+    /** A factory necessary for constructing instances of file secrets in a {@link KeyStore}. */
+    private final SecretKeyFactory fileFactory;
+
+    /**
+     * The settings that exist in the keystore, mapped to their type of data.
+     */
+    private final Map<String, KeyType> settingTypes;
 
     /** The raw bytes of the encrypted keystore. */
     private final byte[] keystoreBytes;
@@ -100,17 +125,19 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The password for the keystore. See {@link #decrypt(char[])}. */
     private final SetOnce<KeyStore.PasswordProtection> keystorePassword = new SetOnce<>();
 
-    /** The setting names contained in the loaded keystore. */
-    private final Set<String> settingNames = new HashSet<>();
-
-    private KeyStoreWrapper(boolean hasPassword, String type, String secretKeyAlgo, byte[] keystoreBytes) {
+    private KeyStoreWrapper(int formatVersion, boolean hasPassword, String type,
+                            String stringKeyAlgo, String fileKeyAlgo,
+                            Map<String, KeyType> settingTypes, byte[] keystoreBytes) {
+        this.formatVersion = formatVersion;
         this.hasPassword = hasPassword;
         this.type = type;
         try {
-            secretFactory = SecretKeyFactory.getInstance(secretKeyAlgo);
+            stringFactory = SecretKeyFactory.getInstance(stringKeyAlgo);
+            fileFactory = SecretKeyFactory.getInstance(fileKeyAlgo);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
+        this.settingTypes = settingTypes;
         this.keystoreBytes = keystoreBytes;
     }
 
@@ -121,7 +148,8 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Constructs a new keystore with the given password. */
     static KeyStoreWrapper create(char[] password) throws Exception {
-        KeyStoreWrapper wrapper = new KeyStoreWrapper(password.length != 0, NEW_KEYSTORE_TYPE, NEW_KEYSTORE_SECRET_KEY_ALGO, null);
+        KeyStoreWrapper wrapper = new KeyStoreWrapper(FORMAT_VERSION, password.length != 0, NEW_KEYSTORE_TYPE,
+            NEW_KEYSTORE_STRING_KEY_ALGO, NEW_KEYSTORE_FILE_KEY_ALGO, new HashMap<>(), null);
         KeyStore keyStore = KeyStore.getInstance(NEW_KEYSTORE_TYPE);
         keyStore.load(null, null);
         wrapper.keystore.set(keyStore);
@@ -144,7 +172,7 @@ public class KeyStoreWrapper implements SecureSettings {
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
-            CodecUtil.checkHeader(input, KEYSTORE_FILENAME, FORMAT_VERSION, FORMAT_VERSION);
+            int formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
             byte hasPasswordByte = input.readByte();
             boolean hasPassword = hasPasswordByte == 1;
             if (hasPassword == false && hasPasswordByte != 0) {
@@ -152,11 +180,25 @@ public class KeyStoreWrapper implements SecureSettings {
                     + String.format(Locale.ROOT, "%02x", hasPasswordByte));
             }
             String type = input.readString();
-            String secretKeyAlgo = input.readString();
+            String stringKeyAlgo = input.readString();
+            final String fileKeyAlgo;
+            if (formatVersion >= 2) {
+                fileKeyAlgo = input.readString();
+            } else {
+                fileKeyAlgo = NEW_KEYSTORE_FILE_KEY_ALGO;
+            }
+            final Map<String, KeyType> settingTypes;
+            if (formatVersion >= 2) {
+                settingTypes = input.readMapOfStrings().entrySet().stream().collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> KeyType.valueOf(e.getValue())));
+            } else {
+                settingTypes = new HashMap<>();
+            }
             byte[] keystoreBytes = new byte[input.readInt()];
             input.readBytes(keystoreBytes, 0, keystoreBytes.length);
             CodecUtil.checkFooter(input);
-            return new KeyStoreWrapper(hasPassword, type, secretKeyAlgo, keystoreBytes);
+            return new KeyStoreWrapper(formatVersion, hasPassword, type, stringKeyAlgo, fileKeyAlgo, settingTypes, keystoreBytes);
         }
     }
 
@@ -189,10 +231,24 @@ public class KeyStoreWrapper implements SecureSettings {
         keystorePassword.set(new KeyStore.PasswordProtection(password));
         Arrays.fill(password, '\0');
 
-        // convert keystore aliases enum into a set for easy lookup
+
         Enumeration<String> aliases = keystore.get().aliases();
-        while (aliases.hasMoreElements()) {
-            settingNames.add(aliases.nextElement());
+        if (formatVersion == 1) {
+            while (aliases.hasMoreElements()) {
+                settingTypes.put(aliases.nextElement(), KeyType.STRING);
+            }
+        } else {
+            // verify integrity: keys in keystore match what the metadata thinks exist
+            Set<String> expectedSettings = new HashSet<>(settingTypes.keySet());
+            while (aliases.hasMoreElements()) {
+                String settingName = aliases.nextElement();
+                if (expectedSettings.remove(settingName) == false) {
+                    throw new SecurityException("Keystore has been corrupted or tampered with");
+                }
+            }
+            if (expectedSettings.isEmpty() == false) {
+                throw new SecurityException("Keystore has been corrupted or tampered with");
+            }
         }
     }
 
@@ -206,8 +262,19 @@ public class KeyStoreWrapper implements SecureSettings {
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
-            output.writeString(type);
-            output.writeString(secretFactory.getAlgorithm());
+            output.writeString(NEW_KEYSTORE_TYPE);
+            output.writeString(NEW_KEYSTORE_STRING_KEY_ALGO);
+            output.writeString(NEW_KEYSTORE_FILE_KEY_ALGO);
+            output.writeMapOfStrings(settingTypes.entrySet().stream().collect(Collectors.toMap(
+                Map.Entry::getKey,
+                e -> e.getValue().name())));
+
+            // TODO: in the future if we ever change any algorithms used above, we need
+            // to create a new KeyStore here instead of using the existing one, so that
+            // the encoded material inside the keystore is updated
+            assert type.equals(NEW_KEYSTORE_TYPE) : "keystore type changed";
+            assert stringFactory.getAlgorithm().equals(NEW_KEYSTORE_STRING_KEY_ALGO) : "string pbe algo changed";
+            assert fileFactory.getAlgorithm().equals(NEW_KEYSTORE_FILE_KEY_ALGO) : "file pbe algo changed";
 
             ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
             keystore.get().store(keystoreBytesStream, password);
@@ -228,23 +295,49 @@ public class KeyStoreWrapper implements SecureSettings {
 
     @Override
     public Set<String> getSettingNames() {
-        return settingNames;
+        return settingTypes.keySet();
     }
 
     // TODO: make settings accessible only to code that registered the setting
-    /** Retrieve a string setting. The {@link SecureString} should be closed once it is used. */
     @Override
     public SecureString getString(String setting) throws GeneralSecurityException {
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
-        if (entry instanceof KeyStore.SecretKeyEntry == false) {
+        if (settingTypes.get(setting) != KeyType.STRING ||
+            entry instanceof KeyStore.SecretKeyEntry == false) {
             throw new IllegalStateException("Secret setting " + setting + " is not a string");
         }
         // TODO: only allow getting a setting once?
         KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry) entry;
-        PBEKeySpec keySpec = (PBEKeySpec) secretFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
+        PBEKeySpec keySpec = (PBEKeySpec) stringFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
         SecureString value = new SecureString(keySpec.getPassword());
         keySpec.clearPassword();
         return value;
+    }
+
+    @Override
+    public InputStream getFile(String setting) throws GeneralSecurityException {
+        KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
+        if (settingTypes.get(setting) != KeyType.FILE ||
+            entry instanceof KeyStore.SecretKeyEntry == false) {
+            throw new IllegalStateException("Secret setting " + setting + " is not a file");
+        }
+        KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry) entry;
+        PBEKeySpec keySpec = (PBEKeySpec) fileFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
+        // The PBE keyspec gives us chars, we first convert to bytes, then decode base64 inline.
+        char[] chars = keySpec.getPassword();
+        byte[] bytes = new byte[chars.length];
+        for (int i = 0; i < bytes.length; ++i) {
+            bytes[i] = (byte)chars[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
+        }
+        keySpec.clearPassword(); // wipe the original copy
+        InputStream bytesStream = new ByteArrayInputStream(bytes) {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                Arrays.fill(bytes, (byte)0); // wipe our second copy when the stream is exhausted
+            }
+        };
+        return Base64.getDecoder().wrap(bytesStream);
     }
 
     /**
@@ -256,15 +349,27 @@ public class KeyStoreWrapper implements SecureSettings {
         if (ASCII_ENCODER.canEncode(CharBuffer.wrap(value)) == false) {
             throw new IllegalArgumentException("Value must be ascii");
         }
-        SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec(value));
+        SecretKey secretKey = stringFactory.generateSecret(new PBEKeySpec(value));
         keystore.get().setEntry(setting, new KeyStore.SecretKeyEntry(secretKey), keystorePassword.get());
-        settingNames.add(setting);
+        settingTypes.put(setting, KeyType.STRING);
+    }
+
+    /** Set a file setting. */
+    void setFile(String setting, byte[] bytes) throws GeneralSecurityException {
+        bytes = Base64.getEncoder().encode(bytes);
+        char[] chars = new char[bytes.length];
+        for (int i = 0; i < chars.length; ++i) {
+            chars[i] = (char)bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
+        }
+        SecretKey secretKey = stringFactory.generateSecret(new PBEKeySpec(chars));
+        keystore.get().setEntry(setting, new KeyStore.SecretKeyEntry(secretKey), keystorePassword.get());
+        settingTypes.put(setting, KeyType.FILE);
     }
 
     /** Remove the given setting from the keystore. */
     void remove(String setting) throws KeyStoreException {
         keystore.get().deleteEntry(setting);
-        settingNames.remove(setting);
+        settingTypes.remove(setting);
     }
 
     @Override

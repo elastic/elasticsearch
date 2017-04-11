@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -59,7 +60,7 @@ public class UnmappedSampler extends InternalSampler {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalAggregation.CommonFields.DOC_COUNT.getPreferredName(), 0);
+        builder.field(Aggregation.CommonFields.DOC_COUNT.getPreferredName(), 0);
         return builder;
     }
 

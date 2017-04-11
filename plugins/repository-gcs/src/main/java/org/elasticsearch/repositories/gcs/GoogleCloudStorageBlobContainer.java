@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -29,7 +29,7 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Map;
 
-public class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
+class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     private final GoogleCloudStorageBlobStore blobStore;
     private final String path;

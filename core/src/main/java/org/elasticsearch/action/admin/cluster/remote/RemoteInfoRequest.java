@@ -17,20 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.gcs;
+package org.elasticsearch.action.admin.cluster.remote;
 
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.ESBlobStoreTestCase;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 
-import java.io.IOException;
-import java.util.Locale;
-
-public class GoogleCloudStorageBlobStoreTests extends ESBlobStoreTestCase {
+public final class RemoteInfoRequest extends ActionRequest {
 
     @Override
-    protected BlobStore newBlobStore() throws IOException {
-        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, MockHttpTransport.newStorage(bucket, getTestName()));
+    public ActionRequestValidationException validate() {
+        return null;
     }
+
 }

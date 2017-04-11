@@ -63,7 +63,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     @Override
-    public synchronized AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings) {
+    public synchronized AmazonS3 client(Settings repositorySettings) {
         String clientName = CLIENT_NAME.get(repositorySettings);
         String foundEndpoint = findEndpoint(logger, repositorySettings, settings, clientName);
 
@@ -75,18 +75,18 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             return client;
         }
 
-        Integer maxRetries = getValue(metadata.settings(), settings,
+        Integer maxRetries = getValue(repositorySettings, settings,
             S3Repository.Repository.MAX_RETRIES_SETTING,
             S3Repository.Repositories.MAX_RETRIES_SETTING);
-        boolean useThrottleRetries = getValue(metadata.settings(), settings,
+        boolean useThrottleRetries = getValue(repositorySettings, settings,
             S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING,
             S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
         // If the user defined a path style access setting, we rely on it,
         // otherwise we use the default value set by the SDK
         Boolean pathStyleAccess = null;
-        if (S3Repository.Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
+        if (S3Repository.Repository.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings) ||
                 S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
-            pathStyleAccess = getValue(metadata.settings(), settings,
+            pathStyleAccess = getValue(repositorySettings, settings,
                 S3Repository.Repository.PATH_STYLE_ACCESS_SETTING,
                 S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
         }
@@ -146,13 +146,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             clientConfiguration.setMaxErrorRetry(maxRetries);
         }
         clientConfiguration.setUseThrottleRetries(useThrottleRetries);
-
-        // #155: we might have 3rd party users using older S3 API version
-        String awsSigner = CLOUD_S3.SIGNER_SETTING.get(settings);
-        if (Strings.hasText(awsSigner)) {
-            logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
-        }
 
         TimeValue readTimeout = getConfigValue(null, settings, clientName,
                                                S3Repository.READ_TIMEOUT_SETTING, null, CLOUD_S3.READ_TIMEOUT);

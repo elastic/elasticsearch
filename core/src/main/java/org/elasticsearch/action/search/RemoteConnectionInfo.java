@@ -18,28 +18,32 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * <tt>_remote/info</tt> requests.
  */
-public final class RemoteConnectionInfo implements ToXContent {
-    final Collection<TransportAddress> seedNodes;
-    final Collection<TransportAddress> httpAddresses;
+public final class RemoteConnectionInfo implements ToXContent, Writeable {
+    final List<TransportAddress> seedNodes;
+    final List<TransportAddress> httpAddresses;
     final int connectionsPerCluster;
     final TimeValue initialConnectionTimeout;
     final int numNodesConnected;
     final String clusterAlias;
 
-    RemoteConnectionInfo(String clusterAlias, Collection<TransportAddress> seedNodes,
-                         Collection<TransportAddress> httpAddresses,
+    RemoteConnectionInfo(String clusterAlias, List<TransportAddress> seedNodes,
+                         List<TransportAddress> httpAddresses,
                          int connectionsPerCluster, int numNodesConnected,
                          TimeValue initialConnectionTimeout) {
         this.clusterAlias = clusterAlias;
@@ -48,6 +52,15 @@ public final class RemoteConnectionInfo implements ToXContent {
         this.connectionsPerCluster = connectionsPerCluster;
         this.numNodesConnected = numNodesConnected;
         this.initialConnectionTimeout = initialConnectionTimeout;
+    }
+
+    public RemoteConnectionInfo(StreamInput input) throws IOException {
+        seedNodes = input.readList(TransportAddress::new);
+        httpAddresses = input.readList(TransportAddress::new);
+        connectionsPerCluster = input.readVInt();
+        initialConnectionTimeout = new TimeValue(input);
+        numNodesConnected = input.readVInt();
+        clusterAlias = input.readString();
     }
 
     @Override
@@ -71,5 +84,33 @@ public final class RemoteConnectionInfo implements ToXContent {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeList(seedNodes);
+        out.writeList(httpAddresses);
+        out.writeVInt(connectionsPerCluster);
+        initialConnectionTimeout.writeTo(out);
+        out.writeVInt(numNodesConnected);
+        out.writeString(clusterAlias);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RemoteConnectionInfo that = (RemoteConnectionInfo) o;
+        return connectionsPerCluster == that.connectionsPerCluster &&
+            numNodesConnected == that.numNodesConnected &&
+            Objects.equals(seedNodes, that.seedNodes) &&
+            Objects.equals(httpAddresses, that.httpAddresses) &&
+            Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
+            Objects.equals(clusterAlias, that.clusterAlias);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(seedNodes, httpAddresses, connectionsPerCluster, initialConnectionTimeout, numNodesConnected, clusterAlias);
     }
 }

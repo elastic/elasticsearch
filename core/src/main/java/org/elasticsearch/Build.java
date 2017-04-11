@@ -43,8 +43,9 @@ public class Build {
         final String date;
         final boolean isSnapshot;
 
+        final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodebase();
-        if (url.toString().endsWith(".jar")) {
+        if (url.toString().endsWith(esPrefix + ".jar") || url.toString().endsWith(esPrefix + "-SNAPSHOT.jar")) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");

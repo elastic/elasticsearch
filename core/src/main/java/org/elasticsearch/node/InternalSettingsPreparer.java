@@ -135,6 +135,11 @@ public class InternalSettingsPreparer {
                         .and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null)
                         .and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key) + ".0") == null),
             STRIP_PROPERTY_DEFAULTS_PREFIX);
+        /*
+         * We have to treat default.path.data separately due to a bug in Elasticsearch 5.3.0 where if multiple path.data were specified as
+         * an array and default.path.data was configured then the settings were not properly merged. We need to preserve default.path.data
+         * so that we can detect this situation.
+         */
         final String key = Environment.DEFAULT_PATH_DATA_SETTING.getKey();
         if (esSettings.containsKey(key)) {
             output.put(Environment.DEFAULT_PATH_DATA_SETTING.getKey(), esSettings.get(key));

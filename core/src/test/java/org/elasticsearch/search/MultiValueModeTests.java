@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MultiValueModeTests extends ESTestCase {
 
     @FunctionalInterface
-    private static interface Supplier<T> {
+    private interface Supplier<T> {
         T get() throws IOException;
     }
 

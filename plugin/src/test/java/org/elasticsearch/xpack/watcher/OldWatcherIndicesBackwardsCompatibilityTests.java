@@ -94,31 +94,32 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
         indexPayload = (Map<?, ?>) actions.get("index_payload");
         assertEquals(timeout, indexPayload.get("throttle_period_in_millis"));
 
-        if (version.onOrAfter(Version.V_2_3_0)) {
-            /* Fetch a watch with a funny timeout to verify loading fractional time values. This watch is only built in >= 2.3 because
-             * email attachments aren't supported before that. */
-            bwcWatch = watcherClient.prepareGetWatch("bwc_funny_timeout").get();
-            assertTrue(bwcWatch.isFound());
-            assertNotNull(bwcWatch.getSource());
-            source = bwcWatch.getSource().getAsMap();
-            actions = (Map<?, ?>) source.get("actions");
-            Map<?, ?> work = (Map<?, ?>) actions.get("work");
-            Map<?, ?> email = (Map<?, ?>) work.get("email");
-            Map<?, ?> attachments = (Map<?, ?>) email.get("attachments");
-            Map<?, ?> attachment = (Map<?, ?>) attachments.get("test_report.pdf");
-            Map<?, ?> http = (Map<?, ?>) attachment.get("http");
-            Map<?, ?> request = (Map<?, ?>) http.get("request");
-            assertEquals(timeout, request.get("read_timeout_millis"));
-            assertEquals("https", request.get("scheme"));
-            assertEquals("example.com", request.get("host"));
-            assertEquals("{{ctx.metadata.report_url}}", request.get("path"));
-            assertEquals(8443, request.get("port"));
-            Map<?, ?> auth = (Map<?, ?>) request.get("auth");
-            Map<?, ?> basic = (Map<?, ?>) auth.get("basic");
-            assertThat(basic, hasEntry("username", "Aladdin"));
-            // password doesn't come back because it is hidden
-            assertThat(basic, not(hasKey("password")));
-        }
+        /*
+         * Fetch a watch with a funny timeout to verify loading fractional time
+         * values. This watch is only built in >= 2.3 because email attachments
+         * aren't supported before that.
+         */
+        bwcWatch = watcherClient.prepareGetWatch("bwc_funny_timeout").get();
+        assertTrue(bwcWatch.isFound());
+        assertNotNull(bwcWatch.getSource());
+        source = bwcWatch.getSource().getAsMap();
+        actions = (Map<?, ?>) source.get("actions");
+        Map<?, ?> work = (Map<?, ?>) actions.get("work");
+        Map<?, ?> email = (Map<?, ?>) work.get("email");
+        Map<?, ?> attachments = (Map<?, ?>) email.get("attachments");
+        Map<?, ?> attachment = (Map<?, ?>) attachments.get("test_report.pdf");
+        Map<?, ?> http = (Map<?, ?>) attachment.get("http");
+        Map<?, ?> request = (Map<?, ?>) http.get("request");
+        assertEquals(timeout, request.get("read_timeout_millis"));
+        assertEquals("https", request.get("scheme"));
+        assertEquals("example.com", request.get("host"));
+        assertEquals("{{ctx.metadata.report_url}}", request.get("path"));
+        assertEquals(8443, request.get("port"));
+        Map<?, ?> auth = (Map<?, ?>) request.get("auth");
+        Map<?, ?> basic = (Map<?, ?>) auth.get("basic");
+        assertThat(basic, hasEntry("username", "Aladdin"));
+        // password doesn't come back because it is hidden
+        assertThat(basic, not(hasKey("password")));
 
         String watchHistoryPattern = version.onOrAfter(Version.V_5_0_0_alpha1) ? ".watcher-history*" : ".watch_history*";
         SearchResponse history = client().prepareSearch(watchHistoryPattern).get();

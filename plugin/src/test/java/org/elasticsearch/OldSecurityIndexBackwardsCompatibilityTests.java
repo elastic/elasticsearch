@@ -70,11 +70,6 @@ import static org.hamcrest.Matchers.hasSize;
  **/
 public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
 
-    @Override
-    protected boolean shouldTestVersion(Version version) {
-        return version.onOrAfter(Version.V_2_3_0); // native realm only supported from 2.3.0 on
-    }
-
     protected void checkVersion(Version version) throws Exception {
         // wait for service to start
         SecurityClient securityClient = new SecurityClient(client());

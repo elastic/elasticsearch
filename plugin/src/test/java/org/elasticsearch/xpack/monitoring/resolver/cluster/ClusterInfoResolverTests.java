@@ -47,7 +47,7 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
                     Math.abs(randomLong()),
                     new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                     randomAlphaOfLength(5),
-                    randomFrom(Version.V_2_0_0, Version.CURRENT).toString(),
+                    randomFrom(Version.V_5_0_0, Version.CURRENT).toString(),
                     licenseBuilder.build(),
                     Collections.singletonList(new MonitoringFeatureSet.Usage(randomBoolean(), randomBoolean(), emptyMap())),
                     new ClusterStatsResponse(

@@ -25,7 +25,7 @@ public class MonitoringDocTests extends ESTestCase {
 
         String nodeId = randomAlphaOfLength(5);
         TransportAddress address = buildNewFakeTransportAddress();
-        Version version = randomFrom(Version.V_2_4_1, Version.V_5_0_1, Version.CURRENT);
+        Version version = randomFrom(Version.V_5_0_1, Version.V_5_3_0_UNRELEASED, Version.CURRENT);
 
         String name = randomBoolean() ? randomAlphaOfLength(5) : "";
         Map<String, String> attributes = new HashMap<>();

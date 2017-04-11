@@ -5,17 +5,6 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -45,6 +34,16 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
@@ -269,8 +268,7 @@ public class IndexLifecycleManager extends AbstractComponent {
             Map<String, Object> meta =
                     (Map<String, Object>) mappingMetaData.sourceAsMap().get("_meta");
             if (meta == null) {
-                // something pre-5.0, but we don't know what. Use 2.3.0 as a placeholder for "old"
-                return Version.V_2_3_0;
+                throw new IllegalStateException("Cannot read security-version string");
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
         } catch (IOException e) {

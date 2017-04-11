@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
@@ -42,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -126,22 +126,6 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
                         .get();
                 assertThat(clusterHealth.getIndices().get(expectedIndex).getActivePrimaryShards(), equalTo(numShards.numPrimaries));
             });
-
-            if (version.before(Version.V_2_3_0)) {
-                /* We can't do anything with indexes created before 2.3 so we just assert that we didn't delete them or do
-                    anything otherwise crazy. */
-                SearchResponse response = client().prepareSearch(".marvel-es-data").get();
-                // 2.0.x didn't index the nodes info
-                long expectedEsData = version.before(Version.V_2_1_0) ? 1 : 2;
-                assertHitCount(response, expectedEsData);
-                response = client().prepareSearch(".marvel-es-*").get();
-                assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(20L));
-                return;
-            }
-
-            /* Indexes created from 2.3 onwards get aliased to the place they'd be if they were created in 5.0 so queries should just work.
-             * Monitoring doesn't really have a Java API so we can't test that, but we can test that we write the data we expected to
-             * write. */
 
             SearchResponse firstIndexStats =
                     search(indexPattern, IndexStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(10L));
@@ -295,9 +279,6 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
     }
 
     private void checkSourceNode(final Version version, Map<String, Object> element) {
-        if (version.onOrAfter(Version.V_2_3_0)) {
-            // The source_node field has been added in v2.3.0
-            assertThat(element, hasKey("source_node"));
-        }
+        assertThat(element, hasKey("source_node"));
     }
 }

@@ -138,11 +138,11 @@ public class XPackExtensionInfoTests extends ESTestCase {
                 "description", "fake desc",
                 "name", "my_extension",
                 "version", "1.0",
-                "xpack.version", Version.V_2_0_0.toString());
+                "xpack.version", Version.V_5_0_0.toString());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             XPackExtensionInfo.readFromProperties(extensionDir);
         });
-        assertTrue(e.getMessage().contains("Was designed for version [2.0.0]"));
+        assertTrue(e.getMessage().contains("Was designed for version [5.0.0]"));
     }
 
     public void testReadFromPropertiesJvmMissingClassname() throws Exception {

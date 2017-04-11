@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
@@ -48,6 +43,11 @@ import org.elasticsearch.xpack.template.TemplateUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
@@ -312,13 +312,13 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         assertFalse(securityIndex.checkMappingVersion(Version.V_5_0_0::after));
     }
 
-    public void testMissingVersionMappingIsIdentifiedAsNotUpToDate() throws IOException {
+    public void testMissingVersionMappingThrowsError() throws IOException {
         String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
-        assertFalse(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
-        assertFalse(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
-        checkMappingUpdateWorkCorrectly(clusterStateBuilder, Version.V_2_3_0);
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+                () -> securityIndexMappingAndTemplateUpToDate(clusterState, logger));
+        assertEquals(exception.getMessage(), "Cannot read security-version string");
     }
 
     public void testMissingIndexIsIdentifiedAsUpToDate() throws IOException {

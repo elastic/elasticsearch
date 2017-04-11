@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -356,7 +356,6 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private void verifyVersionPredicate(String principal, Predicate<Version> versionPredicate) {
-        assertThat(versionPredicate.test(Version.V_2_4_3), is(false));
         assertThat(versionPredicate.test(Version.V_5_0_0_rc1), is(false));
         switch (principal) {
             case LogstashSystemUser.NAME:

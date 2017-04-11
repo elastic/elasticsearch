@@ -113,7 +113,7 @@ public class ActionModuleTests extends ESTestCase {
         ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
                 null);
-        actionModule.initRestHandlers(null);
+        actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
             actionModule.getRestController().registerHandler(Method.GET, "/", null));
@@ -135,7 +135,7 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                     singletonList(dupsMainAction), null, null);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Path [/] already has a value [" + RestMainAction.class.getName()));
         } finally {
             threadPool.shutdown();
@@ -166,7 +166,7 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                     singletonList(registersFakeHandler), null, null);
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->
                 actionModule.getRestController().registerHandler(Method.GET, "/_dummy", null));

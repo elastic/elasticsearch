@@ -63,6 +63,7 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
+                pointsCursor = 0;
                 if (values.advanceExact(doc)) {
                     count = values.docValueCount();
                     if (count > points.length) {

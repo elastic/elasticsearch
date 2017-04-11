@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -27,9 +26,10 @@ import java.util.function.Function;
  *
  * Stats are logged at specific stages
  * <ol>
- * <li>Every 100 records for the first 1000 records</li>
- * <li>Every 1000 records for the first 20000 records</li>
- * <li>Every 10000 records after 20000 records</li>
+ * <li>Every 10,000 records for the first 100,000 records</li>
+ * <li>Every 100,000 records until 1,000,000 records</li>
+ * <li>Every 1,000,000 records until 10,000,000 records</li>
+ * <li>and so on...</li>
  * </ol>
  * The {@link #reportingBoundaryFunction} member points to a different
  * function depending on which reporting stage is the current, the function
@@ -86,7 +86,7 @@ public class DataCountsReporter extends AbstractComponent {
         acceptablePercentDateParseErrors = ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.get(settings);
         acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);
 
-        reportingBoundaryFunction = this::reportEvery100Records;
+        reportingBoundaryFunction = this::reportEvery10000Records;
     }
 
     /**
@@ -275,9 +275,9 @@ public class DataCountsReporter extends AbstractComponent {
      * processes more data.  Logging every 10000 records when the data rate is
      * 40000 per second quickly rolls the logs.
      */
-    protected void logStatus(long totalRecords) {
+    protected boolean logStatus(long totalRecords) {
         if (++logCount % logEvery != 0) {
-            return;
+            return false;
         }
 
         String status = String.format(Locale.ROOT,
@@ -287,48 +287,32 @@ public class DataCountsReporter extends AbstractComponent {
         logger.info(status);
 
         int log10TotalRecords = (int) Math.floor(Math.log10(totalRecords));
-        // Start reducing the logging rate after 10 million records have been seen
-        if (log10TotalRecords > 6) {
-            logEvery = (int) Math.pow(10.0, log10TotalRecords - 6);
+        // Start reducing the logging rate after a million records have been seen
+        if (log10TotalRecords > 5) {
+            logEvery = (int) Math.pow(10.0, log10TotalRecords - 5);
             logCount = 0;
         }
-    }
-
-    private boolean reportEvery100Records(long totalRecords) {
-        if (totalRecords > 1000) {
-            lastRecordCountQuotient = totalRecords / 1000;
-            reportingBoundaryFunction = this::reportEvery1000Records;
-            return false;
-        }
-
-        long quotient = totalRecords / 100;
-        if (quotient > lastRecordCountQuotient) {
-            lastRecordCountQuotient = quotient;
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean reportEvery1000Records(long totalRecords) {
-
-        if (totalRecords > 20000) {
-            lastRecordCountQuotient = totalRecords / 10000;
-            reportingBoundaryFunction = this::reportEvery10000Records;
-            return false;
-        }
-
-        long quotient = totalRecords / 1000;
-        if (quotient > lastRecordCountQuotient) {
-            lastRecordCountQuotient = quotient;
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     private boolean reportEvery10000Records(long totalRecords) {
-        long quotient = totalRecords / 10000;
+        if (totalRecords > 100_000) {
+            lastRecordCountQuotient = totalRecords / 100_000;
+            reportingBoundaryFunction = this::reportEvery100000Records;
+            return false;
+        }
+
+        long quotient = totalRecords / 10_000;
+        if (quotient > lastRecordCountQuotient) {
+            lastRecordCountQuotient = quotient;
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean reportEvery100000Records(long totalRecords) {
+        long quotient = totalRecords / 100_000;
         if (quotient > lastRecordCountQuotient) {
             lastRecordCountQuotient = quotient;
             return true;

@@ -37,9 +37,13 @@ class DummyDataCountsReporter extends DataCountsReporter {
      * Override the method here an count the calls
      */
     @Override
-    protected void logStatus(long totalRecords) {
-        super.logStatus(totalRecords);
-        ++logStatusCallCount;
+    protected boolean logStatus(long totalRecords) {
+        boolean messageLogged = super.logStatus(totalRecords);
+        if (messageLogged) {
+            ++logStatusCallCount;
+        }
+
+        return messageLogged;
     }
 
     /**

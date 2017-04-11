@@ -174,7 +174,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     /** Returns the endpoint the client should use, based on the available endpoint settings found. */
     static String findEndpoint(Logger logger, S3ClientSettings clientSettings, Settings repositorySettings) {
         String endpoint = getRepoValue(repositorySettings, S3Repository.Repository.ENDPOINT_SETTING, clientSettings.endpoint);
-        if (Strings.isNullOrEmpty(endpoint) == false) {
+        if (Strings.hasText(endpoint)) {
             logger.debug("using repository level endpoint [{}]", endpoint);
         }
         return endpoint;

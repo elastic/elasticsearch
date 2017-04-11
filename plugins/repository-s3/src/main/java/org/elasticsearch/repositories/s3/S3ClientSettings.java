@@ -56,7 +56,7 @@ class S3ClientSettings {
         key -> new Setting<>(key, S3Repository.Repositories.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT),
             Setting.Property.NodeScope));
 
-    /** The protocol to use to connec to to s3. */
+    /** The protocol to use to connect to s3. */
     static final Setting.AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(PREFIX, "protocol",
         key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope));
 

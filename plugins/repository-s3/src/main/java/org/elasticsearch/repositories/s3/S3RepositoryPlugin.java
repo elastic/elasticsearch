@@ -62,7 +62,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     public S3RepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
         clientsSettings = S3ClientSettings.load(settings);
-        assert clientsSettings.isEmpty() == false; // always at least have "default"
+        assert clientsSettings.isEmpty() == false : "always at least have 'default'";
     }
 
     // overridable for tests

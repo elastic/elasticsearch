@@ -94,6 +94,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
 
             @Override
             public boolean advanceExact(int doc) {
+                i = 0;
                 current = values[doc];
                 return current.length > 0;
             }

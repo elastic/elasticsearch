@@ -43,6 +43,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
             @Override
             public boolean advanceExact(int docId) {
+                docID = docId;
                 return points.length > 0;
             }
 

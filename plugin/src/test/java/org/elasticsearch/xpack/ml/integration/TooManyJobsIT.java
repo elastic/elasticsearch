@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
@@ -54,10 +55,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetaData.PersistentTask task = tasks.taskMap().values().iterator().next();
+        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlMetadata.jobTaskId("1"));
         assertEquals(JobState.OPENED, ((JobTaskStatus) task.getStatus()).getState());
-        OpenJobAction.Request openJobRequest = (OpenJobAction.Request) task.getRequest();
-        assertEquals("1", openJobRequest.getJobId());
     }
 
     public void testSingleNode() throws Exception {

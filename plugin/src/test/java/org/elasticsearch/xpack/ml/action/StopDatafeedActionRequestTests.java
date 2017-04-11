@@ -54,10 +54,10 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     public void testValidate() {
-        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("1L", StartDatafeedAction.NAME,
+        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("datafeed-foo", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("foo", 0L), 1L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
-        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap("1L", task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap("datafeed-foo", task));
 
         Job job = createDatafeedJob().build(new Date());
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
@@ -97,26 +97,26 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         Map<String, PersistentTask<?>> taskMap = new HashMap<>();
         Builder mlMetadataBuilder = new MlMetadata.Builder();
 
-        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("1L", StartDatafeedAction.NAME,
+        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("datafeed-datafeed_1", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("datafeed_1", 0L), 1L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
-        taskMap.put("1L", task);
+        taskMap.put("datafeed-datafeed_1", task);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
 
-        task = new PersistentTask<PersistentTaskRequest>("2L", StartDatafeedAction.NAME,
+        task = new PersistentTask<PersistentTaskRequest>("datafeed-datafeed_2", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("datafeed_2", 0L), 2L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STOPPED);
-        taskMap.put("2L", task);
+        taskMap.put("datafeed-datafeed_2", task);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
 
-        task = new PersistentTask<PersistentTaskRequest>("3L", StartDatafeedAction.NAME,
+        task = new PersistentTask<PersistentTaskRequest>("datafeed-datafeed_3", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("datafeed_3", 0L), 3L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
-        taskMap.put("3L", task);
+        taskMap.put("datafeed-datafeed_3", task);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_3").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_3", "job_id_3").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);

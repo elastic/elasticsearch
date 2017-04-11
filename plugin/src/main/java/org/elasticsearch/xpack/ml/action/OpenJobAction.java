@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -315,10 +315,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
                     @Override
                     public void onFailure(Exception e) {
+                        if (e instanceof ResourceAlreadyExistsException) {
+                            e = new ElasticsearchStatusException("Cannot open job [" + request.getJobId() +
+                                    "] because it has already been opened", RestStatus.CONFLICT, e);
+                        }
                         listener.onFailure(e);
                     }
                 };
-                persistentTasksService.startPersistentTask(UUIDs.base64UUID(), NAME, request, finalListener);
+                persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(request.jobId), NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
@@ -446,10 +450,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
         if (job.isDeleted()) {
             throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted");
-        }
-        PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
-        if (task != null) {
-            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has already been opened");
         }
     }
 

@@ -98,7 +98,7 @@ public class DatafeedManagerTests extends ESTestCase {
         Job job = createDatafeedJob().build(new Date());
         mlMetadata.putJob(job, false);
         mlMetadata.putDatafeed(createDatafeedConfig("datafeed_id", job.getId()).build());
-        PersistentTask<OpenJobAction.Request> task = createJobTask("0L", job.getId(), "node_id", JobState.OPENED, 0L);
+        PersistentTask<OpenJobAction.Request> task = createJobTask(job.getId(), "node_id", JobState.OPENED, 0L);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap("0L", task));
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),

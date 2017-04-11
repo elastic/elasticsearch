@@ -59,9 +59,9 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id", "job_id",
                 Collections.singletonList("*")));
         Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        PersistentTask<?> jobTask = createJobTask("1L", "job_id", null, JobState.OPENED, 1L);
-        tasks.put("1L", jobTask);
-        tasks.put("2L", createTask("2L", "datafeed_id", 0L, null, DatafeedState.STARTED, 2L));
+        PersistentTask<?> jobTask = createJobTask("job_id", null, JobState.OPENED, 1L);
+        tasks.put("job-job_id", jobTask);
+        tasks.put("datafeed-datafeed_id", createTask("datafeed_id", 0L, null, DatafeedState.STARTED, 2L));
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,
@@ -74,9 +74,9 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         assertEquals("cannot close job [job_id], datafeed hasn't been stopped", e.getMessage());
 
         tasks = new HashMap<>();
-        tasks.put("1L", jobTask);
+        tasks.put("job-job_id", jobTask);
         if (randomBoolean()) {
-            tasks.put("2L", createTask("2L", "datafeed_id", 0L, null, DatafeedState.STOPPED, 3L));
+            tasks.put("datafeed-datafeed_id", createTask("datafeed_id", 0L, null, DatafeedState.STOPPED, 3L));
         }
         ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
@@ -103,14 +103,14 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
                 Collections.singletonList("*")));
 
         Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        PersistentTask<?> jobTask = createJobTask("1L", "job_id_1", null, JobState.OPENED, 1L);
-        tasks.put("1L", jobTask);
+        PersistentTask<?> jobTask = createJobTask("job_id_1", null, JobState.OPENED, 1L);
+        tasks.put("job-job_id_1", jobTask);
 
-        jobTask = createJobTask("2L", "job_id_2", null, JobState.CLOSED, 2L);
-        tasks.put("2L", jobTask);
+        jobTask = createJobTask("job_id_2", null, JobState.CLOSED, 2L);
+        tasks.put("job-job_id_2", jobTask);
 
-        jobTask = createJobTask("3L", "job_id_3", null, JobState.FAILED, 3L);
-        tasks.put("3L", jobTask);
+        jobTask = createJobTask("job_id_3", null, JobState.FAILED, 3L);
+        tasks.put("job-job_id_3", jobTask);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
@@ -122,14 +122,13 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
                 CloseJobAction.resolveAndValidateJobId("_all", cs1));
     }
 
-    public static PersistentTask<StartDatafeedAction.Request> createTask(String id,
-                                                                         String datafeedId,
+    public static PersistentTask<StartDatafeedAction.Request> createTask(String datafeedId,
                                                                          long startTime,
                                                                          String nodeId,
                                                                          DatafeedState state,
                                                                          long allocationId) {
         PersistentTask<StartDatafeedAction.Request> task =
-                new PersistentTask<>(id, StartDatafeedAction.NAME,
+                new PersistentTask<>(MlMetadata.datafeedTaskId(datafeedId), StartDatafeedAction.NAME,
                         new StartDatafeedAction.Request(datafeedId, startTime),
                         allocationId,
                         new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));

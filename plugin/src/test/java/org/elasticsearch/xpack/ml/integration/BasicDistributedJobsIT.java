@@ -169,7 +169,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            PersistentTask task = tasks.taskMap().values().iterator().next();
+            PersistentTask task = tasks.getTask(MlMetadata.jobTaskId("job_id"));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();

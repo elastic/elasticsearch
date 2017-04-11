@@ -22,8 +22,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -45,7 +43,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class MlMetadata implements MetaData.Custom {
@@ -324,11 +321,7 @@ public class MlMetadata implements MetaData.Custom {
 
         private void checkDatafeedIsStopped(Supplier<String> msg, String datafeedId, PersistentTasksCustomMetaData persistentTasks) {
             if (persistentTasks != null) {
-                Predicate<PersistentTask<?>> predicate = t -> {
-                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
-                    return storedRequest.getDatafeedId().equals(datafeedId);
-                };
-                if (persistentTasks.tasksExist(StartDatafeedAction.NAME, predicate)) {
+                if (persistentTasks.getTask(datafeedTaskId(datafeedId)) != null) {
                     throw ExceptionsHelper.conflictStatusException(msg.get());
                 }
             }
@@ -377,32 +370,36 @@ public class MlMetadata implements MetaData.Custom {
 
     }
 
+    /**
+     * Namespaces the task ids for jobs.
+     * A datafeed id can be used as a job id, because they are stored separately in cluster state.
+     */
+    public static String jobTaskId(String jobId) {
+        return "job-" + jobId;
+    }
+
     @Nullable
     public static PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks != null) {
-            Predicate<PersistentTask<?>> p = t -> {
-                OpenJobAction.Request storedRequest = (OpenJobAction.Request) t.getRequest();
-                return storedRequest.getJobId().equals(jobId);
-            };
-            for (PersistentTask<?> task : tasks.findTasks(OpenJobAction.NAME, p)) {
-                return task;
-            }
+        if (tasks == null) {
+            return null;
         }
-        return null;
+        return tasks.getTask(jobTaskId(jobId));
+    }
+
+    /**
+     * Namespaces the task ids for datafeeds.
+     * A job id can be used as a datafeed id, because they are stored separately in cluster state.
+     */
+    public static String datafeedTaskId(String datafeedId) {
+        return "datafeed-" + datafeedId;
     }
 
     @Nullable
     public static PersistentTask<?> getDatafeedTask(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks != null) {
-            Predicate<PersistentTask<?>> p = t -> {
-                StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
-                return storedRequest.getDatafeedId().equals(datafeedId);
-            };
-            for (PersistentTask<?> task : tasks.findTasks(StartDatafeedAction.NAME, p)) {
-                return task;
-            }
+        if (tasks == null) {
+            return null;
         }
-        return null;
+        return tasks.getTask(datafeedTaskId(datafeedId));
     }
 
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {

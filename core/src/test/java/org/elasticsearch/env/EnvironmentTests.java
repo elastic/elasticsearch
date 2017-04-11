@@ -18,15 +18,24 @@
  */
 package org.elasticsearch.env;
 
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.hasToString;
 
 /**
  * Simple unit-tests for Environment.java
@@ -69,6 +78,55 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/repo1!/repo/")).toString(), endsWith("repo1!/repo/"));
         assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/../repo1!/repo/")), nullValue());
         assertThat(environment.resolveRepoURL(new URL("jar:http://localhost/test/../repo1?blah!/repo/")), nullValue());
+    }
+
+    public void testDefaultPathDataSet() {
+        final Settings settings = Settings.builder()
+                .put("path.home", "/home")
+                .put("path.data.0", "/mnt/zero")
+                .put("path.data.1", "/mnt/one")
+                .put("default.path.data", "/mnt/default")
+                .build();
+        final Environment environment = new Environment(settings);
+        final Set<Path> dataFiles = new HashSet<>(Arrays.asList(environment.dataFiles()));
+        assertThat(dataFiles, equalTo(new HashSet<>(Arrays.asList(PathUtils.get("/mnt/zero"), PathUtils.get("/mnt/one")))));
+        assertThat(environment.defaultPathData(), equalTo(PathUtils.get("/mnt/default")));
+    }
+
+    public void testDefaultPathDataDoesNotSet() {
+        final Settings settings = Settings.builder()
+                .put("path.home", "/home")
+                .put("path.data.0", "/mnt/zero")
+                .put("path.data.1", "/mnt/one")
+                .build();
+        final Environment environment = new Environment(settings);
+        final Set<Path> actual = new HashSet<>(Arrays.asList(environment.dataFiles()));
+        final HashSet<Path> expected = new HashSet<>(Arrays.asList(PathUtils.get("/mnt/zero"), PathUtils.get("/mnt/one")));
+        assertThat(actual, equalTo(expected));
+        assertNull(environment.defaultPathData());
+    }
+
+    public void testPathDataNotSet() {
+        final Settings settings = Settings.builder()
+                .put("path.home", "/home")
+                .build();
+        final Environment environment = new Environment(settings);
+        final Set<Path> actual = new HashSet<>(Arrays.asList(environment.dataFiles()));
+        final HashSet<Path> expected = new HashSet<>(Collections.singletonList(PathUtils.get("/home/data")));
+        assertThat(actual, equalTo(expected));
+        assertNull(environment.defaultPathData());
+    }
+
+    public void testPathDataContainsDefaultPathData() {
+        final Settings settings = Settings.builder()
+                .put("path.home", "/home")
+                .put("path.data.0", "/mnt/zero")
+                .put("path.data.1", "/mnt/one")
+                .put("path.data.2", "/mnt/default")
+                .put("default.path.data", "/mnt/default")
+                .build();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Environment(settings));
+        assertThat(e, hasToString(containsString("do not include default.path.data [/mnt/default] in path.data")));
     }
 
 }

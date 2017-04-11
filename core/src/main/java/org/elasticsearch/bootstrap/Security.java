@@ -269,6 +269,9 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
+        if (environment.defaultPathData() != null) {
+            addPath(policy, Environment.DEFAULT_PATH_DATA_SETTING.getKey(), environment.defaultPathData(), "read,readlink,write,delete");
+        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }

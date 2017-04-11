@@ -311,6 +311,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HunspellService.HUNSPELL_IGNORE_CASE,
                     HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
                     IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT,
+                    Environment.DEFAULT_PATH_DATA_SETTING,
                     Environment.PATH_CONF_SETTING,
                     Environment.PATH_DATA_SETTING,
                     Environment.PATH_HOME_SETTING,

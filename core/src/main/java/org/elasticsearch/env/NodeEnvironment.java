@@ -142,6 +142,7 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private final NodePath[] nodePaths;
+    private final NodePath defaultNodePath;
     private final Path sharedDataPath;
     private final Lock[] locks;
 
@@ -179,6 +180,7 @@ public final class NodeEnvironment  implements Closeable {
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
+            defaultNodePath = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
@@ -187,7 +189,10 @@ public final class NodeEnvironment  implements Closeable {
             return;
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
-        final Lock[] locks = new Lock[nodePaths.length];
+        NodePath defaultNodePath = null;
+        final int extra = environment.defaultPathData() != null ? 1 : 0;
+        final Lock[] locks = new Lock[nodePaths.length + extra];
+
         boolean success = false;
 
         // trace logger to debug issues before the default node name is derived from the node id
@@ -199,17 +204,27 @@ public final class NodeEnvironment  implements Closeable {
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
-                for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
-                    Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
-                    Path dataDir = environment.dataFiles()[dirIndex];
+                for (int dirIndex = 0; dirIndex < environment.dataFiles().length + extra; dirIndex++) {
+                    final Path dataDir;
+                    if (dirIndex < environment.dataFiles().length) {
+                        dataDir = environment.dataFiles()[dirIndex];
+                    } else {
+                        dataDir = environment.defaultPathData();
+                    }
                     Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                         startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                         try {
-                            locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
-                            nodePaths[dirIndex] = new NodePath(dir);
+                            if (dirIndex < environment.dataFiles().length) {
+                                locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                                nodePaths[dirIndex] = new NodePath(dir);
+                            } else {
+                                assert dirIndex == environment.dataFiles().length;
+                                locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                                defaultNodePath = new NodePath(dir);
+                            }
                             nodeLockId = possibleLockId;
                         } catch (LockObtainFailedException ex) {
                             startupTraceLogger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
@@ -244,15 +259,19 @@ public final class NodeEnvironment  implements Closeable {
                     maxLocalStorageNodes);
                 throw new IllegalStateException(message, lastException);
             }
+
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
             this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
 
             this.nodeLockId = nodeLockId;
             this.locks = locks;
             this.nodePaths = nodePaths;
-
-            if (logger.isDebugEnabled()) {
-                logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
+            if (environment.defaultPathData() != null) {
+                assert defaultNodePath != null;
+                this.defaultNodePath = defaultNodePath;
+            } else {
+                assert defaultNodePath == null;
+                this.defaultNodePath = null;
             }
 
             maybeLogPathDetails();
@@ -724,6 +743,14 @@ public final class NodeEnvironment  implements Closeable {
         return nodePaths;
     }
 
+    public NodePath defaultNodePath() {
+        assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        return defaultNodePath;
+    }
+
     /**
      * Returns all index paths.
      */
@@ -764,19 +791,29 @@ public final class NodeEnvironment  implements Closeable {
         assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
-            Path indicesLocation = nodePath.indicesPath;
-            if (Files.isDirectory(indicesLocation)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
-                    for (Path index : stream) {
-                        if (Files.isDirectory(index)) {
-                            indexFolders.add(index.getFileName().toString());
-                        }
+            indexFolders.addAll(availableIndexFoldersForPath(nodePath));
+        }
+        return indexFolders;
+
+    }
+
+    public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assertEnvIsLocked();
+        final Set<String> indexFolders = new HashSet<>();
+        Path indicesLocation = nodePath.indicesPath;
+        if (Files.isDirectory(indicesLocation)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
+                for (Path index : stream) {
+                    if (Files.isDirectory(index)) {
+                        indexFolders.add(index.getFileName().toString());
                     }
                 }
             }
         }
         return indexFolders;
-
     }
 
     /**

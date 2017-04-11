@@ -19,6 +19,14 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,14 +39,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
-
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -128,11 +128,17 @@ public class InternalSettingsPreparer {
      * Initializes the builder with the given input settings, and loads system properties settings if allowed.
      * If loadDefaults is true, system property default settings are loaded.
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, Map<String, String> esSettings) {
+    static void initializeSettings(Settings.Builder output, Settings input, Map<String, String> esSettings) {
         output.put(input);
         output.putProperties(esSettings,
-            PROPERTY_DEFAULTS_PREDICATE.and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null),
+                PROPERTY_DEFAULTS_PREDICATE
+                        .and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null)
+                        .and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key) + ".0") == null),
             STRIP_PROPERTY_DEFAULTS_PREFIX);
+        final String key = Environment.DEFAULT_PATH_DATA_SETTING.getKey();
+        if (esSettings.containsKey(key)) {
+            output.put(Environment.DEFAULT_PATH_DATA_SETTING.getKey(), esSettings.get(key));
+        }
         output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
         output.replacePropertyPlaceholders();
     }

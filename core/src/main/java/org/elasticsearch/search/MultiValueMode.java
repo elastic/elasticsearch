@@ -798,9 +798,17 @@ public enum MultiValueMode implements Writeable {
         } else {
             return new AbstractSortedDocValues() {
 
+                int ord;
+
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    return values.advanceExact(target);
+                    if (values.advanceExact(target)) {
+                        ord = pick(values);
+                        return true;
+                    } else {
+                        ord = -1;
+                        return false;
+                    }
                 }
 
                 @Override
@@ -810,12 +818,8 @@ public enum MultiValueMode implements Writeable {
 
                 @Override
                 public int ordValue() {
-                    try {
-                        return pick(values);
-                    } catch (IOException e) {
-                        // https://issues.apache.org/jira/browse/LUCENE-7767
-                        throw new RuntimeException(e);
-                    }
+                    assert ord != -1;
+                    return ord;
                 }
 
                 @Override
@@ -854,6 +858,7 @@ public enum MultiValueMode implements Writeable {
 
         return new AbstractSortedDocValues() {
 
+            int docID = -1;
             int lastSeenRootDoc = 0;
             int lastEmittedOrd = -1;
 
@@ -872,7 +877,7 @@ public enum MultiValueMode implements Writeable {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
-                    return true;
+                    return lastEmittedOrd != -1;
                 }
 
                 final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
@@ -883,14 +888,14 @@ public enum MultiValueMode implements Writeable {
                     firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
 
-                lastSeenRootDoc = rootDoc;
+                docID = lastSeenRootDoc = rootDoc;
                 lastEmittedOrd = pick(selectedValues, innerDocs, firstNestedDoc, rootDoc);
-                return true;
+                return lastEmittedOrd != -1;
             }
 
             @Override
             public int docID() {
-                return lastSeenRootDoc;
+                return docID;
             }
 
             @Override

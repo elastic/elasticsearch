@@ -104,6 +104,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(bytesValues.docValueCount(), equalTo(1));
             assertThat(bytesValues.nextValue(), equalTo(new BytesRef(three())));
 
+            bytesValues = fieldData.getBytesValues();
             assertValues(bytesValues, 0, two());
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());

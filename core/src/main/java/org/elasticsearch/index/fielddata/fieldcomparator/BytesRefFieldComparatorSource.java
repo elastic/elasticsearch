@@ -154,6 +154,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         final int substituteOrd;
         final BytesRef substituteTerm;
         final boolean exists;
+        boolean hasValue;
 
         ReplaceMissing(SortedDocValues in, BytesRef term) throws IOException {
             this.in = in;
@@ -170,10 +171,11 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
         @Override
         public int ordValue() {
-            int ord = in.ordValue();
-            if (ord < 0) {
+            if (hasValue == false) {
                 return substituteOrd;
-            } else if (exists == false && ord >= substituteOrd) {
+            }
+            int ord = in.ordValue();
+            if (exists == false && ord >= substituteOrd) {
                 return ord + 1;
             } else {
                 return ord;
@@ -182,7 +184,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            return in.advanceExact(target);
+            hasValue = in.advanceExact(target);
+            return true;
         }
 
         @Override

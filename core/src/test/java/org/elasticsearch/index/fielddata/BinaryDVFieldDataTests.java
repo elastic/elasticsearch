@@ -91,7 +91,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(0))));
             assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(1))));
 
-            assertTrue(bytesValues.advanceExact(0));
+            assertTrue(bytesValues.advanceExact(1));
             assertThat(bytesValues.docValueCount(), equalTo(1));
             assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytes1)));
 

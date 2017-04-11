@@ -424,10 +424,8 @@ public class StartDatafeedAction
                 StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks);
                 Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState, resolver);
                 if (assignment.getExecutorNode() == null) {
-                    DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
                     String msg = "No node found to start datafeed [" + request.getDatafeedId()
                             + "], allocation explanation [" + assignment.getExplanation() + "]";
-                    logger.warn("[{}] {}", datafeed.getJobId(), msg);
                     throw new ElasticsearchException(msg);
                 }
             } else {

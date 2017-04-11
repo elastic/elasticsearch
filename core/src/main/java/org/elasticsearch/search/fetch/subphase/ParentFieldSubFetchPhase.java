@@ -62,7 +62,7 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
     public static String getParentId(ParentFieldMapper fieldMapper, LeafReader reader, int docId) {
         try {
             SortedDocValues docValues = reader.getSortedDocValues(fieldMapper.name());
-            if (docValues == null || docValues.advanceExact(docId)) {
+            if (docValues == null || docValues.advanceExact(docId) == false) {
                 // hit has no _parent field.
                 return null;
             }

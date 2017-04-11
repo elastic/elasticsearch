@@ -126,7 +126,8 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("_all"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
-    // issue #23960
+    // WildcardExpressionResolver must be able to resolve the provided wildcard only against the
+    // defined indices or against the defined indices and aliases (#23960)
     public void testConcreteIndicesWildcardAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))

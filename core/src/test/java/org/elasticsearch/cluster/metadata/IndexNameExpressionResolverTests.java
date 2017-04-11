@@ -643,7 +643,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(0, indexNames.length);
     }
 
-    // issue #23960
+    // concreteIndexNames must resolve the provided wildcard only against the defined indices
     public void testConcreteIndicesWildcardAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))

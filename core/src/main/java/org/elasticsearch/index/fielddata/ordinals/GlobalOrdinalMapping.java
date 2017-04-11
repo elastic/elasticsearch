@@ -27,7 +27,7 @@ import org.apache.lucene.util.LongValues;
 import java.io.IOException;
 
 /**
- * A {@link RandomAccessOrds} implementation that returns ordinals that are global.
+ * A {@link SortedSetDocValues} implementation that returns ordinals that are global.
  */
 public class GlobalOrdinalMapping extends SortedSetDocValues {
 

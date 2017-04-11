@@ -425,14 +425,6 @@ public final class OrdinalsBuilder implements Closeable {
      * exhaust the returned {@link BytesRefIterator} which returns all values
      * where the first returned value is associated with the ordinal <tt>1</tt>
      * etc.
-     * <p>
-     * If the {@link TermsEnum} contains prefix coded numerical values the terms
-     * enum should be wrapped with either {@link #wrapNumeric32Bit(TermsEnum)}
-     * or {@link #wrapNumeric64Bit(TermsEnum)} depending on its precision. If
-     * the {@link TermsEnum} is not wrapped the returned
-     * {@link BytesRefIterator} will contain partial precision terms rather than
-     * only full-precision terms.
-     * </p>
      */
     public BytesRefIterator buildFromTerms(final TermsEnum termsEnum) throws IOException {
         return new BytesRefIterator() {

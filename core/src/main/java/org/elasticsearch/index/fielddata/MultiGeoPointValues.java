@@ -62,7 +62,7 @@ public abstract class MultiGeoPointValues {
      *
      * Note: the returned {@link GeoPoint} might be shared across invocations.
      *
-     * @return the next value for the current docID set to {@link #setDocument(int)}.
+     * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
     public abstract GeoPoint nextValue();
 

@@ -282,9 +282,8 @@ public enum FieldData {
 
     /**
      * Returns a single-valued view of the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues, Bits)},
+     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues)},
      * or null.
-     * @see DocValues#unwrapSingletonBits(SortedNumericDocValues)
      */
     public static NumericDoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
         if (values instanceof SingletonSortedNumericDoubleValues) {
@@ -302,9 +301,8 @@ public enum FieldData {
 
     /**
      * Returns a single-valued view of the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues, Bits)},
+     * if it was previously wrapped with {@link #singleton(GeoPointValues)},
      * or null.
-     * @see #unwrapSingletonBits(MultiGeoPointValues)
      */
     public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
         if (values instanceof SingletonMultiGeoPointValues) {
@@ -322,9 +320,8 @@ public enum FieldData {
 
     /**
      * Returns a single-valued view of the {@link SortedBinaryDocValues},
-     * if it was previously wrapped with {@link #singleton(BinaryDocValues, Bits)},
+     * if it was previously wrapped with {@link #singleton(BinaryDocValues)},
      * or null.
-     * @see #unwrapSingletonBits(SortedBinaryDocValues)
      */
     public static BinaryDocValues unwrapSingleton(SortedBinaryDocValues values) {
         if (values instanceof SingletonSortedBinaryDocValues) {

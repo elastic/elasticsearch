@@ -53,7 +53,7 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
     }
 
     /**
-     * Set the {@link #count()} and ensure that the {@link #values} array can
+     * Set the {@link #docValueCount()} and ensure that the {@link #values} array can
      * store at least that many entries.
      */
     protected final void resize(int newSize) {
@@ -64,7 +64,7 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
 
     /**
      * Sort values that are stored between offsets <code>0</code> and
-     * {@link #count} of {@link #values}.
+     * {@link #docValueCount} of {@link #values}.
      */
     protected final void sort() {
         sorter.sort(0, count);

@@ -25,9 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -49,13 +47,7 @@ import java.util.Objects;
  * added} terms where low-frequency terms are added to a required boolean clause
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause
- * matches. Scores produced by this query will be slightly different to plain
- * {@link BooleanQuery} scorer mainly due to differences in the
- * {@link Similarity#coord(int,int) number of leave queries} in the required
- * boolean clause. In the most cases high-frequency terms are unlikely to
- * significantly contribute to the document score unless at least one of the
- * low-frequency terms are matched such that this query can improve query
- * execution times significantly if applicable.
+ * matches.
  */
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 

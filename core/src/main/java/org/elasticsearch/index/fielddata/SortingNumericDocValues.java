@@ -54,7 +54,7 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     }
 
     /**
-     * Set the {@link #count()} and ensure that the {@link #values} array can
+     * Set the {@link #docValueCount()} and ensure that the {@link #values} array can
      * store at least that many entries.
      */
     protected final void resize(int newSize) {

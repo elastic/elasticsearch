@@ -3,10 +3,10 @@
 
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: index-layout-job
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"index-layout-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -18,15 +18,15 @@
                 "time_format":"epoch"
             }
           }
-  - match: { job_id: "farequote" }
+  - match: { job_id: "index-layout-job" }
 
 
   - do:
       xpack.ml.put_job:
-        job_id: farequote2
+        job_id: index-layout-job2
         body:  >
           {
-            "job_id":"farequote2",
+            "job_id":"index-layout-job2",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -38,26 +38,26 @@
                 "time_format":"epoch"
             }
           }
-  - match: { job_id: "farequote2" }
+  - match: { job_id: "index-layout-job2" }
 
   - do:
       xpack.ml.open_job:
-        job_id: farequote
+        job_id: index-layout-job
 
   - do:
       xpack.ml.open_job:
-        job_id: farequote2
+        job_id: index-layout-job2
 
   - do:
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: index-layout-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
       xpack.ml.post_data:
-        job_id: farequote2
+        job_id: index-layout-job2
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
@@ -65,23 +65,23 @@
 
   - do:
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: index-layout-job
   - match: { flushed: true }
 
   - do:
       xpack.ml.flush_job:
-        job_id: farequote2
+        job_id: index-layout-job2
   - match: { flushed: true }
 
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote
+        job_id: index-layout-job
   - match: { closed: true }
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote2
+        job_id: index-layout-job2
   - match: { closed: true }
 
   - do:
@@ -91,7 +91,7 @@
 
   - do:
       indices.exists:
-        index: ".ml-anomalies-farequote"
+        index: ".ml-anomalies-index-layout-job"
   - is_true: ''
 
   - do:
@@ -109,13 +109,13 @@
 
   - do:
       count:
-        index: .ml-anomalies-farequote
+        index: .ml-anomalies-index-layout-job
         body:
           query:
             constant_score:
               filter:
                 term:
-                  job_id: farequote
+                  job_id: index-layout-job
 
   - match: {count: 4}
 
@@ -127,19 +127,19 @@
             constant_score:
               filter:
                 term:
-                  job_id: farequote
+                  job_id: index-layout-job
 
   - match: {count: 4}
 
   - do:
       count:
-        index: .ml-anomalies-farequote2
+        index: .ml-anomalies-index-layout-job2
         body:
           query:
             constant_score:
               filter:
                 term:
-                  job_id: farequote2
+                  job_id: index-layout-job2
 
   - match: {count: 4}
 
@@ -151,7 +151,7 @@
             constant_score:
               filter:
                 term:
-                  job_id: farequote2
+                  job_id: index-layout-job2
   - match: {count: 4}
 
 # Put some categorizer state
@@ -159,7 +159,7 @@
       index:
         index: .ml-state
         type: categorizer_state
-        id: farequote2#1
+        id: index-layout-job2#1
         body:
           key: value
 
@@ -167,13 +167,13 @@
        index:
          index: .ml-state
          type: categorizer_state
-         id: farequote2#2
+         id: index-layout-job2#2
          body:
            key: value
 
   - do:
       xpack.ml.delete_job:
-        job_id: "farequote"
+        job_id: "index-layout-job"
   - match: { acknowledged: true }
 
   - do:
@@ -197,7 +197,7 @@
             constant_score:
               filter:
                 term:
-                  job_id: farequote
+                  job_id: index-layout-job
   - match: {count: 0}
 
   - do:
@@ -208,13 +208,13 @@
 
   - do:
       count:
-        index: .ml-anomalies-farequote2
+        index: .ml-anomalies-index-layout-job2
         body:
           query:
             constant_score:
               filter:
                 term:
-                  job_id: farequote2
+                  job_id: index-layout-job2
 
   - match: {count: 4}
 
@@ -226,13 +226,13 @@
             constant_score:
               filter:
                 term:
-                  job_id: farequote2
+                  job_id: index-layout-job2
 
   - match: {count: 4}
 
   - do:
       xpack.ml.delete_job:
-        job_id: "farequote2"
+        job_id: "index-layout-job2"
   - match: { acknowledged: true }
 
   - do:
@@ -242,12 +242,12 @@
 
   - do:
       indices.exists:
-        index: ".ml-anomalies-farequote"
+        index: ".ml-anomalies-index-layout-job"
   - is_false: ''
 
   - do:
       indices.exists:
-        index: ".ml-anomalies-farequote2"
+        index: ".ml-anomalies-index-layout-job2"
   - is_false: ''
 
   - do:
@@ -269,10 +269,10 @@
 
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: index-layout-job
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"index-layout-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -284,15 +284,15 @@
                 "time_format":"epoch"
             }
           }
-  - match: { job_id: "farequote" }
+  - match: { job_id: "index-layout-job" }
 
   - do:
       xpack.ml.open_job:
-        job_id: farequote
+        job_id: index-layout-job
 
   - do:
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: index-layout-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
@@ -329,17 +329,17 @@
 
   - do:
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: index-layout-job
   - match: { flushed: true }
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote
+        job_id: index-layout-job
   - match: { closed: true }
 
   - do:
       xpack.ml.delete_job:
-        job_id: "farequote"
+        job_id: "index-layout-job"
   - match: { acknowledged: true }
 
   - do:

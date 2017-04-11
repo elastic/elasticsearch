@@ -223,8 +223,7 @@ public class NodeTests extends ESTestCase {
             final boolean indexExists = randomBoolean();
             final List<String> indices;
             if (indexExists) {
-                final int numberOfIndices = randomIntBetween(1, 3);
-                indices = IntStream.range(0, numberOfIndices).mapToObj(i -> UUIDs.randomBase64UUID()).collect(Collectors.toList());
+                indices = IntStream.range(0, randomIntBetween(1, 3)).mapToObj(i -> UUIDs.randomBase64UUID()).collect(Collectors.toList());
                 for (final String index : indices) {
                     Files.createDirectories(nodeEnv.defaultNodePath().indicesPath.resolve(index));
                 }

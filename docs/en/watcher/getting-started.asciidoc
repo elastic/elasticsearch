@@ -212,6 +212,14 @@ DELETE _xpack/watcher/watch/log_error_watch
 // TEST[continued]
 
 [float]
+[[required-security-privileges]]
+=== Required Security Privileges
+To use Watcher, users must have the following security privileges:
+
+* Cluster `manage` privilege. Enables users to access the Watcher APIs.
+* Index `read` privilege on `.watch*` indices. Enables users to read the `.watches` and .`watcher-history-*` indices.
+
+[float]
 [[next-steps]]
 === Where to Go Next
 

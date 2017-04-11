@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
-import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.AfterEffectL;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModelG;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.DistributionSPL;
 import org.apache.lucene.search.similarities.IBSimilarity;
@@ -34,19 +34,15 @@ import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -246,34 +242,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             fail("Expected MappingParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for field [field1]"));
-        }
-    }
-
-    public void testSimilarityDefaultBackCompat() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("field1")
-            .field("similarity", "default")
-            .field("type", "text")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject().string();
-        Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
-            .build();
-
-        DocumentMapperParser parser = createIndex("test_v2.x", settings).mapperService().documentMapperParser();
-        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(ClassicSimilarityProvider.class));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().name(), equalTo("classic"));
-
-        parser = createIndex("test_v3.x").mapperService().documentMapperParser();
-        try {
-            parser.parse("type", new CompressedXContent(mapping));
-            fail("Expected MappingParsingException");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Unknown Similarity type [default] for field [field1]"));
         }
     }
 }

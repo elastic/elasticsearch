@@ -91,15 +91,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         terminate(threadPool);
     }
 
-    /**
-     * needed due to random usage of {@link IndexMetaData#INDEX_SHADOW_REPLICAS_SETTING}. removed once
-     * shadow replicas are removed.
-     */
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
-
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
@@ -249,10 +240,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true);
-            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));

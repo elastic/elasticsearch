@@ -449,7 +449,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
-            assert metadata.writtenBy().onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION);
             output = new LuceneVerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
@@ -468,7 +467,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetaData metadata) throws IOException {
         assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION);
         return new VerifyingIndexInput(directory().openInput(filename, context));
     }
 
@@ -813,22 +811,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
-                        if (version.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION)) {
-                            checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
-                        } else {
-                            throw new IllegalStateException("version must be onOrAfter: " + StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION + " but was: " +  version);
-                        }
+                        checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION;
+                    maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                if (maxVersion.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION)) {
-                    checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
-                } else {
-                    throw new IllegalStateException("version must be onOrAfter: " + StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION + " but was: " +  maxVersion);
-                }
+                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;

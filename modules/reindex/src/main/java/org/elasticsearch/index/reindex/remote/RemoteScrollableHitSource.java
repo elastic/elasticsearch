@@ -128,7 +128,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             private void logFailure(Exception e) {
                 if (e instanceof ResponseException) {
                     ResponseException re = (ResponseException) e;
-                    if (remoteVersion.before(Version.V_2_0_0) && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                            if (remoteVersion.before(Version.fromId(2000099))
+                                    && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                                 "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
                                         + "normally as the scroll has already been cleared automatically.", scrollId), e);

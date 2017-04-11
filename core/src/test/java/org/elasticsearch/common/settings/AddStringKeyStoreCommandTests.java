@@ -127,7 +127,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertEquals("String value must contain only ASCII", e.getMessage());
     }
 
-    public void testNpe() throws Exception {
+    public void testMissingSettingName() throws Exception {
         createKeystore("");
         terminal.addTextInput("");
         UserException e = expectThrows(UserException.class, this::execute);

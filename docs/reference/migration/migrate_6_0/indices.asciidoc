@@ -29,6 +29,11 @@ PUT _template/template_2
 // CONSOLE
 
 
-=== Shadow Replicas are deprecated
+=== Shadow Replicas have been removed
 
-<<indices-shadow-replicas,Shadow Replicas>> don't see much usage and we are planning to remove them.
+Shadow replicas don't see enough usage, and have been removed. This includes the
+following settings:
+
+- `index.shared_filesystem`
+- `index.shadow_replicas`
+- `node.add_lock_id_to_custom_path`

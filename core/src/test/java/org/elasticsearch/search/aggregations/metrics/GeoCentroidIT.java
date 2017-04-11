@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
@@ -119,14 +120,16 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoCentroid geoCentroid = global.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
-        assertThat((GeoCentroid) global.getProperty(aggName), sameInstance(geoCentroid));
+        assertThat((GeoCentroid) ((InternalAggregation)global).getProperty(aggName), sameInstance(geoCentroid));
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
-        assertThat(((GeoPoint) global.getProperty(aggName + ".value")).lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
-        assertThat(((GeoPoint) global.getProperty(aggName + ".value")).lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
-        assertThat((double) global.getProperty(aggName + ".lat"), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
-        assertThat((double) global.getProperty(aggName + ".lon"), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertThat(((GeoPoint) ((InternalAggregation)global).getProperty(aggName + ".value")).lat(),
+                closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(((GeoPoint) ((InternalAggregation)global).getProperty(aggName + ".value")).lon(),
+                closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertThat((double) ((InternalAggregation)global).getProperty(aggName + ".lat"), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat((double) ((InternalAggregation)global).getProperty(aggName + ".lon"), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
     public void testMultiValuedField() throws Exception {
@@ -154,9 +157,8 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoHashGrid grid = response.getAggregations().get("geoGrid");
         assertThat(grid, notNullValue());
         assertThat(grid.getName(), equalTo("geoGrid"));
-        List<GeoHashGrid.Bucket> buckets = grid.getBuckets();
-        for (int i=0; i < buckets.size(); ++i) {
-            GeoHashGrid.Bucket cell = buckets.get(i);
+        List<? extends GeoHashGrid.Bucket> buckets = grid.getBuckets();
+        for (GeoHashGrid.Bucket cell : buckets) {
             String geohash = cell.getKeyAsString();
             GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
             GeoCentroid centroidAgg = cell.getAggregations().get(aggName);

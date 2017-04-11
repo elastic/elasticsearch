@@ -1,0 +1,6 @@
+---
+"Check environment":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+  - match: {defaults.action.auto_create_index: 'foo*,-bar*'}

@@ -1,0 +1,34 @@
+---
+"Bulk that can only be partially completed":
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "foo", "_type": "doc", "_id": "1" } }
+          { "text": "test" }
+          { "index": { "_index": "bar", "_type": "doc", "_id": "1" } }
+          { "text": "test" }
+          { "index": { "_index": "bort", "_type": "doc", "_id": "1" } }
+          { "doc": { "text": "test" } }
+          { "update": { "_index": "foo", "_type": "doc", "_id": "2" } }
+          { "doc": { "text": "test" }, "upsert": {"text": "test"} }
+          { "update": { "_index": "bar", "_type": "doc", "_id": "2" } }
+          { "doc": { "text": "test" }, "upsert": {"text": "test"} }
+          { "update": { "_index": "bort", "_type": "doc", "_id": "2" } }
+          { "doc": { "text": "test" }, "upsert": {"text": "test"} }
+  - match: { items.1.index.error.reason: "no such index and [action.auto_create_index] contains [-bar*] which forbids automatic creation of the index" }
+  - match: { items.2.index.error.reason: "no such index and [action.auto_create_index] ([foo*,-bar*]) doesn't match" }
+  - match: { items.4.update.error.reason: "no such index and [action.auto_create_index] contains [-bar*] which forbids automatic creation of the index" }
+  - match: { items.5.update.error.reason: "no such index and [action.auto_create_index] ([foo*,-bar*]) doesn't match" }
+
+  - do:
+      get:
+        index: foo
+        type: doc
+        id: 1
+  - match: { _source.text: "test" }
+  - do:
+      get:
+        index: foo
+        type: doc
+        id: 2
+  - match: { _source.text: "test" }

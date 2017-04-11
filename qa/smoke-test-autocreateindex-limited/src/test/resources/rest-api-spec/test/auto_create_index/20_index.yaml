@@ -1,0 +1,35 @@
+---
+"Index into index that is allowed":
+  - do:
+      index:
+        index:   foo
+        type:    doc
+        id:      1
+        body:    { "text": "test" }
+
+  - do:
+      get:
+        index: foo
+        type: doc
+        id: 1
+  - match: { _source.text: "test" }
+
+---
+"Index into index that is explicitly forbidden":
+  - do:
+      catch: /no such index and \[action.auto_create_index\] contains \[-bar\*\] which forbids automatic creation of the index/
+      index:
+        index:   bar
+        type:    doc
+        id:      1
+        body:    { "text": "test" }
+
+---
+"Index into index that is not mentioned":
+  - do:
+      catch: /no such index and \[action.auto_create_index\] \(\[foo\*,-bar\*\]\) doesn't match/
+      index:
+        index:   bort
+        type:    doc
+        id:      1
+        body:    { "text": "test" }

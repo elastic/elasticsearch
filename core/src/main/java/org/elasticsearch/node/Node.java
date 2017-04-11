@@ -509,22 +509,25 @@ public class Node implements Closeable {
         if (nodeEnv.defaultNodePath() == null) {
             return;
         }
+
         final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodeEnv.defaultNodePath());
-        if (!availableIndexFolders.isEmpty()) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "detected index data in default.path.data [%s] where there should not be any",
-                    nodeEnv.defaultNodePath().indicesPath);
-            logger.error(message);
-            for (final String availableIndexFolder : availableIndexFolders) {
-                logger.info(
-                        "index folder [{}] in default.path.data [{}] must be moved to any of {}",
-                        availableIndexFolder,
-                        nodeEnv.defaultNodePath().indicesPath,
-                        Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
-            }
-            throw new IllegalStateException(message);
+        if (availableIndexFolders.isEmpty()) {
+            return;
         }
+
+        final String message = String.format(
+                Locale.ROOT,
+                "detected index data in default.path.data [%s] where there should not be any",
+                nodeEnv.defaultNodePath().indicesPath);
+        logger.error(message);
+        for (final String availableIndexFolder : availableIndexFolders) {
+            logger.info(
+                    "index folder [{}] in default.path.data [{}] must be moved to any of {}",
+                    availableIndexFolder,
+                    nodeEnv.defaultNodePath().indicesPath,
+                    Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
+        }
+        throw new IllegalStateException(message);
     }
 
     // visible for testing

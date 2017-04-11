@@ -143,6 +143,32 @@ public class PersistentTasksService extends AbstractComponent {
         }
     }
 
+    public void waitForPersistentTasksStatus(Predicate<PersistentTasksCustomMetaData> predicate,
+            @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
+        ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout,
+                logger, threadPool.getThreadContext());
+        if (predicate.test(stateObserver.setAndGetObservedState().metaData().custom(PersistentTasksCustomMetaData.TYPE))) {
+            listener.onResponse(true);
+        } else {
+            stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    listener.onResponse(true);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(new IllegalStateException("timed out after " + timeout));
+                }
+            }, clusterState -> predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE)));
+        }
+    }
+
     public interface WaitForPersistentTaskStatusListener<Request extends PersistentTaskRequest>
             extends ActionListener<PersistentTask<Request>> {
         default void onTimeout(TimeValue timeout) {

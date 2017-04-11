@@ -50,21 +50,30 @@ public class MlRestTestStateCleaner {
             return;
         }
 
+        try {
+            int statusCode = adminClient.performRequest("POST", "/_xpack/ml/datafeeds/_all/_stop")
+                    .getStatusLine().getStatusCode();
+            if (statusCode != 200) {
+                logger.error("Got status code " + statusCode + " when stopping datafeeds");
+            }
+        } catch (Exception e1) {
+            logger.warn("failed to stop all datafeeds. Forcing stop", e1);
+            try {
+                int statusCode = adminClient
+                        .performRequest("POST", "/_xpack/ml/datafeeds/_all/_stop?force=true")
+                        .getStatusLine().getStatusCode();
+                if (statusCode != 200) {
+                    logger.error("Got status code " + statusCode + " when stopping datafeeds");
+                }
+            } catch (Exception e2) {
+                logger.warn("Force-closing all data feeds failed", e2);
+            }
+            throw new RuntimeException(
+                    "Had to resort to force-stopping datafeeds, something went wrong?", e1);
+        }
+
         for (Map<String, Object> datafeed : datafeeds) {
             String datafeedId = (String) datafeed.get("datafeed_id");
-            try {
-                int statusCode = adminClient.performRequest("POST",
-                        "/_xpack/ml/datafeeds/" + datafeedId + "/_stop").getStatusLine().getStatusCode();
-                if (statusCode != 200) {
-                    logger.error("Got status code " + statusCode + " when stopping datafeed " + datafeedId);
-                }
-            } catch (Exception e) {
-                if (e.getMessage().contains("Cannot stop datafeed [" + datafeedId + "] because it has already been stopped")) {
-                    logger.debug("failed to stop datafeed [" + datafeedId + "]", e);
-                } else {
-                    logger.warn("failed to stop datafeed [" + datafeedId + "]", e);
-                }
-            }
             int statusCode = adminClient.performRequest("DELETE", "/_xpack/ml/datafeeds/" + datafeedId).getStatusLine().getStatusCode();
             if (statusCode != 200) {
                 logger.error("Got status code " + statusCode + " when deleting datafeed " + datafeedId);

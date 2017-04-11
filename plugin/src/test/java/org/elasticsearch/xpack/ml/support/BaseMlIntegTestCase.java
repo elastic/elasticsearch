@@ -249,28 +249,28 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
+        try {
+            logger.info("Closing all datafeeds (using _all)");
+            StopDatafeedAction.Response stopResponse = client
+                    .execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request("_all"))
+                    .get();
+            assertTrue(stopResponse.isStopped());
+        } catch (ExecutionException e1) {
+            try {
+                StopDatafeedAction.Request request = new StopDatafeedAction.Request("_all");
+                request.setForce(true);
+                StopDatafeedAction.Response stopResponse = client
+                        .execute(StopDatafeedAction.INSTANCE, request).get();
+                assertTrue(stopResponse.isStopped());
+            } catch (ExecutionException e2) {
+                logger.warn("Force-stopping datafeed with _all failed.", e2);
+            }
+            throw new RuntimeException(
+                    "Had to resort to force-stopping datafeed, something went wrong?", e1);
+        }
+
         for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
             String datafeedId = datafeed.getId();
-            try {
-                logger.info("Closing datafeed [{}]", datafeedId);
-                StopDatafeedAction.Response stopResponse =
-                        client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).get();
-                assertTrue(stopResponse.isStopped());
-            } catch (ExecutionException e1) {
-                if (e1.getMessage().contains("Cannot stop datafeed [" + datafeedId + "] because it has already been stopped")) {
-                    logger.debug("failed to stop datafeed [" + datafeedId + "], already stopped", e1);
-                } else {
-                    try {
-                        StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedId);
-                        request.setForce(true);
-                        StopDatafeedAction.Response stopResponse = client.execute(StopDatafeedAction.INSTANCE, request).get();
-                        assertTrue(stopResponse.isStopped());
-                    } catch (Exception e2) {
-                        logger.warn("Force-stopping datafeed [" + datafeedId + "] failed.", e2);
-                    }
-                    throw new RuntimeException("Had to resort to force-stopping datafeed, something went wrong?", e1);
-                }
-            }
             assertBusy(() -> {
                 try {
                     GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);

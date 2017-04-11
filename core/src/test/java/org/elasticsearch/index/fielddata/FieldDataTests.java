@@ -29,26 +29,37 @@ import java.io.IOException;
 
 public class FieldDataTests extends ESTestCase {
 
+    private static class DummyValues extends AbstractNumericDocValues {
+
+        private final long value;
+        private int docID = -1;
+
+        DummyValues(long value) {
+            this.value = value;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            docID = target;
+            return true;
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+
+        @Override
+        public long longValue() throws IOException {
+            return value;
+        }
+    }
+
     public void testSortableLongBitsToDoubles() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
-        NumericDocValues values = new AbstractNumericDocValues() {
-            private int docID = -1;
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                docID = target;
-                return true;
-            }
-            @Override
-            public int docID() {
-                return docID;
-            }
-            @Override
-            public long longValue() throws IOException {
-                return valueBits;
-            }
-        };
+        NumericDocValues values = new DummyValues(valueBits);
 
         SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values));
         NumericDoubleValues asDoubles = FieldData.unwrapSingleton(asMultiDoubles);
@@ -56,6 +67,8 @@ public class FieldDataTests extends ESTestCase {
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);
 
+        values = new DummyValues(valueBits);
+        asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values));
         NumericDocValues backToLongs = DocValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 

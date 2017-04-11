@@ -47,16 +47,26 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
     public final SortedBinaryDocValues getBytesValues() {
         return new SortedBinaryDocValues() {
 
+            private final SortedDocValues[] perTypeValues;
             private final BytesRef[] terms = new BytesRef[2];
             private int count;
             private int termsCursor;
+
+            {
+                Set<String> types = types();
+                perTypeValues = new SortedDocValues[types.size()];
+                int i = 0;
+                for (String type : types) {
+                    perTypeValues[i++] = getOrdinalsValues(type);
+                }
+            }
 
             @Override
             public boolean advanceExact(int docId) throws IOException {
                 count = 0;
                 termsCursor = 0;
-                for (String type : types()) {
-                    final SortedDocValues values = getOrdinalsValues(type);
+
+                for (SortedDocValues values : perTypeValues) {
                     if (values.advanceExact(docId)) {
                         final int ord = values.ordValue();
                         terms[count++] = values.lookupOrd(ord);

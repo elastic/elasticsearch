@@ -113,8 +113,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             };
         }
 
-        final BytesRef nullPlaceHolder = new BytesRef();
-        final BytesRef nonNullMissingBytes = missingBytes == null ? nullPlaceHolder : missingBytes;
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
 
             @Override
@@ -122,18 +120,13 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 final SortedBinaryDocValues values = getValues(context);
                 final BinaryDocValues selectedValues;
                 if (nested == null) {
-                    selectedValues = sortMode.select(values, nonNullMissingBytes);
+                    selectedValues = sortMode.select(values, missingBytes);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                    selectedValues = sortMode.select(values, nonNullMissingBytes, rootDocs, innerDocs, context.reader().maxDoc());
+                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues;
-            }
-
-            @Override
-            protected boolean isNull(int doc, BytesRef term) {
-                return term == nullPlaceHolder;
             }
 
             @Override

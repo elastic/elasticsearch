@@ -126,9 +126,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                 }
             }
             type = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
-                attributes = (Map<String, Object>) in.readGenericValue();
-            }
+            attributes = (Map<String, Object>) in.readGenericValue();
         }
 
         @Override
@@ -141,9 +139,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                 out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
             }
             out.writeOptionalString(type);
-            if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-                out.writeGenericValue(attributes);
-            }
+            out.writeGenericValue(attributes);
         }
     }
 
@@ -200,9 +196,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         for (int i = 0; i < size; i++) {
             tokens.add(AnalyzeToken.readAnalyzeToken(in));
         }
-        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
-            detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
-        }
+        detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
     }
 
     @Override
@@ -216,9 +210,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         } else {
             out.writeVInt(0);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            out.writeOptionalStreamable(detail);
-        }
+        out.writeOptionalStreamable(detail);
     }
 
     static final class Fields {

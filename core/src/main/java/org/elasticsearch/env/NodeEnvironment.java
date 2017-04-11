@@ -190,7 +190,7 @@ public final class NodeEnvironment  implements Closeable {
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
         NodePath defaultNodePath = null;
-        final int extra = environment.defaultPathData() != null ? 1 : 0;
+        final int extra = environment.defaultPathData() == null ? 0 : 1;
         final Lock[] locks = new Lock[nodePaths.length + extra];
 
         boolean success = false;

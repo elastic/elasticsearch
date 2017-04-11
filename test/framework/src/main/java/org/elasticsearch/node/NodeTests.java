@@ -190,10 +190,8 @@ public class NodeTests extends ESTestCase {
         Files.createDirectories(defaultPathData.resolve("nodes/0"));
         final boolean indexExists = randomBoolean();
         if (indexExists) {
-            final int numberOfIndices = randomIntBetween(1, 3);
-            for (final String index :
-                    IntStream.range(0, numberOfIndices).mapToObj(i -> UUIDs.randomBase64UUID()).collect(Collectors.toList())) {
-                Files.createDirectories(defaultPathData.resolve("nodes/0/indices").resolve(index));
+            for (int i = 0; i < randomIntBetween(1, 3); i++) {
+                Files.createDirectories(defaultPathData.resolve("nodes/0/indices").resolve(UUIDs.randomBase64UUID()));
             }
         }
         final Supplier<MockNode> constructor = () -> new MockNode(settings, Collections.singletonList(MockTcpTransportPlugin.class));

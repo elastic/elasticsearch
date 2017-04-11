@@ -88,6 +88,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -148,7 +149,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -3334,12 +3337,11 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     /**
-     * A sequence number service that will generate a sequence number and if {@code stall} is set to
-     * {@code true} will wait on the barrier and the latch before returning. If the local checkpoint
-     * should advance (because {@code stall} is {@code false}), then the value of
-     * {@code expectedLocalCheckpoint} is set accordingly.
+     * A sequence number service that will generate a sequence number and if {@code stall} is set to {@code true} will wait on the barrier
+     * and the referenced latch before returning. If the local checkpoint should advance (because {@code stall} is {@code false}), then the
+     * value of {@code expectedLocalCheckpoint} is set accordingly.
      *
-     * @param latch                   to latch the thread for the purpose of stalling
+     * @param latchReference          to latch the thread for the purpose of stalling
      * @param barrier                 to signal the thread has generated a new sequence number
      * @param stall                   whether or not the thread should stall
      * @param expectedLocalCheckpoint the expected local checkpoint after generating a new sequence
@@ -3347,7 +3349,7 @@ public class InternalEngineTests extends ESTestCase {
      * @return a sequence number service
      */
     private SequenceNumbersService getStallingSeqNoService(
-            final CountDownLatch latch,
+            final AtomicReference<CountDownLatch> latchReference,
             final CyclicBarrier barrier,
             final AtomicBoolean stall,
             final AtomicLong expectedLocalCheckpoint) {
@@ -3360,6 +3362,7 @@ public class InternalEngineTests extends ESTestCase {
             @Override
             public long generateSeqNo() {
                 final long seqNo = super.generateSeqNo();
+                final CountDownLatch latch = latchReference.get();
                 if (stall.get()) {
                     try {
                         barrier.await();
@@ -3382,13 +3385,12 @@ public class InternalEngineTests extends ESTestCase {
         final int docs = randomIntBetween(1, 32);
         InternalEngine initialEngine = null;
         try {
-            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<CountDownLatch> latchReference = new AtomicReference<>(new CountDownLatch(1));
             final CyclicBarrier barrier = new CyclicBarrier(2);
             final AtomicBoolean stall = new AtomicBoolean();
             final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
             final List<Thread> threads = new ArrayList<>();
-            final SequenceNumbersService seqNoService =
-                    getStallingSeqNoService(latch, barrier, stall, expectedLocalCheckpoint);
+            final SequenceNumbersService seqNoService = getStallingSeqNoService(latchReference, barrier, stall, expectedLocalCheckpoint);
             initialEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
             final InternalEngine finalInitialEngine = initialEngine;
             for (int i = 0; i < docs; i++) {
@@ -3416,7 +3418,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo((long) (docs - 1)));
             initialEngine.flush(true, true);
 
-            latch.countDown();
+            latchReference.get().countDown();
             for (final Thread thread : threads) {
                 thread.join();
             }
@@ -3596,14 +3598,15 @@ public class InternalEngineTests extends ESTestCase {
         final int numberOfTriplets = randomIntBetween(1, 32);
         InternalEngine actualEngine = null;
         try {
-            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<CountDownLatch> latchReference = new AtomicReference<>();
             final CyclicBarrier barrier = new CyclicBarrier(2);
             final AtomicBoolean stall = new AtomicBoolean();
             final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
-            final List<Thread> threads = new ArrayList<>();
-            final SequenceNumbersService seqNoService = getStallingSeqNoService(latch, barrier, stall, expectedLocalCheckpoint);
+            final Map<Thread, CountDownLatch> threads = new LinkedHashMap<>();
+            final SequenceNumbersService seqNoService = getStallingSeqNoService(latchReference, barrier, stall, expectedLocalCheckpoint);
             actualEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
             final InternalEngine finalActualEngine = actualEngine;
+            final Translog translog = finalActualEngine.getTranslog();
             final long generation = finalActualEngine.getTranslog().currentFileGeneration();
             for (int i = 0; i < numberOfTriplets; i++) {
                 /*
@@ -3613,6 +3616,8 @@ public class InternalEngineTests extends ESTestCase {
                 stall.set(false);
                 index(finalActualEngine, 3 * i);
 
+                final CountDownLatch latch = new CountDownLatch(1);
+                latchReference.set(latch);
                 final int skipId = 3 * i + 1;
                 stall.set(true);
                 final Thread thread = new Thread(() -> {
@@ -3623,26 +3628,29 @@ public class InternalEngineTests extends ESTestCase {
                     }
                 });
                 thread.start();
-                threads.add(thread);
+                threads.put(thread, latch);
                 barrier.await();
 
                 stall.set(false);
                 index(finalActualEngine, 3 * i + 2);
                 finalActualEngine.flush();
-            }
 
-            latch.countDown();
-            for (final Thread thread : threads) {
-                thread.join();
-            }
-
-            final Translog translog = finalActualEngine.getTranslog();
-            for (int i = 0; i < numberOfTriplets; i++) {
                 /*
                  * This sequence number landed in the last generation, but the lower and upper bounds for an earlier generation straddle
-                 * sequence number.
+                 * this sequence number.
                  */
                 assertThat(translog.getMinGenerationForSeqNo(3 * i + 1).translogFileGeneration, equalTo(i + generation));
+            }
+
+            int i = 0;
+            for (final Map.Entry<Thread, CountDownLatch> entry : threads.entrySet()) {
+                final Map<String, String> userData = finalActualEngine.commitStats().getUserData();
+                assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(3 * i)));
+                assertThat(userData.get(Translog.TRANSLOG_GENERATION_KEY), equalTo(Long.toString(i + generation)));
+                entry.getValue().countDown();
+                entry.getKey().join();
+                finalActualEngine.flush();
+                i++;
             }
 
         } finally {

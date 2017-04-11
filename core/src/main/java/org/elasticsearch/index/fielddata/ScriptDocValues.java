@@ -110,7 +110,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected final void resize(int newSize) {
+        protected void resize(int newSize) {
             count = newSize;
             values = ArrayUtil.grow(values, count);
         }
@@ -180,7 +180,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected final void resize(int newSize) {
+        protected void resize(int newSize) {
             count = newSize;
             values = ArrayUtil.grow(values, count);
         }
@@ -358,7 +358,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected final void resize(int newSize) {
+        protected void resize(int newSize) {
             count = newSize;
             values = ArrayUtil.grow(values, count);
         }
@@ -412,7 +412,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected final void resize(int newSize) {
+        protected void resize(int newSize) {
             count = newSize;
             if (newSize > values.length) {
                 int oldLength = values.length;
@@ -531,7 +531,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected final void resize(int newSize) {
+        protected void resize(int newSize) {
             count = newSize;
             values = grow(values, count);
         }
@@ -587,7 +587,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected final void resize(int newSize) {
+        protected void resize(int newSize) {
             count = newSize;
             if (values == null) {
                 values = new BytesRef[newSize];

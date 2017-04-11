@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.common.geo;
 
-import java.util.ArrayList;
-import java.util.Collection;
-
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BitUtil;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 /**
  * Utilities for converting to/from the GeoHash standard
@@ -329,11 +329,11 @@ public class GeoHashUtils {
       return unscaleLat(BitUtil.deinterleave(hash >>> 1));
     }
 
-    private static final double unscaleLon(final long val) {
+    private static double unscaleLon(final long val) {
       return (val / LON_SCALE) - 180;
     }
 
-    private static final double unscaleLat(final long val) {
+    private static double unscaleLat(final long val) {
       return (val / LAT_SCALE) - 90;
     }
 

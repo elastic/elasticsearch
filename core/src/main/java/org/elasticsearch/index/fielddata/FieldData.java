@@ -500,7 +500,7 @@ public enum FieldData {
          * Advance this instance to the given document id
          * @return true if there is a value for this document
          */
-        public abstract boolean advanceExact(int doc) throws IOException;
+        abstract boolean advanceExact(int doc) throws IOException;
 
         /** Fill the list of charsquences with the list of values for the current document. */
         void get(List<CharSequence> values) throws IOException;

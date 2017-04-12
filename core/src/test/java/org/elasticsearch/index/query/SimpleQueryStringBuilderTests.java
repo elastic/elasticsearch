@@ -47,7 +47,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -338,6 +337,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
+    @AwaitsFix(bugUrl = "Waiting on fix for minimumShouldMatch https://github.com/elastic/elasticsearch/issues/23966")
     public void testMinimumShouldMatch() throws IOException {
         QueryShardContext shardContext = createShardContext();
         int numberOfTerms = randomIntBetween(1, 4);
@@ -364,7 +364,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
-            if (numberOfTerms == 1 || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
+            if (numberOfTerms == 1
+                    || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
                 expectedMinimumShouldMatch = 0;
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());

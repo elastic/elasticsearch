@@ -23,7 +23,6 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -88,7 +87,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Strings extends ScriptDocValues<String> {
 
         private final SortedBinaryDocValues in;
-        private BytesRefBuilder[] values = new BytesRefBuilder[0];
+        private BytesRef[] values = new BytesRef[0];
         private int count;
 
         public Strings(SortedBinaryDocValues in) {
@@ -100,7 +99,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    values[i].copyBytes(in.nextValue());
+                    values[i] = in.nextValue();
                 }
             } else {
                 resize(0);
@@ -113,13 +112,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected void resize(int newSize) {
             count = newSize;
-            if (newSize > values.length) {
-                final int oldLength = values.length;
-                values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new BytesRefBuilder();
-                }
-            }
+            values = ArrayUtil.grow(values, count);
         }
 
         public SortedBinaryDocValues getInternalValues() {
@@ -128,7 +121,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public BytesRef getBytesValue() {
             if (size() > 0) {
-                return values[0].get();
+                return values[0];
             } else {
                 return null;
             }
@@ -145,7 +138,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            return values[index].get().utf8ToString();
+            return values[index].utf8ToString();
         }
 
         @Override
@@ -171,8 +164,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public void setNextDocId(int docId) throws IOException {
+            this.docId = docId;
             if (in.advanceExact(docId)) {
-                this.docId = docId;
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     values[i] = in.nextValue();
@@ -210,11 +203,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             deprecationLogger.deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
                 dates = new Dates(in);
-                if (docId >= 0) {
-                    dates.setNextDocId(docId);
-                } else {
-                    dates.refreshArray();
-                }
+                dates.setNextDocId(docId);
             }
             return dates.getValue();
         }
@@ -224,11 +213,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             deprecationLogger.deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
                 dates = new Dates(in);
-                if (docId >= 0) {
-                    dates.setNextDocId(docId);
-                } else {
-                    dates.refreshArray();
-                }
+                dates.setNextDocId(docId);
             }
             return dates;
         }

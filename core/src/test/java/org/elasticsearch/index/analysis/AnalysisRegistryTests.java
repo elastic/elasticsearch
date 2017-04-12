@@ -116,22 +116,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
     }
 
-    public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        Map<String, AnalyzerProvider<?>> analyzers = new HashMap<>();
-        analyzers.put("default_index", analyzerProvider("default_index"));
-        analyzers.put("default_search", analyzerProvider("default_search"));
-        IndexAnalyzers indexAnalyzers = registry.build(IndexSettingsModule.newIndexSettings("index", settings),
-                analyzers, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
-        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertWarnings("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] " +
-                "instead for index [index]");
-    }
-
     /**
      * Tests that {@code camelCase} filter names and {@code snake_case} filter names don't collide.
      */

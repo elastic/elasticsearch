@@ -214,7 +214,7 @@ The following are examples of stored script requests:
 -----------------------------------
 <1> The `id` is a unique identifier for the stored script.
 
-This example stores a Groovy script called `calculate-score` in the cluster
+This example stores a Painless script called `calculate-score` in the cluster
 state:
 
 [source,js]

@@ -533,8 +533,8 @@ public class GeoUtils {
                         resize(geoPointValues.docValueCount() * fromPoints.length);
                         int v = 0;
                         for (int i = 0; i < geoPointValues.docValueCount(); ++i) {
+                            final GeoPoint point = geoPointValues.nextValue();
                             for (GeoPoint from : fromPoints) {
-                                final GeoPoint point = geoPointValues.nextValue();
                                 values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
                                 v++;
                             }

@@ -166,6 +166,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
@@ -832,6 +834,58 @@ public class InternalEngineTests extends ESTestCase {
         } finally {
             IOUtils.close(recoveringEngine);
         }
+    }
+
+    public void testTranslogRecoveryWithMultipleGenerations() throws IOException {
+        final int docs = randomIntBetween(1, 4096);
+        final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toList());
+        Collections.shuffle(seqNos);
+        engine.close();
+        Engine initialEngine = null;
+        try {
+            final AtomicInteger counter = new AtomicInteger();
+            initialEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG)) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return new SequenceNumbersService(
+                            engine.shardId,
+                            engine.config().getIndexSettings(),
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                        @Override
+                        public long generateSeqNo() {
+                            return seqNos.get(counter.getAndIncrement());
+                        }
+                    };
+                }
+            };
+            for (int i = 0; i < docs; i++) {
+                final String id = Integer.toString(i);
+                final ParsedDocument doc = testParsedDocument(id, "test", null, testDocumentWithTextField(), SOURCE, null);
+                initialEngine.index(indexForDoc(doc));
+                if (rarely()) {
+                    initialEngine.getTranslog().rollGeneration();
+                } else if (rarely()) {
+                    initialEngine.flush();
+                }
+            }
+        } finally {
+            IOUtils.close(initialEngine);
+        }
+
+        Engine recoveringEngine = null;
+        try {
+            recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine.recoverFromTranslog();
+            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
+                TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), docs);
+                assertEquals(docs, topDocs.totalHits);
+            }
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
+
     }
 
     public void testConcurrentGetAndFlush() throws Exception {

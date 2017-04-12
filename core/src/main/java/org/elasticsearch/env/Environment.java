@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -68,6 +69,7 @@ public class Environment {
 
     private final Path[] dataFiles;
 
+    @Nullable
     private final Path defaultPathData;
 
     private final Path[] dataWithClusterFiles;
@@ -224,6 +226,12 @@ public class Environment {
         return dataFiles;
     }
 
+    /**
+     * The default data path which is set only if default.path.data did not overwrite path.data.
+     *
+     * @return the default data path
+     */
+    @Nullable
     public Path defaultPathData() {
         return defaultPathData;
     }

@@ -24,7 +24,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -241,13 +240,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        final Version indexVersionCreated = shardContext.indexVersionCreated();
-        QueryValidationException exception = checkLatLon(shardContext.indexVersionCreated().before(Version.V_2_0_0));
+        QueryValidationException exception = checkLatLon();
         if (exception != null) {
             throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
         }
 
-        if (indexVersionCreated.onOrAfter(Version.V_2_2_0) || GeoValidationMethod.isCoerce(validationMethod)) {
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
             GeoUtils.normalizePoint(center, true, true);
         }
 
@@ -389,9 +387,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                 Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
-    private QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
-        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) || indexCreatedBeforeV2_0) {
+    private QueryValidationException checkLatLon() {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             return null;
         }
 

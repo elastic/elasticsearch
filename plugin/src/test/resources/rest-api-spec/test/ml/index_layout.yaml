@@ -255,6 +255,24 @@
 
   - do:
       count:
+        type: categorizer_state
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      count:
+        type: quantiles
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      count:
+        type: model_state
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      count:
         index: .ml-state
   - match: {count: 0}
 

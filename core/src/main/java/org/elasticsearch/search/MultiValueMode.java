@@ -213,7 +213,7 @@ public enum MultiValueMode implements Writeable {
                 values.nextValue();
             }
             if (count % 2 == 0) {
-                return Math.round((values.nextValue() + values.nextValue()) / 2);
+                return (values.nextValue() + values.nextValue()) / 2;
             } else {
                 return values.nextValue();
             }

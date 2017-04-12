@@ -356,7 +356,7 @@ public abstract class ValuesSource {
                         script.setDocument(target);
                         for (int i = 0; i < docValueCount(); ++i) {
                             script.setNextAggregationValue(doubleValues.nextValue());
-                            values[i] = script.runAsLong();
+                            values[i] = script.runAsDouble();
                         }
                         sort();
                         return true;

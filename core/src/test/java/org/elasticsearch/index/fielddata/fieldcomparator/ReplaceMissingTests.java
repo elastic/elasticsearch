@@ -69,6 +69,7 @@ public class ReplaceMissingTests extends ESTestCase {
         assertTrue(dv.advanceExact(2));
         assertEquals(1, dv.ordValue());
 
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("dog"));
         assertEquals(2, dv.getValueCount());
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());
@@ -82,6 +83,7 @@ public class ReplaceMissingTests extends ESTestCase {
         assertEquals(1, dv.ordValue());
 
         // non-existing values
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("apple"));
         assertEquals(3, dv.getValueCount());
         assertEquals("apple", dv.lookupOrd(0).utf8ToString());
@@ -95,6 +97,7 @@ public class ReplaceMissingTests extends ESTestCase {
         assertTrue(dv.advanceExact(2));
         assertEquals(2, dv.ordValue());
 
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("company"));
         assertEquals(3, dv.getValueCount());
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());
@@ -108,6 +111,7 @@ public class ReplaceMissingTests extends ESTestCase {
         assertTrue(dv.advanceExact(2));
         assertEquals(2, dv.ordValue());
 
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("ebay"));
         assertEquals(3, dv.getValueCount());
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());

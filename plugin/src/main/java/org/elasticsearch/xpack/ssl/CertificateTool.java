@@ -19,6 +19,8 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -27,7 +29,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
@@ -138,11 +139,11 @@ public class CertificateTool extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final boolean csrOnly = options.has(csrSpec);
         printIntro(terminal, csrOnly);
-        final Path outputFile = getOutputFile(terminal, outputPathSpec.value(options), env, csrOnly ? DEFAULT_CSR_FILE : DEFAULT_CERT_FILE);
+        final Path outputFile = getOutputFile(terminal, outputPathSpec.value(options), csrOnly ? DEFAULT_CSR_FILE : DEFAULT_CERT_FILE);
         final String inputFile = inputFileSpec.value(options);
         final int keysize = options.has(keysizeSpec) ? keysizeSpec.value(options) : DEFAULT_KEY_SIZE;
         if (csrOnly) {
-            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile, env);
+            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile);
             generateAndWriteCsrs(outputFile, certificateInformations, keysize);
         } else {
             final String dn = options.has(caDnSpec) ? caDnSpec.value(options) : AUTO_GEN_CA_DN;
@@ -151,7 +152,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
             final int days = options.hasArgument(daysSpec) ? daysSpec.value(options) : DEFAULT_DAYS;
             CAInfo caInfo = getCAInfo(terminal, dn, caCertPathSpec.value(options), caKeyPathSpec.value(options), keyPass, prompt, env,
                     keysize, days);
-            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile, env);
+            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile);
             generateAndWriteSignedCertificates(outputFile, certificateInformations, caInfo, keysize, days);
         }
         printConclusion(terminal, csrOnly, outputFile);
@@ -171,21 +172,25 @@ public class CertificateTool extends EnvironmentAwareCommand {
      *
      * @param terminal terminal to communicate with a user
      * @param outputPath user specified output file, may be {@code null}
-     * @param env the environment for this tool to resolve files with
      * @return a {@link Path} to the output file
      */
-    static Path getOutputFile(Terminal terminal, String outputPath, Environment env, String defaultFilename) throws IOException {
+    static Path getOutputFile(Terminal terminal, String outputPath, String defaultFilename) throws IOException {
         Path file;
         if (outputPath != null) {
-            file = XPackPlugin.resolveConfigFile(env, Strings.cleanPath(outputPath));
+            file = resolvePath(outputPath);
         } else {
-            file = XPackPlugin.resolveConfigFile(env, defaultFilename);
+            file = resolvePath(defaultFilename);
             String input = terminal.readText("Please enter the desired output file [" + file + "]: ");
             if (input.isEmpty() == false) {
-                file = XPackPlugin.resolveConfigFile(env, Strings.cleanPath(input));
+                file = resolvePath(input);
             }
         }
         return file;
+    }
+
+    @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")
+    private static Path resolvePath(String pathStr) {
+        return PathUtils.get(Strings.cleanPath(pathStr)).toAbsolutePath();
     }
 
     /**
@@ -193,13 +198,12 @@ public class CertificateTool extends EnvironmentAwareCommand {
      * be prompted or the information can be gathered from a file
      * @param terminal the terminal to use for user interaction
      * @param inputFile an optional file that will be used to load the instance information
-     * @param env the environment for this tool to resolve files with
      * @return a {@link Collection} of {@link CertificateInformation} that represents each instance
      */
-    static Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, String inputFile, Environment env)
+    static Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, String inputFile)
             throws Exception {
         if (inputFile != null) {
-            return parseFile(XPackPlugin.resolveConfigFile(env, inputFile));
+            return parseFile(resolvePath(inputFile));
         }
         Map<String, CertificateInformation> map = new HashMap<>();
         boolean done = false;
@@ -307,13 +311,14 @@ public class CertificateTool extends EnvironmentAwareCommand {
                             Environment env, int keysize, int days) throws Exception {
         if (caCertPath != null) {
             assert caKeyPath != null;
-            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(caCertPath), env);
+            final String resolvedCaCertPath = resolvePath(caCertPath).toString();
+            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
             if (certificates.length != 1) {
                 throw new IllegalArgumentException("expected a single certificate in file [" + caCertPath + "] but found [" +
                         certificates.length + "]");
             }
             Certificate caCert = certificates[0];
-            PrivateKey privateKey = readPrivateKey(caKeyPath, keyPass, terminal, env, prompt);
+            PrivateKey privateKey = readPrivateKey(caKeyPath, keyPass, terminal, prompt);
             return new CAInfo((X509Certificate) caCert, privateKey);
         }
 
@@ -504,14 +509,13 @@ public class CertificateTool extends EnvironmentAwareCommand {
      * @param path the path to the private key
      * @param password the password provided by the user or {@code null}
      * @param terminal the terminal to use for user interaction
-     * @param env the environment to resolve files from
      * @param prompt whether to prompt the user or not
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, Environment env, boolean prompt)
+    private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt)
                                             throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
-        try (Reader reader = Files.newBufferedReader(XPackPlugin.resolveConfigFile(env, path), StandardCharsets.UTF_8)) {
+        try (Reader reader = Files.newBufferedReader(resolvePath(path), StandardCharsets.UTF_8)) {
             return CertUtils.readPrivateKey(reader, () -> {
                 if (password != null || prompt == false) {
                     return password;

@@ -22,11 +22,12 @@ import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
 import org.elasticsearch.xpack.ssl.CertificateTool.CertificateInformation;
 import org.elasticsearch.xpack.ssl.CertificateTool.Name;
@@ -63,7 +64,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -89,13 +89,12 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testOutputDirectory() throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         Path outputDir = createTempDir();
         Path outputFile = outputDir.resolve("certs.zip");
         MockTerminal terminal = new MockTerminal();
 
         // test with a user provided dir
-        Path resolvedOutputFile = CertificateTool.getOutputFile(terminal, outputFile.toString(), env, null);
+        Path resolvedOutputFile = CertificateTool.getOutputFile(terminal, outputFile.toString(), null);
         assertEquals(outputFile, resolvedOutputFile);
         assertTrue(terminal.getOutput().isEmpty());
 
@@ -103,15 +102,15 @@ public class CertificateToolTests extends ESTestCase {
         Path userPromptedOutputFile = outputDir.resolve("csr");
         assertFalse(Files.exists(userPromptedOutputFile));
         terminal.addTextInput(userPromptedOutputFile.toString());
-        resolvedOutputFile = CertificateTool.getOutputFile(terminal, null, env, "out.zip");
+        resolvedOutputFile = CertificateTool.getOutputFile(terminal, null, "out.zip");
         assertEquals(userPromptedOutputFile, resolvedOutputFile);
         assertTrue(terminal.getOutput().isEmpty());
 
         // test with empty user input
         String defaultFilename = randomAlphaOfLengthBetween(1, 10);
-        Path expectedDefaultPath = XPackPlugin.resolveConfigFile(env, defaultFilename);
+        Path expectedDefaultPath = resolvePath(defaultFilename);
         terminal.addTextInput("");
-        resolvedOutputFile = CertificateTool.getOutputFile(terminal, null, env, defaultFilename);
+        resolvedOutputFile = CertificateTool.getOutputFile(terminal, null, defaultFilename);
         assertEquals(expectedDefaultPath, resolvedOutputFile);
         assertTrue(terminal.getOutput().isEmpty());
     }
@@ -150,8 +149,7 @@ public class CertificateToolTests extends ESTestCase {
             }
         }
 
-        Collection<CertificateInformation> certInfos = CertificateTool.getCertificateInformationList(terminal, null,
-                new Environment(Settings.builder().put("path.home", createTempDir()).build()));
+        Collection<CertificateInformation> certInfos = CertificateTool.getCertificateInformationList(terminal, null);
         logger.info("certificate tool output:\n{}", terminal.getOutput());
         assertEquals(numberOfInstances, certInfos.size());
         for (CertificateInformation certInfo : certInfos) {
@@ -486,5 +484,10 @@ public class CertificateToolTests extends ESTestCase {
                 "      - \"node4.mydomain.com\"");
 
         return Files.write(path, instances, StandardCharsets.UTF_8);
+    }
+
+    @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")
+    private static Path resolvePath(String path) {
+        return PathUtils.get(path).toAbsolutePath();
     }
 }

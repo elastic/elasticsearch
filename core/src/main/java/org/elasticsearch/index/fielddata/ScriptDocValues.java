@@ -162,7 +162,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private long[] values = new long[0];
         private int count;
         private Dates dates;
-        private int docId;
+        private int docId = -1;
 
         public Longs(SortedNumericDocValues in) {
             this.in = in;
@@ -210,7 +210,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             deprecationLogger.deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
                 dates = new Dates(in);
-                dates.setNextDocId(docId);
+                if (docId >= 0) {
+                    dates.setNextDocId(docId);
+                } else {
+                    dates.refreshArray();
+                }
             }
             return dates.getValue();
         }
@@ -220,7 +224,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             deprecationLogger.deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
                 dates = new Dates(in);
-                dates.setNextDocId(docId);
+                if (docId >= 0) {
+                    dates.setNextDocId(docId);
+                } else {
+                    dates.refreshArray();
+                }
             }
             return dates;
         }

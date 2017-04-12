@@ -30,7 +30,7 @@ import java.util.Map;
 public class TaskTests extends ESTestCase {
 
     public void testTaskInfoToString() {
-        String nodeId = randomAsciiOfLength(10);
+        String nodeId = randomAlphaOfLength(10);
         long taskId = randomIntBetween(0, 100000);
         long startTime = randomNonNegativeLong();
         long runningTime = randomNonNegativeLong();

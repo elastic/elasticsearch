@@ -179,7 +179,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final int numSnapshots = randomIntBetween(1, 20);
         final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+            snapshotIds.add(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
         }
         RepositoryData repositoryData = new RepositoryData(readData.getGenId(), Collections.emptyList(), Collections.emptyMap(),
                                                               snapshotIds);
@@ -210,11 +210,11 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     private RepositoryData addRandomSnapshotsToRepoData(RepositoryData repoData, boolean inclIndices) {
         int numSnapshots = randomIntBetween(1, 20);
         for (int i = 0; i < numSnapshots; i++) {
-            SnapshotId snapshotId = new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+            SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
             List<IndexId> indexIds = new ArrayList<>(numIndices);
             for (int j = 0; j < numIndices; j++) {
-                indexIds.add(new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+                indexIds.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
             }
             repoData = repoData.addSnapshot(snapshotId, indexIds);
         }

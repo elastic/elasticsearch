@@ -113,4 +113,18 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return counts.hashCode(0);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalCardinality other = (InternalCardinality) obj;
+        return counts.equals(0, other.counts);
+    }
+
+    HyperLogLogPlusPlus getState() {
+        return counts;
+    }
 }

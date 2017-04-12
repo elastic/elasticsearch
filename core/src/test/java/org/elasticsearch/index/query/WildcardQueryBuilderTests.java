@@ -59,11 +59,11 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     private static WildcardQueryBuilder randomWildcardQuery() {
         // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
+        String text = randomAlphaOfLengthBetween(1, 10);
         if (randomBoolean()) {
             return new WildcardQueryBuilder(STRING_FIELD_NAME, text);
         } else {
-            return new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+            return new WildcardQueryBuilder(randomAlphaOfLengthBetween(1, 10), text);
         }
     }
 

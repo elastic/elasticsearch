@@ -319,11 +319,10 @@ public abstract class TransportReplicationAction<
                 } else {
                     setPhase(replicationTask, "primary");
                     final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
-                    final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData);
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(request,
                             ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
-                            primaryShardReference, executeOnReplicas)
+                            primaryShardReference)
                             .execute();
                 }
             } catch (Exception e) {
@@ -371,9 +370,9 @@ public abstract class TransportReplicationAction<
 
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
-            PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
+            PrimaryShardReference primaryShardReference) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                    executeOnReplicas, replicasProxy, clusterService::state, logger, actionName);
+                    replicasProxy, clusterService::state, logger, actionName);
         }
     }
 
@@ -907,14 +906,6 @@ public abstract class TransportReplicationAction<
         };
 
         indexShard.acquirePrimaryOperationLock(onAcquired, executor);
-    }
-
-    /**
-     * Indicated whether this operation should be replicated to shadow replicas or not. If this method returns true the replication phase
-     * will be skipped. For example writes such as index and delete don't need to be replicated on shadow replicas but refresh and flush do.
-     */
-    protected boolean shouldExecuteReplication(IndexMetaData indexMetaData) {
-        return indexMetaData.isIndexUsingShadowReplicas() == false;
     }
 
     class ShardReference implements Releasable {

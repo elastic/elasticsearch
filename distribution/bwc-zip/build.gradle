@@ -30,7 +30,7 @@ import org.elasticsearch.gradle.LoggedExec
 apply plugin: 'distribution'
 
 File checkoutDir = file("${buildDir}/bwc/checkout-5.x")
-task createClone(type: LoggedExec) {
+task createClone(type: Exec) {
   onlyIf { checkoutDir.exists() == false }
   commandLine = ['git', 'clone', rootDir, checkoutDir]
 }
@@ -65,6 +65,7 @@ task addUpstream(type: LoggedExec) {
 }
 
 task fetchLatest(type: LoggedExec) {
+  onlyIf { project.gradle.startParameter.isOffline() == false }
   dependsOn addUpstream
   workingDir = checkoutDir
   commandLine = ['git', 'fetch', 'upstream']

@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.SecureString;
@@ -61,8 +60,7 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(Settings repositorySettings, Integer maxRetries,
-                               boolean useThrottleRetries, Boolean pathStyleAccess) {
+        public AmazonS3 client(Settings settings) {
             return new DummyS3Client();
         }
     }

@@ -44,13 +44,13 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         int numberOfTerms = randomIntBetween(0, 10);
         StringBuilder text = new StringBuilder("");
         for (int i = 0; i < numberOfTerms; i++) {
-            text.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+            text.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
         }
         // mapped or unmapped field
         if (randomBoolean()) {
             query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text.toString());
         } else {
-            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text.toString());
+            query = new CommonTermsQueryBuilder(randomAlphaOfLengthBetween(1, 10), text.toString());
         }
 
         if (randomBoolean()) {
@@ -88,8 +88,8 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     @Override
     protected Map<String, CommonTermsQueryBuilder> getAlternateVersions() {
         Map<String, CommonTermsQueryBuilder> alternateVersions = new HashMap<>();
-        CommonTermsQueryBuilder commonTermsQuery = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10),
-                randomAsciiOfLengthBetween(1, 10));
+        CommonTermsQueryBuilder commonTermsQuery = new CommonTermsQueryBuilder(randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"common\" : {\n" +
                 "        \"" + commonTermsQuery.fieldName() + "\" : \"" + commonTermsQuery.value() + "\"\n" +

@@ -28,7 +28,7 @@ public class DeviceStatsTests extends ESTestCase {
     public void testDeviceStats() {
         final int majorDeviceNumber = randomIntBetween(1, 1 << 8);
         final int minorDeviceNumber = randomIntBetween(0, 1 << 5);
-        final String deviceName = randomAsciiOfLength(3);
+        final String deviceName = randomAlphaOfLength(3);
         final int readsCompleted = randomIntBetween(1, 1 << 16);
         final int sectorsRead = randomIntBetween(8 * readsCompleted, 16 * readsCompleted);
         final int writesCompleted = randomIntBetween(1, 1 << 16);

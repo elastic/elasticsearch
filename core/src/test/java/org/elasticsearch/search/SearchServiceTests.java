@@ -223,8 +223,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new AliasFilter(null, Strings.EMPTY_ARRAY),
                 1.0f),
             null);
-        // the search context should inherit the default timeout
-        assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        try {
+            // the search context should inherit the default timeout
+            assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        } finally {
+            contextWithDefaultTimeout.decRef();
+            service.freeContext(contextWithDefaultTimeout.id());
+        }
 
         final long seconds = randomIntBetween(6, 10);
         final SearchContext context = service.createContext(
@@ -238,8 +243,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new AliasFilter(null, Strings.EMPTY_ARRAY),
                 1.0f),
             null);
-        // the search context should inherit the query timeout
-        assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
+        try {
+            // the search context should inherit the query timeout
+            assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
+        } finally {
+            context.decRef();
+            service.freeContext(context.id());
+        }
+
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

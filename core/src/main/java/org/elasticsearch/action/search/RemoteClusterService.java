@@ -24,10 +24,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -49,10 +52,12 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -109,11 +114,13 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
 
     private final TransportService transportService;
     private final int numRemoteConnections;
+    private final ClusterNameExpressionResolver clusterNameResolver;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
+        this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
         numRemoteConnections = REMOTE_CONNECTIONS_PER_CLUSTER.get(settings);
     }
 
@@ -136,7 +143,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
                 // cross cluster search
                 String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                nodePredicate = nodePredicate.and((node) -> Boolean.getBoolean(node.getAttributes().getOrDefault(attribute, "false")));
+                nodePredicate = nodePredicate.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
             }
             remoteClusters.putAll(this.remoteClusters);
             for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
@@ -185,6 +192,10 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return remoteClusters.isEmpty() == false;
     }
 
+    boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
+        return remoteClusters.get(remoteCluster).isNodeConnected(node);
+    }
+
     /**
      * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
@@ -197,25 +208,30 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      */
     Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
+        Set<String> remoteClusterNames = this.remoteClusters.keySet();
         for (String index : requestIndices) {
             int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-            String indexName = index;
-            String clusterName = LOCAL_CLUSTER_GROUP_KEY;
             if (i >= 0) {
                 String remoteClusterName = index.substring(0, i);
-                if (isRemoteClusterRegistered(remoteClusterName)) {
+                List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
+                if (clusters.isEmpty() == false) {
                     if (indexExists.test(index)) {
                         // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
                         // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
                         // if that happens
                         throw new IllegalArgumentException("Can not filter indices; index " + index +
                             " exists but there is also a remote cluster named: " + remoteClusterName);
+                        }
+                    String indexName = index.substring(i + 1);
+                    for (String clusterName : clusters) {
+                        perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                     }
-                    indexName = index.substring(i + 1);
-                    clusterName = remoteClusterName;
+                } else {
+                    perClusterIndices.computeIfAbsent(LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
                 }
+            } else {
+                perClusterIndices.computeIfAbsent(LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
             }
-            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<String>()).add(indexName);
         }
         return perClusterIndices;
 }
@@ -326,13 +342,20 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     }
 
     void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
-        updateRemoteClusters(Collections.singletonMap(clusterAlias, addresses.stream().map(address -> {
-                TransportAddress transportAddress = new TransportAddress(address);
-                return new DiscoveryNode(clusterAlias + "#" + transportAddress.toString(),
-                    transportAddress,
-                    Version.CURRENT.minimumCompatibilityVersion());
-            }).collect(Collectors.toList())),
-            ActionListener.wrap((x) -> {}, (x) -> {}) );
+        updateRemoteCluster(clusterAlias, addresses, ActionListener.wrap((x) -> {}, (x) -> {}));
+    }
+
+    void updateRemoteCluster(
+            final String clusterAlias,
+            final List<InetSocketAddress> addresses,
+            final ActionListener<Void> connectionListener) {
+        final List<DiscoveryNode> nodes = addresses.stream().map(address -> {
+            final TransportAddress transportAddress = new TransportAddress(address);
+            final String id = clusterAlias + "#" + transportAddress.toString();
+            final Version version = Version.CURRENT.minimumCompatibilityVersion();
+            return new DiscoveryNode(id, transportAddress, version);
+        }).collect(Collectors.toList());
+        updateRemoteClusters(Collections.singletonMap(clusterAlias, nodes), connectionListener);
     }
 
     static Map<String, List<DiscoveryNode>> buildRemoteClustersSeeds(Settings settings) {
@@ -399,5 +422,18 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     @Override
     public void close() throws IOException {
         IOUtils.close(remoteClusters.values());
+    }
+
+    public void getRemoteConnectionInfos(ActionListener<Collection<RemoteConnectionInfo>> listener) {
+        final Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
+        if (remoteClusters.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+        } else {
+            final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
+                remoteClusters.size(), Collections.emptyList());
+            for (RemoteClusterConnection connection : remoteClusters.values()) {
+                connection.getConnectionInfo(actionListener);
+            }
+        }
     }
 }

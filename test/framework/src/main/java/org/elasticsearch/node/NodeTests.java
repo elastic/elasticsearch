@@ -48,7 +48,7 @@ public class NodeTests extends ESTestCase {
 
     public void testNodeName() throws IOException {
         final Path tempDir = createTempDir();
-        final String name = randomBoolean() ? randomAsciiOfLength(10) : null;
+        final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
         Settings.Builder settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
@@ -88,7 +88,7 @@ public class NodeTests extends ESTestCase {
 
     public void testLoadPluginBootstrapChecks() throws IOException {
         final Path tempDir = createTempDir();
-        final String name = randomBoolean() ? randomAsciiOfLength(10) : null;
+        final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
         Settings.Builder settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
@@ -139,7 +139,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testNodeAttributes() throws IOException {
-        String attr = randomAsciiOfLength(5);
+        String attr = randomAlphaOfLength(5);
         Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
         try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();

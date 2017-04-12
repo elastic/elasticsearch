@@ -40,9 +40,14 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+<<<<<<< HEAD
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+=======
+import java.util.ArrayList;
+import java.util.List;
+>>>>>>> master
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -104,19 +109,6 @@ public class AnalysisRegistryTests extends ESTestCase {
                 () -> registry.build(IndexSettingsModule.newIndexSettings("index", settings),
                         singletonMap("default_index", defaultIndex), emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         assertTrue(e.getMessage().contains("[index.analysis.analyzer.default_index] is not supported"));
-    }
-
-    public void testBackCompatOverrideDefaultIndexAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = registry.build(IndexSettingsModule.newIndexSettings("index", settings),
-                singletonMap("default_index", analyzerProvider("default_index")), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
-        assertWarnings("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] " +
-                "instead for index [index]");
     }
 
     public void testOverrideDefaultSearchAnalyzer() {

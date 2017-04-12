@@ -58,7 +58,7 @@ public class OperationRoutingTests extends ESTestCase{
             assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
             IndexMetaData metaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
                 .numberOfReplicas(1).build();
-            String term = randomAsciiOfLength(10);
+            String term = randomAlphaOfLength(10);
             final int shard = OperationRouting.generateShardId(metaData, term, null);
             IndexMetaData shrunk = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
                 .numberOfReplicas(1)

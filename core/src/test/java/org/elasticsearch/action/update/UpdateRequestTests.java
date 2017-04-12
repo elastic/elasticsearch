@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -417,12 +418,12 @@ public class UpdateRequestTests extends ESTestCase {
             updateRequest.docAsUpsert(randomBoolean());
         } else {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            String scriptLang = (scriptType != ScriptType.STORED) ? randomAsciiOfLength(10) : null;
-            String scriptIdOrCode = randomAsciiOfLength(10);
+            String scriptLang = (scriptType != ScriptType.STORED) ? randomAlphaOfLength(10) : null;
+            String scriptIdOrCode = randomAlphaOfLength(10);
             int nbScriptParams = randomIntBetween(0, 5);
             Map<String, Object> scriptParams = new HashMap<>(nbScriptParams);
             for (int i = 0; i < nbScriptParams; i++) {
-                scriptParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                scriptParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             updateRequest.script(new Script(scriptType, scriptLang, scriptIdOrCode, scriptParams));
             updateRequest.scriptedUpsert(randomBoolean());
@@ -435,7 +436,7 @@ public class UpdateRequestTests extends ESTestCase {
         if (randomBoolean()) {
             String[] fields = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = randomAsciiOfLength(5);
+                fields[i] = randomAlphaOfLength(5);
             }
             updateRequest.fields(fields);
         }
@@ -445,11 +446,11 @@ public class UpdateRequestTests extends ESTestCase {
             } else {
                 String[] includes = new String[randomIntBetween(0, 5)];
                 for (int i = 0; i < includes.length; i++) {
-                    includes[i] = randomAsciiOfLength(5);
+                    includes[i] = randomAlphaOfLength(5);
                 }
                 String[] excludes = new String[randomIntBetween(0, 5)];
                 for (int i = 0; i < excludes.length; i++) {
-                    excludes[i] = randomAsciiOfLength(5);
+                    excludes[i] = randomAlphaOfLength(5);
                 }
                 if (randomBoolean()) {
                     updateRequest.fetchSource(includes, excludes);
@@ -459,7 +460,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = XContentHelper.toXContent(updateRequest, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(updateRequest, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

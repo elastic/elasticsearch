@@ -56,17 +56,17 @@ public class RoundTripTests extends ESTestCase {
         reindex.getDestination().index("test");
         if (randomBoolean()) {
             int port = between(1, Integer.MAX_VALUE);
-            BytesReference query = new BytesArray(randomAsciiOfLength(5));
-            String username = randomBoolean() ? randomAsciiOfLength(5) : null;
-            String password = username != null && randomBoolean() ? randomAsciiOfLength(5) : null;
+            BytesReference query = new BytesArray(randomAlphaOfLength(5));
+            String username = randomBoolean() ? randomAlphaOfLength(5) : null;
+            String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
             Map<String, String> headers = new HashMap<>(headersCount);
             while (headers.size() < headersCount) {
-                headers.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
-            reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), port, query, username, password, headers,
+            reindex.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, query, username, password, headers,
                     socketTimeout, connectTimeout));
         }
         ReindexRequest tripped = new ReindexRequest();
@@ -90,7 +90,7 @@ public class RoundTripTests extends ESTestCase {
         UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
         randomRequest(update);
         if (randomBoolean()) {
-            update.setPipeline(randomAsciiOfLength(5));
+            update.setPipeline(randomAlphaOfLength(5));
         }
         UpdateByQueryRequest tripped = new UpdateByQueryRequest();
         roundTrip(update, tripped);
@@ -196,7 +196,7 @@ public class RoundTripTests extends ESTestCase {
         if (randomBoolean()) {
             request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
         } else {
-            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
         RethrottleRequest tripped = new RethrottleRequest();
         roundTrip(request, tripped);

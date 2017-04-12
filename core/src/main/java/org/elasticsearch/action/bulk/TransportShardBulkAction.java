@@ -485,9 +485,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
                                                                   MappingUpdatePerformer mappingUpdater) throws Exception {
         // Update the mappings if parsing the documents includes new dynamic updates
+        final Engine.Index preUpdateOperation;
+        final Mapping mappingUpdate;
+        final boolean mappingUpdateNeeded;
         try {
-            final Engine.Index preUpdateOperation = prepareIndexOperationOnPrimary(request, primary);
-            mappingUpdater.updateMappingsIfNeeded(preUpdateOperation, primary.shardId(), request.type());
+            preUpdateOperation = prepareIndexOperationOnPrimary(request, primary);
+            mappingUpdate = preUpdateOperation.parsedDoc().dynamicMappingsUpdate();
+            mappingUpdateNeeded = mappingUpdate != null;
+            if (mappingUpdateNeeded) {
+                mappingUpdater.updateMappings(mappingUpdate, primary.shardId(), request.type());
+            }
         } catch (MapperParsingException | IllegalArgumentException failure) {
             return new Engine.IndexResult(failure, request.version());
         }
@@ -495,13 +502,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         // Verify that there are no more mappings that need to be applied. If there are failures, a
         // ReplicationOperation.RetryOnPrimaryException is thrown.
         final Engine.Index operation;
-        try {
-            operation = prepareIndexOperationOnPrimary(request, primary);
-            mappingUpdater.verifyMappings(operation, primary.shardId());
-        } catch (MapperParsingException | IllegalStateException e) {
-            // there was an error in parsing the document that was not because
-            // of pending mapping updates, so return a failure for the result
-            return new Engine.IndexResult(e, request.version());
+        if (mappingUpdateNeeded) {
+            try {
+                operation = prepareIndexOperationOnPrimary(request, primary);
+                mappingUpdater.verifyMappings(operation, primary.shardId());
+            } catch (MapperParsingException | IllegalStateException e) {
+                // there was an error in parsing the document that was not because
+                // of pending mapping updates, so return a failure for the result
+                return new Engine.IndexResult(e, request.version());
+            }
+        } else {
+            // There was no mapping update, the operation is the same as the pre-update version.
+            operation = preUpdateOperation;
         }
 
         return primary.index(operation);
@@ -523,9 +535,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
-        public void updateMappingsIfNeeded(final Engine.Index operation, final ShardId shardId,
-                                           final String type) throws Exception {
-            final Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        public void updateMappings(final Mapping update, final ShardId shardId,
+                                   final String type) throws Exception {
             if (update != null) {
                 // can throw timeout exception when updating mappings or ISE for attempting to
                 // update default mappings which are bubbled up

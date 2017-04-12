@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -139,9 +140,9 @@ public class MinIT extends AbstractNumericTestCase {
         assertThat(min.getName(), equalTo("min"));
         double expectedMinValue = 1.0;
         assertThat(min.getValue(), equalTo(expectedMinValue));
-        assertThat((Min) global.getProperty("min"), equalTo(min));
-        assertThat((double) global.getProperty("min.value"), equalTo(expectedMinValue));
-        assertThat((double) min.getProperty("value"), equalTo(expectedMinValue));
+        assertThat((Min) ((InternalAggregation)global).getProperty("min"), equalTo(min));
+        assertThat((double) ((InternalAggregation)global).getProperty("min.value"), equalTo(expectedMinValue));
+        assertThat((double) ((InternalAggregation)min).getProperty("value"), equalTo(expectedMinValue));
     }
 
     @Override

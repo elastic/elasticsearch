@@ -1295,6 +1295,11 @@ public final class Settings implements ToXContent {
         }
 
         @Override
+        public InputStream getFile(String setting) throws GeneralSecurityException{
+            return delegate.getFile(keyTransform.apply(setting));
+        }
+
+        @Override
         public void close() throws IOException {
             delegate.close();
         }

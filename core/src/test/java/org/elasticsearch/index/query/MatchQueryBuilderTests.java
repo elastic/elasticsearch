@@ -80,13 +80,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);
         matchQuery.operator(randomFrom(Operator.values()));
 
-        if (randomBoolean()) {
-            if (fieldName.equals(DATE_FIELD_NAME)) {
-                // tokenized dates would trigger parse errors
-                matchQuery.analyzer(randomFrom("keyword", "whitespace"));
-            } else {
-                matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
-            }
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+            matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
         if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean()) {
@@ -422,6 +417,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "  }\n" +
                 "}";
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
+    }
+
+    public void testExceptionUsingAnalyzerOnNumericField() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4);
+        matchQueryBuilder.analyzer("simple");
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> matchQueryBuilder.toQuery(shardContext));
+        assertEquals("For input string: \"e\"", e.getMessage());
     }
 
     @Override

@@ -23,6 +23,10 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -33,6 +37,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -54,8 +59,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -65,6 +72,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -521,4 +529,71 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectedNodes.contains(node);
     }
 
+
+    /**
+     * Fetches connection info for this connection
+     */
+    public void getConnectionInfo(ActionListener<RemoteConnectionInfo> listener) {
+        final Optional<DiscoveryNode> anyNode = connectedNodes.stream().findAny();
+        if (anyNode.isPresent() == false) {
+            // not connected we return immediately
+            RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
+                Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections, 0,
+                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+            listener.onResponse(remoteConnectionStats);
+        } else {
+            NodesInfoRequest request = new NodesInfoRequest();
+            request.clear();
+            request.http(true);
+
+            transportService.sendRequest(anyNode.get(), NodesInfoAction.NAME, request, new TransportResponseHandler<NodesInfoResponse>() {
+                @Override
+                public NodesInfoResponse newInstance() {
+                    return new NodesInfoResponse();
+                }
+
+                @Override
+                public void handleResponse(NodesInfoResponse response) {
+                    Collection<TransportAddress> httpAddresses = new HashSet<>();
+                    for (NodeInfo info : response.getNodes()) {
+                        if (connectedNodes.contains(info.getNode()) && info.getHttp() != null) {
+                            httpAddresses.add(info.getHttp().getAddress().publishAddress());
+                        }
+                    }
+
+                    if (httpAddresses.size() < maxNumRemoteConnections) {
+                        // just in case non of the connected nodes have http enabled we get other http enabled nodes instead.
+                        for (NodeInfo info : response.getNodes()) {
+                            if (nodePredicate.test(info.getNode()) && info.getHttp() != null) {
+                                httpAddresses.add(info.getHttp().getAddress().publishAddress());
+                            }
+                            if (httpAddresses.size() == maxNumRemoteConnections) {
+                                break; // once we have enough return...
+                            }
+                        }
+                    }
+                    RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
+                        seedNodes.stream().map(n -> n.getAddress()).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
+                        maxNumRemoteConnections, connectedNodes.size(),
+                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+                    listener.onResponse(remoteConnectionInfo);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            });
+        }
+
+    }
+
+    int getNumNodesConnected() {
+        return connectedNodes.size();
+    }
 }

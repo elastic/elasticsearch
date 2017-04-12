@@ -150,5 +150,5 @@ interface AwsS3Service extends LifecycleComponent {
     /**
      * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
      */
-    AmazonS3 client(RepositoryMetaData metadata, Settings repositorySettings);
+    AmazonS3 client(Settings repositorySettings);
 }

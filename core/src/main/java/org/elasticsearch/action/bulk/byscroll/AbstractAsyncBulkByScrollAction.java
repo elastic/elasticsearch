@@ -317,7 +317,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            startNextScroll(thisBatchStartTime, 0);
+            startNextScroll(thisBatchStartTime, timeValueNanos(System.nanoTime()), 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
@@ -400,7 +400,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            startNextScroll(thisBatchStartTime, response.getItems().length);
+            startNextScroll(thisBatchStartTime, timeValueNanos(System.nanoTime()), response.getItems().length);
         } catch (Exception t) {
             finishHim(t);
         }
@@ -412,12 +412,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param lastBatchSize the number of requests sent in the last batch. This is used to calculate the throttling values which are applied
      *        when the scroll returns
      */
-    void startNextScroll(TimeValue lastBatchStartTime, int lastBatchSize) {
+    void startNextScroll(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
         }
-        TimeValue extraKeepAlive = task.throttleWaitTime(lastBatchStartTime, lastBatchSize);
+        TimeValue extraKeepAlive = task.throttleWaitTime(lastBatchStartTime, now, lastBatchSize);
         scrollSource.startNextScroll(extraKeepAlive, response -> {
             onScrollResponse(lastBatchStartTime, lastBatchSize, response);
         });

@@ -34,7 +34,7 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("separator", "-");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         JoinProcessor joinProcessor = factory.create(null, processorTag, config);
         assertThat(joinProcessor.getTag(), equalTo(processorTag));
         assertThat(joinProcessor.getField(), equalTo("field1"));

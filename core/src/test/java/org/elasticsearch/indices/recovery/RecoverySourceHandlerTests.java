@@ -49,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;

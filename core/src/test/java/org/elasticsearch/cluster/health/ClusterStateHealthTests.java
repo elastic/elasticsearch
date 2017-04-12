@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -366,7 +365,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         final Set<String> nodeIds = new HashSet<>();
         final int numNodes = randomIntBetween(numberOfReplicas + 1, 10);
         for (int i = 0; i < numNodes; i++) {
-            nodeIds.add(randomAsciiOfLength(8));
+            nodeIds.add(randomAlphaOfLength(8));
         }
 
         final List<ClusterState> clusterStates = new ArrayList<>();

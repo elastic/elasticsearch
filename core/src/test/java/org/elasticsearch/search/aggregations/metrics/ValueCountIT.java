@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -122,9 +123,9 @@ public class ValueCountIT extends ESIntegTestCase {
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
         assertThat(valueCount.getValue(), equalTo(10L));
-        assertThat((ValueCount) global.getProperty("count"), equalTo(valueCount));
-        assertThat((double) global.getProperty("count.value"), equalTo(10d));
-        assertThat((double) valueCount.getProperty("value"), equalTo(10d));
+        assertThat((ValueCount) ((InternalAggregation)global).getProperty("count"), equalTo(valueCount));
+        assertThat((double) ((InternalAggregation)global).getProperty("count.value"), equalTo(10d));
+        assertThat((double) ((InternalAggregation)valueCount).getProperty("value"), equalTo(10d));
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {

@@ -403,20 +403,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // state may result in a new shard being initialized while having the same allocation id as the currently started shard.
                     logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
                     indexService.removeShard(shardId.id(), "removing shard (stale copy)");
-                } else {
-                    // remove shards where recovery source has changed. This re-initializes shards later in createOrUpdateShards
-                    if (newShardRouting.recoverySource() != null && newShardRouting.recoverySource().getType() == Type.PEER) {
-                        RecoveryState recoveryState = shard.recoveryState();
-                        final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(logger, routingTable, nodes, newShardRouting);
-                        if (recoveryState.getSourceNode().equals(sourceNode) == false) {
-                            if (recoveryTargetService.cancelRecoveriesForShard(shardId, "recovery source node changed")) {
-                                // getting here means that the shard was still recovering
-                                logger.debug("{} removing shard (recovery source changed), current [{}], global [{}], shard [{}])",
-                                    shardId, recoveryState.getSourceNode(), sourceNode, newShardRouting);
-                                indexService.removeShard(shardId.id(), "removing shard (recovery source node changed)");
-                            }
-                        }
-                    }
                 }
             }
         }

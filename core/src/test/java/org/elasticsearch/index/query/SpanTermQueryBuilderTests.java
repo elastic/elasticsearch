@@ -45,7 +45,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
             fieldName = STRING_FIELD_NAME;
         }
         if (frequently()) {
-            value = randomAsciiOfLengthBetween(1, 10);
+            value = randomAlphaOfLengthBetween(1, 10);
         } else {
             // generate unicode string in 10% of cases
             JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -53,7 +53,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         }
 
         if (fieldName == null) {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
+            fieldName = randomAlphaOfLengthBetween(1, 10);
         }
         return createQueryBuilder(fieldName, value);
     }
@@ -92,7 +92,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
                 spanTermQuery.boost(2.0f / randomIntBetween(1, 20));
             }
             if (randomBoolean()) {
-                spanTermQuery.queryName(randomAsciiOfLengthBetween(1, 10));
+                spanTermQuery.queryName(randomAlphaOfLengthBetween(1, 10));
             }
             clauses[i] = spanTermQuery;
         }

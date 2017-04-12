@@ -38,10 +38,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -105,19 +102,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertTrue(e.getMessage().contains("[index.analysis.analyzer.default_index] is not supported"));
     }
 
-    public void testBackCompatOverrideDefaultIndexAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = registry.build(IndexSettingsModule.newIndexSettings("index", settings),
-                singletonMap("default_index", analyzerProvider("default_index")), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
-        assertWarnings("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] " +
-                "instead for index [index]");
-    }
-
     public void testOverrideDefaultSearchAnalyzer() {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -126,22 +110,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-    }
-
-    public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        Map<String, AnalyzerProvider<?>> analyzers = new HashMap<>();
-        analyzers.put("default_index", analyzerProvider("default_index"));
-        analyzers.put("default_search", analyzerProvider("default_search"));
-        IndexAnalyzers indexAnalyzers = registry.build(IndexSettingsModule.newIndexSettings("index", settings),
-                analyzers, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
-        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-        assertWarnings("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] " +
-                "instead for index [index]");
     }
 
     public void testConfigureCamelCaseTokenFilter() throws IOException {

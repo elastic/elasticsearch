@@ -49,7 +49,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         assertThat(graveyard, equalTo(IndexGraveyard.builder(graveyard).build()));
         final IndexGraveyard.Builder newGraveyard = IndexGraveyard.builder(graveyard);
-        newGraveyard.addTombstone(new Index(randomAsciiOfLengthBetween(4, 15), UUIDs.randomBase64UUID()));
+        newGraveyard.addTombstone(new Index(randomAlphaOfLengthBetween(4, 15), UUIDs.randomBase64UUID()));
         assertThat(newGraveyard.build(), not(graveyard));
     }
 
@@ -140,7 +140,7 @@ public class IndexGraveyardTests extends ESTestCase {
         for (final Index index : indices) {
             assertTrue(indexGraveyard.containsIndex(index));
         }
-        assertFalse(indexGraveyard.containsIndex(new Index(randomAsciiOfLength(6), UUIDs.randomBase64UUID())));
+        assertFalse(indexGraveyard.containsIndex(new Index(randomAlphaOfLength(6), UUIDs.randomBase64UUID())));
     }
 
     public static IndexGraveyard createRandom() {

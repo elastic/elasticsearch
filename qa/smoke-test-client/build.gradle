@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -25,3 +27,16 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
     testCompile project(path: ':client:transport', configuration: 'runtime') // randomly swapped in as a transport
 }
+
+task singleNodeIntegTest(type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+}
+
+singleNodeIntegTestCluster {
+    numNodes = 1
+    setting 'discovery.type', 'single-node'
+}
+
+integTest.dependsOn(singleNodeIntegTestRunner, 'singleNodeIntegTestCluster#stop')
+
+check.dependsOn(integTest)

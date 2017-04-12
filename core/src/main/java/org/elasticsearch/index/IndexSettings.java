@@ -119,6 +119,15 @@ public final class IndexSettings {
             Setting.byteSizeSetting(
                     "index.translog.generation_threshold_size",
                     new ByteSizeValue(64, ByteSizeUnit.MB),
+                    /*
+                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * below this, the flush thread can get stuck in an infinite loop repeatedly
+                     * rolling the generation as every new generation will already exceed the
+                     * generation threshold. However, small thresholds are useful for testing so we
+                     * do not add a large lower bound here.
+                     */
+                    new ByteSizeValue(64, ByteSizeUnit.BYTES),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
                     new Property[]{Property.Dynamic, Property.IndexScope});
 
     public static final Setting<TimeValue> INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL =
@@ -151,7 +160,6 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final boolean isShadowReplicaIndex;
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
@@ -248,7 +256,6 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        isShadowReplicaIndex = indexMetaData.isIndexUsingShadowReplicas(settings);
 
         this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -351,15 +358,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index
-     * associated with these settings allocates it's shards on a shared
-     * filesystem.
-     */
-    public boolean isOnSharedFilesystem() {
-        return indexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
      * Returns the version the index was created on.
      * @see Version#indexCreated(Settings)
      */
@@ -390,12 +388,6 @@ public final class IndexSettings {
      * Returns the number of replicas this index has.
      */
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
-
-    /**
-     * Returns <code>true</code> iff this index uses shadow replicas.
-     * @see IndexMetaData#isIndexUsingShadowReplicas(Settings)
-     */
-    public boolean isShadowReplicaIndex() { return isShadowReplicaIndex; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the

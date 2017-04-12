@@ -20,6 +20,7 @@
 package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -54,7 +55,7 @@ public class QueryProfileShardResultTests extends ESTestCase {
         QueryProfileShardResult profileResult = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(profileResult, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         QueryProfileShardResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

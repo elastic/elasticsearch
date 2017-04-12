@@ -27,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -334,9 +335,9 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(range.getBuckets().size(), equalTo(3));
-        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)range).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)range).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)range).getProperty("sum.value");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());

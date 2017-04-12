@@ -616,7 +616,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         Histogram histogram = response.getAggregations().get("histogram");
         assertThat(histogram, notNullValue());
         assertThat(histogram.getName(), equalTo("histogram"));
-        List<Histogram.Bucket> buckets = histogram.getBuckets();
+        List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
 
         for (int bucketCount = 0; bucketCount < buckets.size(); ++bucketCount) {
             Histogram.Bucket bucket = buckets.get(bucketCount);

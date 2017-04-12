@@ -198,7 +198,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopDocs();
         }
-        CollapseTopFieldDocs mergedFieldDocs = CollapseTopFieldDocs.merge(sort, 0, expectedNumGroups, shardHits);
+        CollapseTopFieldDocs mergedFieldDocs = CollapseTopFieldDocs.merge(sort, 0, expectedNumGroups, shardHits, true);
         assertTopDocsEquals(mergedFieldDocs, collapseTopFieldDocs);
         w.close();
         reader.close();

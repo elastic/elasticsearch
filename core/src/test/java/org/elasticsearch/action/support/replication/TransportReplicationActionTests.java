@@ -64,7 +64,6 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -498,8 +497,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             createReplicatedOperation(
                     Request request,
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
+                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
@@ -551,8 +549,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             createReplicatedOperation(
                     Request request,
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
+                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
@@ -626,7 +623,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(captures, arrayWithSize(1));
         if (randomBoolean()) {
             final TransportReplicationAction.ReplicaResponse response =
-                new TransportReplicationAction.ReplicaResponse(randomAsciiOfLength(10), randomLong());
+                new TransportReplicationAction.ReplicaResponse(randomAlphaOfLength(10), randomLong());
             transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));
@@ -649,35 +646,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         // A replication action doesn't not fail the request
         assertEquals(0, shardFailedRequests.length);
-    }
-
-    public void testShadowIndexDisablesReplication() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
-
-        ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
-        MetaData.Builder metaData = MetaData.builder(state.metaData());
-        Settings.Builder settings = Settings.builder().put(metaData.get(index).getSettings());
-        settings.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true);
-        metaData.put(IndexMetaData.builder(metaData.get(index)).settings(settings));
-        state = ClusterState.builder(state).metaData(metaData).build();
-        setState(clusterService, state);
-        AtomicBoolean executed = new AtomicBoolean();
-        ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
-        action.new AsyncPrimaryAction(new Request(shardId), primaryShard.allocationId().getId(),
-            createTransportChannel(new PlainActionFuture<>()), null) {
-            @Override
-            protected ReplicationOperation<Request, Request, TestAction.PrimaryResult<Request, TestResponse>> createReplicatedOperation(
-                    Request request, ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
-                assertFalse(executeOnReplicas);
-                assertFalse(executed.getAndSet(true));
-                return new NoopReplicationOperation(request, actionListener);
-            }
-
-        }.run();
-        assertThat(executed.get(), equalTo(true));
     }
 
     public void testSeqNoIsSetOnPrimary() throws Exception {
@@ -739,8 +707,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             createReplicatedOperation(
                     Request request,
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
+                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 assertIndexShardCounter(1);
                 if (throwExceptionOnCreation) {
                     throw new ElasticsearchException("simulated exception, during createReplicatedOperation");
@@ -1151,7 +1118,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, TestAction.PrimaryResult<Request, TestResponse>> {
 
         NoopReplicationOperation(Request request, ActionListener<TestAction.PrimaryResult<Request, TestResponse>> listener) {
-            super(request, null, listener, true, null, null, TransportReplicationActionTests.this.logger, "noop");
+            super(request, null, listener, null, null, TransportReplicationActionTests.this.logger, "noop");
         }
 
         @Override

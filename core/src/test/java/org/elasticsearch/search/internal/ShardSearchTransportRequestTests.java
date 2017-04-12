@@ -87,7 +87,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
             String[] strings = generateRandomStringArray(10, 10, false, false);

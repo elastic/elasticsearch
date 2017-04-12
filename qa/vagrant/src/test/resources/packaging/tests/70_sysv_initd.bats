@@ -124,7 +124,11 @@ setup() {
     # set DATA_DIR to DATA_DIR=/tmp/aoeu,/tmp/asdf
     sed -i 's/DATA_DIR=.*/DATA_DIR=\/tmp\/aoeu,\/tmp\/asdf/' /etc/init.d/elasticsearch
     cat /etc/init.d/elasticsearch | grep "DATA_DIR"
-    service elasticsearch start
+    run service elasticsearch start
+    if [ "$status" -ne 0 ]; then
+      cat /var/log/elasticsearch/*
+      fail
+    fi
     wait_for_elasticsearch_status
     assert_file_not_exist /tmp/aoeu,/tmp/asdf
     assert_file_not_exist /tmp/aoeu,

@@ -89,10 +89,10 @@ public class TaskResultTests extends ESTestCase {
 
     private static TaskInfo randomTaskInfo() throws IOException {
         TaskId taskId = randomTaskId();
-        String type = randomAsciiOfLength(5);
-        String action = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String action = randomAlphaOfLength(5);
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
-        String description = randomBoolean() ? randomAsciiOfLength(5) : null;
+        String description = randomBoolean() ? randomAlphaOfLength(5) : null;
         long startTime = randomLong();
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
@@ -101,7 +101,7 @@ public class TaskResultTests extends ESTestCase {
     }
 
     private static TaskId randomTaskId() {
-        return new TaskId(randomAsciiOfLength(5), randomLong());
+        return new TaskId(randomAlphaOfLength(5), randomLong());
     }
 
     private static RawTaskStatus randomRawTaskStatus() throws IOException {
@@ -109,7 +109,7 @@ public class TaskResultTests extends ESTestCase {
             builder.startObject();
             int fields = between(0, 10);
             for (int f = 0; f < fields; f++) {
-                builder.field(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                builder.field(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             builder.endObject();
             return new RawTaskStatus(builder.bytes());
@@ -120,7 +120,7 @@ public class TaskResultTests extends ESTestCase {
         Map<String, String> result = new TreeMap<>();
         int fields = between(0, 10);
         for (int f = 0; f < fields; f++) {
-            result.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            result.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return new ToXContent() {
             @Override

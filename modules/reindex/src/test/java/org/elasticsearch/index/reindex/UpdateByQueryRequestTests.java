@@ -62,16 +62,16 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
 
     @Override
     protected UpdateByQueryRequest newRequest() {
-        return new UpdateByQueryRequest(new SearchRequest(randomAsciiOfLength(5)));
+        return new UpdateByQueryRequest(new SearchRequest(randomAlphaOfLength(5)));
     }
 
     @Override
     protected void extraRandomizationForSlice(UpdateByQueryRequest original) {
         if (randomBoolean()) {
-            original.setScript(new Script(randomAsciiOfLength(5)));
+            original.setScript(new Script(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
-            original.setPipeline(randomAsciiOfLength(5));
+            original.setPipeline(randomAlphaOfLength(5));
         }
     }
 

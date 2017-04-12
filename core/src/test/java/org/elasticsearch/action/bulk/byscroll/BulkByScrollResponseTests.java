@@ -64,9 +64,9 @@ public class BulkByScrollResponseTests extends ESTestCase {
         Integer shardId = null;
         String nodeId = null;
         if (randomBoolean()) {
-            index = randomAsciiOfLength(5);
+            index = randomAlphaOfLength(5);
             shardId = randomInt();
-            nodeId = usually() ? randomAsciiOfLength(5) : null;
+            nodeId = usually() ? randomAlphaOfLength(5) : null;
         }
         return singletonList(new SearchFailure(new ElasticsearchException("foo"), index, shardId, nodeId));
     }

@@ -28,8 +28,8 @@ documentation of the mustache project].
 
 NOTE: The mustache language is implemented in elasticsearch as a sandboxed
 scripting language, hence it obeys settings that may be used to enable or
-disable scripts per language, source and operation as described in
-<<enable-dynamic-scripting, scripting docs>>
+disable scripts per language, source and operation as described in the
+<<security-script-source, scripting docs>>
 
 [float]
 ==== More template examples

@@ -37,16 +37,12 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
-import javax.management.MBeanServerPermission;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
-import java.security.Permission;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -126,7 +122,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAsciiOfLength(16);
+        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
         final Logger logger = Loggers.getLogger("prefix", prefix);
         logger.info("test");
         logger.info("{}", "test");
@@ -156,9 +152,9 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     public void testProperties() throws IOException, UserException {
-        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAsciiOfLength(16));
+        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAlphaOfLength(16));
         if (randomBoolean()) {
-            builder.put("node.name", randomAsciiOfLength(16));
+            builder.put("node.name", randomAlphaOfLength(16));
         }
         final Settings settings = builder.build();
         setupLogging("minimal", settings);

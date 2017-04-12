@@ -93,8 +93,8 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
 
     /**
      * Releases a search context with the given context ID on the node the given connection is connected to.
-     * @see org.elasticsearch.search.query.QuerySearchResult#id()
-     * @see org.elasticsearch.search.fetch.FetchSearchResult#id()
+     * @see org.elasticsearch.search.query.QuerySearchResult#getRequestId()
+     * @see org.elasticsearch.search.fetch.FetchSearchResult#getRequestId()
      *
      */
     default void sendReleaseSearchContext(long contextId, Transport.Connection connection) {

@@ -26,13 +26,13 @@
       reason: validation logic only fixed from 5.1.2 onwards
 
  - do:
+      catch: request
       create:
           index:          test
           type:           test
           id:             3
           body:           { foo: bar }
           version:        5
-          ignore:         400
 
  - match: { status: 400 }
  - match: { error.type: action_request_validation_exception }

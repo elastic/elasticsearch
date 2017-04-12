@@ -19,6 +19,7 @@ To get started with {security}:
 
 . Change the passwords of the built in `kibana`, `logstash_system` and `elastic` users:
 +
+--
 [source,shell]
 ----------------------------------------------------------
 curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/elastic/_password' -H "Content-Type: application/json" -d '{
@@ -34,8 +35,10 @@ curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/logstash_system/_pass
 }'
 ----------------------------------------------------------
 // NOTCONSOLE
-+
+
 NOTE: The default password for the `elastic` user is `changeme`.
+
+--
 
 . Set up roles and users to control access to Elasticsearch and Kibana.
 For example, to grant _John Doe_ full access to all indices that match
@@ -43,6 +46,7 @@ the pattern `events*` and enable him to create visualizations and dashboards
 for those indices in Kibana, you could create an `events_admin` role and
 and assign the role to a new `johndoe` user.
 +
+--
 [source,shell]
 ----------------------------------------------------------
 curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Content-Type: application/json" -d '{
@@ -66,6 +70,7 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content
 }'
 ----------------------------------------------------------
 // NOTCONSOLE
+--
 
 [[enable-message-authentication]]
 . Enable message authentication to verify that messages are not tampered with or corrupted in transit:

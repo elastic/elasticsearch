@@ -474,7 +474,7 @@ public class InternalEngine extends Engine {
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
         throws IOException {
-        assert op.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO : "op is resolved based versions but have a seq#";
+        assert op.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO : "op is resolved based on versions but have a seq#";
         assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
         final VersionValue versionValue = resolveDocVersion(op);
         if (versionValue == null) {

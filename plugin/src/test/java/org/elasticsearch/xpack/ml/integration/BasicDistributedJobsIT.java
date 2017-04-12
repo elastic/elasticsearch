@@ -341,7 +341,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertEquals(2, response.getDataCounts().getProcessedRecordCount());
 
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request("job_id");
-        client().execute(CloseJobAction.INSTANCE, closeJobRequest);
+        client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);

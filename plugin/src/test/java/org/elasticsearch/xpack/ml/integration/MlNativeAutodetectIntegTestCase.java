@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
@@ -114,6 +119,12 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         client().execute(CloseJobAction.INSTANCE, request).get();
     }
 
+    protected void flushJob(String jobId, boolean calcInterim) throws Exception {
+        FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setCalcInterim(calcInterim);
+        client().execute(FlushJobAction.INSTANCE, request).get();
+    }
+
     protected void deleteJob(String jobId) throws Exception {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         client().execute(DeleteJobAction.INSTANCE, request).get();
@@ -177,6 +188,13 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         GetCategoriesAction.Response categoriesResponse = client().execute(
                 GetCategoriesAction.INSTANCE, getCategoriesRequest).get();
         return categoriesResponse.getResult().results();
+    }
+
+    protected DataCounts postData(String jobId, String data) {
+        logger.debug("Posting data to job [{}]:\n{}", jobId, data);
+        PostDataAction.Request request = new PostDataAction.Request(jobId);
+        request.setContent(new BytesArray(data), XContentType.JSON);
+        return client().execute(PostDataAction.INSTANCE, request).actionGet().getDataCounts();
     }
 
     @Override

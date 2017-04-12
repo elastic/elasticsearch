@@ -358,7 +358,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 }
 
                 @Override
-                public double nextValue() {
+                public double nextValue() throws IOException {
                     GeoPoint other = geoPointValues.nextValue();
                     return Math.max(0.0d,
                             distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);

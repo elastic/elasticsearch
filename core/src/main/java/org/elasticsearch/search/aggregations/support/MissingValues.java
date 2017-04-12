@@ -350,7 +350,7 @@ public enum MissingValues {
             }
 
             @Override
-            public GeoPoint nextValue() {
+            public GeoPoint nextValue() throws IOException {
                 if (count > 0) {
                     return values.nextValue();
                 } else {

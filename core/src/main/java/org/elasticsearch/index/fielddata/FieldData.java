@@ -26,7 +26,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -461,7 +460,7 @@ public enum FieldData {
                 return values.advanceExact(doc);
             }
             @Override
-            public void get(List<CharSequence> list) {
+            public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
                     list.add(values.nextValue().toString());
                 }

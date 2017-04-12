@@ -39,7 +39,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     protected final long count;
 
     public static long encodeLatLon(double lat, double lon) {
-        return (GeoEncodingUtils.encodeLatitude(lat) << 32) + GeoEncodingUtils.encodeLongitude(lon);
+        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(GeoEncodingUtils.encodeLongitude(lon));
     }
 
     public static double decodeLatitude(long encodedLatLon) {
@@ -47,7 +47,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     public static double decodeLongitude(long encodedLatLon) {
-        return GeoEncodingUtils.decodeLatitude((int) encodedLatLon);
+        return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
     }
 
     public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>

@@ -19,6 +19,8 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
@@ -27,16 +29,17 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
 final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
-    private final SortedNumericDocValues values;
+    private final LeafReader reader;
+    private final String fieldName;
 
-    LatLonPointDVAtomicFieldData(SortedNumericDocValues values) {
+    LatLonPointDVAtomicFieldData(LeafReader reader, String fieldName) {
         super();
-        this.values = values;
+        this.reader = reader;
+        this.fieldName = fieldName;
     }
 
     @Override
@@ -56,45 +59,32 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
 
     @Override
     public MultiGeoPointValues getGeoPointValues() {
-        return new MultiGeoPointValues() {
-            GeoPoint[] points = new GeoPoint[0];
-            private int pointsCursor;
-            private int count = 0;
+        try {
+            final SortedNumericDocValues numericValues = DocValues.getSortedNumeric(reader, fieldName);
+            return new MultiGeoPointValues() {
 
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                pointsCursor = 0;
-                if (values.advanceExact(doc)) {
-                    count = values.docValueCount();
-                    if (count > points.length) {
-                        final int previousLength = points.length;
-                        points = Arrays.copyOf(points,
-                                ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                        for (int i = previousLength; i < points.length; ++i) {
-                            points[i] = new GeoPoint(Double.NaN, Double.NaN);
-                        }
-                    }
-                    long encoded;
-                    for (int i = 0; i < count; ++i) {
-                        encoded = values.nextValue();
-                        points[i].reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
-                                GeoEncodingUtils.decodeLongitude((int) encoded));
-                    }
-                    return true;
-                } else {
-                    return false;
+                final GeoPoint point = new GeoPoint();
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return numericValues.advanceExact(doc);
                 }
-            }
 
-            @Override
-            public int docValueCount() {
-                return count;
-            }
+                @Override
+                public int docValueCount() {
+                    return numericValues.docValueCount();
+                }
 
-            @Override
-            public GeoPoint nextValue() {
-                return points[pointsCursor++];
-            }
-        };
+                @Override
+                public GeoPoint nextValue() throws IOException {
+                    final long encoded = numericValues.nextValue();
+                    point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
+                            GeoEncodingUtils.decodeLongitude((int) encoded));
+                    return point;
+                }
+            };
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot load doc values", e);
+        }
     }
 }

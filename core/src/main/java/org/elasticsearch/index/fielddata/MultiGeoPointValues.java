@@ -64,6 +64,6 @@ public abstract class MultiGeoPointValues {
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoPoint nextValue();
+    public abstract GeoPoint nextValue() throws IOException;
 
 }

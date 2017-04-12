@@ -35,7 +35,7 @@ import java.util.function.BiConsumer;
 /**
  * Implements the low-level details of bulk request handling
  */
-public class BulkRequestHandler {
+public final class BulkRequestHandler {
     private final Logger logger;
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     private final BulkProcessor.Listener listener;
@@ -56,12 +56,12 @@ public class BulkRequestHandler {
     }
 
     public void execute(BulkRequest bulkRequest, long executionId) {
+        Runnable toRelease = () -> {};
         boolean bulkRequestSetupSuccessful = false;
-        boolean acquired = false;
         try {
             listener.beforeBulk(executionId, bulkRequest);
             semaphore.acquire();
-            acquired = true;
+            toRelease = semaphore::release;
             CountDownLatch latch = new CountDownLatch(1);
             retry.withBackoff(consumer, bulkRequest, new ActionListener<BulkResponse>() {
                 @Override
@@ -96,13 +96,13 @@ public class BulkRequestHandler {
             logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
             listener.afterBulk(executionId, bulkRequest, e);
         } finally {
-            if (bulkRequestSetupSuccessful == false && acquired) {  // if we fail on client.bulk() release the semaphore
-                semaphore.release();
+            if (bulkRequestSetupSuccessful == false) {  // if we fail on client.bulk() release the semaphore
+                toRelease.run();
             }
         }
     }
 
-    public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
             semaphore.release(this.concurrentRequests);
             return true;

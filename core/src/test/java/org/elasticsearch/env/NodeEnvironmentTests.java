@@ -453,11 +453,11 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
 
             for (final NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
-                assertTrue(Files.exists(nodePath.path.resolve("node.lock")));
+                assertTrue(Files.exists(nodePath.path.resolve(NodeEnvironment.NODE_LOCK_FILENAME)));
             }
 
             if (defaultPathDataSet) {
-                assertTrue(Files.exists(nodeEnv.defaultNodePath().path.resolve("node.lock")));
+                assertTrue(Files.exists(nodeEnv.defaultNodePath().path.resolve(NodeEnvironment.NODE_LOCK_FILENAME)));
             }
         }
     }

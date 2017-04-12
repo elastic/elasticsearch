@@ -35,38 +35,36 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexSortIT extends ESIntegTestCase {
-    private static XContentBuilder TEST_MAPPING;
+    private static final XContentBuilder TEST_MAPPING = createTestMapping();
 
-    @BeforeClass
-    public static void setup() throws IOException {
-        TEST_MAPPING = jsonBuilder()
-            .startObject()
-            .startObject("properties")
-                .startObject("date")
-                    .field("type", "date")
-                .endObject()
-                .startObject("numeric")
-                    .field("type", "integer")
-                .field("doc_values", false)
-                .endObject()
-                .startObject("numeric_dv")
-                    .field("type", "integer")
-                    .field("doc_values", true)
-                .endObject()
-                .startObject("keyword_dv")
-                    .field("type", "keyword")
-                    .field("doc_values", true)
-                .endObject()
-                .startObject("keyword")
-                    .field("type", "keyword")
+    private static XContentBuilder createTestMapping() {
+        try {
+            return jsonBuilder()
+                .startObject()
+                    .startObject("properties")
+                        .startObject("date")
+                        .field("type", "date")
+                    .endObject()
+                    .startObject("numeric")
+                        .field("type", "integer")
                     .field("doc_values", false)
-                .endObject()
-            .endObject().endObject();
-    }
-
-    @AfterClass
-    public static void cleanup() {
-        TEST_MAPPING = null;
+                    .endObject()
+                    .startObject("numeric_dv")
+                        .field("type", "integer")
+                        .field("doc_values", true)
+                    .endObject()
+                    .startObject("keyword_dv")
+                        .field("type", "keyword")
+                        .field("doc_values", true)
+                    .endObject()
+                    .startObject("keyword")
+                        .field("type", "keyword")
+                        .field("doc_values", false)
+                    .endObject()
+                .endObject().endObject();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public void testIndexSort() {

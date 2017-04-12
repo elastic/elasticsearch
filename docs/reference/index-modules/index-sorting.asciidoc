@@ -7,9 +7,8 @@ internal _doc_id_ to do the ordering.
 The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
 
 [WARNING]
-`nested` fields uses the original sort of the Segment to work which is why they
-are not compatible with index sorting.
-An error will be thrown if index sorting is activated on an index that contains `nested` fields.
+nested fields are not compatible with index sorting because they rely on the default doc_id sorting.
+An error will be thrown if index sorting is activated on an index that contains nested fields.
 
 For instance the following example shows how to define a sort on a single field:
 
@@ -47,13 +46,17 @@ PUT twitter
 {
     "settings" : {
         "index" : {
-            "sort.field" : ["_type", "date"], <1>
+            "sort.field" : ["username", "date"], <1>
             "sort.order" : ["asc", "desc"] <2>
         }
     },
     "mappings": {
         "tweet": {
             "properties": {
+                "username": {
+                    "type": "keyword",
+                    "doc_values": true
+                },
                 "date": {
                     "type": "date"
                 }
@@ -64,8 +67,8 @@ PUT twitter
 --------------------------------------------------
 // CONSOLE
 
-<1> This index is sorted by the metadata field `_type` first then by `date`
-<2> ... in ascending order for the `_type` field and in descending order for the `date` field.
+<1> This index is sorted by `username` first then by `date`
+<2> ... in ascending order for the `username` field and in descending order for the `date` field.
 
 
 Index sorting supports the following setting:

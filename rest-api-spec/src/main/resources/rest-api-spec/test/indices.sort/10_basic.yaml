@@ -8,42 +8,44 @@
   - do:
       indices.create:
         index: test
-        wait_for_active_shards: 1
         body:
           settings:
             number_of_shards: 1
             number_of_replicas: 1
-            index.sort.field: _type
+            index.sort.field: rank
           mappings:
-            t: {}
+            t:
+              properties:
+                rank:
+                  type:     integer
 
   - do:
       index:
         index: test
-        type:  test_z
+        type:  test
         id:    "1"
-        body:  { "foo": "hello world" }
+        body:  { "rank": 4 }
 
   - do:
       index:
         index: test
-        type:  test_a
+        type:  test
         id:    "2"
-        body:  { "foo": "hello world" }
+        body:  { "rank": 1 }
 
   - do:
       index:
         index: test
-        type:  test_m
+        type:  test
         id:    "3"
-        body:  { "foo": "hello world" }
+        body:  { "rank": 3 }
 
   - do:
       index:
         index: test
-        type:  test_b
+        type:  test
         id:    "4"
-        body:  { "foo": "hello world" }
+        body:  { "rank": 2 }
 
   - do:
       indices.refresh:
@@ -61,6 +63,7 @@
   - do:
       search:
         index: test
+        type: test
         body:
           sort: _doc
 

@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -41,7 +40,21 @@ import java.util.function.Function;
  * Holds all the information that is used to build the sort order of an index.
  *
  * The index sort settings are <b>final</b> and can be defined only at index creation.
- */
+ * These settings are divided in four lists that are merged during the initialization of this class:
+ * <ul>
+ *     <li>`index.sort.field`: the field or a list of field to use for the sort</li>
+ *     <li>`index.sort.order` the {@link SortOrder} to use for the field or a list of {@link SortOrder}
+ *          for each field defined in `index.sort.field`.
+ *     </li>
+ *     <li>`index.sort.mode`: the {@link MultiValueMode} to use for the field or a list of orders
+ *          for each field defined in `index.sort.field`.
+ *     </li>
+ *     <li>`index.sort.missing`: the missing value to use for the field or a list of missing values
+ *          for each field defined in `index.sort.field`
+ *     </li>
+ * </ul>
+ *
+**/
 public final class IndexSortConfig {
     /**
      * The list of field names
@@ -57,13 +70,6 @@ public final class IndexSortConfig {
         Setting.listSetting("index.sort.order", Collections.emptyList(),
             IndexSortConfig::parseOrderMode, Setting.Property.IndexScope, Setting.Property.Final);
 
-    private static SortOrder parseOrderMode(String value) {
-        try {
-            return SortOrder.fromString(value);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Illegal sort order:" + value);
-        }
-    }
 
     /**
      * The {@link MultiValueMode} for each specified sort field (ie. <b>max</b> or <b>min</b>).
@@ -71,15 +77,6 @@ public final class IndexSortConfig {
     public static final Setting<List<MultiValueMode>> INDEX_SORT_MODE_SETTING =
         Setting.listSetting("index.sort.mode", Collections.emptyList(),
             IndexSortConfig::parseMultiValueMode, Setting.Property.IndexScope, Setting.Property.Final);
-
-    private static MultiValueMode parseMultiValueMode(String value) {
-        MultiValueMode mode = MultiValueMode.fromString(value);
-        if (mode != MultiValueMode.MAX && mode != MultiValueMode.MIN) {
-            throw new IllegalArgumentException("Illegal index sort mode:[" + mode + "], " +
-                "must be one of [" + MultiValueMode.MAX + ", " + MultiValueMode.MIN + "]");
-        }
-        return mode;
-    }
 
     /**
      * The missing value for each specified sort field (ie. <b>_first</b> or <b>_last</b>)
@@ -96,55 +93,76 @@ public final class IndexSortConfig {
         return missing;
     }
 
-    final String[] fields;
-    final SortOrder[] orders;
-    final MultiValueMode[] modes;
-    final String[] missingValues;
+    private static SortOrder parseOrderMode(String value) {
+        try {
+            return SortOrder.fromString(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Illegal sort order:" + value);
+        }
+    }
+
+    private static MultiValueMode parseMultiValueMode(String value) {
+        MultiValueMode mode = MultiValueMode.fromString(value);
+        if (mode != MultiValueMode.MAX && mode != MultiValueMode.MIN) {
+            throw new IllegalArgumentException("Illegal index sort mode:[" + mode + "], " +
+                "must be one of [" + MultiValueMode.MAX + ", " + MultiValueMode.MIN + "]");
+        }
+        return mode;
+    }
+
+    // visible for tests
+    final FieldSortSpec[] sortSpecs;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
-        if (INDEX_SORT_FIELD_SETTING.exists(settings)) {
-            fields = INDEX_SORT_FIELD_SETTING.get(settings)
-                .toArray(new String[0]);
+        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+        if (fields.size() > 0) {
+            sortSpecs = fields.stream()
+                .map((name) -> new FieldSortSpec(name))
+                .toArray(FieldSortSpec[]::new);
         } else {
-            fields = new String[0];
+            sortSpecs = new FieldSortSpec[0];
         }
-        if (fields.length > 0 && indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (sortSpecs.length > 0 && indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            /**
+             * This index might be assigned to a node where the index sorting feature is not available
+             * (ie. versions prior to {@link Version.V_6_0_0_alpha1_UNRELEASED}) so we must fail here rather than later.
+             */
             throw new IllegalArgumentException("unsupported index.version.created:" + indexSettings.getIndexVersionCreated() +
                 ", can't set index.sort on versions prior to " + Version.V_6_0_0_alpha1_UNRELEASED);
         }
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-            orders = INDEX_SORT_ORDER_SETTING.get(settings)
-                .toArray(new SortOrder[fields.length]);
-            if (orders.length != fields.length) {
-                throw new IllegalArgumentException("index.sort.field:" + Arrays.toString(fields) +
-                    " index.sort.order:" + Arrays.toString(orders) + ", size mismatch");
+            List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
+            if (orders.size() != sortSpecs.length) {
+                throw new IllegalArgumentException("index.sort.field:" + fields +
+                    " index.sort.order:" + orders.toString() + ", size mismatch");
             }
-        } else {
-            orders = new SortOrder[fields.length];
+            for (int i = 0; i < sortSpecs.length; i++) {
+                sortSpecs[i].order = orders.get(i);
+            }
         }
 
         if (INDEX_SORT_MODE_SETTING.exists(settings)) {
-            modes = INDEX_SORT_MODE_SETTING.get(settings)
-                .toArray(new MultiValueMode[fields.length]);
-            if (modes.length != fields.length) {
-                throw new IllegalArgumentException("index.sort.field:" + Arrays.toString(fields) +
-                    " index.sort.mode:" + Arrays.toString(modes) + ", size mismatch");
+            List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
+            if (modes.size() != sortSpecs.length) {
+                throw new IllegalArgumentException("index.sort.field:" + fields +
+                    " index.sort.mode:" + modes + ", size mismatch");
             }
-        } else {
-            modes = new MultiValueMode[fields.length];
+            for (int i = 0; i < sortSpecs.length; i++) {
+                sortSpecs[i].mode = modes.get(i);
+            }
         }
 
         if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
-            missingValues = INDEX_SORT_MISSING_SETTING.get(settings)
-                .toArray(new String[fields.length]);
-            if (missingValues.length != fields.length) {
-                throw new IllegalArgumentException("index.sort.field:" + Arrays.toString(fields) +
-                    " index.sort.missing:" + Arrays.toString(missingValues) + ", size mismatch");
+            List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
+            if (missingValues.size() != sortSpecs.length) {
+                throw new IllegalArgumentException("index.sort.field:" + fields +
+                    " index.sort.missing:" + missingValues + ", size mismatch");
             }
-        } else {
-            missingValues = new String[fields.length];
+            for (int i = 0; i < sortSpecs.length; i++) {
+                sortSpecs[i].missingValue = missingValues.get(i);
+            }
         }
     }
 
@@ -153,7 +171,7 @@ public final class IndexSortConfig {
      * Returns true if the index should be sorted
      */
     public boolean hasIndexSort() {
-        return fields.length > 0;
+        return sortSpecs.length > 0;
     }
 
     /**
@@ -166,27 +184,28 @@ public final class IndexSortConfig {
             return null;
         }
 
-        final SortField[] sortFields = new SortField[fields.length];
-        for (int i = 0; i < fields.length; i++) {
-            final MappedFieldType ft = fieldTypeLookup.apply(fields[i]);
+        final SortField[] sortFields = new SortField[sortSpecs.length];
+        for (int i = 0; i < sortSpecs.length; i++) {
+            FieldSortSpec sortSpec = sortSpecs[i];
+            final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
-                throw new IllegalArgumentException("unknown index sort field:[" + fields[i] + "]");
+                throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
             }
-            boolean reverse = orders[i] == null ? false : (orders[i] == SortOrder.DESC);
-            MultiValueMode mode =
-                modes[i] == null ?
-                    reverse ? MultiValueMode.MAX : MultiValueMode.MIN :
-                    modes[i];
+            boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
+            MultiValueMode mode = sortSpec.mode;
+            if (mode == null) {
+                mode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
+            }
             IndexFieldData<?> fieldData;
             try {
                 fieldData = fieldDataLookup.apply(ft);
             } catch (Exception e) {
-                throw new IllegalArgumentException("can't load docvalues for index sort field:[" + fields[i] + "]");
+                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
             if (fieldData == null) {
-                throw new IllegalArgumentException("fielddata not found for index sort field:[" + fields[i] + "]");
+                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            sortFields[i] = fieldData.sortField(missingValues[i], mode, null, reverse);
+            sortFields[i] = fieldData.sortField(sortSpec.missingValue, mode, null, reverse);
             validateIndexSortField(sortFields[i]);
         }
         return new Sort(sortFields);
@@ -199,12 +218,25 @@ public final class IndexSortConfig {
         }
     }
 
+    static class FieldSortSpec {
+        final String field;
+        SortOrder order;
+        MultiValueMode mode;
+        String missingValue;
+
+        FieldSortSpec(String field) {
+            this.field = field;
+        }
+    }
+
     /** We only allow index sorting on these types */
-    private static final EnumSet<SortField.Type> ALLOWED_INDEX_SORT_TYPES = EnumSet.of(SortField.Type.STRING,
+    private static final EnumSet<SortField.Type> ALLOWED_INDEX_SORT_TYPES = EnumSet.of(
+        SortField.Type.STRING,
         SortField.Type.LONG,
         SortField.Type.INT,
         SortField.Type.DOUBLE,
-        SortField.Type.FLOAT);
+        SortField.Type.FLOAT
+    );
 
     static SortField.Type getSortFieldType(SortField sortField) {
         if (sortField instanceof SortedSetSortField) {

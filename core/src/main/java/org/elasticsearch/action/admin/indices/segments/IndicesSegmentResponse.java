@@ -172,17 +172,17 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
     }
 
     static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
-        builder.startArray(Fields.SORT);
+        builder.startArray("sort");
         for (SortField field : sort.getSort()) {
             builder.startObject();
-            builder.field(Fields.FIELD, field.getField());
+            builder.field("field", field.getField());
             if (field instanceof SortedNumericSortField) {
-                builder.field(Fields.MODE, ((SortedNumericSortField) field).getSelector().toString());
+                builder.field("mode", ((SortedNumericSortField) field).getSelector().toString());
             } else if (field instanceof SortedSetSortField) {
-                builder.field(Fields.MODE, ((SortedSetSortField) field).getSelector().toString());
+                builder.field("mode", ((SortedSetSortField) field).getSelector().toString());
             }
-            builder.field(Fields.MISSING, field.getMissingValue());
-            builder.field(Fields.REVERSE, field.getReverse());
+            builder.field("missing", field.getMissingValue());
+            builder.field("missing", field.getReverse());
             builder.endObject();
         }
         builder.endArray();
@@ -230,10 +230,5 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         static final String RAM_TREE = "ram_tree";
         static final String DESCRIPTION = "description";
         static final String CHILDREN = "children";
-        static final String SORT = "sort";
-        static final String FIELD = "field";
-        static final String MODE = "mode";
-        static final String MISSING = "missing";
-        static final String REVERSE = "reverse";
     }
 }

@@ -66,15 +66,12 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(settings);
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
-        assertThat(config.fields.length, equalTo(1));
-        assertThat(config.orders.length, equalTo(1));
-        assertThat(config.missingValues.length, equalTo(1));
-        assertThat(config.modes.length, equalTo(1));
+        assertThat(config.sortSpecs.length, equalTo(1));
 
-        assertThat(config.fields[0], equalTo("field1"));
-        assertThat(config.orders[0], equalTo(SortOrder.ASC));
-        assertThat(config.missingValues[0], equalTo("_last"));
-        assertThat(config.modes[0], equalTo(MultiValueMode.MAX));
+        assertThat(config.sortSpecs[0].field, equalTo("field1"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MAX));
     }
 
     public void testIndexSortWithArrays() throws IOException {
@@ -86,19 +83,16 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(settings);
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
-        assertThat(config.fields.length, equalTo(2));
-        assertThat(config.orders.length, equalTo(2));
-        assertThat(config.missingValues.length, equalTo(2));
-        assertThat(config.modes.length, equalTo(2));
+        assertThat(config.sortSpecs.length, equalTo(2));
 
-        assertThat(config.fields[0], equalTo("field1"));
-        assertThat(config.fields[1], equalTo("field2"));
-        assertThat(config.orders[0], equalTo(SortOrder.ASC));
-        assertThat(config.orders[1], equalTo(SortOrder.DESC));
-        assertThat(config.missingValues[0], equalTo("_last"));
-        assertThat(config.missingValues[1], equalTo("_first"));
-        assertNull(config.modes[0]);
-        assertNull(config.modes[1]);
+        assertThat(config.sortSpecs[0].field, equalTo("field1"));
+        assertThat(config.sortSpecs[1].field, equalTo("field2"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
+        assertNull(config.sortSpecs[0].mode);
+        assertNull(config.sortSpecs[1].mode);
     }
 
     public void testInvalidIndexSort() throws IOException {

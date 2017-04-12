@@ -270,16 +270,16 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .setSettings(
                 Settings.builder()
                     .put(indexSettings())
-                    .put("sort.field", "_type")
+                    .put("sort.field", "id")
                     .put("sort.order", "desc")
                     .put("number_of_shards", 8)
                     .put("number_of_replicas", 0)
             )
-            .addMapping("t1")
+            .addMapping("t1", "id", "type=integer")
             .get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source", "t1", Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
@@ -315,12 +315,12 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
             .setSettings(Settings.builder()
                 .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", "1").build()).get());
+                .put("index.number_of_shards", "2").build()).get());
         ensureGreen();
         flushAndRefresh();
         GetSettingsResponse settingsResponse =
             client().admin().indices().prepareGetSettings("target").execute().actionGet();
-        assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "_type");
+        assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);
 

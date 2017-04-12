@@ -35,10 +35,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         String name = randomAlphaOfLength(5);
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
         // TODO populate pipelineAggregators
-        Map<String, Object> metaData = new HashMap<>();
-        int metaDataCount = randomBoolean() ? 0 : between(1, 10);
-        while (metaData.size() < metaDataCount) {
-            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, Object> metaData = null;
+        if (randomBoolean()) {
+            metaData = new HashMap<>();
+            int metaDataCount = between(0, 10);
+            while (metaData.size() < metaDataCount) {
+                metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
         }
         return createTestInstance(name, pipelineAggregators, metaData);
     }

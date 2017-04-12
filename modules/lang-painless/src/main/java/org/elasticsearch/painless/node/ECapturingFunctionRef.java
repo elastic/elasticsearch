@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
@@ -33,6 +34,7 @@ import org.objectweb.asm.Type;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.painless.Definition.VOID_TYPE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -76,6 +78,17 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             if (captured.type.sort != Definition.Sort.DEF) {
                 try {
                     ref = new FunctionRef(expected, captured.type.name, call, 1);
+
+                    // check casts between the interface method and the delegate method are legal
+                    for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
+                        Definition.Type from = ref.interfaceMethod.arguments.get(i);
+                        Definition.Type to = ref.delegateMethod.arguments.get(i);
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                    }
+
+                    if (ref.interfaceMethod.rtn != VOID_TYPE) {
+                        AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
+                    }
                 } catch (IllegalArgumentException e) {
                     throw createError(e);
                 }

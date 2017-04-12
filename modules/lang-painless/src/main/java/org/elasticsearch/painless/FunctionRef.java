@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.api.Augmentation;
 import org.objectweb.asm.Opcodes;
 
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
@@ -53,6 +52,11 @@ public class FunctionRef {
     public final String delegateMethodName;
     /** delegate method signature */
     public final MethodType delegateMethodType;
+
+    /** interface method */
+    public final Method interfaceMethod;
+    /** delegate method */
+    public final Method delegateMethod;
 
     /** factory method type descriptor */
     public final String factoryDescriptor;
@@ -109,6 +113,9 @@ public class FunctionRef {
         delegateMethodName = delegateMethod.name;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
+        this.interfaceMethod = interfaceMethod;
+        this.delegateMethod = delegateMethod;
+
         factoryDescriptor = factoryMethodType.toMethodDescriptorString();
         interfaceType = org.objectweb.asm.Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
         delegateType = org.objectweb.asm.Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
@@ -128,6 +135,9 @@ public class FunctionRef {
         delegateInvokeType = H_INVOKESTATIC;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
+
+        this.interfaceMethod = null;
+        delegateMethod = null;
 
         factoryDescriptor = null;
         interfaceType = null;

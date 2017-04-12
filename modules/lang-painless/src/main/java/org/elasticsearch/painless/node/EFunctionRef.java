@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
@@ -32,7 +33,7 @@ import org.objectweb.asm.Type;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
+import static org.elasticsearch.painless.Definition.VOID_TYPE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -71,16 +72,28 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + expected.name + "], not a functional interface");
                     }
-                    Method implMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
-                    if (implMethod == null) {
+                    Method delegateMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
+                    if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + expected.name + "], function not found");
                     }
-                    ref = new FunctionRef(expected, interfaceMethod, implMethod, 0);
+                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
+
+                    // check casts between the interface method and the delegate method are legal
+                    for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
+                        Definition.Type from = interfaceMethod.arguments.get(i);
+                        Definition.Type to = delegateMethod.arguments.get(i);
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                    }
+
+                    if (interfaceMethod.rtn != VOID_TYPE) {
+                        AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
+                    }
                 } else {
                     // whitelist lookup
                     ref = new FunctionRef(expected, type, call, 0);
                 }
+
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }

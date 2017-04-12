@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Type;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.painless.Definition.VOID_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
@@ -137,7 +139,7 @@ public final class ELambda extends AExpression implements ILambda {
                 returnType = interfaceMethod.rtn;
             }
             // replace any null types with the actual type
-            actualParamTypeStrs = new ArrayList<String>();
+            actualParamTypeStrs = new ArrayList<>();
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
@@ -188,6 +190,18 @@ public final class ELambda extends AExpression implements ILambda {
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }
+
+            // check casts between the interface method and the delegate method are legal
+            for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
+                Type from = interfaceMethod.arguments.get(i);
+                Type to = desugared.parameters.get(i + captures.size()).type;
+                AnalyzerCaster.getLegalCast(location, from, to, false, true);
+            }
+
+            if (interfaceMethod.rtn != VOID_TYPE) {
+                AnalyzerCaster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
+            }
+
             actual = expected;
         }
     }

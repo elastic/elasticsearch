@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -62,6 +63,21 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         givenJobs(Collections.emptyList(), Collections.emptyList());
         givenDatafeeds(Collections.emptyList());
+    }
+
+    public void testIsRunningOnMlPlatform() {
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "amd64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
+        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", false));
+        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", false));
+        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", false));
+        expectThrows(ElasticsearchException.class,
+                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", true));
+        expectThrows(ElasticsearchException.class,
+                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
+        expectThrows(ElasticsearchException.class,
+                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
     }
 
     public void testAvailable() throws Exception {

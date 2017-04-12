@@ -272,7 +272,7 @@ public class MachineLearning implements ActionPlugin {
         JobManager jobManager = new JobManager(settings, jobProvider, clusterService, auditor, internalClient, notifier);
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
-        if (AUTODETECT_PROCESS.get(settings)) {
+        if (AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(settings);
                 if (nativeController == null) {

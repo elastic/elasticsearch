@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.utils.StatsAccumulator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -46,6 +49,12 @@ import static org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response
 import static org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response.JobStats;
 
 public class MachineLearningFeatureSet implements XPackFeatureSet {
+
+    /**
+     * List of platforms for which the native processes are available
+     */
+    private static final List<String> mlPlatforms =
+            Arrays.asList("darwin-x86_64", "linux-x86_64", "windows-x86_64");
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
@@ -64,19 +73,36 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         // Don't try to get the native code version in the transport client - the controller process won't be running
         if (XPackPlugin.transportClientMode(settings) == false && XPackPlugin.isTribeClientNode(settings) == false) {
             try {
-                NativeController nativeController = NativeControllerHolder.getNativeController(settings);
-                if (nativeController != null) {
-                    nativeCodeInfo = nativeController.getNativeCodeInfo();
+                if (isRunningOnMlPlatform(enabled)) {
+                    NativeController nativeController = NativeControllerHolder.getNativeController(settings);
+                    if (nativeController != null) {
+                        nativeCodeInfo = nativeController.getNativeCodeInfo();
+                    }
                 }
             } catch (IOException | TimeoutException e) {
                 Loggers.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
                 if (enabled) {
-                    throw new ElasticsearchException("Cannot communicate with Machine Learning native code "
-                            + "- please check that you are running on a supported platform");
+                    throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
                 }
             }
         }
         this.nativeCodeInfo = nativeCodeInfo;
+    }
+
+    static boolean isRunningOnMlPlatform(boolean fatalIfNot) {
+        return isRunningOnMlPlatform(Constants.OS_NAME, Constants.OS_ARCH, fatalIfNot);
+    }
+
+    static boolean isRunningOnMlPlatform(String osName, String osArch, boolean fatalIfNot) {
+        String platformName = Platforms.platformName(osName, osArch);
+        if (mlPlatforms.contains(platformName)) {
+            return true;
+        }
+        if (fatalIfNot) {
+            throw new ElasticsearchException("X-Pack is not supported and Machine Learning is not available for [" + platformName
+                    + "]; you can use the other X-Pack features (unsupported) by setting xpack.ml.enabled: false in elasticsearch.yml");
+        }
+        return false;
     }
 
     @Override

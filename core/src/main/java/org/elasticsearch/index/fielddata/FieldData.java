@@ -203,7 +203,7 @@ public enum FieldData {
      * Given a {@link SortedNumericDoubleValues}, return a
      * {@link SortedNumericDocValues} instance that will translate double values
      * to sortable long bits using
-     * {@link NumericUtils#doubleToSortableLong(double)}.
+     * {@link org.apache.lucene.util.NumericUtils#doubleToSortableLong(double)}.
      */
     public static SortedNumericDocValues toSortableLongBits(SortedNumericDoubleValues values) {
         final NumericDoubleValues singleton = unwrapSingleton(values);
@@ -227,7 +227,7 @@ public enum FieldData {
     /**
      * Given a {@link SortedNumericDocValues}, return a {@link SortedNumericDoubleValues}
      * instance that will translate long values to doubles using
-     * {@link NumericUtils#sortableLongToDouble(long)}.
+     * {@link org.apache.lucene.util.NumericUtils#sortableLongToDouble(long)}.
      */
     public static SortedNumericDoubleValues sortableLongBitsToDoubles(SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);

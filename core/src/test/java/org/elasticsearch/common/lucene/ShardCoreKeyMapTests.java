@@ -57,6 +57,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://issues.apache.org/jira/browse/LUCENE-7781")
     public void testAddingAClosedReader() throws Exception {
         LeafReader reader;
         try (Directory dir = newDirectory();

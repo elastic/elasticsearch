@@ -115,7 +115,7 @@ public class IndexSortIT extends ESIntegTestCase {
                 .addMapping("test", TEST_MAPPING)
                 .get()
         );
-        assertThat(exc.getMessage(), containsString("can't load docvalues for index sort field:[numeric]"));
+        assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[numeric]"));
 
         exc = expectThrows(IllegalArgumentException.class,
             () -> prepareCreate("test")
@@ -126,6 +126,6 @@ public class IndexSortIT extends ESIntegTestCase {
                 .addMapping("test", TEST_MAPPING)
                 .get()
         );
-        assertThat(exc.getMessage(), containsString("can't load docvalues for index sort field:[keyword]"));
+        assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[keyword]"));
     }
 }

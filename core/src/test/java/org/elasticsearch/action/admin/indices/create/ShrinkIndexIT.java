@@ -262,7 +262,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateShrinkWithIndexSort() throws Exception {
-        SortField expectedSortField = new SortedSetSortField("_type", true, SortedSetSelector.Type.MAX);
+        SortField expectedSortField = new SortedSetSortField("id", true, SortedSetSelector.Type.MAX);
         expectedSortField.setMissingValue(SortedSetSortField.STRING_FIRST);
         Sort expectedIndexSort = new Sort(expectedSortField);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -275,7 +275,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                     .put("number_of_shards", 8)
                     .put("number_of_replicas", 0)
             )
-            .addMapping("t1", "id", "type=integer")
+            .addMapping("t1", "id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source", "t1", Integer.toString(i))

@@ -23,6 +23,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -108,7 +109,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         // Send the request and verify the response status code
         FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);
         NodeClient client = mock(NodeClient.class);
-        restController.executeHandler(restRequest, restChannel, client);
+        restController.dispatchRequest(restRequest, restChannel, new ThreadContext(Settings.EMPTY));
         assertThat(restChannel.capturedResponse().status().getStatus(), is(405));
 
         /*

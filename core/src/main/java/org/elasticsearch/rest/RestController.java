@@ -192,7 +192,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 }
                 // iff we could reserve bytes for the request we need to send the response also over this channel
                 responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-                dispatchRequest(request, responseChannel, client, threadContext, handler);
+                // Try to execute the request handler with all PathTrie variants
+                tryAllHandlers(request, responseChannel, handler, threadContext);
             }
         } catch (Exception e) {
             try {
@@ -230,10 +231,11 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         }
     }
 
-    void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
-                         final RestHandler handler) throws Exception {
+    boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
+                            final RestHandler handler, final PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
         if (checkRequestParameters(request, channel) == false) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
+            return true;
         } else {
             for (String key : headersToCopy) {
                 String httpHeader = request.header(key);
@@ -243,19 +245,33 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             }
 
             if (handler == null) {
-                if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-
-                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                } else {
-                    final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
+                /*
+                 * Get the map of matching handlers for a request, for the full set of HTTP methods.
+                 */
+                // TODO: don't explicitly use this TrieMatching met
+                final HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request, trieMatchingMode);
+                if (validMethodSet.size() > 0
+                        && !validMethodSet.contains(request.method())
+                        && request.method() != RestRequest.Method.OPTIONS) {
+                    /*
+                     * If an alternative handler for an explicit path is registered to a
+                     * different HTTP method than the one supplied - return a 405 Method
+                     * Not Allowed error.
+                     */
+                    handleUnsupportedHttpMethod(request, channel, validMethodSet);
+                    return true; // TODO: signal we handled it
+                } else if (!validMethodSet.contains(request.method())
+                        && request.method() == RestRequest.Method.OPTIONS) {
+                    handleOptionsRequest(request, channel, validMethodSet);
+                    return true; // TODO: signal we handled it
                 }
             } else {
                 final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
                 wrappedHandler.handleRequest(request, channel, client);
+                return true;
             }
         }
+        return false;
     }
 
     /**
@@ -304,34 +320,37 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         return true;
     }
 
-    void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    void tryAllHandlers(final RestRequest request, final RestChannel channel, final RestHandler handler,
+                        final ThreadContext threadContext) throws Exception {
         // Request execution flag
         boolean requestHandled = false;
 
         /*
          * First try handlers mapped to explicit paths only.
          */
-        requestHandled = executeHandler(request, channel, client, TrieMatchingMode.EXPLICIT_NODES_ONLY);
-        
         if (requestHandled == false) {
-            /*
-             * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a leaf node only.
-             */
-            requestHandled = executeHandler(request, channel, client, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
+            requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.EXPLICIT_NODES_ONLY);
         }
-        
+
+        /*
+         * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a leaf node only.
+         */
         if (requestHandled == false) {
-            /*
-             * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a root node only.
-             */
-            requestHandled = executeHandler(request, channel, client, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
+            requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
         }
-        
+
+        /*
+         * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a root node only.
+         */
         if (requestHandled == false) {
-            /*
-             * Fallback to handlers mapped to explicit paths, with a wildcard allowed as any node.
-             */
-            requestHandled = executeHandler(request, channel, client, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
+            requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
+        }
+
+        /*
+         * Fallback to handlers mapped to explicit paths, with a wildcard allowed as any node.
+         */
+        if (requestHandled == false) {
+            requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
         }
 
         /*
@@ -341,44 +360,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             handleBadRequest(request, channel);
         }
     }
-    
-    private boolean executeHandler(RestRequest request, RestChannel channel, NodeClient client, PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
-        /*
-         * Get the matching handler for this request, including both explicit
-         * and wildcard path matches, if one exists.
-         */
-        final RestHandler handler = getHandler(request, trieMatchingMode);
-        if (handler != null) {
-            /*
-             * Handle valid REST request (the request matches a handler).
-             */
-            handler.handleRequest(request, channel, client);
-            return true;
-        } else {
-            /*
-             * Get the map of matching handlers for a request, for the full set of HTTP methods.
-             */
-            final HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request, trieMatchingMode);
-            if (validMethodSet.size() > 0 
-                    && !validMethodSet.contains(request.method())
-                    && request.method() != RestRequest.Method.OPTIONS) {
-                /*
-                 * If an alternative handler for an explicit path is registered to a
-                 * different HTTP method than the one supplied - return a 405 Method
-                 * Not Allowed error.
-                 */
-                handleUnsupportedHttpMethod(request, channel, validMethodSet);
-                return true;
-            } else if (!validMethodSet.contains(request.method()) 
-                    && request.method() == RestRequest.Method.OPTIONS) {
-                handleOptionsRequest(request, channel, validMethodSet);
-                return true;
-            }
-        }
 
-        return false;
-    }
-    
     /**
      * Handle requests to a valid REST endpoint using an unsupported HTTP
      * method. A 405 HTTP response code is returned, and the response 'Allow'

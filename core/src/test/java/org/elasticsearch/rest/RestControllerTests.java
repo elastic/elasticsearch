@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -106,7 +107,7 @@ public class RestControllerTests extends ESTestCase {
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
-            });
+            }, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("true", threadContext.getHeader("header.1"));
@@ -178,7 +179,8 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper, null,
             circuitBreakerService);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, threadContext, handler);
+        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null,
+                threadContext, handler, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }

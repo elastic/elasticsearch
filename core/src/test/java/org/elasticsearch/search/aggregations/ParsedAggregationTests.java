@@ -105,7 +105,7 @@ public class ParsedAggregationTests extends ESTestCase {
 
         public static TestParsedAggregation fromXContent(XContentParser parser, String name) throws IOException {
             TestParsedAggregation parsedAgg = PARSER.parse(parser, null);
-            parsedAgg.name = name;
+            parsedAgg.setName(name);
             return parsedAgg;
         }
     }

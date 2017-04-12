@@ -38,12 +38,16 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
                 (parser, context) -> parser.map(), InternalAggregation.CommonFields.META);
     }
 
-    String name;
+    private String name;
     Map<String, Object> metadata;
 
     @Override
     public final String getName() {
         return name;
+    }
+
+    protected void setName(String name) {
+        this.name = name;
     }
 
     @Override
@@ -59,6 +63,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
     //TODO it may make sense to move getType to the Aggregation interface given that we are duplicating it in both implementations
     protected abstract String getType();
 
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
         builder.startObject(String.join(InternalAggregation.TYPED_KEYS_DELIMITER, getType(), name));

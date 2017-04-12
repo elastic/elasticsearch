@@ -21,7 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestRequest;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestParams;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,9 +54,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             assertThat(dumpEvent(event), PersistentTasksClusterService.reassignmentRequired(event,
                     new PersistentTasksClusterService.ExecutorNodeDecider() {
                         @Override
-                        public <Request extends PersistentTaskRequest> Assignment getAssignment(
-                                String action, ClusterState currentState, Request request) {
-                            if ("never_assign".equals(((TestRequest) request).getTestParam())) {
+                        public <Params extends PersistentTaskParams> Assignment getAssignment(
+                                String action, ClusterState currentState, Params params) {
+                            if ("never_assign".equals(((TestParams) params).getTestParam())) {
                                 return NO_NODE_FOUND;
                             }
                             return randomNodeAssignment(currentState.nodes());
@@ -171,10 +171,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         return PersistentTasksClusterService.reassignTasks(clusterState, logger,
                 new PersistentTasksClusterService.ExecutorNodeDecider() {
                     @Override
-                    public <Request extends PersistentTaskRequest> Assignment getAssignment(
-                            String action, ClusterState currentState, Request request) {
-                        TestRequest testRequest = (TestRequest) request;
-                        switch (testRequest.getTestParam()) {
+                    public <Params extends PersistentTaskParams> Assignment getAssignment(
+                            String action, ClusterState currentState, Params params) {
+                        TestParams testParams = (TestParams) params;
+                        switch (testParams.getTestParam()) {
                             case "assign_me":
                                 return randomNodeAssignment(currentState.nodes());
                             case "dont_assign_me":
@@ -185,7 +185,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                             case "assign_one":
                                 return assignOnlyOneTaskAtATime(currentState);
                             default:
-                                fail("unknown param " + testRequest.getTestParam());
+                                fail("unknown param " + testParams.getTestParam());
                         }
                         return NO_NODE_FOUND;
                     }
@@ -279,7 +279,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
             for (PersistentTask<?> task : tasks.tasks()) {
                 // Remove all unassigned tasks that cause changing assignments they might trigger a significant change
-                if ("never_assign".equals(((TestRequest) task.getRequest()).getTestParam()) &&
+                if ("never_assign".equals(((TestParams) task.getParams()).getTestParam()) &&
                         "change me".equals(task.getAssignment().getExplanation())) {
                     logger.info("removed task with changing assignment {}", task.getId());
                     tasksBuilder.removeTask(task.getId());
@@ -346,7 +346,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         logger.info("removed all unassigned tasks and changed routing table");
         if (tasks != null) {
             for (PersistentTask<?> task : tasks.tasks()) {
-                if (task.getExecutorNode() == null || "never_assign".equals(((TestRequest) task.getRequest()).getTestParam())) {
+                if (task.getExecutorNode() == null || "never_assign".equals(((TestParams) task.getParams()).getTestParam())) {
                     tasksBuilder.removeTask(task.getId());
                 }
             }
@@ -368,7 +368,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         return tasks.tasks().stream().anyMatch(task -> {
             if (task.getExecutorNode() == null || discoveryNodes.nodeExists(task.getExecutorNode())) {
-                return "never_assign".equals(((TestRequest) task.getRequest()).getTestParam()) == false;
+                return "never_assign".equals(((TestParams) task.getParams()).getTestParam()) == false;
             }
             return false;
         });
@@ -390,11 +390,11 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                Assignment assignment, String param) {
         return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasksCustomMetaData.TYPE,
-                tasks.addTask(UUIDs.base64UUID(), randomAlphaOfLength(10), new TestRequest(param), assignment).build()));
+                tasks.addTask(UUIDs.base64UUID(), randomAlphaOfLength(10), new TestParams(param), assignment).build()));
     }
 
     private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node) {
-        tasks.addTask(UUIDs.base64UUID(), action, new TestRequest(param), new Assignment(node, "explanation: " + action));
+        tasks.addTask(UUIDs.base64UUID(), action, new TestParams(param), new Assignment(node, "explanation: " + action));
     }
 
     private DiscoveryNode newNode(String nodeId) {

@@ -79,7 +79,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                 continue;
             }
             if (OpenJobAction.NAME.equals(currentTask.getTaskName())) {
-                String jobId = ((OpenJobAction.Request) currentTask.getRequest()).getJobId();
+                String jobId = ((OpenJobAction.Request) currentTask.getParams()).getJobId();
                 if (currentAssignment.getExecutorNode() == null) {
                     auditor.warning(jobId, "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
                 } else {
@@ -87,7 +87,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                     auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 }
             } else if (StartDatafeedAction.NAME.equals(currentTask.getTaskName())) {
-                String datafeedId = ((StartDatafeedAction.Request) currentTask.getRequest()).getDatafeedId();
+                String datafeedId = ((StartDatafeedAction.Request) currentTask.getParams()).getDatafeedId();
                 MlMetadata mlMetadata = event.state().getMetaData().custom(MlMetadata.TYPE);
                 DatafeedConfig datafeedConfig = mlMetadata.getDatafeed(datafeedId);
                 if (currentAssignment.getExecutorNode() == null) {

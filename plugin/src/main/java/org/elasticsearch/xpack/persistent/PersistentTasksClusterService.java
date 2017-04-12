@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -44,11 +45,11 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * Creates a new persistent task on master node
      *
      * @param action   the action name
-     * @param request  request
+     * @param params  params
      * @param listener the listener that will be called when task is started
      */
-    public <Request extends PersistentTaskRequest> void createPersistentTask(String taskId, String action, Request request,
-                                                                             ActionListener<PersistentTask<?>> listener) {
+    public <Params extends PersistentTaskParams> void createPersistentTask(String taskId, String action, @Nullable Params params,
+                                                                           ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -56,10 +57,10 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                 if (builder.hasTask(taskId)) {
                     throw new ResourceAlreadyExistsException("task with id {" + taskId + "} already exist");
                 }
-                validate(action, clusterService.state(), request);
+                validate(action, clusterService.state(), params);
                 final Assignment assignment;
-                assignment = getAssignement(action, currentState, request);
-                return update(currentState, builder.addTask(taskId, action, request, assignment));
+                assignment = getAssignement(action, currentState, params);
+                return update(currentState, builder.addTask(taskId, action, params, assignment));
             }
 
             @Override
@@ -191,14 +192,15 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
         });
     }
 
-    private <Request extends PersistentTaskRequest> Assignment getAssignement(String taskName, ClusterState currentState, Request request) {
-        PersistentTasksExecutor<Request> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
-        return persistentTasksExecutor.getAssignment(request, currentState);
+    private <Params extends PersistentTaskParams> Assignment getAssignement(String taskName, ClusterState currentState,
+                                                                            @Nullable Params params) {
+        PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
+        return persistentTasksExecutor.getAssignment(params, currentState);
     }
 
-    private <Request extends PersistentTaskRequest> void validate(String taskName, ClusterState currentState, Request request) {
-        PersistentTasksExecutor<Request> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
-        persistentTasksExecutor.validate(request, currentState);
+    private <Params extends PersistentTaskParams> void validate(String taskName, ClusterState currentState, @Nullable Params params) {
+        PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
+        persistentTasksExecutor.validate(params, currentState);
     }
 
     @Override
@@ -215,7 +217,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
     }
 
     interface ExecutorNodeDecider {
-        <Request extends PersistentTaskRequest> Assignment getAssignment(String action, ClusterState currentState, Request request);
+        <Params extends PersistentTaskParams> Assignment getAssignment(String action, ClusterState currentState, Params params);
     }
 
     static boolean reassignmentRequired(ClusterChangedEvent event, ExecutorNodeDecider decider) {
@@ -231,7 +233,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                 if (taskInProgress.needsReassignment(event.state().nodes())) {
                     // there is an unassigned task or task with a disappeared node - we need to try assigning it
                     if (Objects.equals(taskInProgress.getAssignment(),
-                            decider.getAssignment(taskInProgress.getTaskName(), event.state(), taskInProgress.getRequest())) == false) {
+                            decider.getAssignment(taskInProgress.getTaskName(), event.state(), taskInProgress.getParams())) == false) {
                         // it looks like a assignment for at least one task is possible - let's trigger reassignment
                         reassignmentRequired = true;
                         break;
@@ -276,7 +278,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
             for (PersistentTask<?> task : tasks.tasks()) {
                 if (task.needsReassignment(nodes)) {
                     // there is an unassigned task - we need to try assigning it
-                    Assignment assignment = decider.getAssignment(task.getTaskName(), clusterState, task.getRequest());
+                    Assignment assignment = decider.getAssignment(task.getTaskName(), clusterState, task.getParams());
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace("reassigning task {} from node {} to node {}", task.getId(),
                                 task.getAssignment().getExecutorNode(), assignment.getExecutorNode());

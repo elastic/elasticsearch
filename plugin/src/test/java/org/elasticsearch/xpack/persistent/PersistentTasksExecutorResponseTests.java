@@ -20,8 +20,8 @@ public class PersistentTasksExecutorResponseTests extends AbstractStreamableTest
     protected PersistentTaskResponse createTestInstance() {
         if (randomBoolean()) {
             return new PersistentTaskResponse(
-                    new PersistentTask<PersistentTaskRequest>(UUIDs.base64UUID(), randomAsciiOfLength(10),
-                            new TestPersistentTasksPlugin.TestRequest("test"),
+                    new PersistentTask<PersistentTaskParams>(UUIDs.base64UUID(), randomAsciiOfLength(10),
+                            new TestPersistentTasksPlugin.TestParams("test"),
                             randomLong(), PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT));
         } else {
             return new PersistentTaskResponse(null);
@@ -36,7 +36,8 @@ public class PersistentTasksExecutorResponseTests extends AbstractStreamableTest
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Collections.singletonList(
-                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME, TestPersistentTasksPlugin.TestRequest::new)
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class,
+                        TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME, TestPersistentTasksPlugin.TestParams::new)
         ));
     }
 }

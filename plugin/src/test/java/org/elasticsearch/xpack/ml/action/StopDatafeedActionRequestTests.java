@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
@@ -54,7 +54,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     public void testValidate() {
-        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("datafeed-foo", StartDatafeedAction.NAME,
+        PersistentTask<?> task = new PersistentTask<PersistentTaskParams>("datafeed-foo", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("foo", 0L), 1L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap("datafeed-foo", task));
@@ -75,7 +75,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     public void testValidate_alreadyStopped() {
         PersistentTasksCustomMetaData tasks;
         if (randomBoolean()) {
-            PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("1L", StartDatafeedAction.NAME,
+            PersistentTask<?> task = new PersistentTask<PersistentTaskParams>("1L", StartDatafeedAction.NAME,
                     new StartDatafeedAction.Request("foo2", 0L), 1L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
             tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap("1L", task));
         } else {
@@ -97,7 +97,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         Map<String, PersistentTask<?>> taskMap = new HashMap<>();
         Builder mlMetadataBuilder = new MlMetadata.Builder();
 
-        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>("datafeed-datafeed_1", StartDatafeedAction.NAME,
+        PersistentTask<?> task = new PersistentTask<PersistentTaskParams>("datafeed-datafeed_1", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("datafeed_1", 0L), 1L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
         taskMap.put("datafeed-datafeed_1", task);
@@ -105,7 +105,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
 
-        task = new PersistentTask<PersistentTaskRequest>("datafeed-datafeed_2", StartDatafeedAction.NAME,
+        task = new PersistentTask<PersistentTaskParams>("datafeed-datafeed_2", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("datafeed_2", 0L), 2L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STOPPED);
         taskMap.put("datafeed-datafeed_2", task);
@@ -113,7 +113,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
 
-        task = new PersistentTask<PersistentTaskRequest>("datafeed-datafeed_3", StartDatafeedAction.NAME,
+        task = new PersistentTask<PersistentTaskParams>("3L", StartDatafeedAction.NAME,
                 new StartDatafeedAction.Request("datafeed_3", 0L), 3L, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
         taskMap.put("datafeed-datafeed_3", task);

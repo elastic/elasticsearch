@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction.Request;
+import org.elasticsearch.xpack.persistent.StartPersistentTaskAction.Request;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestRequest;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
 import java.util.Collections;
@@ -19,17 +19,19 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
 
     @Override
     protected Request createTestInstance() {
-        TestRequest testRequest = new TestRequest();
+        TestParams testParams;
         if (randomBoolean()) {
-            testRequest.setTestParam(randomAlphaOfLengthBetween(1, 20));
+            testParams = new TestParams();
+            if (randomBoolean()) {
+                testParams.setTestParam(randomAlphaOfLengthBetween(1, 20));
+            }
+            if (randomBoolean()) {
+                testParams.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
+            }
+        } else {
+            testParams = null;
         }
-        if (randomBoolean()) {
-            testRequest.setParentTask(randomAlphaOfLengthBetween(1, 20), randomLong());
-        }
-        if (randomBoolean()) {
-            testRequest.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
-        }
-        return new Request(UUIDs.base64UUID(), randomAlphaOfLengthBetween(1, 20), new TestRequest());
+        return new Request(UUIDs.base64UUID(), randomAlphaOfLengthBetween(1, 20), testParams);
     }
 
     @Override
@@ -40,7 +42,7 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Collections.singletonList(
-                new Entry(PersistentTaskRequest.class, TestPersistentTasksExecutor.NAME, TestRequest::new)
+                new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new)
         ));
     }
 }

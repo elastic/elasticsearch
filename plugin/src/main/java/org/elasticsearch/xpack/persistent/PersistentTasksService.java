@@ -45,13 +45,13 @@ public class PersistentTasksService extends AbstractComponent {
      * Creates the specified persistent task and attempts to assign it to a node.
      */
     @SuppressWarnings("unchecked")
-    public <Request extends PersistentTaskRequest> void startPersistentTask(String taskId, String taskName, Request request,
-                                                                            ActionListener<PersistentTask<Request>> listener) {
-        CreatePersistentTaskAction.Request createPersistentActionRequest =
-                new CreatePersistentTaskAction.Request(taskId, taskName, request);
+    public <Params extends PersistentTaskParams> void startPersistentTask(String taskId, String taskName, @Nullable Params params,
+                                                                          ActionListener<PersistentTask<Params>> listener) {
+        StartPersistentTaskAction.Request createPersistentActionRequest =
+                new StartPersistentTaskAction.Request(taskId, taskName, params);
         try {
-            client.execute(CreatePersistentTaskAction.INSTANCE, createPersistentActionRequest, ActionListener.wrap(
-                    o -> listener.onResponse((PersistentTask<Request>) o.getTask()), listener::onFailure));
+            client.execute(StartPersistentTaskAction.INSTANCE, createPersistentActionRequest, ActionListener.wrap(
+                    o -> listener.onResponse((PersistentTask<Params>) o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -170,8 +170,8 @@ public class PersistentTasksService extends AbstractComponent {
         }
     }
 
-    public interface WaitForPersistentTaskStatusListener<Request extends PersistentTaskRequest>
-            extends ActionListener<PersistentTask<Request>> {
+    public interface WaitForPersistentTaskStatusListener<Params extends PersistentTaskParams>
+            extends ActionListener<PersistentTask<Params>> {
         default void onTimeout(TimeValue timeout) {
             onFailure(new IllegalStateException("timed out after " + timeout));
         }

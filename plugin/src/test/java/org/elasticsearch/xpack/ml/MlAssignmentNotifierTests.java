@@ -18,7 +18,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -51,7 +51,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
 
         Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        tasks.put("0L", new PersistentTask<PersistentTaskRequest>("0L", OpenJobAction.NAME,
+        tasks.put("0L", new PersistentTask<PersistentTaskParams>("0L", OpenJobAction.NAME,
                 new OpenJobAction.Request("job_id"), 0L, new Assignment("node_id", "")));
 
         MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
@@ -80,7 +80,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
 
         Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        tasks.put("0L", new PersistentTask<PersistentTaskRequest>("0L", OpenJobAction.NAME,
+        tasks.put("0L", new PersistentTask<PersistentTaskParams>("0L", OpenJobAction.NAME,
                 new OpenJobAction.Request("job_id"), 0L, new Assignment(null, "no nodes")));
 
         MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,

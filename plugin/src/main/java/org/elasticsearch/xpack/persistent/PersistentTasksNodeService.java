@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
@@ -118,16 +120,36 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
     }
 
-    private <Request extends PersistentTaskRequest> void startTask(PersistentTask<Request> taskInProgress) {
-        PersistentTasksExecutor<Request> action = persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(taskInProgress.getTaskName());
+    private <Params extends PersistentTaskParams> void startTask(PersistentTask<Params> taskInProgress) {
+        PersistentTasksExecutor<Params> executor =
+                persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(taskInProgress.getTaskName());
+
+        TaskAwareRequest request = new TaskAwareRequest() {
+            TaskId parentTaskId = new TaskId("cluster", taskInProgress.getAllocationId());
+
+            @Override
+            public void setParentTask(TaskId taskId) {
+                throw new UnsupportedOperationException("parent task if for persistent tasks shouldn't change");
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return parentTaskId;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+                return executor.createTask(id, type, action, parentTaskId, taskInProgress);
+            }
+        };
         AllocatedPersistentTask task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
-                taskInProgress.getRequest());
+                request);
         boolean processed = false;
         try {
             task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
             try {
                 runningTasks.put(taskInProgress.getAllocationId(), task);
-                nodePersistentTasksExecutor.executeTask(taskInProgress.getRequest(), task, action);
+                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), task, executor);
             } catch (Exception e) {
                 // Submit task failure
                 task.markAsFailed(e);

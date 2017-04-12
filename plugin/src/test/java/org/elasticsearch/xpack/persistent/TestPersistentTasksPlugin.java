@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -78,7 +77,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
                 new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
-                new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
+                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class)
@@ -104,7 +103,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, TestPersistentTasksExecutor.NAME, TestRequest::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class,
                         PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new),
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
@@ -120,16 +119,16 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
                         PersistentTasksCustomMetaData::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(TestPersistentTasksExecutor.NAME),
-                        TestRequest::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
+                        TestParams::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
         );
     }
 
-    public static class TestRequest extends PersistentTaskRequest {
+    public static class TestParams implements PersistentTaskParams {
 
-        public static final ConstructingObjectParser<TestRequest, Void> REQUEST_PARSER =
-                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new TestRequest((String) args[0]));
+        public static final ConstructingObjectParser<TestParams, Void> REQUEST_PARSER =
+                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new TestParams((String) args[0]));
 
         static {
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
@@ -141,21 +140,18 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
 
         private String testParam = null;
 
-        public TestRequest() {
+        public TestParams() {
 
         }
 
-        public TestRequest(String testParam) {
+        public TestParams(String testParam) {
             this.testParam = testParam;
         }
 
-        public TestRequest(StreamInput in) throws IOException {
-            readFrom(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public TestParams(StreamInput in) throws IOException {
+            executorNodeAttr = in.readOptionalString();
+            responseNode = in.readOptionalString();
+            testParam = in.readOptionalString();
         }
 
         @Override
@@ -181,18 +177,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            executorNodeAttr = in.readOptionalString();
-            responseNode = in.readOptionalString();
-            testParam = in.readOptionalString();
         }
 
         @Override
@@ -203,7 +190,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
             return builder;
         }
 
-        public static TestRequest fromXContent(XContentParser parser) throws IOException {
+        public static TestParams fromXContent(XContentParser parser) throws IOException {
             return REQUEST_PARSER.parse(parser, null);
         }
 
@@ -211,7 +198,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            TestRequest that = (TestRequest) o;
+            TestParams that = (TestParams) o;
             return Objects.equals(executorNodeAttr, that.executorNodeAttr) &&
                     Objects.equals(responseNode, that.responseNode) &&
                     Objects.equals(testParam, that.testParam);
@@ -220,11 +207,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         @Override
         public int hashCode() {
             return Objects.hash(executorNodeAttr, responseNode, testParam);
-        }
-
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new TestTask(id, type, action, getDescription(), parentTaskId);
         }
     }
 
@@ -298,7 +280,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
     }
 
 
-    public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestRequest> {
+    public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestParams> {
 
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
@@ -309,12 +291,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public Assignment getAssignment(TestRequest request, ClusterState clusterState) {
-            if (request.getExecutorNodeAttr() == null) {
-                return super.getAssignment(request, clusterState);
+        public Assignment getAssignment(TestParams params, ClusterState clusterState) {
+            if (params == null || params.getExecutorNodeAttr() == null) {
+                return super.getAssignment(params, clusterState);
             } else {
                 DiscoveryNode executorNode = selectLeastLoadedNode(clusterState,
-                        discoveryNode -> request.getExecutorNodeAttr().equals(discoveryNode.getAttributes().get("test_attr")));
+                        discoveryNode -> params.getExecutorNodeAttr().equals(discoveryNode.getAttributes().get("test_attr")));
                 if (executorNode != null) {
                     return new Assignment(executorNode.getId(), "test assignment");
                 } else {
@@ -325,7 +307,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, TestRequest request) {
+        protected void nodeOperation(AllocatedPersistentTask task, TestParams params) {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
@@ -384,6 +366,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
             } catch (InterruptedException e) {
                 task.markAsFailed(e);
             }
+        }
+
+        @Override
+        protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+                                                     PersistentTask<TestParams> task) {
+            return new TestTask(id, type, action, getDescription(task), parentTaskId);
         }
     }
 

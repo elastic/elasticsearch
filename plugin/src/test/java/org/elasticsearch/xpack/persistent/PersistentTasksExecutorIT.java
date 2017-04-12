@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.Status;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestRequest;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
 import org.junit.After;
 
@@ -55,15 +55,15 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertNoRunningTasks();
     }
 
-    public static class WaitForPersistentTaskStatusFuture<Request extends PersistentTaskRequest>
-            extends PlainActionFuture<PersistentTask<Request>>
-            implements WaitForPersistentTaskStatusListener<Request> {
+    public static class WaitForPersistentTaskStatusFuture<Params extends PersistentTaskParams>
+            extends PlainActionFuture<PersistentTask<Params>>
+            implements WaitForPersistentTaskStatusListener<Params> {
     }
 
     public void testPersistentActionFailure() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
+        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
+        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
         assertBusy(() -> {
             // Wait for the task to start
@@ -92,29 +92,31 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
     public void testPersistentActionCompletion() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
-        long taskId = future.get().getAllocationId();
+        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
+        String taskId = UUIDs.base64UUID();
+        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
+        long allocationId = future.get().getAllocationId();
         assertBusy(() -> {
             // Wait for the task to start
             assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
                     .getTasks().size(), equalTo(1));
         });
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                .get().getTasks().get(0);
+                .setDetailed(true).get().getTasks().get(0);
         logger.info("Found running task with id {} and parent {}", firstRunningTask.getId(), firstRunningTask.getParentTaskId());
-        // Verifying parent
-        assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(taskId));
+        // Verifying parent and description
+        assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(allocationId));
         assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
+        assertThat(firstRunningTask.getDescription(), equalTo("id=" + taskId));
         stopOrCancelTask(firstRunningTask.getTaskId());
     }
 
     public void testPersistentActionWithNoAvailableNode() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
-        TestRequest testRequest = new TestRequest("Blah");
-        testRequest.setExecutorNodeAttr("test");
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, testRequest, future);
+        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
+        TestParams testParams = new TestParams("Blah");
+        testParams.setExecutorNodeAttr("test");
+        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, testParams, future);
         String taskId = future.get().getId();
 
         Settings nodeSettings = Settings.builder().put(nodeSettings(0)).put("node.attr.test_attr", "test").build();
@@ -147,8 +149,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
     public void testPersistentActionStatusUpdate() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
+        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
+        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         String taskId = future.get().getId();
 
         assertBusy(() -> {
@@ -205,13 +207,13 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
     public void testCreatePersistentTaskWithDuplicateId() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
+        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         String taskId = UUIDs.base64UUID();
-        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
+        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         future.get();
 
-        PlainActionFuture<PersistentTask<TestRequest>> future2 = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future2);
+        PlainActionFuture<PersistentTask<TestParams>> future2 = new PlainActionFuture<>();
+        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future2);
         assertThrows(future2, ResourceAlreadyExistsException.class);
 
         assertBusy(() -> {

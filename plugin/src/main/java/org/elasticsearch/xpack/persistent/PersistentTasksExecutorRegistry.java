@@ -31,8 +31,8 @@ public class PersistentTasksExecutorRegistry extends AbstractComponent {
     }
 
     @SuppressWarnings("unchecked")
-    public <Request extends PersistentTaskRequest> PersistentTasksExecutor<Request> getPersistentTaskExecutorSafe(String taskName) {
-        PersistentTasksExecutor<Request> executor = (PersistentTasksExecutor<Request>) taskExecutors.get(taskName);
+    public <Params extends PersistentTaskParams> PersistentTasksExecutor<Params> getPersistentTaskExecutorSafe(String taskName) {
+        PersistentTasksExecutor<Params> executor = (PersistentTasksExecutor<Params>) taskExecutors.get(taskName);
         if (executor == null) {
             throw new IllegalStateException("Unknown persistent executor [" + taskName + "]");
         }

@@ -123,8 +123,8 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
-import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTaskParams;
+import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
@@ -216,8 +216,8 @@ public class MachineLearning implements ActionPlugin {
                         PersistentTasksCustomMetaData::readDiffFrom),
 
                 // Persistent action requests
-                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.NAME, OpenJobAction.Request::new),
 
                 // Task statuses
                 new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
@@ -236,9 +236,9 @@ public class MachineLearning implements ActionPlugin {
                         PersistentTasksCustomMetaData::fromXContent),
 
                 // Persistent action requests
-                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(StartDatafeedAction.NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(StartDatafeedAction.NAME),
                         StartDatafeedAction.Request::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(OpenJobAction.NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(OpenJobAction.NAME),
                         OpenJobAction.Request::fromXContent),
 
                 // Task statuses
@@ -422,7 +422,7 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
+                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),

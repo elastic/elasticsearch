@@ -19,9 +19,13 @@
 
 package org.elasticsearch.discovery;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
+import com.google.common.collect.Sets;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -37,12 +41,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -53,6 +60,9 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -98,6 +108,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -352,6 +363,138 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // the test to fail due to unfreed resources
         ensureStableCluster(2, nonIsolatedNode);
 
+    }
+
+    /**
+     * Checks whether a data node notifies the master to fail a shard marked as active in
+     * the cluster state but for which there are no corresponding in-memory data structures
+     * loaded on the data node.
+     */
+    @Test
+    public void testSendFailShardWhenShardMarkedAsActiveButNotCreated() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DEFAULT_SETTINGS)
+            .put(DiscoverySettings.NO_MASTER_BLOCK, "all") // unload in-memory index structures when no_master_block is in place
+            .build();
+        configureUnicastCluster(settings, 4, null, 2);
+        internalCluster().startMasterOnlyNodesAsync(2).get();
+        internalCluster().startDataOnlyNodesAsync(2).get();
+        ensureStableCluster(4);
+
+        logger.info("--> creating test index");
+        assertAcked(client().admin().indices().prepareCreate("index").setSettings((settingsBuilder().put("number_of_shards", 1)
+            .put("number_of_replicas", 0).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0))));
+        ensureGreen();
+
+        logger.info("--> indexing sample data");
+        final int numDocs = between(500, 1000);
+        final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("index", "type").
+                setSource("foo-int", randomInt(),
+                    "foo-string", randomAsciiOfLength(32),
+                    "foo-float", randomFloat());
+        }
+
+        indexRandom(true, docs);
+        flush();
+        assertThat(client().prepareSearch("index").get().getHits().getTotalHits(), equalTo((long) numDocs));
+        ByteSizeValue shardSize = client().admin().indices().prepareStats("index").get().getShards()[0].getStats().getStore().size();
+        ensureGreen();
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        boolean checkRelocation = randomBoolean();
+
+        if (checkRelocation) {
+            ShardRouting primaryShard = state.routingTable().shardRoutingTable("index", 0).primaryShard();
+            final DiscoveryNode relocSourceNode = state.nodes().resolveNode(primaryShard.currentNodeId());
+            assertNotNull(relocSourceNode);
+
+            DiscoveryNode relocTargetNodeTmp = null; // the data node that does not have the primary
+            for (ObjectCursor<DiscoveryNode> dataNode : state.nodes().getDataNodes().values()) {
+                if (dataNode.value.equals(relocSourceNode) == false) {
+                    relocTargetNodeTmp = dataNode.value;
+                }
+            }
+            assertNotNull(relocTargetNodeTmp);
+            final DiscoveryNode relocTargetNode = relocTargetNodeTmp;
+
+            logger.info("--> slowing down recoveries");
+            slowDownRecovery(shardSize);
+
+            logger.info("--> move shard from: {} to: {}", relocSourceNode, relocTargetNode);
+            client().admin().cluster().prepareReroute()
+                .add(new MoveAllocationCommand(new ShardId("index", 0), relocSourceNode.getName(), relocTargetNode.getName()))
+                .execute().actionGet().getState();
+
+            logger.info("--> waiting for recovery to start both on source and target");
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, relocSourceNode.getName());
+                    assertThat(indicesService.indexServiceSafe("index").shardSafe(0).recoveryStats().currentAsSource(),
+                        equalTo(1));
+                    indicesService = internalCluster().getInstance(IndicesService.class, relocTargetNode.getName());
+                    assertThat(indicesService.indexServiceSafe("index").shardSafe(0).recoveryStats().currentAsTarget(),
+                        equalTo(1));
+                }
+            });
+        }
+
+        logger.info("--> start network disruption");
+        // add a disruption between non-active master and the rest of the cluster
+        // as minimum_master_nodes is set to 2, this will make the active master step down
+        DiscoveryNode nonActiveMasterNode = null;
+        for (ObjectCursor<DiscoveryNode> masterNode : state.nodes().getMasterNodes().values()) {
+            if (masterNode.value.equals(state.nodes().masterNode()) == false) {
+                nonActiveMasterNode = masterNode.value;
+            }
+        }
+        assertNotNull(nonActiveMasterNode);
+        Set<String> side1 = Sets.newHashSet(nonActiveMasterNode.getName());
+        Set<String> side2 = Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), side1);
+        NetworkPartition partition = new NetworkDisconnectPartition(side1, side2, getRandom());
+        setDisruptionScheme(partition);
+        partition.startDisrupting();
+
+        logger.info("--> wait for NO_MASTER_BLOCK_ALL on data nodes");
+        for (ObjectCursor<DiscoveryNode> dataNode : state.nodes().getDataNodes().values()) {
+            assertNoMaster(dataNode.value.getName(), DiscoverySettings.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
+        }
+
+        logger.info("--> stop disruption");
+        partition.stopDisrupting();
+
+        logger.info("--> wait for stable cluster with 4 nodes and green status");
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("4")
+            .setWaitForGreenStatus()
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+        if (clusterHealthResponse.isTimedOut()) {
+            ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+            fail("failed to reach a stable cluster of 4 nodes. last cluster state:\n"
+                + stateResponse.getState().prettyPrint());
+        }
+        assertThat(clusterHealthResponse.isTimedOut(), is(false));
+
+        logger.info("--> check if indexing works");
+        client().prepareIndex("index", "type").setSource("foo-int", randomInt(), "foo-string", randomAsciiOfLength(32),
+            "foo-float", randomFloat()).setTimeout(TimeValue.timeValueMillis(100)).get();
+    }
+
+    private void slowDownRecovery(ByteSizeValue shardSize) {
+        long chunkSize = shardSize.bytes() / 10;
+        assertTrue(client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                // one chunk per sec..
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize, ByteSizeUnit.BYTES)
+                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize, ByteSizeUnit.BYTES)
+            )
+            .get().isAcknowledged());
     }
 
     /**

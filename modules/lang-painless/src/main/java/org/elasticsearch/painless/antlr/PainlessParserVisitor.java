@@ -222,6 +222,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBinary(PainlessParser.BinaryContext ctx);
   /**
+   * Visit a parse tree produced by the {@code elvis}
+   * labeled alternative in {@link PainlessParser#expression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitElvis(PainlessParser.ElvisContext ctx);
+  /**
    * Visit a parse tree produced by the {@code instanceof}
    * labeled alternative in {@link PainlessParser#expression}.
    * @param ctx the parse tree

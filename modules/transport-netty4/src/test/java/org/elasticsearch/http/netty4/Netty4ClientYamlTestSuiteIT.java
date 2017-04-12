@@ -26,7 +26,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
 import java.io.IOException;
 
@@ -39,8 +38,8 @@ public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
-        return ESClientYamlSuiteTestCase.createParameters(0, 1);
+    public static Iterable<Object[]> parameters() throws IOException {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 
 }

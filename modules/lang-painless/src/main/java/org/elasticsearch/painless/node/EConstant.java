@@ -89,4 +89,13 @@ final class EConstant extends AExpression {
                 throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
+
+    @Override
+    public String toString() {
+        String c = constant.toString();
+        if (constant instanceof String) {
+            c = "'" + c + "'";
+        }
+        return singleLineToString(constant.getClass().getSimpleName(), c);
+    }
 }

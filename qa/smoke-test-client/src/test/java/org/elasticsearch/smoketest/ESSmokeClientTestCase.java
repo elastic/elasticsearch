@@ -31,7 +31,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -49,7 +48,6 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -83,20 +81,11 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
             .put("client.transport.ignore_cluster_name", true)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         final Collection<Class<? extends Plugin>> plugins;
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-                plugins = Collections.singleton(MockTcpTransportPlugin.class);
-                break;
-            case 1:
-                plugins = Collections.emptyList();
-                builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME);
-                break;
-            case 2:
-                plugins = Collections.emptyList();
-                break;
-            default:
-                throw new AssertionError();
+        if (random().nextBoolean()) {
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            plugins = Collections.singleton(MockTcpTransportPlugin.class);
+        } else {
+            plugins = Collections.emptyList();
         }
         TransportClient client = new PreBuiltTransportClient(builder.build(), plugins).addTransportAddresses(transportAddresses);
 
@@ -176,5 +165,4 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
             }
         }
     }
-
 }

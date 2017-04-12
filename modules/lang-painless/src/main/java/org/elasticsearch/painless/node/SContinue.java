@@ -59,4 +59,9 @@ public final class SContinue extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         writer.goTo(continu);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString();
+    }
 }

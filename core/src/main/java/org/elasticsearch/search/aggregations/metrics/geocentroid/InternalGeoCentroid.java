@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ import java.util.Map;
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
-public class InternalGeoCentroid extends InternalMetricsAggregation implements GeoCentroid {
+public class InternalGeoCentroid extends InternalAggregation implements GeoCentroid {
     protected final GeoPoint centroid;
     protected final long count;
 

@@ -7,7 +7,7 @@ See {ref}/query-dsl-span-containing-query.html[Span Containing Query]
 --------------------------------------------------
 QueryBuilder qb = spanContainingQuery(
     spanNearQuery(spanTermQuery("field1","bar"), 5) <1>
-          .clause(spanTermQuery("field1","baz"))
+          .addClause(spanTermQuery("field1","baz"))
           .inOrder(true),
     spanTermQuery("field1","foo"));                 <2>
 --------------------------------------------------

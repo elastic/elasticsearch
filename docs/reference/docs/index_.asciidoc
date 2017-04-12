@@ -31,6 +31,7 @@ The result of the above index operation is:
     "_id" : "1",
     "_version" : 1,
     "created" : true,
+    "_seq_no" : 0,
     "result" : created
 }
 --------------------------------------------------
@@ -69,8 +70,7 @@ section for more information on mapping definitions.
 Automatic index creation can be disabled by setting
 `action.auto_create_index` to `false` in the config file of all nodes.
 Automatic mapping creation can be disabled by setting
-`index.mapper.dynamic` to `false` in the config files of all nodes (or
-on the specific index settings).
+`index.mapper.dynamic` to `false` per-index as an index setting.
 
 Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
@@ -229,6 +229,7 @@ The result of the above index operation is:
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
     "created" : true,
+    "_seq_no" : 0,
     "result": "created"
 }
 --------------------------------------------------

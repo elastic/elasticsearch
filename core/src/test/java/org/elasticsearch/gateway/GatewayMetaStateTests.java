@@ -35,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,12 +59,6 @@ import static org.hamcrest.Matchers.equalTo;
  * for data only nodes: shard initializing on shard
  */
 public class GatewayMetaStateTests extends ESAllocationTestCase {
-
-    @Before
-    public void setup() {
-        MetaData.registerPrototype(CustomMetaData1.TYPE, new CustomMetaData1(""));
-        MetaData.registerPrototype(CustomMetaData2.TYPE, new CustomMetaData2(""));
-    }
 
     ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
@@ -391,12 +384,12 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     private static class MockMetaDataIndexUpgradeService extends MetaDataIndexUpgradeService {
         private final boolean upgrade;
 
-        public MockMetaDataIndexUpgradeService(boolean upgrade) {
-            super(Settings.EMPTY, null, null);
+        MockMetaDataIndexUpgradeService(boolean upgrade) {
+            super(Settings.EMPTY, null, null, null);
             this.upgrade = upgrade;
         }
         @Override
-        public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
+        public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
             return upgrade ? IndexMetaData.builder(indexMetaData).build() : indexMetaData;
         }
     }
@@ -409,12 +402,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData1(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
@@ -432,12 +420,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData2(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
@@ -450,11 +433,11 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     private static MetaData randomMetaData(TestCustomMetaData... customMetaDatas) {
         MetaData.Builder builder = MetaData.builder();
         for (TestCustomMetaData customMetaData : customMetaDatas) {
-            builder.putCustom(customMetaData.type(), customMetaData);
+            builder.putCustom(customMetaData.getWriteableName(), customMetaData);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(
-                IndexMetaData.builder(randomAsciiOfLength(10))
+                IndexMetaData.builder(randomAlphaOfLength(10))
                     .settings(settings(Version.CURRENT))
                     .numberOfReplicas(randomIntBetween(0, 3))
                     .numberOfShards(randomIntBetween(1, 5))

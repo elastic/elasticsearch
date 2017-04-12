@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;
@@ -121,6 +122,7 @@ class Netty4HttpClient implements Closeable {
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);
             request.headers().add(HttpHeaderNames.HOST, "localhost");
             request.headers().add(HttpHeaderNames.CONTENT_LENGTH, content.readableBytes());
+            request.headers().add(HttpHeaderNames.CONTENT_TYPE, "application/json");
             requests.add(request);
         }
         return sendRequests(remoteAddress, requests);

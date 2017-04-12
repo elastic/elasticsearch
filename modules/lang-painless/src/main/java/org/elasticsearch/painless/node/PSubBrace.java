@@ -96,4 +96,9 @@ final class PSubBrace extends AStoreable {
         writer.writeDebugInfo(location);
         writer.arrayStore(actual.type);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, index);
+    }
 }

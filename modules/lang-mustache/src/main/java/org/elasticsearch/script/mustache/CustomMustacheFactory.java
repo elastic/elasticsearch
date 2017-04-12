@@ -30,7 +30,6 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -52,8 +51,7 @@ import java.util.regex.Pattern;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
 
-    static final String CONTENT_TYPE_PARAM = "content_type";
-
+    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MIME_TYPE = "application/json";
     static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
     static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
@@ -63,6 +61,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     private static final Map<String, Supplier<Encoder>> ENCODERS;
     static {
         Map<String, Supplier<Encoder>> encoders = new HashMap<>();
+        encoders.put(JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new);
         encoders.put(JSON_MIME_TYPE, JsonEscapeEncoder::new);
         encoders.put(PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new);
         encoders.put(X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
@@ -105,7 +104,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
-        public CustomMustacheVisitor(DefaultMustacheFactory df) {
+        CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
         }
 
@@ -132,7 +131,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private final String code;
 
-        public CustomCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String code) {
+        CustomCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String code) {
             super(tc, df, mustache, extractVariableName(code, mustache, tc));
             this.code = Objects.requireNonNull(code);
         }
@@ -187,7 +186,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private static final String CODE = "toJson";
 
-        public ToJsonCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
+        ToJsonCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, CODE);
             if (CODE.equalsIgnoreCase(variable) == false) {
                 throw new MustacheException("Mismatch function code [" + CODE + "] cannot be applied to [" + variable + "]");
@@ -238,12 +237,12 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private final String delimiter;
 
-        public JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String delimiter) {
+        JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String delimiter) {
             super(tc, df, mustache, CODE);
             this.delimiter = delimiter;
         }
 
-        public JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache) {
+        JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache) {
             this(tc, df, mustache, DEFAULT_DELIMITER);
         }
 
@@ -272,7 +271,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
 
-        public CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
+        CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
         }
 
@@ -298,7 +297,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         private static final String CODE = "url";
         private final Encoder encoder;
 
-        public UrlEncoderCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
+        UrlEncoderCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache.getCodes(), variable);
             this.encoder = new UrlEncoder();
         }
@@ -335,7 +334,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
          * @param s      The string to encode
          * @param writer The {@link Writer} to which the encoded string will be written to
          */
-        void encode(final String s, final Writer writer) throws IOException;
+        void encode(String s, Writer writer) throws IOException;
     }
 
     /**

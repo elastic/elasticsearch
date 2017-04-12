@@ -60,4 +60,9 @@ final class ECast extends AExpression {
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(cast.to, child);
+    }
 }

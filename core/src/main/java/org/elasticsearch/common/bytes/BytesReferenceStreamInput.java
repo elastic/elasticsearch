@@ -37,7 +37,7 @@ final class BytesReferenceStreamInput extends StreamInput {
     private final int length; // the total size of the stream
     private int offset; // the current position of the stream
 
-    public BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
+    BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
         this.iterator = iterator;
         this.slice = iterator.next();
         this.length = length;
@@ -112,6 +112,14 @@ final class BytesReferenceStreamInput extends StreamInput {
     @Override
     public int available() throws IOException {
         return length - offset;
+    }
+
+    @Override
+    protected void ensureCanReadBytes(int bytesToRead) throws EOFException {
+        int bytesAvailable = length - offset;
+        if (bytesAvailable < bytesToRead) {
+            throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
+        }
     }
 
     @Override

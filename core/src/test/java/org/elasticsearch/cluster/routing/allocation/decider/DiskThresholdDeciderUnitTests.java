@@ -52,6 +52,7 @@ import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for the DiskThresholdDecider
@@ -98,8 +99,15 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(), shardSizes.build(), ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.singleton(decider)), clusterState.getRoutingNodes(), clusterState, clusterInfo, System.nanoTime(), false);
-        assertEquals(mostAvailableUsage.toString(), Decision.YES, decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation));
-        assertEquals(mostAvailableUsage.toString(), Decision.NO, decider.canAllocate(test_0, new RoutingNode("node_1", node_1), allocation));
+        allocation.debugDecision(true);
+        Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
+        assertEquals(mostAvailableUsage.toString(), Decision.Type.YES, decision.type());
+        assertThat(((Decision.Single) decision).getExplanation(), containsString("enough disk for shard on node"));
+        decision = decider.canAllocate(test_0, new RoutingNode("node_1", node_1), allocation);
+        assertEquals(mostAvailableUsage.toString(), Decision.Type.NO, decision.type());
+        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+            "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], using more " +
+            "disk space than the maximum allowed [90.0%]"));
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {
@@ -165,8 +173,16 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(), shardSizes.build(), shardRoutingMap.build());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.singleton(decider)), clusterState.getRoutingNodes(), clusterState, clusterInfo, System.nanoTime(), false);
-        assertEquals(Decision.YES, decider.canRemain(test_0, new RoutingNode("node_0", node_0), allocation));
-        assertEquals(Decision.NO, decider.canRemain(test_1, new RoutingNode("node_1", node_1), allocation));
+        allocation.debugDecision(true);
+        Decision decision = decider.canRemain(test_0, new RoutingNode("node_0", node_0), allocation);
+        assertEquals(Decision.Type.YES, decision.type());
+        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+            "there is enough disk on this node for the shard to remain, free: [10b]"));
+        decision = decider.canRemain(test_1, new RoutingNode("node_1", node_1), allocation);
+        assertEquals(Decision.Type.NO, decision.type());
+        assertThat(((Decision.Single) decision).getExplanation(), containsString("the shard cannot remain on this node because it is " +
+            "above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%] and there is less than " +
+            "the required [10.0%] free disk on node, actual free: [9.0%]"));
         try {
             decider.canRemain(test_0, new RoutingNode("node_1", node_1), allocation);
             fail("not allocated on this node");
@@ -180,9 +196,15 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             // not allocated on that node
         }
 
-        assertEquals("can stay since allocated on a different path with enough space", Decision.YES, decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation));
+        decision = decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation);
+        assertEquals("can stay since allocated on a different path with enough space", Decision.Type.YES, decision.type());
+        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+            "this shard is not allocated on the most utilized disk and can remain"));
 
-        assertEquals("can stay since we don't have information about this shard", Decision.YES, decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation));
+        decision = decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation);
+        assertEquals("can stay since we don't have information about this shard", Decision.Type.YES, decision.type());
+        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+            "this shard is not allocated on the most utilized disk and can remain"));
     }
 
 

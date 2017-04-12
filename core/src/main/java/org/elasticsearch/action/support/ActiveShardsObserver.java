@@ -30,6 +30,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * This class provides primitives for waiting for a configured number of shards
@@ -68,17 +69,12 @@ public class ActiveShardsObserver extends AbstractComponent {
             return;
         }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        if (activeShardCount.enoughShardsActive(observer.observedState(), indexName)) {
-                onResult.accept(true);
+        final ClusterState state = clusterService.state();
+        final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
+        if (activeShardCount.enoughShardsActive(state, indexName)) {
+            onResult.accept(true);
         } else {
-            final ClusterStateObserver.ChangePredicate shardsAllocatedPredicate =
-                new ClusterStateObserver.ValidationPredicate() {
-                    @Override
-                    protected boolean validate(final ClusterState newState) {
-                        return activeShardCount.enoughShardsActive(newState, indexName);
-                    }
-                };
+            final Predicate<ClusterState> shardsAllocatedPredicate = newState -> activeShardCount.enoughShardsActive(newState, indexName);
 
             final ClusterStateObserver.Listener observerListener = new ClusterStateObserver.Listener() {
                 @Override

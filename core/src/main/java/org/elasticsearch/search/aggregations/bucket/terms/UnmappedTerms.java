@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +40,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     public static final String NAME = "umterms";
 
     /**
-     * Concrete type that can't be built because Java needs a concrent type so {@link InternalTerms.Bucket} can have a self type but
+     * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalTerms.Bucket<Bucket> {
@@ -72,6 +73,11 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
+    protected String getType() {
+        return StringTerms.NAME;
+    }
+
+    @Override
     public UnmappedTerms create(List<Bucket> buckets) {
         return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }
@@ -97,11 +103,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, 0);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, 0);
-        builder.startArray(CommonFields.BUCKETS).endArray();
-        return builder;
+    public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return doXContentCommon(builder, params, 0, 0, Collections.emptyList());
     }
 
     @Override

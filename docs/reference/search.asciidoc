@@ -129,6 +129,4 @@ include::search/explain.asciidoc[]
 
 include::search/profile.asciidoc[]
 
-include::search/percolate.asciidoc[]
-
 include::search/field-stats.asciidoc[]

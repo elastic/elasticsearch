@@ -21,15 +21,10 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -41,7 +36,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
-    static final ObjectParser<IndicesAliasesRequest, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("aliases");
+    static final ObjectParser<IndicesAliasesRequest, Void> PARSER = new ObjectParser<>("aliases");
     static {
         PARSER.declareObjectArray((request, actions) -> {
             for (AliasActions action: actions) {
@@ -50,7 +45,6 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         }, AliasActions.PARSER, new ParseField("actions"));
     }
 
-    @Inject
     public RestIndicesAliasesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_aliases", this);
@@ -61,8 +55,8 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-        try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(parser, indicesAliasesRequest, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = request.contentParser()) {
+            PARSER.parse(parser, indicesAliasesRequest, null);
         }
         if (indicesAliasesRequest.getAliasActions().isEmpty()) {
             throw new IllegalArgumentException("No action specified");

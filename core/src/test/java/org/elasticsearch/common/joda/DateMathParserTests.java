@@ -82,8 +82,24 @@ public class DateMathParserTests extends ESTestCase {
         // timezone works within date format
         assertDateMathEquals("2014-05-30T20:21+02:00", "2014-05-30T18:21:00.000");
 
+        // test alternative ways of writing zero offsets, according to ISO 8601 +00:00, +00, +0000 should work.
+        // joda also seems to allow for -00:00, -00, -0000
+        assertDateMathEquals("2014-05-30T18:21+00:00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21+00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21+0000", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21-00:00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21-00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21-0000", "2014-05-30T18:21:00.000");
+
         // but also externally
         assertDateMathEquals("2014-05-30T20:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+02:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+0000"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-0000"));
 
         // and timezone in the date has priority
         assertDateMathEquals("2014-05-30T20:21+03:00", "2014-05-30T17:21:00.000", 0, false, DateTimeZone.forID("-08:00"));

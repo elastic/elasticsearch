@@ -23,10 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.analysis.de.GermanAnalyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
@@ -37,6 +34,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
@@ -122,69 +120,6 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
     }
 
-    public void testAnalyzerAlias() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "keyword")
-            .put("index.analysis.analyzer.foobar_search.alias","default_search")
-            .put("index.analysis.analyzer.foobar_search.type","english")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
-        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
-        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(EnglishAnalyzer.class)));
-    }
-
-    public void testAnalyzerAliasReferencesAlias() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "german")
-            .put("index.analysis.analyzer.foobar_search.alias","default_search")
-            .put("index.analysis.analyzer.foobar_search.type", "default")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
-
-        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(GermanAnalyzer.class)));
-        // analyzer types are bound early before we resolve aliases
-        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-    }
-
-    public void testAnalyzerAliasDefault() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "keyword")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
-        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
-        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
-    }
-
-    public void testAnalyzerAliasMoreThanOnce() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "keyword")
-            .put("index.analysis.analyzer.foobar1.alias","default")
-            .put("index.analysis.analyzer.foobar1.type", "english")
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> getIndexAnalyzers(newRegistry, settings));
-        assertEquals("alias [default] is already used by [foobar]", ise.getMessage());
-    }
-
     public void testAnalyzerAliasNotAllowedPost5x() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.foobar.type", "standard")
@@ -203,7 +138,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
@@ -216,8 +151,10 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
         // analysis service has the expected version
         assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.V_2_0_0.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(Version.V_2_0_0.luceneVersion, indexAnalyzers.get("thai").analyzer().getVersion());
+        assertEquals(Version.V_5_0_0.luceneVersion,
+                indexAnalyzers.get("standard").analyzer().getVersion());
+        assertEquals(Version.V_5_0_0.luceneVersion,
+                indexAnalyzers.get("thai").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
         assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), indexAnalyzers.get("custom7").analyzer().getVersion());
@@ -292,7 +229,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 //        assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
 //        assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
 
-        Set<?> wordList = Analysis.getWordSet(null, settings, "index.analysis.filter.dict_dec.word_list");
+        Set<?> wordList = Analysis.getWordSet(null, Version.CURRENT, settings, "index.analysis.filter.dict_dec.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
@@ -305,9 +242,10 @@ public class AnalysisModuleTests extends ModuleTestCase {
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         Path wordListFile = generateWordList(words);
-        settings = Settings.builder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath()).build();
+        settings = Settings.builder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath(), XContentType.YAML)
+            .build();
 
-        Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
+        Set<?> wordList = Analysis.getWordSet(env, Version.CURRENT, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems(words));
         Files.delete(wordListFile);
@@ -336,38 +274,6 @@ public class AnalysisModuleTests extends ModuleTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), either(equalTo("analyzer name must not start with '_'. got \"_invalid_name\""))
                     .or(equalTo("analyzer name must not start with '_'. got \"_invalidName\"")));
-        }
-    }
-
-    public void testUnderscoreInAnalyzerNameAlias() throws IOException {
-        Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
-                .put("index.analysis.analyzer.valid_name.alias", "_invalid_name")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                // analyzer aliases are only allowed for 2.x indices
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-                .build();
-        try {
-            getIndexAnalyzers(settings);
-            fail("This should fail with IllegalArgumentException because the analyzers alias starts with _");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
-        }
-    }
-
-    public void testDeprecatedPositionOffsetGap() throws IOException {
-        Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.custom.tokenizer", "standard")
-                .put("index.analysis.analyzer.custom.position_offset_gap", "128")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
-        try {
-            getIndexAnalyzers(settings);
-            fail("Analyzer should fail if it has position_offset_gap");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Option [position_offset_gap] in Custom Analyzer [custom] " +
-                    "has been renamed, please use [position_increment_gap] instead."));
         }
     }
 

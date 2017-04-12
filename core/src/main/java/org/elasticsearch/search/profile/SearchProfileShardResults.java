@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -35,12 +36,23 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
  */
 public final class SearchProfileShardResults implements Writeable, ToXContent{
+
+    private static final String SEARCHES_FIELD = "searches";
+    private static final String ID_FIELD = "id";
+    private static final String SHARDS_FIELD = "shards";
+    public static final String PROFILE_FIELD = "profile";
 
     private Map<String, ProfileShardResult> shardResults;
 
@@ -75,24 +87,71 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("profile").startArray("shards");
-
-        for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
+        builder.startObject(PROFILE_FIELD).startArray(SHARDS_FIELD);
+        // shardResults is a map, but we print entries in a json array, which is ordered.
+        // we sort the keys of the map, so that toXContent always prints out the same array order
+        TreeSet<String> sortedKeys = new TreeSet<>(shardResults.keySet());
+        for (String key : sortedKeys) {
             builder.startObject();
-            builder.field("id", entry.getKey());
-            builder.startArray("searches");
-            for (QueryProfileShardResult result : entry.getValue().getQueryProfileResults()) {
-                builder.startObject();
+            builder.field(ID_FIELD, key);
+            builder.startArray(SEARCHES_FIELD);
+            ProfileShardResult profileShardResult = shardResults.get(key);
+            for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
                 result.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
-            entry.getValue().getAggregationProfileResults().toXContent(builder, params);
+            profileShardResult.getAggregationProfileResults().toXContent(builder, params);
             builder.endObject();
         }
-
         builder.endArray().endObject();
         return builder;
+    }
+
+    public static SearchProfileShardResults fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
+        ensureFieldName(parser, parser.nextToken(), SHARDS_FIELD);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            parseSearchProfileResultsEntry(parser, searchProfileResults);
+        }
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return new SearchProfileShardResults(searchProfileResults);
+    }
+
+    private static void parseSearchProfileResultsEntry(XContentParser parser,
+            Map<String, ProfileShardResult> searchProfileResults) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
+        AggregationProfileShardResult aggProfileShardResult = null;
+        String id = null;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (ID_FIELD.equals(currentFieldName)) {
+                    id = parser.text();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (SEARCHES_FIELD.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
+                    }
+                } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
+                    aggProfileShardResult = AggregationProfileShardResult.fromXContent(parser);
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else {
+                throwUnknownToken(token, parser.getTokenLocation());
+            }
+        }
+        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult));
     }
 
     /**

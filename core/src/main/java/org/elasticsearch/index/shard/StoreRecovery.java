@@ -104,12 +104,11 @@ final class StoreRecovery {
             if (indices.size() > 1) {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
-            for (ObjectObjectCursor<String, MappingMetaData> mapping : shards.get(0).getMappings()) {
+            IndexMetaData indexMetaData = shards.get(0).getIndexMetaData();
+            for (ObjectObjectCursor<String, MappingMetaData> mapping : indexMetaData.getMappings()) {
                 mappingUpdateConsumer.accept(mapping.key, mapping.value);
             }
-            for (ObjectObjectCursor<String, MappingMetaData> mapping : shards.get(0).getMappings()) {
-                indexShard.mapperService().merge(mapping.key,mapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
-            }
+            indexShard.mapperService().merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
@@ -363,7 +362,7 @@ final class StoreRecovery {
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {
-            throw new IndexShardRecoveryException(shardId, "failed to recovery from gateway", e);
+            throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
         } finally {
             store.decRef();
         }

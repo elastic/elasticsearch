@@ -19,17 +19,22 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
 
 public class XContentParserTests extends ESTestCase {
@@ -55,8 +60,8 @@ public class XContentParserTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> List<T> readList(String source) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(source)) {
+    private <T> List<T> readList(String source) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             token = parser.nextToken();
@@ -73,6 +78,119 @@ public class XContentParserTests extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(ElasticsearchParseException.class));
             assertThat(e.getMessage(), containsString("Failed to parse list"));
+        }
+    }
+
+    public void testReadMapStrings() throws IOException {
+        Map<String, String> map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\"}}");
+        assertThat(map.get("kbar"), equalTo("vbar"));
+        assertThat(map.size(), equalTo(1));
+        map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\", \"kbaz\":\"vbaz\"}}");
+        assertThat(map.get("kbar"), equalTo("vbar"));
+        assertThat(map.get("kbaz"), equalTo("vbaz"));
+        assertThat(map.size(), equalTo(2));
+        map = readMapStrings("{\"foo\": {}}");
+        assertThat(map.size(), equalTo(0));
+    }
+
+    private Map<String, String> readMapStrings(String source) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("foo"));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            return randomBoolean() ? parser.mapStringsOrdered() : parser.mapStrings();
+        }
+    }
+
+    @SuppressWarnings("deprecation") // #isBooleanValueLenient() and #booleanValueLenient() are the test subjects
+    public void testReadLenientBooleans() throws IOException {
+        // allow String, boolean and int representations of lenient booleans
+        String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0", "\"false\"", "false");
+        String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1", "\"true\"", "true");
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("foo"));
+            token = parser.nextToken();
+            assertThat(token, isIn(
+                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
+            assertTrue(parser.isBooleanValueLenient());
+            assertFalse(parser.booleanValueLenient());
+
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("bar"));
+            token = parser.nextToken();
+            assertThat(token, isIn(
+                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
+            assertTrue(parser.isBooleanValueLenient());
+            assertTrue(parser.booleanValueLenient());
+        }
+    }
+
+    public void testReadBooleansFailsForLenientBooleans() throws IOException {
+        String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0");
+        String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1");
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("foo"));
+            token = parser.nextToken();
+            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER)));
+            assertFalse(parser.isBooleanValue());
+            if (token.equals(XContentParser.Token.VALUE_STRING)) {
+                expectThrows(IllegalArgumentException.class, parser::booleanValue);
+            } else {
+                expectThrows(JsonParseException.class, parser::booleanValue);
+            }
+
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("bar"));
+            token = parser.nextToken();
+            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER)));
+            assertFalse(parser.isBooleanValue());
+            if (token.equals(XContentParser.Token.VALUE_STRING)) {
+                expectThrows(IllegalArgumentException.class, parser::booleanValue);
+            } else {
+                expectThrows(JsonParseException.class, parser::booleanValue);
+            }
+        }
+    }
+
+    public void testReadBooleans() throws IOException {
+        String falsy = randomFrom("\"false\"", "false");
+        String truthy = randomFrom("\"true\"", "true");
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("foo"));
+            token = parser.nextToken();
+            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
+            assertTrue(parser.isBooleanValue());
+            assertFalse(parser.booleanValue());
+
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("bar"));
+            token = parser.nextToken();
+            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
+            assertTrue(parser.isBooleanValue());
+            assertTrue(parser.booleanValue());
         }
     }
 }

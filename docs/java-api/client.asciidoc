@@ -77,7 +77,7 @@ In order to enable sniffing, set `client.transport.sniff` to `true`:
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.settingsBuilder()
+Settings settings = Settings.builder()
         .put("client.transport.sniff", true).build();
 TransportClient client = new PreBuiltTransportClient(settings);
 --------------------------------------------------

@@ -6,8 +6,6 @@
           body:
             mappings:
               test:
-                _all:
-                  enabled: false
                 properties:
                   number:
                     type: integer
@@ -58,15 +56,6 @@
       count:
         index: test
         q: field:BA*
-        lowercase_expanded_terms: false
-
-  - match: {count : 0}
-
-  - do:
-      count:
-        index: test
-        q: field:BA*
-        analyze_wildcard: true
 
   - match: {count : 1}
 

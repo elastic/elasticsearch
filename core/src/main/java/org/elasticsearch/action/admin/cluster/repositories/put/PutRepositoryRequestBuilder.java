@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -89,13 +90,14 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
     }
 
     /**
-     * Sets the repository settings in Json, Yaml or properties format
+     * Sets the repository settings in Json or Yaml format
      *
      * @param source repository settings
+     * @param xContentType the content type of the source
      * @return this builder
      */
-    public PutRepositoryRequestBuilder setSettings(String source) {
-        request.settings(source);
+    public PutRepositoryRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 

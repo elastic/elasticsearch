@@ -57,7 +57,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("foo", "SETVALUE");
         client().prepareUpdate("test", "type", "1")
-                .setScript(new Script("custom", ScriptType.INLINE, NativeScriptEngineService.NAME, params)).get();
+                .setScript(new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "custom", params)).get();
 
         Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
         assertThat(data, hasKey("foo"));
@@ -90,7 +90,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         private Map<String, Object> params;
         private Map<String, Object> vars = new HashMap<>(2);
 
-        public CustomScript(Map<String, Object> params) {
+        CustomScript(Map<String, Object> params) {
             this.params = params;
         }
 

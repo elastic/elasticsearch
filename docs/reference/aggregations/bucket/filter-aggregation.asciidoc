@@ -7,10 +7,11 @@ Example:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
-        "red_products" : {
-            "filter" : { "term": { "color": "red" } },
+        "t_shirts" : {
+            "filter" : { "term": { "type": "t-shirt" } },
             "aggs" : {
                 "avg_price" : { "avg" : { "field" : "price" } }
             }
@@ -18,6 +19,8 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 In the above example, we calculate the average price of all the products that are red.
 
@@ -27,12 +30,12 @@ Response:
 --------------------------------------------------
 {
     ...
-
-    "aggs" : {
-        "red_products" : {
-            "doc_count" : 100,
-            "avg_price" : { "value" : 56.3 }
+    "aggregations" : {
+        "t_shirts" : {
+            "doc_count" : 3,
+            "avg_price" : { "value" : 128.33333333333334 }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

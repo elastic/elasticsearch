@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,7 +36,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
     public void testIndexTemplatesWithBlocks() throws IOException {
         // creates a simple index template
         client().admin().indices().preparePutTemplate("template_blocks")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -50,7 +51,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
             assertThat(response.getIndexTemplates(), hasSize(1));
 
             assertBlocked(client().admin().indices().preparePutTemplate("template_blocks_2")
-                    .setTemplate("block*")
+                    .setPatterns(Collections.singletonList("block*"))
                     .setOrder(0)
                     .addAlias(new Alias("alias_1")));
 

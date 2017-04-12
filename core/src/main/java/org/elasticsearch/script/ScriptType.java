@@ -37,7 +37,7 @@ public enum ScriptType implements Writeable {
      * INLINE scripts are specified in numerous queries and compiled on-the-fly.
      * They will be cached based on the lang and code of the script.
      * They are turned off by default because most languages are insecure
-     * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
+     * (Groovy and others), but can be overridden by the specific {@link ScriptEngineService}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
     INLINE ( 0 , new ParseField("inline") , false ),
@@ -46,7 +46,7 @@ public enum ScriptType implements Writeable {
      * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
      * based on user requests.  They will be cached when they are first used in a query.
      * They are turned off by default because most languages are insecure
-     * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
+     * (Groovy and others), but can be overridden by the specific {@link ScriptEngineService}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
     STORED ( 1 , new ParseField("stored", "id") , false ),
@@ -123,7 +123,7 @@ public enum ScriptType implements Writeable {
 
     /**
      * @return Whether or not a {@link ScriptType} can be run by default.  Note
-     * this can be potentially overriden by any {@link ScriptEngineService}.
+     * this can be potentially overridden by any {@link ScriptEngineService}.
      */
     public boolean isDefaultEnabled() {
         return defaultEnabled;

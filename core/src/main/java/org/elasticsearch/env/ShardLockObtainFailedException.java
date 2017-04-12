@@ -19,30 +19,36 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * Exception used when the in-memory lock for a shard cannot be obtained
  */
-public class ShardLockObtainFailedException extends Exception {
-    private final ShardId shardId;
+public class ShardLockObtainFailedException extends ElasticsearchException {
 
     public ShardLockObtainFailedException(ShardId shardId, String message) {
-        super(message);
-        this.shardId = shardId;
+        super(buildMessage(shardId, message));
+        this.setShard(shardId);
     }
 
     public ShardLockObtainFailedException(ShardId shardId, String message, Throwable cause) {
-        super(message, cause);
-        this.shardId = shardId;
+        super(buildMessage(shardId, message), cause);
+        this.setShard(shardId);
     }
 
-    @Override
-    public String getMessage() {
+    public ShardLockObtainFailedException(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    private static String buildMessage(ShardId shardId, String message) {
         StringBuilder sb = new StringBuilder();
         sb.append(shardId.toString());
         sb.append(": ");
-        sb.append(super.getMessage());
+        sb.append(message);
         return sb.toString();
     }
 }

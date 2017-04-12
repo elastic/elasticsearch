@@ -33,7 +33,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
+public class SearchScrollRequest extends ActionRequest {
 
     private String scrollId;
     private Scroll scroll;
@@ -139,4 +139,10 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
                 ", scroll=" + scroll +
                 '}';
     }
+
+    @Override
+    public String getDescription() {
+        return "scrollId[" + scrollId + "], scroll[" + scroll + "]";
+    }
+
 }

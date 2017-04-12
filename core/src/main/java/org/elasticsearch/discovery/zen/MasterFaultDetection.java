@@ -111,28 +111,10 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    public void start(final DiscoveryNode masterNode, String reason) {
-        synchronized (masterNodeMutex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("[master] starting fault detection against master [{}], reason [{}]", masterNode, reason);
-            }
-            innerStart(masterNode);
-        }
-    }
-
     private void innerStart(final DiscoveryNode masterNode) {
         this.masterNode = masterNode;
         this.retryCount = 0;
         this.notifiedMasterFailure.set(false);
-
-        // try and connect to make sure we are connected
-        try {
-            transportService.connectToNode(masterNode);
-        } catch (final Exception e) {
-            // notify master failure (which stops also) and bail..
-            notifyMasterFailure(masterNode, e, "failed to perform initial connect ");
-            return;
-        }
         if (masterPinger != null) {
             masterPinger.stop();
         }

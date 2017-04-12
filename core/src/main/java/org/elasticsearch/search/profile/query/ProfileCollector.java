@@ -34,7 +34,7 @@ final class ProfileCollector extends FilterCollector {
     private long time;
 
     /** Sole constructor. */
-    public ProfileCollector(Collector in) {
+    ProfileCollector(Collector in) {
         super(in);
     }
 

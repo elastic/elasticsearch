@@ -38,15 +38,6 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRe
     }
 
     /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     */
-    public ClusterSearchShardsRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public ClusterSearchShardsRequestBuilder setRouting(String routing) {

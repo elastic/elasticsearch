@@ -25,7 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -44,7 +44,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements StatusToXContent {
+public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
     private InternalSearchResponse internalResponse;
 
@@ -61,7 +61,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
+    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards,
+                          long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
@@ -104,6 +105,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      */
     public Boolean isTerminatedEarly() {
         return internalResponse.terminatedEarly();
+    }
+
+    /**
+     * Returns the number of reduce phases applied to obtain this search response
+     */
+    public int getNumReducePhases() {
+        return internalResponse.getNumReducePhases();
     }
 
     /**
@@ -172,24 +180,28 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         return internalResponse.profile();
     }
 
-    static final class Fields {
-        static final String _SCROLL_ID = "_scroll_id";
-        static final String TOOK = "took";
-        static final String TIMED_OUT = "timed_out";
-        static final String TERMINATED_EARLY = "terminated_early";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
-            builder.field(Fields._SCROLL_ID, scrollId);
+            builder.field("_scroll_id", scrollId);
         }
-        builder.field(Fields.TOOK, tookInMillis);
-        builder.field(Fields.TIMED_OUT, isTimedOut());
+        builder.field("took", tookInMillis);
+        builder.field("timed_out", isTimedOut());
         if (isTerminatedEarly() != null) {
-            builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+            builder.field("terminated_early", isTerminatedEarly());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
+        if (getNumReducePhases() != 1) {
+            builder.field("num_reduce_phases", getNumReducePhases());
+        }
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(),
+            getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
     }
@@ -231,6 +243,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true);
+        return Strings.toString(this);
     }
 }

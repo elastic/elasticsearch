@@ -1,0 +1,51 @@
+[[breaking_60_aggregations_changes]]
+=== Aggregations changes
+
+==== Deprecated `pattern` element of include/exclude for terms aggregations has been removed
+
+The `include` and `exclude` options of `terms` aggregations used to accept a
+sub `pattern` object which has been removed. The pattern should now be directly
+put as a value of the `include` and `exclude` fields. For instance, the below
+`terms` aggregation:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_search?size=0
+{
+    "aggs" : {
+        "top_users" : {
+            "terms" : {
+                "field" : "user",
+                "include": {
+                  "pattern": "foo.*"
+                },
+                "exclude": {
+                  "pattern": ".*bar"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip: uses old unsupported syntax]
+
+should be replaced with:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_search?size=0
+{
+    "aggs" : {
+        "top_users" : {
+            "terms" : {
+                "field" : "user",
+                "include": "foo.*",
+                "exclude": ".*bar"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

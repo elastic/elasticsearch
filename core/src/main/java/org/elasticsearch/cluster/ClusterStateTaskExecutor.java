@@ -18,20 +18,21 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Nullable;
+
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.
      */
-    BatchResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
+    ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
 
     /**
-     * indicates whether this task should only run if current node is master
+     * indicates whether this executor should only run if the current node is master
      */
     default boolean runOnlyOnMaster() {
         return true;
@@ -69,18 +70,22 @@ public interface ClusterStateTaskExecutor<T> {
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      */
-    class BatchResult<T> {
+    class ClusterTasksResult<T> {
+        public final boolean noMaster;
+        @Nullable
         public final ClusterState resultingState;
         public final Map<T, TaskResult> executionResults;
 
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
+         * @param noMaster whether this node steps down as master or has lost connection to the master
          * @param resultingState the resulting cluster state
          * @param executionResults the correspondence between tasks and their outcome
          */
-        BatchResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
+        ClusterTasksResult(boolean noMaster, ClusterState resultingState, Map<T, TaskResult> executionResults) {
             this.resultingState = resultingState;
             this.executionResults = executionResults;
+            this.noMaster = noMaster;
         }
 
         public static <T> Builder<T> builder() {
@@ -118,8 +123,13 @@ public interface ClusterStateTaskExecutor<T> {
                 return this;
             }
 
-            public BatchResult<T> build(ClusterState resultingState) {
-                return new BatchResult<>(resultingState, executionResults);
+            public ClusterTasksResult<T> build(ClusterState resultingState) {
+                return new ClusterTasksResult<>(false, resultingState, executionResults);
+            }
+
+            ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
+                return new ClusterTasksResult<>(result.noMaster, result.resultingState == null ? previousState : result.resultingState,
+                    executionResults);
             }
         }
     }
@@ -148,19 +158,6 @@ public interface ClusterStateTaskExecutor<T> {
         public Exception getFailure() {
             assert !isSuccess();
             return failure;
-        }
-
-        /**
-         * Handle the execution result with the provided consumers
-         * @param onSuccess handler to invoke on success
-         * @param onFailure handler to invoke on failure; the throwable passed through will not be null
-         */
-        public void handle(Runnable onSuccess, Consumer<Exception> onFailure) {
-            if (failure == null) {
-                onSuccess.run();
-            } else {
-                onFailure.accept(failure);
-            }
         }
     }
 }

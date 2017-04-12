@@ -29,7 +29,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -40,7 +40,7 @@ public class RestCatAction extends BaseRestHandler {
     private final String HELP;
 
     @Inject
-    public RestCatAction(Settings settings, RestController controller, Set<AbstractCatAction> catActions) {
+    public RestCatAction(Settings settings, RestController controller, List<AbstractCatAction> catActions) {
         super(settings);
         controller.registerHandler(GET, "/_cat", this);
         StringBuilder sb = new StringBuilder();

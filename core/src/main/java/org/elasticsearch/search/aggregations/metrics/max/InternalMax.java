@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalMax extends InternalNumericMetricsAggregation.SingleValue implements Max {
     private final double max;
@@ -82,10 +83,21 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(max);
-        builder.field(CommonFields.VALUE, hasValue ? max : null);
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? max : null);
         if (hasValue && format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING, format.format(max));
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(max));
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(max);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMax other = (InternalMax) obj;
+        return Objects.equals(max, other.max);
     }
 }

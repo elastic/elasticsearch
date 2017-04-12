@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,15 +35,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
-
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false, null);
+        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null, 1);
     }
 
-    private InternalSearchHits hits;
+    private SearchHits hits;
 
     private InternalAggregations aggregations;
 
@@ -56,17 +53,21 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Boolean terminatedEarly = null;
 
+    private int numReducePhases = 1;
+
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
+    public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly,
+                                  int numReducePhases) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
     }
 
     public boolean timedOut() {
@@ -87,6 +88,13 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     public Suggest suggest() {
         return suggest;
+    }
+
+    /**
+     * Returns the number of reduce phases applied to obtain this search response
+     */
+    public int getNumReducePhases() {
+        return numReducePhases;
     }
 
     /**
@@ -125,7 +133,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        hits = readSearchHits(in);
+        hits = SearchHits.readSearchHits(in);
         if (in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
@@ -135,6 +143,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         timedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileResults = in.readOptionalWriteable(SearchProfileShardResults::new);
+        numReducePhases = in.readVInt();
     }
 
     @Override
@@ -155,5 +164,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
+        out.writeVInt(numReducePhases);
     }
 }

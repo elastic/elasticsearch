@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
@@ -236,7 +237,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    private final Version indexCreatedVersion;
+    protected final Version indexCreatedVersion;
     protected MappedFieldType fieldType;
     protected final MappedFieldType defaultFieldType;
     protected MultiFields multiFields;
@@ -281,15 +282,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * mappings were not modified.
      */
     public Mapper parse(ParseContext context) throws IOException {
-        final List<Field> fields = new ArrayList<>(2);
+        final List<IndexableField> fields = new ArrayList<>(2);
         try {
             parseCreateField(context, fields);
-            for (Field field : fields) {
+            for (IndexableField field : fields) {
                 if (!customBoost()
                         // don't set boosts eg. on dv fields
                         && field.fieldType().indexOptions() != IndexOptions.NONE
                         && indexCreatedVersion.before(Version.V_5_0_0_alpha1)) {
-                    field.setBoost(fieldType().boost());
+                    ((Field)(field)).setBoost(fieldType().boost());
                 }
                 context.doc().add(field);
             }
@@ -303,7 +304,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Parse the field value and populate <code>fields</code>.
      */
-    protected abstract void parseCreateField(ParseContext context, List<Field> fields) throws IOException;
+    protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 
     /**
      * Derived classes can override it to specify that boost value is set by derived classes.

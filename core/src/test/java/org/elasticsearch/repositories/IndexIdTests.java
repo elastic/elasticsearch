@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +36,7 @@ public class IndexIdTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         // assert equals and hashcode
-        String name = randomAsciiOfLength(8);
+        String name = randomAlphaOfLength(8);
         String id = UUIDs.randomBase64UUID();
         IndexId indexId1 = new IndexId(name, id);
         IndexId indexId2 = new IndexId(name, id);
@@ -50,7 +49,7 @@ public class IndexIdTests extends ESTestCase {
         assertEquals(indexId1, indexId2);
         assertEquals(indexId1.hashCode(), indexId2.hashCode());
         //assert not equals when name or id differ
-        indexId2 = new IndexId(randomAsciiOfLength(8), id);
+        indexId2 = new IndexId(randomAlphaOfLength(8), id);
         assertNotEquals(indexId1, indexId2);
         assertNotEquals(indexId1.hashCode(), indexId2.hashCode());
         indexId2 = new IndexId(name, UUIDs.randomBase64UUID());
@@ -59,17 +58,17 @@ public class IndexIdTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+        IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         BytesStreamOutput out = new BytesStreamOutput();
         indexId.writeTo(out);
         assertEquals(indexId, new IndexId(out.bytes().streamInput()));
     }
 
     public void testXContent() throws IOException {
-        IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+        IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         String name = null;
         String id = null;

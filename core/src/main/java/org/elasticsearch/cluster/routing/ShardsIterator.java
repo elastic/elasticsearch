@@ -43,13 +43,6 @@ public interface ShardsIterator {
     int sizeActive();
 
     /**
-     * Returns the number of replicas in this iterator that are not in the
-     * {@link ShardRoutingState#UNASSIGNED}. The returned double-counts replicas
-     * that are in the state {@link ShardRoutingState#RELOCATING}
-     */
-    int assignedReplicasIncludingRelocating();
-
-    /**
      * Returns the next shard, or <tt>null</tt> if none available.
      */
     ShardRouting nextOrNull();

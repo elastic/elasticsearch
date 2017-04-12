@@ -107,6 +107,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
+        super.afterExecute(r, t);
         current.remove(r);
     }
 
@@ -249,14 +250,14 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         final Priority priority;
         final long insertionOrder;
 
-        public PrioritizedFutureTask(Runnable runnable, Priority priority, T value, long insertionOrder) {
+        PrioritizedFutureTask(Runnable runnable, Priority priority, T value, long insertionOrder) {
             super(runnable, value);
             this.task = runnable;
             this.priority = priority;
             this.insertionOrder = insertionOrder;
         }
 
-        public PrioritizedFutureTask(PrioritizedCallable<T> callable, long insertionOrder) {
+        PrioritizedFutureTask(PrioritizedCallable<T> callable, long insertionOrder) {
             super(callable);
             this.task = callable;
             this.priority = callable.priority();

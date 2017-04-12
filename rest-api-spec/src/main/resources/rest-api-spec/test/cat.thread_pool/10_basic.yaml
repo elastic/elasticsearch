@@ -52,7 +52,7 @@
   - match:
       $body: |
                /^  id  \s+ name \s+ type  \s+ active \s+ size \s+ queue \s+ queue_size \s+ rejected \s+ largest \s+ completed \s+ min \s+ max \s+ keep_alive \n
-                  (\S+ \s+ bulk \s+ fixed \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
+                  (\S+ \s+ bulk \s+ fixed \s+ \d+    \s+ \d+  \s+ \d+   \s+ (-1|\d+)   \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -63,8 +63,8 @@
   - match:
       $body: |
                /^  id  \s+ name                \s+ type    \s+ active \s+ size \s+ queue \s+ queue_size \s+ rejected \s+ largest \s+ completed \s+ min \s+ max \s+ keep_alive \n
-                  (\S+ \s+ fetch_shard_started \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n
-                   \S+ \s+ fetch_shard_store   \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
+                  (\S+ \s+ fetch_shard_started \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ (-1|\d+)   \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n
+                   \S+ \s+ fetch_shard_store   \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ (-1|\d+)   \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -77,4 +77,3 @@
                ^  (\S+       \s+ bulk   \s+ \d+    \s+ \d+   \s+ \d+      \n
                    \S+       \s+ index  \s+ \d+    \s+ \d+   \s+ \d+      \n
                    \S+       \s+ search \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
-

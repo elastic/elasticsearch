@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -142,9 +143,9 @@ public class AvgIT extends AbstractNumericTestCase {
         assertThat(avg.getName(), equalTo("avg"));
         double expectedAvgValue = (double) (1+2+3+4+5+6+7+8+9+10) / 10;
         assertThat(avg.getValue(), equalTo(expectedAvgValue));
-        assertThat((Avg) global.getProperty("avg"), equalTo(avg));
-        assertThat((double) global.getProperty("avg.value"), equalTo(expectedAvgValue));
-        assertThat((double) avg.getProperty("value"), equalTo(expectedAvgValue));
+        assertThat((Avg) ((InternalAggregation)global).getProperty("avg"), equalTo(avg));
+        assertThat((double) ((InternalAggregation)global).getProperty("avg.value"), equalTo(expectedAvgValue));
+        assertThat((double) ((InternalAggregation)avg).getProperty("value"), equalTo(expectedAvgValue));
     }
 
     @Override
@@ -167,7 +168,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value")
-                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -184,7 +185,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value")
-                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params)))
+                        .script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -228,7 +229,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("values")
-                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -245,7 +246,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("values")
-                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params)))
+                        .script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -261,7 +262,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
-                        .script(new Script("value", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "value", Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -278,7 +279,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
-                        .script(new Script("value", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, params)))
+                        .script(new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "value", params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -294,7 +295,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
-                        .script(new Script("values", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "values", Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -311,7 +312,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
-                        .script(new Script("values", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, params)))
+                        .script(new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "values", params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -371,7 +372,8 @@ public class AvgIT extends AbstractNumericTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(avg("foo").field("d").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).get();
+                .addAggregation(avg("foo").field("d").script(
+                    new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

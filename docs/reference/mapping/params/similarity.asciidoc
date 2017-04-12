@@ -3,7 +3,7 @@
 
 Elasticsearch allows you to configure a scoring algorithm or _similarity_ per
 field. The `similarity` setting provides a simple way of choosing a similarity
-algorithm other than the default TF/IDF, such as `BM25`.
+algorithm other than the default `BM25`, such as `TF/IDF`.
 
 Similarities are mostly useful for <<text,`text`>> fields, but can also apply
 to other field types.
@@ -25,6 +25,11 @@ configuration are:
         Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
         for more information.
 
+`boolean`::
+        A simple boolean similarity, which is used when full-text ranking is not needed
+        and the score should only be based on whether the query terms match or not.
+        Boolean similarity gives terms a score equal to their query boost.
+
 
 The `similarity` can be set on the field level when a field is first created,
 as follows:
@@ -42,6 +47,10 @@ PUT my_index
         "classic_field": {
           "type": "text",
           "similarity": "classic" <2>
+        },
+        "boolean_sim_field": {
+          "type": "text",
+          "similarity": "boolean" <3>
         }
       }
     }
@@ -51,3 +60,4 @@ PUT my_index
 // CONSOLE
 <1> The `default_field` uses the `BM25` similarity.
 <2> The `classic_field` uses the `classic` similarity (ie TF/IDF).
+<3> The `boolean_sim_field` uses the `boolean` similarity.

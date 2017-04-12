@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.search.aggregations.support.AggregationContext;
-
 /**
  * The aggregation context that is part of the search context.
  */
@@ -27,7 +25,6 @@ public class SearchContextAggregations {
 
     private final AggregatorFactories factories;
     private Aggregator[] aggregators;
-    private AggregationContext aggregationContext;
 
     /**
      * Creates a new aggregation context with the parsed aggregator factories
@@ -42,14 +39,6 @@ public class SearchContextAggregations {
 
     public Aggregator[] aggregators() {
         return aggregators;
-    }
-
-    public AggregationContext aggregationContext() {
-        return aggregationContext;
-    }
-
-    public void aggregationContext(AggregationContext aggregationContext) {
-        this.aggregationContext = aggregationContext;
     }
 
     /**

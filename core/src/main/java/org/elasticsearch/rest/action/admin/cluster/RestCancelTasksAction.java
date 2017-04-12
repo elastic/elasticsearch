@@ -21,9 +21,8 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -31,18 +30,18 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 
 public class RestCancelTasksAction extends BaseRestHandler {
-    private final ClusterService clusterService;
+    private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    @Inject
-    public RestCancelTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
+    public RestCancelTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         super(settings);
-        this.clusterService = clusterService;
+        this.nodesInCluster = nodesInCluster;
         controller.registerHandler(POST, "/_tasks/_cancel", this);
         controller.registerHandler(POST, "/_tasks/{task_id}/_cancel", this);
     }
@@ -61,7 +60,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setParentTaskId(parentTaskId);
         return channel ->
-            client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(clusterService, groupBy, channel));
+            client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
     }
 
     @Override

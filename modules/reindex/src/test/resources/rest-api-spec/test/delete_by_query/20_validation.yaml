@@ -6,6 +6,19 @@
         index: _all
 
 ---
+"no query fails":
+
+  - skip:
+      version: " - 5.99.99"
+      reason: explicit query is required since 6.0.0
+
+  - do:
+      catch: /query is missing/
+      delete_by_query:
+        index: _all
+        body: {}
+
+---
 "invalid conflicts fails":
   - do:
       index:
@@ -105,6 +118,27 @@
       catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       delete_by_query:
         requests_per_second: unlimited
+        index: test
+        body:
+          query:
+            match_all: {}
+
+---
+"junk in slices fails":
+  - do:
+      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      delete_by_query:
+        slices: junk
+        index: test
+        body:
+          query:
+            match_all: {}
+---
+"zero slices fails":
+  - do:
+      catch: /\[slices\] must be at least 1/
+      delete_by_query:
+        slices: 0
         index: test
         body:
           query:

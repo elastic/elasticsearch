@@ -40,6 +40,7 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 --------------------------------------------------
 POST /twitter/tweet/_search?scroll=1m
 {
+    "size": 100,
     "query": {
         "match" : {
             "title" : "elasticsearch"
@@ -72,8 +73,10 @@ POST <1> /_search/scroll <2>
     for another `1m`.
 <4> The `scroll_id` parameter
 
-Each call to the `scroll` API returns the next batch of results until there
-are no more results left to return, ie the `hits` array is empty.
+The `size` parameter allows you to configure the maximum number of hits to be 
+returned with each batch of results.  Each call to the `scroll` API returns the 
+next batch of results until there are no more results left to return, ie the 
+`hits` array is empty.
 
 IMPORTANT: The initial search request and each subsequent scroll request
 returns a new `_scroll_id` -- only the most recent `_scroll_id` should be

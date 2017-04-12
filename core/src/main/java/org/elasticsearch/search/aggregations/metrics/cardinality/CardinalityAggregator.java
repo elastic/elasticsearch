@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -40,8 +41,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,7 +63,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private Collector collector;
 
     public CardinalityAggregator(String name, ValuesSource valuesSource, int precision,
-            AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.precision = precision;
@@ -326,7 +327,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final SortedNumericDocValues values;
 
-            public Long(SortedNumericDocValues values) {
+            Long(SortedNumericDocValues values) {
                 this.values = values;
             }
 
@@ -350,7 +351,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final SortedNumericDoubleValues values;
 
-            public Double(SortedNumericDoubleValues values) {
+            Double(SortedNumericDoubleValues values) {
                 this.values = values;
             }
 
@@ -376,7 +377,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final SortedBinaryDocValues values;
 
-            public Bytes(SortedBinaryDocValues values) {
+            Bytes(SortedBinaryDocValues values) {
                 this.values = values;
             }
 

@@ -21,10 +21,6 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 /**
  * Class encapsulating and dispatching commands from the {@code elasticsearch-translog} command line tool

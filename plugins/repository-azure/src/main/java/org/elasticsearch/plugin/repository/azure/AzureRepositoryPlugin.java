@@ -23,6 +23,7 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -45,20 +46,14 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(AzureRepository.TYPE,
-            (metadata) -> new AzureRepository(metadata, env, createStorageService(env.settings())));
+            (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, createStorageService(env.settings())));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(AzureStorageService.Storage.STORAGE_ACCOUNTS,
-                AzureStorageService.Storage.ACCOUNT_SETTING,
-                AzureStorageService.Storage.COMPRESS_SETTING,
-                AzureStorageService.Storage.CONTAINER_SETTING,
-                AzureStorageService.Storage.BASE_PATH_SETTING,
-                AzureStorageService.Storage.CHUNK_SIZE_SETTING,
-                AzureStorageService.Storage.LOCATION_MODE_SETTING);
+        return Collections.singletonList(AzureStorageService.Storage.STORAGE_ACCOUNTS);
     }
 
     @Override

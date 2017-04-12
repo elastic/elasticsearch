@@ -33,7 +33,7 @@
         index: testidx
         type:  doc
         id:    1
-        realtime: 0
+        realtime: false
 
   - match: { _index: "testidx" }
   - match: { _type: "doc" }

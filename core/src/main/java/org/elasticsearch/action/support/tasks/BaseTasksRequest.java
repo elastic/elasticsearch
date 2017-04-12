@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest<Request> {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 

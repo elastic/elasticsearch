@@ -36,7 +36,7 @@ public class LMJelinekMercerSimilarityProvider extends AbstractSimilarityProvide
 
     private final LMJelinekMercerSimilarity similarity;
 
-    public LMJelinekMercerSimilarityProvider(String name, Settings settings) {
+    public LMJelinekMercerSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         float lambda = settings.getAsFloat("lambda", 0.1f);
         this.similarity = new LMJelinekMercerSimilarity(lambda);

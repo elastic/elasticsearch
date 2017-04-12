@@ -19,22 +19,26 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +46,59 @@ import java.util.Objects;
 
 public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregationBuilder> {
     public static final String NAME = PercentileRanks.TYPE_NAME;
-    public static final Type TYPE = new Type(NAME);
+
+    public static final ParseField VALUES_FIELD = new ParseField("values");
+
+    private static class TDigestOptions {
+        Double compression;
+    }
+
+    private static final ObjectParser<TDigestOptions, QueryParseContext> TDIGEST_OPTIONS_PARSER =
+            new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), TDigestOptions::new);
+    static {
+        TDIGEST_OPTIONS_PARSER.declareDouble((opts, compression) -> opts.compression = compression, new ParseField("compression"));
+    }
+
+    private static class HDROptions {
+        Integer numberOfSigDigits;
+    }
+
+    private static final ObjectParser<HDROptions, QueryParseContext> HDR_OPTIONS_PARSER =
+            new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), HDROptions::new);
+    static {
+        HDR_OPTIONS_PARSER.declareInt((opts, numberOfSigDigits) -> opts.numberOfSigDigits = numberOfSigDigits,
+                new ParseField("number_of_significant_value_digits"));
+    }
+
+    private static final ObjectParser<PercentileRanksAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(PercentileRanksAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, false, false);
+
+        PARSER.declareDoubleArray(
+                (b, v) -> b.values(v.stream().mapToDouble(Double::doubleValue).toArray()),
+                VALUES_FIELD);
+
+        PARSER.declareBoolean(PercentileRanksAggregationBuilder::keyed, PercentilesAggregationBuilder.KEYED_FIELD);
+
+        PARSER.declareField((b, v) -> {
+            b.method(PercentilesMethod.TDIGEST);
+            if (v.compression != null) {
+                b.compression(v.compression);
+            }
+        }, TDIGEST_OPTIONS_PARSER::parse, PercentilesMethod.TDIGEST.getParseField(), ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareField((b, v) -> {
+            b.method(PercentilesMethod.HDR);
+            if (v.numberOfSigDigits != null) {
+                b.numberOfSignificantValueDigits(v.numberOfSigDigits);
+            }
+        }, HDR_OPTIONS_PARSER::parse, PercentilesMethod.HDR.getParseField(), ObjectParser.ValueType.OBJECT);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new PercentileRanksAggregationBuilder(aggregationName), context);
+    }
 
     private double[] values;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
@@ -51,14 +107,14 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     private boolean keyed = true;
 
     public PercentileRanksAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
     public PercentileRanksAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
@@ -164,29 +220,29 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentileRanksAggregatorFactory(name, type, config, values, compression, keyed, context, parent,
+            return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, context, parent,
                     subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentileRanksAggregatorFactory(name, type, config, values, numberOfSignificantValueDigits, keyed, context,
+            return new HDRPercentileRanksAggregatorFactory(name, config, values, numberOfSignificantValueDigits, keyed, context,
                     parent, subFactoriesBuilder, metaData);
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.array(PercentileRanksParser.VALUES_FIELD.getPreferredName(), values);
-        builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
-        builder.startObject(method.getName());
+        builder.array(VALUES_FIELD.getPreferredName(), values);
+        builder.field(PercentilesAggregationBuilder.KEYED_FIELD.getPreferredName(), keyed);
+        builder.startObject(method.toString());
         if (method == PercentilesMethod.TDIGEST) {
-            builder.field(AbstractPercentilesParser.COMPRESSION_FIELD.getPreferredName(), compression);
+            builder.field(PercentilesAggregationBuilder.COMPRESSION_FIELD.getPreferredName(), compression);
         } else {
-            builder.field(AbstractPercentilesParser.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
+            builder.field(PercentilesAggregationBuilder.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
         }
         builder.endObject();
         return builder;
@@ -207,7 +263,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
             equalSettings = Objects.equals(compression, other.compression);
             break;
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
         return equalSettings
                 && Objects.deepEquals(values, other.values)
@@ -223,12 +279,12 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         case TDIGEST:
             return Objects.hash(Arrays.hashCode(values), keyed, compression, method);
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

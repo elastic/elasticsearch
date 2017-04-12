@@ -22,7 +22,7 @@ package org.elasticsearch.rest;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -53,11 +53,9 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
-    protected final ParseFieldMatcher parseFieldMatcher;
 
     protected BaseRestHandler(Settings settings) {
         super(settings);
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
     @Override
@@ -71,47 +69,56 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (unconsumedParams.isEmpty() == false) {
-            String message = String.format(
-                Locale.ROOT,
-                "request [%s] contains unrecognized parameter%s: ",
-                request.path(),
-                unconsumedParams.size() > 1 ? "s" : "");
-            boolean first = true;
-            for (final String unconsumedParam : unconsumedParams) {
-                final LevensteinDistance ld = new LevensteinDistance();
-                final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
-                final Set<String> candidateParams = new HashSet<>();
-                candidateParams.addAll(request.consumedParams());
-                candidateParams.addAll(responseParams());
-                for (final String candidateParam : candidateParams) {
-                    final float distance = ld.getDistance(unconsumedParam, candidateParam);
-                    if (distance > 0.5f) {
-                        scoredParams.add(new Tuple<>(distance, candidateParam));
-                    }
-                }
-                CollectionUtil.timSort(scoredParams, (a, b) -> {
-                    // sort by distance in reverse order, then parameter name for equal distances
-                    int compare = a.v1().compareTo(b.v1());
-                    if (compare != 0) return -compare;
-                    else return a.v2().compareTo(b.v2());
-                });
-                if (first == false) {
-                    message += ", ";
-                }
-                message += "[" + unconsumedParam + "]";
-                final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
-                if (keys.isEmpty() == false) {
-                    message += " -> did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
-                }
-                first = false;
-            }
-
-            throw new IllegalArgumentException(message);
+        if (!unconsumedParams.isEmpty()) {
+            final Set<String> candidateParams = new HashSet<>();
+            candidateParams.addAll(request.consumedParams());
+            candidateParams.addAll(responseParams());
+            throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
         // execute the action
         action.accept(channel);
+    }
+
+    protected final String unrecognized(
+        final RestRequest request,
+        final Set<String> invalids,
+        final Set<String> candidates,
+        final String detail) {
+        String message = String.format(
+            Locale.ROOT,
+            "request [%s] contains unrecognized %s%s: ",
+            request.path(),
+            detail,
+            invalids.size() > 1 ? "s" : "");
+        boolean first = true;
+        for (final String invalid : invalids) {
+            final LevensteinDistance ld = new LevensteinDistance();
+            final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
+            for (final String candidate : candidates) {
+                final float distance = ld.getDistance(invalid, candidate);
+                if (distance > 0.5f) {
+                    scoredParams.add(new Tuple<>(distance, candidate));
+                }
+            }
+            CollectionUtil.timSort(scoredParams, (a, b) -> {
+                // sort by distance in reverse order, then parameter name for equal distances
+                int compare = a.v1().compareTo(b.v1());
+                if (compare != 0) return -compare;
+                else return a.v2().compareTo(b.v2());
+            });
+            if (first == false) {
+                message += ", ";
+            }
+            message += "[" + invalid + "]";
+            final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
+            if (keys.isEmpty() == false) {
+                message += " -> did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
+            }
+            first = false;
+        }
+
+        return message;
     }
 
     /**
@@ -119,14 +126,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer {
-        /**
-         * Executes a request against the given channel.
-         *
-         * @param channel the channel for sending the response
-         * @throws Exception if an exception occurred executing the request
-         */
-        void accept(RestChannel channel) throws Exception;
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
     }
 
     /**

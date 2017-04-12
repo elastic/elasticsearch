@@ -58,6 +58,6 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
 
     @Override
     public String toString() {
-        return "flush {" + super.toString() + "}";
+        return "flush {" + shardId + "}";
     }
 }

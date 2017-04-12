@@ -23,14 +23,17 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -53,13 +56,13 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.io.IOException;
@@ -69,6 +72,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
@@ -89,9 +93,9 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
-        private final QueryShardContext queryShardContext;
+        private final Supplier<QueryShardContext> queryShardContext;
 
-        public Builder(String fieldName, QueryShardContext queryShardContext) {
+        public Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
             super(fieldName, FIELD_TYPE, FIELD_TYPE);
             this.queryShardContext = queryShardContext;
         }
@@ -136,7 +140,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(name, parserContext.queryShardContext());
+            return new Builder(name, parserContext.queryShardContextSupplier());
         }
     }
 
@@ -192,12 +196,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {
-            List<Term> extractedTerms = new ArrayList<>();
-            // include extractionResultField:failed, because docs with this term have no extractedTermsField
-            // and otherwise we would fail to return these docs. Docs that failed query term extraction
-            // always need to be verified by MemoryIndex:
-            extractedTerms.add(new Term(extractionResultField.name(), EXTRACTION_FAILED));
-
+            List<BytesRef> extractedTerms = new ArrayList<>();
             LeafReader reader = indexReader.leaves().get(0).reader();
             Fields fields = reader.fields();
             for (String field : fields) {
@@ -213,22 +212,32 @@ public class PercolatorFieldMapper extends FieldMapper {
                     builder.append(fieldBr);
                     builder.append(FIELD_VALUE_SEPARATOR);
                     builder.append(term);
-                    extractedTerms.add(new Term(queryTermsField.name(), builder.toBytesRef()));
+                    extractedTerms.add(builder.toBytesRef());
                 }
             }
-            return new TermsQuery(extractedTerms);
+            Query extractionSuccess = new TermInSetQuery(queryTermsField.name(), extractedTerms);
+            // include extractionResultField:failed, because docs with this term have no extractedTermsField
+            // and otherwise we would fail to return these docs. Docs that failed query term extraction
+            // always need to be verified by MemoryIndex:
+            Query extractionFailure = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_FAILED));
+
+            return new BooleanQuery.Builder()
+                    .add(extractionSuccess, Occur.SHOULD)
+                    .add(extractionFailure, Occur.SHOULD)
+                    .build();
         }
 
     }
 
     private final boolean mapUnmappedFieldAsString;
-    private final QueryShardContext queryShardContext;
+    private final Supplier<QueryShardContext> queryShardContext;
     private KeywordFieldMapper queryTermsField;
     private KeywordFieldMapper extractionResultField;
     private BinaryFieldMapper queryBuilderField;
 
     public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext,
+                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
+                                 Supplier<QueryShardContext> queryShardContext,
                                  KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
                                  BinaryFieldMapper queryBuilderField) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
@@ -261,7 +270,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
+        QueryShardContext queryShardContext = this.queryShardContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -342,8 +351,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder()
-                    .orElseThrow(() -> new ParsingException(location, "Failed to parse inner query, was empty"));
+            return context.parseInnerQueryBuilder();
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }
@@ -355,7 +363,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         throw new UnsupportedOperationException("should not be invoked");
     }
 
@@ -366,22 +374,11 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     /**
      * Fails if a percolator contains an unsupported query. The following queries are not supported:
-     * 1) a range query with a date range based on current time
-     * 2) a has_child query
-     * 3) a has_parent query
+     * 1) a has_child query
+     * 2) a has_parent query
      */
     static void verifyQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof RangeQueryBuilder) {
-            RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) queryBuilder;
-            if (rangeQueryBuilder.from() instanceof String) {
-                String from = (String) rangeQueryBuilder.from();
-                String to = (String) rangeQueryBuilder.to();
-                if (from.contains("now") || to.contains("now")) {
-                    throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
-                            "current time is unsupported");
-                }
-            }
-        } else if (queryBuilder instanceof HasChildQueryBuilder) {
+        if (queryBuilder instanceof HasChildQueryBuilder) {
             throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
         } else if (queryBuilder instanceof HasParentQueryBuilder) {
             throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
@@ -402,6 +399,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         } else if (queryBuilder instanceof BoostingQueryBuilder) {
             verifyQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
             verifyQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
+        } else if (queryBuilder instanceof DisMaxQueryBuilder) {
+            DisMaxQueryBuilder disMaxQueryBuilder = (DisMaxQueryBuilder) queryBuilder;
+            for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
+                verifyQuery(innerQueryBuilder);
+            }
         }
     }
 

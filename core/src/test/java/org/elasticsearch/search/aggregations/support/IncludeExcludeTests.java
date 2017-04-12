@@ -24,6 +24,13 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.OrdinalsFilter;
@@ -34,7 +41,6 @@ import java.util.Collections;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
-
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
@@ -123,6 +129,170 @@ public class IncludeExcludeTests extends ESTestCase {
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));
+    }
+
+    public void testPartitionedEquals() throws IOException {
+        IncludeExclude serialized = serialize(new IncludeExclude(3, 20), IncludeExclude.INCLUDE_FIELD);
+        assertFalse(serialized.isRegexBased());
+        assertTrue(serialized.isPartitionBased());
+
+        IncludeExclude same = new IncludeExclude(3, 20);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude differentParam1 = new IncludeExclude(4, 20);
+        assertFalse(serialized.equals(differentParam1));
+        assertTrue(serialized.hashCode() != differentParam1.hashCode());
+
+        IncludeExclude differentParam2 = new IncludeExclude(3, 21);
+        assertFalse(serialized.equals(differentParam2));
+        assertTrue(serialized.hashCode() != differentParam2.hashCode());
+    }
+
+    public void testExactIncludeValuesEquals() throws IOException {
+        String[] incValues = { "a", "b" };
+        String[] differentIncValues = { "a", "c" };
+        IncludeExclude serialized = serialize(new IncludeExclude(incValues, null), IncludeExclude.INCLUDE_FIELD);
+        assertFalse(serialized.isPartitionBased());
+        assertFalse(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(incValues, null);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude different = new IncludeExclude(differentIncValues, null);
+        assertFalse(serialized.equals(different));
+        assertTrue(serialized.hashCode() != different.hashCode());
+    }
+
+    public void testExactExcludeValuesEquals() throws IOException {
+        String[] excValues = { "a", "b" };
+        String[] differentExcValues = { "a", "c" };
+        IncludeExclude serialized = serialize(new IncludeExclude(null, excValues), IncludeExclude.EXCLUDE_FIELD);
+        assertFalse(serialized.isPartitionBased());
+        assertFalse(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(null, excValues);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude different = new IncludeExclude(null, differentExcValues);
+        assertFalse(serialized.equals(different));
+        assertTrue(serialized.hashCode() != different.hashCode());
+    }
+
+    public void testRegexInclude() throws IOException {
+        String incRegex = "foo.*";
+        String differentRegex = "bar.*";
+        IncludeExclude serialized = serialize(new IncludeExclude(incRegex, null), IncludeExclude.INCLUDE_FIELD);
+        assertFalse(serialized.isPartitionBased());
+        assertTrue(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(incRegex, null);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude different = new IncludeExclude(differentRegex, null);
+        assertFalse(serialized.equals(different));
+        assertTrue(serialized.hashCode() != different.hashCode());
+    }
+
+    public void testRegexExclude() throws IOException {
+        String excRegex = "foo.*";
+        String differentRegex = "bar.*";
+        IncludeExclude serialized = serialize(new IncludeExclude(null, excRegex), IncludeExclude.EXCLUDE_FIELD);
+        assertFalse(serialized.isPartitionBased());
+        assertTrue(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(null, excRegex);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude different = new IncludeExclude(null, differentRegex);
+        assertFalse(serialized.equals(different));
+        assertTrue(serialized.hashCode() != different.hashCode());
+    }
+
+    // Serializes/deserializes an IncludeExclude statement with a single clause
+    private IncludeExclude serialize(IncludeExclude incExc, ParseField field) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        builder.startObject();
+        incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        XContentParser parser = createParser(builder);
+        XContentParser.Token token = parser.nextToken();
+        assertEquals(token, XContentParser.Token.START_OBJECT);
+        token = parser.nextToken();
+        assertEquals(token, XContentParser.Token.FIELD_NAME);
+        assertEquals(field.getPreferredName(), parser.currentName());
+        token = parser.nextToken();
+
+        QueryParseContext parseContext = new QueryParseContext(parser);
+        if (field.getPreferredName().equalsIgnoreCase("include")) {
+            return IncludeExclude.parseInclude(parser, parseContext);
+        } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
+            return IncludeExclude.parseExclude(parser, parseContext);
+        } else {
+            throw new IllegalArgumentException(
+                    "Unexpected field name serialized in test: " + field.getPreferredName());
+        }
+    }
+
+    public void testRegexIncludeAndExclude() throws IOException {
+        String incRegex = "foo.*";
+        String excRegex = "football";
+        String differentExcRegex = "foosball";
+        IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(incRegex, excRegex));
+        assertFalse(serialized.isPartitionBased());
+        assertTrue(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(incRegex, excRegex);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude different = new IncludeExclude(incRegex, differentExcRegex);
+        assertFalse(serialized.equals(different));
+        assertTrue(serialized.hashCode() != different.hashCode());
+    }
+
+    // Serializes/deserializes the IncludeExclude statement with include AND
+    // exclude clauses
+    private IncludeExclude serializeMixedRegex(IncludeExclude incExc) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        builder.startObject();
+        incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        XContentParser parser = createParser(builder);
+        QueryParseContext parseContext = new QueryParseContext(parser);
+        XContentParser.Token token = parser.nextToken();
+        assertEquals(token, XContentParser.Token.START_OBJECT);
+
+        IncludeExclude inc = null;
+        IncludeExclude exc = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            assertEquals(XContentParser.Token.FIELD_NAME, token);
+            if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName())) {
+                token = parser.nextToken();
+                inc = IncludeExclude.parseInclude(parser, parseContext);
+            } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName())) {
+                token = parser.nextToken();
+                exc = IncludeExclude.parseExclude(parser, parseContext);
+            } else {
+                throw new IllegalArgumentException("Unexpected field name serialized in test: " + parser.currentName());
+            }
+        }
+        assertNotNull(inc);
+        assertNotNull(exc);
+        // Include and Exclude clauses are parsed independently and then merged
+        return IncludeExclude.merge(inc, exc);
     }
 
 }

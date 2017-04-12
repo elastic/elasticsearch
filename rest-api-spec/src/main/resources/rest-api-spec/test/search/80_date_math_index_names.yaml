@@ -1,7 +1,0 @@
----
-"Missing index with catch":
-
-  - do:
-      catch:   /logstash-\d{4}\.\d{2}\.\d{2}/
-      search:
-        index: <logstash-{now/M}>

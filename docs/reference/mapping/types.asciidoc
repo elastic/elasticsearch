@@ -12,6 +12,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 <<date>>::      `date`
 <<boolean>>::   `boolean`
 <<binary>>::    `binary`
+<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
 
 [float]
 === Complex datatypes
@@ -54,6 +55,8 @@ via the <<multi-fields>> parameter.
 include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
+
+include::types/range.asciidoc[]
 
 include::types/boolean.asciidoc[]
 

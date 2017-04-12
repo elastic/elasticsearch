@@ -183,4 +183,6 @@ include::request/named-queries-and-filters.asciidoc[]
 
 include::request/inner-hits.asciidoc[]
 
+include::request/collapse.asciidoc[]
+
 include::request/search-after.asciidoc[]

@@ -88,4 +88,9 @@ public final class ECallLocal extends AExpression {
 
         writer.invokeStatic(CLASS_TYPE, method.method);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, name);
+    }
 }

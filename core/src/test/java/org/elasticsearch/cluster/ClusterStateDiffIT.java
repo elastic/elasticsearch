@@ -31,6 +31,9 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -56,6 +59,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -73,13 +77,15 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
-        ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), otherNode);
+        ClusterState clusterStateFromDiffs =
+            ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), otherNode, namedWriteableRegistry);
 
         int iterationCount = randomIntBetween(10, 300);
         for (int iteration = 0; iteration < iterationCount; iteration++) {
@@ -115,7 +121,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             if (randomIntBetween(0, 10) < 1) {
                 // Update cluster state via full serialization from time to time
-                clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), previousClusterStateFromDiffs.nodes().getLocalNode());
+                clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState),
+                    previousClusterStateFromDiffs.nodes().getLocalNode(), namedWriteableRegistry);
             } else {
                 // Update cluster states using diffs
                 Diff<ClusterState> diffBeforeSerialization = clusterState.diff(previousClusterState);
@@ -124,7 +131,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 byte[] diffBytes = BytesReference.toBytes(os.bytes());
                 Diff<ClusterState> diff;
                 try (StreamInput input = StreamInput.wrap(diffBytes)) {
-                    diff = previousClusterStateFromDiffs.readDiffFrom(input);
+                    StreamInput namedInput = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
+                    diff = ClusterState.readDiffFrom(namedInput, previousClusterStateFromDiffs.nodes().getLocalNode());
                     clusterStateFromDiffs = diff.apply(previousClusterStateFromDiffs);
                 }
             }
@@ -199,7 +207,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(new DiscoveryNode("node-" + randomAsciiOfLength(10), buildNewFakeTransportAddress(),
+            nodes.add(new DiscoveryNode("node-" + randomAlphaOfLength(10), buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), randomVersion(random())));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
@@ -238,13 +246,19 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < shardCount; i++) {
             IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
             int replicaCount = randomIntBetween(1, 10);
+            Set<String> availableNodeIds = Sets.newHashSet(nodeIds);
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
-                    unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
+                    unassignedInfo = new UnassignedInfo(randomReason(), randomAlphaOfLength(10));
                 }
+                if (availableNodeIds.isEmpty()) {
+                    break;
+                }
+                String nodeId = randomFrom(availableNodeIds);
+                availableNodeIds.remove(nodeId);
                 indexShard.addShard(
-                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, j == 0,
+                        TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0,
                                 ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
@@ -258,8 +272,20 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
+            Set<String> availableNodes = Sets.newHashSet(nodes);
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
-                final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
+                availableNodes.remove(shardRouting.currentNodeId());
+                if (shardRouting.relocating()) {
+                    availableNodes.remove(shardRouting.relocatingNodeId());
+                }
+            }
+
+            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+                final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
+                availableNodes.remove(updatedShardRouting.currentNodeId());
+                if (shardRouting.relocating()) {
+                    availableNodes.remove(updatedShardRouting.relocatingNodeId());
+                }
                 builder.addShard(updatedShardRouting);
             }
         }
@@ -394,7 +420,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
         int settingsCount = randomInt(10);
         for (int i = 0; i < settingsCount; i++) {
-            builder.put(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            builder.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
         return builder.build();
 
@@ -515,7 +541,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         if (randomBoolean() && part.getAliases().isEmpty() == false) {
                             builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
                         } else {
-                            builder.putAlias(AliasMetaData.builder(randomAsciiOfLength(10)));
+                            builder.putAlias(AliasMetaData.builder(randomAlphaOfLength(10)));
                         }
                         break;
                     case 2:
@@ -553,7 +579,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public IndexTemplateMetaData randomCreate(String name) {
                 IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
                 builder.order(randomInt(1000))
-                        .template(randomName("temp"))
+                        .patterns(Collections.singletonList(randomName("temp")))
                         .settings(randomSettings(Settings.EMPTY));
                 int aliasCount = randomIntBetween(0, 10);
                 for (int i = 0; i < aliasCount; i++) {
@@ -580,7 +606,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             builder.filter(QueryBuilders.termQuery("test", randomRealisticUnicodeOfCodepointLength(10)).toString());
         }
         if (randomBoolean()) {
-            builder.routing(randomAsciiOfLength(10));
+            builder.routing(randomAlphaOfLength(10));
         }
         return builder.build();
     }
@@ -598,7 +624,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public MetaData.Builder put(MetaData.Builder builder, MetaData.Custom part) {
-                return builder.putCustom(part.type(), part);
+                return builder.putCustom(part.getWriteableName(), part);
             }
 
             @Override
@@ -640,7 +666,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public ClusterState.Builder put(ClusterState.Builder builder, ClusterState.Custom part) {
-                return builder.putCustom(part.type(), part);
+                return builder.putCustom(part.getWriteableName(), part);
             }
 
             @Override
@@ -659,6 +685,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
                                 Collections.emptyList(),
                                 Math.abs(randomLong()),
+                                (long) randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of()));
                     case 1:
                         return new RestoreInProgress(new RestoreInProgress.Entry(

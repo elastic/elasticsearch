@@ -37,7 +37,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
-            null, null, null, null, reader, null, null);
+                null, null, xContentRegistry(), null, reader, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
     }
@@ -54,7 +54,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
-            null, null, null, null, null, null, null);
+                null, null, xContentRegistry(), null, null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));
@@ -73,7 +73,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
-            null, null, null, null, reader, null, null);
+                null, null, xContentRegistry(), null, reader, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT
         assertEquals(Relation.DISJOINT, range.getRelation(context));

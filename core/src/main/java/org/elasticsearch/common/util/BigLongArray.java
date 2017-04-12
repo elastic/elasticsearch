@@ -35,7 +35,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     private long[][] pages;
 
     /** Constructor. */
-    public BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new long[numPages(size)][];

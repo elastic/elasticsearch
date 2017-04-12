@@ -29,6 +29,8 @@ import java.util.Map;
 /**
  * A processor implementation may modify the data belonging to a document.
  * Whether changes are made and what exactly is modified is up to the implementation.
+ *
+ * Processors may get called concurrently and thus need to be thread-safe.
  */
 public interface Processor {
 

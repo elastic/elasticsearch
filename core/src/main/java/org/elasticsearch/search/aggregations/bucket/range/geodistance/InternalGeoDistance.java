@@ -60,11 +60,6 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
-        public Type type() {
-            return GeoDistanceAggregationBuilder.TYPE;
-        }
-
-        @Override
         public ValuesSourceType getValueSourceType() {
             return ValuesSourceType.GEOPOINT;
         }

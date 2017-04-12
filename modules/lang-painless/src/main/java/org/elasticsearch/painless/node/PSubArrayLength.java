@@ -97,4 +97,9 @@ final class PSubArrayLength extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix);
+    }
 }

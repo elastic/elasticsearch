@@ -21,9 +21,13 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,6 +69,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public abstract class BaseXContentTestCase extends ESTestCase {
 
@@ -268,7 +273,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final byte[] randomBytes = randomBytes();
         BytesReference bytes = builder().startObject().field("binary", randomBytes).endObject().bytes();
 
-        XContentParser parser = xcontentType().xContent().createParser(bytes);
+        XContentParser parser = createParser(xcontentType().xContent(), bytes);
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "binary");
@@ -284,7 +289,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final byte[] randomBytes = randomBytes();
         BytesReference bytes = builder().startObject().field("binary").value(randomBytes).endObject().bytes();
 
-        XContentParser parser = xcontentType().xContent().createParser(bytes);
+        XContentParser parser = createParser(xcontentType().xContent(), bytes);
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "binary");
@@ -309,7 +314,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "bin");
@@ -331,7 +336,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
@@ -349,7 +354,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final BytesReference random = new BytesArray(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");
@@ -748,7 +753,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(os.toByteArray());
+        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("bar", parser.currentName());
@@ -782,7 +787,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeRawValue(new BytesArray(rawData));
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(os.toByteArray());
+        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("foo", parser.currentName());
@@ -798,7 +803,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        parser = xcontentType().xContent().createParser(os.toByteArray());
+        parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -826,7 +831,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         generator.flush();
         byte[] serialized = os.toByteArray();
 
-        XContentParser parser = xcontentType().xContent().createParser(serialized);
+        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, serialized);
         Map<String, Object> map = parser.map();
         assertEquals("bar", map.get("foo"));
         assertEquals(bigInteger, map.get("bigint"));
@@ -981,6 +986,55 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
         assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testChecksForDuplicates() throws Exception {
+        assumeTrue("Test only makes sense if XContent parser has strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
+        XContentBuilder builder = builder()
+                .startObject()
+                    .field("key", 1)
+                    .field("key", 2)
+                .endObject();
+
+        JsonParseException pex = expectThrows(JsonParseException.class, () -> createParser(builder).map());
+        assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+    }
+
+    public void testNamedObject() throws IOException {
+        Object test1 = new Object();
+        Object test2 = new Object();
+        NamedXContentRegistry registry = new NamedXContentRegistry(Arrays.asList(
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("test1"), p -> test1),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("test2", "deprecated"), p -> test2),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
+        XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
+        b.value("test");
+        XContentParser p = xcontentType().xContent().createParser(registry, b.bytes());
+        assertEquals(test1, p.namedObject(Object.class, "test1", null));
+        assertEquals(test2, p.namedObject(Object.class, "test2", null));
+        assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
+        assertWarnings("Deprecated field [deprecated] used, expected [test2] instead");
+        {
+            p.nextToken();
+            assertEquals("test", p.namedObject(Object.class, "str", null));
+            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+                    () -> p.namedObject(Object.class, "unknown", null));
+            assertEquals("Unknown Object [unknown]", e.getMessage());
+            assertEquals("java.lang.Object", e.getCategoryClass());
+            assertEquals("unknown", e.getName());
+        }
+        {
+            Exception e = expectThrows(ElasticsearchException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+            assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
+        }
+        {
+            XContentParser emptyRegistryParser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, new byte[] {});
+            Exception e = expectThrows(ElasticsearchException.class,
+                    () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
+            assertEquals("namedObject is not supported for this parser", e.getMessage());
+        }
     }
 
     private static void expectUnclosedException(ThrowingRunnable runnable) {

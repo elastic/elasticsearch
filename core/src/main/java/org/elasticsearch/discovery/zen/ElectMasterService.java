@@ -24,7 +24,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -174,7 +173,7 @@ public class ElectMasterService extends AbstractComponent {
      * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
      * Non-master nodes are not removed but are rather put in the end
      */
-    public static List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
+    static List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
         ArrayList<DiscoveryNode> sortedNodes = CollectionUtils.iterableAsArrayList(nodes);
         CollectionUtil.introSort(sortedNodes, ElectMasterService::compareNodes);
         return sortedNodes;

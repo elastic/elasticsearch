@@ -143,6 +143,13 @@ if [ "x$JAVA_OPTS" != "x" ]; then
     echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
 fi
 
+"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
+
+if [ $? -ne 0 ]; then
+    echo "Elasticsearch requires at least Java 8 but your Java version from $JAVA does not meet this requirement"
+    exit 1
+fi
+
 # full hostname passed through cut for portability on systems that do not support hostname -s
 # export on separate line for shells that do not support combining definition and export
 HOSTNAME=`hostname | cut -d. -f1`

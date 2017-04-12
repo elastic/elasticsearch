@@ -143,6 +143,10 @@ public class ThirdPartyAuditTask extends AntTask {
                     if (m.matches()) {
                         missingClasses.add(m.group(1).replace('.', '/') + ".class");
                     }
+
+                    // Reset the priority of the event to DEBUG, so it doesn't
+                    // pollute the build output
+                    event.setMessage(event.getMessage(), Project.MSG_DEBUG);
                 } else if (event.getPriority() == Project.MSG_ERR) {
                     Matcher m = VIOLATION_PATTERN.matcher(event.getMessage());
                     if (m.matches()) {
@@ -205,9 +209,11 @@ public class ThirdPartyAuditTask extends AntTask {
         try {
             ant.thirdPartyAudit(failOnUnsupportedJava: false,
                             failOnMissingClasses: false,
-                            signaturesFile: new File(getClass().getResource('/forbidden/third-party-audit.txt').toURI()),
                             classpath: classpath.asPath) {
                 fileset(dir: tmpDir)
+                signatures {
+                    string(value: getClass().getResourceAsStream('/forbidden/third-party-audit.txt').getText('UTF-8'))
+                }
             }
         } catch (BuildException ignore) {}
 

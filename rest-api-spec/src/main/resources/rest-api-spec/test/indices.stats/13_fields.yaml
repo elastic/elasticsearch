@@ -38,22 +38,24 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         index: test1
         body:
-          result:
-            text: "b"
-            completion:
-              field: bar.completion
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: bar.completion
 
   - do:
-      suggest:
+      search:
         index: test1
         body:
-          result:
-            text: "b"
-            completion:
-              field: baz.completion
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: baz.completion
 
   - do:
       indices.refresh: {}
@@ -291,4 +293,3 @@ setup:
   - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
   - is_false:   _all.total.completion.fields.baz\.completion
   - is_false:   _all.total.fielddata.fields
-

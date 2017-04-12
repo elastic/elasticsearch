@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -33,9 +34,12 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -65,34 +69,65 @@ public class RecoveriesCollection {
      */
     public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                               PeerRecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
-        RecoveryTarget existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
-        assert existingStatus == null : "found two RecoveryStatus instances with the same id";
-        logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());
-        threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
-                new RecoveryMonitor(status.recoveryId(), status.lastAccessTime(), activityTimeout));
-        return status.recoveryId();
+        RecoveryTarget recoveryTarget = new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
+        startRecoveryInternal(recoveryTarget, activityTimeout);
+        return recoveryTarget.recoveryId();
     }
 
+    private void startRecoveryInternal(RecoveryTarget recoveryTarget, TimeValue activityTimeout) {
+        RecoveryTarget existingTarget = onGoingRecoveries.putIfAbsent(recoveryTarget.recoveryId(), recoveryTarget);
+        assert existingTarget == null : "found two RecoveryStatus instances with the same id";
+        logger.trace("{} started recovery from {}, id [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode(),
+            recoveryTarget.recoveryId());
+        threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
+                new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout));
+    }
 
     /**
      * Resets the recovery and performs a recovery restart on the currently recovering index shard
      *
      * @see IndexShard#performRecoveryRestart()
+     * @return newly created RecoveryTarget
      */
-    public void resetRecovery(long id, ShardId shardId) throws IOException {
-        try (RecoveryRef ref = getRecoverySafe(id, shardId)) {
-            // instead of adding complicated state to RecoveryTarget we just flip the
-            // target instance when we reset a recovery, that way we have only one cleanup
-            // path on the RecoveryTarget and are always within the bounds of ref-counting
-            // which is important since we verify files are on disk etc. after we have written them etc.
-            RecoveryTarget status = ref.status();
-            RecoveryTarget resetRecovery = status.resetRecovery();
-            if (onGoingRecoveries.replace(id, status, resetRecovery) == false) {
-                resetRecovery.cancel("replace failed"); // this is important otherwise we leak a reference to the store
-                throw new IllegalStateException("failed to replace recovery target");
+    public RecoveryTarget resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
+        RecoveryTarget oldRecoveryTarget = null;
+        final RecoveryTarget newRecoveryTarget;
+
+        try {
+            synchronized (onGoingRecoveries) {
+                // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
+                // cancelRecoveriesForShard whenever the old recovery target is picked up
+                oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
+                if (oldRecoveryTarget == null) {
+                    return null;
+                }
+
+                newRecoveryTarget = oldRecoveryTarget.retryCopy();
+                startRecoveryInternal(newRecoveryTarget, activityTimeout);
             }
+
+            // Closes the current recovery target
+            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
+            if (successfulReset) {
+                logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
+                    newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
+                return newRecoveryTarget;
+            } else {
+                logger.trace("{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                    newRecoveryTarget.shardId(), newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(),
+                    oldRecoveryTarget.recoveryId());
+                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+                return null;
+            }
+        } catch (Exception e) {
+            // fail shard to be safe
+            oldRecoveryTarget.notifyListener(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
+            return null;
         }
+    }
+
+    public RecoveryTarget getRecoveryTarget(long id) {
+        return onGoingRecoveries.get(id);
     }
 
     /**
@@ -116,7 +151,7 @@ public class RecoveriesCollection {
         if (recoveryRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        assert recoveryRef.status().shardId().equals(shardId);
+        assert recoveryRef.target().shardId().equals(shardId);
         return recoveryRef;
     }
 
@@ -143,7 +178,8 @@ public class RecoveriesCollection {
     public void failRecovery(long id, RecoveryFailedException e, boolean sendShardFailure) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
-            logger.trace("{} failing recovery from {}, id [{}]. Send shard failure: [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId(), sendShardFailure);
+            logger.trace("{} failing recovery from {}, id [{}]. Send shard failure: [{}]", removed.shardId(), removed.sourceNode(),
+                removed.recoveryId(), sendShardFailure);
             removed.fail(e, sendShardFailure);
         }
     }
@@ -171,10 +207,21 @@ public class RecoveriesCollection {
      */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
-        for (RecoveryTarget status : onGoingRecoveries.values()) {
-            if (status.shardId().equals(shardId)) {
-                cancelled |= cancelRecovery(status.recoveryId(), reason);
+        List<RecoveryTarget> matchedRecoveries = new ArrayList<>();
+        synchronized (onGoingRecoveries) {
+            for (Iterator<RecoveryTarget> it = onGoingRecoveries.values().iterator(); it.hasNext(); ) {
+                RecoveryTarget status = it.next();
+                if (status.shardId().equals(shardId)) {
+                    matchedRecoveries.add(status);
+                    it.remove();
+                }
             }
+        }
+        for (RecoveryTarget removed : matchedRecoveries) {
+            logger.trace("{} canceled recovery from {}, id [{}] (reason [{}])",
+                removed.shardId(), removed.sourceNode(), removed.recoveryId(), reason);
+            removed.cancel(reason);
+            cancelled = true;
         }
         return cancelled;
     }
@@ -205,7 +252,7 @@ public class RecoveriesCollection {
             }
         }
 
-        public RecoveryTarget status() {
+        public RecoveryTarget target() {
             return status;
         }
     }

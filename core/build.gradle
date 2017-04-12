@@ -62,10 +62,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.9.4'
-  // joda 2.0 moved to using volatile fields for datetime
-  // When updating to a new version, make sure to update our copy of BaseDateTime
-  compile 'org.joda:joda-convert:1.2'
+  compile 'joda-time:joda-time:2.9.5'
 
   // json and yaml
   compile "org.yaml:snakeyaml:${versions.snakeyaml}"
@@ -77,7 +74,7 @@ dependencies {
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
   // precentil ranks aggregation
-  compile 'org.hdrhistogram:HdrHistogram:2.1.6'
+  compile 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // lucene spatial
   compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
@@ -97,6 +94,8 @@ dependencies {
       exclude group: 'org.elasticsearch', module: 'elasticsearch'
     }
   }
+  testCompile 'com.google.jimfs:jimfs:1.1'
+  testCompile 'com.google.guava:guava:18.0'
 }
 
 if (isEclipse) {
@@ -232,9 +231,11 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.compress.utils.IOUtils',
   'org.apache.commons.csv.CSVFormat',
   'org.apache.commons.csv.QuoteMode',
+  'org.apache.kafka.clients.producer.Callback',
   'org.apache.kafka.clients.producer.KafkaProducer',
   'org.apache.kafka.clients.producer.Producer',
   'org.apache.kafka.clients.producer.ProducerRecord',
+  'org.apache.kafka.clients.producer.RecordMetadata',
   'org.codehaus.stax2.XMLStreamWriter2',
   'org.jctools.queues.MessagePassingQueue$Consumer',
   'org.jctools.queues.MpscArrayQueue',
@@ -257,8 +258,10 @@ thirdPartyAudit.excludes = [
   'org.noggit.JSONParser', 
 ]
 
-// dependency license are currently checked in distribution
-dependencyLicenses.enabled = false
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 
 if (isEclipse == false || project.path == ":core-tests") {
   task integTest(type: RandomizedTestingTask,

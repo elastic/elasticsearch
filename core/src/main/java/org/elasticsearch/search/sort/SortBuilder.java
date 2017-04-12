@@ -203,9 +203,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
 
     protected static QueryBuilder parseNestedFilter(XContentParser parser, QueryParseContext context) {
         try {
-            QueryBuilder builder = context.parseInnerQueryBuilder().orElseThrow(() -> new ParsingException(parser.getTokenLocation(),
-                    "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element."));
-            return builder;
+            return context.parseInnerQueryBuilder();
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
         }

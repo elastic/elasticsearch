@@ -21,7 +21,10 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -77,7 +80,10 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         assert(invalidHttpMethodArray.size() > 0);
 
         // Initialize test candidate RestController
-        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
+        CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), null, null, circuitBreakerService);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {
@@ -95,7 +101,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         }
 
         // Generate a test request with an invalid HTTP method
-        FakeRestRequest.Builder fakeRestRequestBuilder = new FakeRestRequest.Builder();
+        FakeRestRequest.Builder fakeRestRequestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         fakeRestRequestBuilder.withMethod(invalidHttpMethodArray.get(0));
         RestRequest restRequest = fakeRestRequestBuilder.build();
 

@@ -19,16 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.LambdaMetafactory;
@@ -244,5 +244,10 @@ public final class ELambda extends AExpression implements ILambda {
             types[i] = captures.get(i).type.type;
         }
         return types;
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(pairwiseToString(paramTypeStrs, paramNameStrs), statements);
     }
 }

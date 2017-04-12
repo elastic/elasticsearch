@@ -47,7 +47,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
 
     public void testGetMaxMapCountOnLinux() {
         if (Constants.LINUX) {
-            final BootstrapCheck.MaxMapCountCheck check = new BootstrapCheck.MaxMapCountCheck();
+            final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
             assertThat(check.getMaxMapCount(), greaterThan(0L));
         }
     }
@@ -57,7 +57,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
         final BufferedReader reader = mock(BufferedReader.class);
         when(reader.readLine()).thenReturn(Long.toString(procSysVmMaxMapCount));
         final Path procSysVmMaxMapCountPath = PathUtils.get("/proc/sys/vm/max_map_count");
-        BootstrapCheck.MaxMapCountCheck check = new BootstrapCheck.MaxMapCountCheck() {
+        BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck() {
             @Override
             BufferedReader getBufferedReader(Path path) throws IOException {
                 assertEquals(path, procSysVmMaxMapCountPath);
@@ -74,6 +74,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountIOException");
             final MockLogAppender appender = new MockLogAppender();
+            appender.start();
             appender.addExpectation(
                     new ParameterizedMessageLoggingExpectation(
                             "expected logged I/O exception",
@@ -87,6 +88,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
             verify(reader).close();
             Loggers.removeAppender(logger, appender);
+            appender.stop();
         }
 
         {
@@ -94,6 +96,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountNumberFormatException");
             final MockLogAppender appender = new MockLogAppender();
+            appender.start();
             appender.addExpectation(
                     new ParameterizedMessageLoggingExpectation(
                             "expected logged number format exception",
@@ -107,6 +110,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
             verify(reader).close();
             Loggers.removeAppender(logger, appender);
+            appender.stop();
         }
 
     }
@@ -160,13 +164,13 @@ public class MaxMapCountCheckTests extends ESTestCase {
         final String rawProcSysVmMaxMapCount = Long.toString(randomIntBetween(1, Integer.MAX_VALUE));
         final BufferedReader reader = mock(BufferedReader.class);
         when(reader.readLine()).thenReturn(rawProcSysVmMaxMapCount);
-        final BootstrapCheck.MaxMapCountCheck check = new BootstrapCheck.MaxMapCountCheck();
+        final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
         assertThat(check.readProcSysVmMaxMapCount(reader), equalTo(rawProcSysVmMaxMapCount));
     }
 
     public void testMaxMapCountCheckParse() {
         final long procSysVmMaxMapCount = randomIntBetween(1, Integer.MAX_VALUE);
-        final BootstrapCheck.MaxMapCountCheck check = new BootstrapCheck.MaxMapCountCheck();
+        final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
         assertThat(check.parseProcSysVmMaxMapCount(Long.toString(procSysVmMaxMapCount)), equalTo(procSysVmMaxMapCount));
     }
 

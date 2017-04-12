@@ -31,6 +31,8 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,12 +46,21 @@ public class RetryTests extends ESTestCase {
     private static final int CALLS_TO_FAIL = 5;
 
     private MockBulkClient bulkClient;
+    /**
+     * Headers that are expected to be sent with all bulk requests.
+     */
+    private Map<String, String> expectedHeaders = new HashMap<>();
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         this.bulkClient = new MockBulkClient(getTestName(), CALLS_TO_FAIL);
+        // Stash some random headers so we can assert that we preserve them
+        bulkClient.threadPool().getThreadContext().stashContext();
+        expectedHeaders.clear();
+        expectedHeaders.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        bulkClient.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
     @Override
@@ -76,7 +87,8 @@ public class RetryTests extends ESTestCase {
         BulkResponse response = Retry
                 .on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withSyncBackoff(bulkClient, bulkRequest);
+                .using(bulkClient.threadPool())
+                .withSyncBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings());
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -89,7 +101,8 @@ public class RetryTests extends ESTestCase {
         BulkResponse response = Retry
                 .on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withSyncBackoff(bulkClient, bulkRequest);
+                .using(bulkClient.threadPool())
+                .withSyncBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings());
 
         assertTrue(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -102,7 +115,8 @@ public class RetryTests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         Retry.on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withAsyncBackoff(bulkClient, bulkRequest, listener);
+                .using(bulkClient.threadPool())
+                .withAsyncBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
 
         listener.awaitCallbacksCalled();
         listener.assertOnResponseCalled();
@@ -118,7 +132,8 @@ public class RetryTests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         Retry.on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withAsyncBackoff(bulkClient, bulkRequest, listener);
+                .using(bulkClient.threadPool())
+                .withAsyncBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
 
         listener.awaitCallbacksCalled();
 
@@ -178,7 +193,7 @@ public class RetryTests extends ESTestCase {
         }
     }
 
-    private static class MockBulkClient extends NoOpClient {
+    private class MockBulkClient extends NoOpClient {
         private int numberOfCallsToFail;
 
         private MockBulkClient(String testName, int numberOfCallsToFail) {
@@ -195,6 +210,12 @@ public class RetryTests extends ESTestCase {
 
         @Override
         public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+            if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
+                listener.onFailure(
+                        new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));
+                return;
+            }
+
             // do everything synchronously, that's fine for a test
             boolean shouldFail = numberOfCallsToFail > 0;
             numberOfCallsToFail--;

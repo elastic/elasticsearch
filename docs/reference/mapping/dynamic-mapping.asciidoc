@@ -61,7 +61,7 @@ Automatic type creation can also be disabled for all indices by setting an index
 --------------------------------------------------
 PUT _template/template_all
 {
-  "template": "*",
+  "index_patterns": ["*"],
   "order":0,
   "settings": {
     "index.mapper.dynamic": false <1>

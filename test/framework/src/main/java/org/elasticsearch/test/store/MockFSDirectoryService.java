@@ -28,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -150,21 +149,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
     }
 
-    @Override
-    public void onPause(long nanos) {
-        delegateService.onPause(nanos);
-    }
-
-    @Override
-    public StoreRateLimiting rateLimiting() {
-        return delegateService.rateLimiting();
-    }
-
-    @Override
-    public long throttleTimeInNanos() {
-        return delegateService.throttleTimeInNanos();
-    }
-
     private Directory wrap(Directory dir) {
         final ElasticsearchMockDirectoryWrapper w = new ElasticsearchMockDirectoryWrapper(random, dir, this.crashIndex);
         w.setRandomIOExceptionRate(randomIOExceptionRate);
@@ -206,7 +190,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         private final BaseDirectoryWrapper dir;
         private final TestRuleMarkFailure failureMarker;
 
-        public CloseableDirectory(BaseDirectoryWrapper dir) {
+        CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
             this.failureMarker = ESTestCase.getSuiteFailureMarker();
         }

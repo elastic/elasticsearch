@@ -13,7 +13,7 @@ Here is an example on how to create the aggregation request:
 [source,java]
 --------------------------------------------------
 GeoBoundsBuilder aggregation =
-        AggregationBuilders
+        GeoBoundsAggregationBuilder
                 .geoBounds("agg")
                 .field("address.location")
                 .wrapLongitude(true);

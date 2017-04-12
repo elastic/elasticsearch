@@ -27,6 +27,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -143,7 +144,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .field("excluded", "should not be seen")
                 .endObject().bytes();
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef).get();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();

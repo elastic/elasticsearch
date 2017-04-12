@@ -19,6 +19,8 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -44,11 +46,25 @@ public class SnapshotTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        final SnapshotId snapshotId = new SnapshotId(randomAsciiOfLength(randomIntBetween(2, 8)), UUIDs.randomBase64UUID());
-        final Snapshot original = new Snapshot(randomAsciiOfLength(randomIntBetween(2, 8)), snapshotId);
+        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(randomIntBetween(2, 8)), UUIDs.randomBase64UUID());
+        final Snapshot original = new Snapshot(randomAlphaOfLength(randomIntBetween(2, 8)), snapshotId);
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
         assertThat(new Snapshot(out.bytes().streamInput()), equalTo(original));
+    }
+
+    public void testCreateSnapshotRequestDescrptions() {
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest();
+        createSnapshotRequest.snapshot("snapshot_name");
+        createSnapshotRequest.repository("repo_name");
+        assertEquals("snapshot [repo_name:snapshot_name]", createSnapshotRequest.getDescription());
+    }
+
+    public void testRestoreSnapshotRequestDescrptions() {
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest();
+        restoreSnapshotRequest.snapshot("snapshot_name");
+        restoreSnapshotRequest.repository("repo_name");
+        assertEquals("snapshot [repo_name:snapshot_name]", restoreSnapshotRequest.getDescription());
     }
 
 }

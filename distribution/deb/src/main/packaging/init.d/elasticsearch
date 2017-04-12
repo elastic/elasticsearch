@@ -84,6 +84,7 @@ DAEMON_OPTS="-d -p $PID_FILE -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$D
 export ES_JAVA_OPTS
 export JAVA_HOME
 export ES_INCLUDE
+export ES_JVM_OPTIONS
 
 if [ ! -x "$DAEMON" ]; then
 	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"
@@ -137,7 +138,7 @@ case "$1" in
 	fi
 
 	# Start Daemon
-	start-stop-daemon -d $ES_HOME --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
+	start-stop-daemon -d $ES_HOME --start --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
 	return=$?
 	if [ $return -eq 0 ]; then
 		i=0

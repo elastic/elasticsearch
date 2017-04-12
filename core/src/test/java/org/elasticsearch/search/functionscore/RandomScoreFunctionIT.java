@@ -134,8 +134,8 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 } else {
                     assertThat(hits.length, equalTo(searchResponse.getHits().getHits().length));
                     for (int j = 0; j < hitCount; j++) {
-                        assertThat("" + j, currentHits[j].score(), equalTo(hits[j].score()));
-                        assertThat("" + j, currentHits[j].id(), equalTo(hits[j].id()));
+                        assertThat("" + j, currentHits[j].getScore(), equalTo(hits[j].getScore()));
+                        assertThat("" + j, currentHits[j].getId(), equalTo(hits[j].getId()));
                     }
                 }
 
@@ -169,7 +169,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         params.put("factor", randomIntBetween(2, 4));
 
         // Test for accessing _score
-        Script script = new Script("log(doc['index'].value + (factor * _score))", ScriptType.INLINE, NAME, params);
+        Script script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score))", params);
         SearchResponse resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -185,7 +185,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.intValue()
-        script = new Script("log(doc['index'].value + (factor * _score.intValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.intValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -201,7 +201,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.longValue()
-        script = new Script("log(doc['index'].value + (factor * _score.longValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.longValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -217,7 +217,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.floatValue()
-        script = new Script("log(doc['index'].value + (factor * _score.floatValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.floatValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -233,7 +233,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.doubleValue()
-        script = new Script("log(doc['index'].value + (factor * _score.doubleValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.doubleValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -263,9 +263,9 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setExplain(true)
                 .get();
         assertNoFailures(resp);
-        assertEquals(1, resp.getHits().totalHits());
+        assertEquals(1, resp.getHits().getTotalHits());
         SearchHit firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.explanation().toString(), containsString("" + seed));
+        assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
     }
 
     public void testNoDocs() throws Exception {
@@ -276,7 +276,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(1234)))
                 .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().totalHits());
+        assertEquals(0, resp.getHits().getTotalHits());
     }
 
     public void testScoreRange() throws Exception {
@@ -300,7 +300,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
             assertNoFailures(searchResponse);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                assertThat(hit.score(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
+                assertThat(hit.getScore(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
             }
         }
     }
@@ -351,7 +351,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                     .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
                     .execute().actionGet();
 
-            matrix[Integer.valueOf(searchResponse.getHits().getAt(0).id())]++;
+            matrix[Integer.valueOf(searchResponse.getHits().getAt(0).getId())]++;
         }
 
         int filled = 0;

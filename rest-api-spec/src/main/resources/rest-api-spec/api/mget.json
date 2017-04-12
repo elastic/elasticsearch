@@ -32,6 +32,10 @@
           "type" : "boolean",
           "description" : "Refresh the shard containing the document before performing the operation"
         },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
+        },
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"

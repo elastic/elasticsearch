@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
@@ -44,7 +43,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Cat API class to display information about snapshots
  */
 public class RestSnapshotAction extends AbstractCatAction {
-    @Inject
     public RestSnapshotAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/snapshots", this);

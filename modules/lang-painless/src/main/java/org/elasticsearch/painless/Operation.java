@@ -27,7 +27,7 @@ package org.elasticsearch.painless;
  */
 public enum Operation {
 
-    MUL     ( "+"   ),
+    MUL     ( "*"   ),
     DIV     ( "/"   ),
     REM     ( "%"   ),
     ADD     ( "+"   ),

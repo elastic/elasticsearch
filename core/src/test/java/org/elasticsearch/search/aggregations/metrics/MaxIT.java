@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -138,9 +139,9 @@ public class MaxIT extends AbstractNumericTestCase {
         assertThat(max.getName(), equalTo("max"));
         double expectedMaxValue = 10.0;
         assertThat(max.getValue(), equalTo(expectedMaxValue));
-        assertThat((Max) global.getProperty("max"), equalTo(max));
-        assertThat((double) global.getProperty("max.value"), equalTo(expectedMaxValue));
-        assertThat((double) max.getProperty("value"), equalTo(expectedMaxValue));
+        assertThat((Max) ((InternalAggregation)global).getProperty("max"), equalTo(max));
+        assertThat((double) ((InternalAggregation)global).getProperty("max.value"), equalTo(expectedMaxValue));
+        assertThat((double) ((InternalAggregation)max).getProperty("value"), equalTo(expectedMaxValue));
     }
 
     @Override
@@ -165,7 +166,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .field("value")
-                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -185,7 +186,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .field("value")
-                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -218,7 +219,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .field("values")
-                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -238,7 +239,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .field("values")
-                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -255,7 +256,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         max("max")
-                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -271,7 +272,7 @@ public class MaxIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        Script script = new Script("doc['value'].value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params);
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -292,7 +293,8 @@ public class MaxIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         max("max")
-                                .script(new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE,
+                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap())))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -308,8 +310,8 @@ public class MaxIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        Script script = new Script("[ doc['value'].value, doc['value'].value + inc ]", ScriptType.INLINE,
-                AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "[ doc['value'].value, doc['value'].value + inc ]",
+            params);
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(max("max").script(script))
@@ -372,7 +374,7 @@ public class MaxIT extends AbstractNumericTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                max("foo").field("d").script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                max("foo").field("d").script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
                 .get();
         assertSearchResponse(r);
 

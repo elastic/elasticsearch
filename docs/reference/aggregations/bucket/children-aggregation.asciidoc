@@ -5,7 +5,7 @@ A special single bucket aggregation that enables aggregating from buckets on par
 
 This aggregation relies on the <<mapping-parent-field,_parent field>> in the mapping. This aggregation has a single option:
 
-* `type` - The what child type the buckets in the parent space should be mapped to.
+* `type` - The child type that the buckets in the parent space should be mapped to.
 
 For example, let's say we have an index of questions and answers. The answer type has the following `_parent` field in the mapping:
 [source,js]

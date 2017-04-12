@@ -31,6 +31,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -44,8 +46,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -58,7 +60,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -72,6 +76,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(FailOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put("search.default_search_timeout", "5s").build();
     }
 
     public void testClearOnClose() throws ExecutionException, InterruptedException {
@@ -143,7 +152,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void run() {
                 startGun.countDown();
                 while(running.get()) {
-                    service.afterIndexDeleted(indexService.index(), indexService.getIndexSettings().getSettings());
+                    service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
                         // context in a non-sane way.
@@ -174,13 +183,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             final int rounds = scaledRandomIntBetween(100, 10000);
             for (int i = 0; i < rounds; i++) {
                 try {
-                    QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
+                    SearchPhaseResult searchPhaseResult = service.executeQueryPhase(
                         new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
                         new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
-                    ShardFetchRequest req = new ShardFetchRequest(querySearchResultProvider.id(), intCursors, null /* not a scroll */);
+                    ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getRequestId(), intCursors, null /* not a scroll */);
                     service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null));
                 } catch (AlreadyClosedException ex) {
                     throw ex;
@@ -195,6 +204,53 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             thread.join();
             semaphore.acquire(Integer.MAX_VALUE);
         }
+    }
+
+    public void testTimeout() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        final SearchContext contextWithDefaultTimeout = service.createContext(
+            new ShardSearchLocalRequest(
+                indexShard.shardId(),
+                1,
+                SearchType.DEFAULT,
+                new SearchSourceBuilder(),
+                new String[0],
+                false,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f),
+            null);
+        try {
+            // the search context should inherit the default timeout
+            assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        } finally {
+            contextWithDefaultTimeout.decRef();
+            service.freeContext(contextWithDefaultTimeout.id());
+        }
+
+        final long seconds = randomIntBetween(6, 10);
+        final SearchContext context = service.createContext(
+            new ShardSearchLocalRequest(
+                indexShard.shardId(),
+                1,
+                SearchType.DEFAULT,
+                new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
+                new String[0],
+                false,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f),
+            null);
+        try {
+            // the search context should inherit the query timeout
+            assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
+        } finally {
+            context.decRef();
+            service.freeContext(context.id());
+        }
+
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

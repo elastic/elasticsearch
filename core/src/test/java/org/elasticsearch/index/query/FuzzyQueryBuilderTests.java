@@ -62,7 +62,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     @Override
     protected Map<String, FuzzyQueryBuilder> getAlternateVersions() {
         Map<String, FuzzyQueryBuilder> alternateVersions = new HashMap<>();
-        FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"fuzzy\" : {\n" +
                 "        \"" + fuzzyQuery.fieldName() + "\" : \"" + fuzzyQuery.value() + "\"\n" +
@@ -157,7 +157,16 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n" +
+        String json1 = "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : \"this is a test\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        parseQuery(json1); // should be all good
+
+        String json2 = "{\n" +
                 "  \"fuzzy\" : {\n" +
                 "    \"message1\" : {\n" +
                 "      \"value\" : \"this is a test\"\n" +
@@ -168,7 +177,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "  }\n" +
                 "}";
 
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json2));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
         String shortJson = "{\n" +
@@ -180,5 +189,18 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithValueArray() {
+        String query = "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : [ \"one\", \"two\", \"three\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertEquals("[fuzzy] unexpected token [START_ARRAY] after [value]", e.getMessage());
     }
 }

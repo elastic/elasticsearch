@@ -21,24 +21,28 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_S3;
-import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
+import com.amazonaws.services.s3.AmazonS3;
+import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.AffixSetting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.function.Function;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -46,51 +50,47 @@ import java.util.function.Function;
  * Shared file system repository supports the following settings
  * <dl>
  * <dt>{@code bucket}</dt><dd>S3 bucket</dd>
- * <dt>{@code region}</dt><dd>S3 region. Defaults to us-east</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class S3Repository extends BlobStoreRepository {
+class S3Repository extends BlobStoreRepository {
 
     public static final String TYPE = "s3";
 
     /**
      * Global S3 repositories settings. Starting with: repositories.s3
+     * NOTE: These are legacy settings. Use the named client config settings above.
      */
     public interface Repositories {
         /**
          * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
          * @see CLOUD_S3#KEY_SETTING
          */
-        Setting<String> KEY_SETTING =
-            new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, Function.identity(), Property.NodeScope, Property.Filtered);
+        Setting<SecureString> KEY_SETTING = new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, SecureString::new,
+            Property.NodeScope, Property.Filtered, Property.Deprecated);
+
         /**
          * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
          * @see CLOUD_S3#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING =
-            new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, Function.identity(), Property.NodeScope, Property.Filtered);
-        /**
-         * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.
-         * @see CLOUD_S3#REGION_SETTING
-         */
-        Setting<String> REGION_SETTING =
-            new Setting<>("repositories.s3.region", CLOUD_S3.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
+        Setting<SecureString> SECRET_SETTING = new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, SecureString::new,
+            Property.NodeScope, Property.Filtered, Property.Deprecated);
+
         /**
          * repositories.s3.endpoint: Endpoint specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.endpoint.
          * @see CLOUD_S3#ENDPOINT_SETTING
          */
-        Setting<String> ENDPOINT_SETTING =
-            new Setting<>("repositories.s3.endpoint", CLOUD_S3.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
+        Setting<String> ENDPOINT_SETTING = new Setting<>("repositories.s3.endpoint", CLOUD_S3.ENDPOINT_SETTING,
+            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.protocol: Protocol specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.protocol.
          * @see CLOUD_S3#PROTOCOL_SETTING
          */
-        Setting<Protocol> PROTOCOL_SETTING =
-            new Setting<>("repositories.s3.protocol", CLOUD_S3.PROTOCOL_SETTING, s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("repositories.s3.protocol", CLOUD_S3.PROTOCOL_SETTING,
+            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.bucket: The name of the bucket to be used for snapshots.
          */
@@ -101,14 +101,27 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
             Setting.boolSetting("repositories.s3.server_side_encryption", false, Property.NodeScope);
+
+        /**
+         * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
+         * the available memory for smaller heaps.
+         */
+        ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+                Math.max(
+                        ByteSizeUnit.MB.toBytes(5), // minimum value
+                        Math.min(
+                                ByteSizeUnit.MB.toBytes(100),
+                                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
+                ByteSizeUnit.BYTES);
+
         /**
          * repositories.s3.buffer_size: Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
          * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
          * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
-         * use of the Multipart API and may result in upload errors. Defaults to 100m.
+         * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("repositories.s3.buffer_size", DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
@@ -160,47 +173,37 @@ public class S3Repository extends BlobStoreRepository {
      * If undefined, they use the repositories.s3.xxx equivalent setting.
      */
     public interface Repository {
-        /**
-         * access_key
-         * @see  Repositories#KEY_SETTING
-         */
-        Setting<String> KEY_SETTING = Setting.simpleString("access_key");
-        /**
-         * secret_key
-         * @see  Repositories#SECRET_SETTING
-         */
-        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key");
-        /**
-         * bucket
-         * @see  Repositories#BUCKET_SETTING
-         */
+        Setting<SecureString> KEY_SETTING = new Setting<>("access_key", "", SecureString::new,
+            Property.Filtered, Property.Deprecated);
+
+
+        Setting<SecureString> SECRET_SETTING = new Setting<>("secret_key", "", SecureString::new,
+            Property.Filtered, Property.Deprecated);
+
         Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
         /**
          * endpoint
          * @see  Repositories#ENDPOINT_SETTING
          */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint");
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", Property.Deprecated);
         /**
          * protocol
          * @see  Repositories#PROTOCOL_SETTING
          */
-        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)));
-        /**
-         * region
-         * @see  Repositories#REGION_SETTING
-         */
-        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT));
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
+            Property.Deprecated);
         /**
          * server_side_encryption
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("buffer_size", Repositories.DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * max_retries
@@ -258,22 +261,17 @@ public class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    public S3Repository(RepositoryMetaData metadata, Settings settings, AwsS3Service s3Service) throws IOException {
-        super(metadata, settings);
+    S3Repository(RepositoryMetaData metadata, Settings settings,
+                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+        super(metadata, settings, namedXContentRegistry);
 
         String bucket = getValue(metadata.settings(), settings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {
             throw new RepositoryException(metadata.name(), "No bucket defined for s3 gateway");
         }
 
-        String endpoint = getValue(metadata.settings(), settings, Repository.ENDPOINT_SETTING, Repositories.ENDPOINT_SETTING);
-        Protocol protocol = getValue(metadata.settings(), settings, Repository.PROTOCOL_SETTING, Repositories.PROTOCOL_SETTING);
-        String region = getValue(metadata.settings(), settings, Repository.REGION_SETTING, Repositories.REGION_SETTING);
-
         boolean serverSideEncryption = getValue(metadata.settings(), settings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
         ByteSizeValue bufferSize = getValue(metadata.settings(), settings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
-        Integer maxRetries = getValue(metadata.settings(), settings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
-        boolean useThrottleRetries = getValue(metadata.settings(), settings, Repository.USE_THROTTLE_RETRIES_SETTING, Repositories.USE_THROTTLE_RETRIES_SETTING);
         this.chunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
@@ -287,22 +285,12 @@ public class S3Repository extends BlobStoreRepository {
         String storageClass = getValue(metadata.settings(), settings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
         String cannedACL = getValue(metadata.settings(), settings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
 
-        // If the user defined a path style access setting, we rely on it otherwise we use the default
-        // value set by the SDK
-        Boolean pathStyleAccess = null;
-        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
-            Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
-            pathStyleAccess = getValue(metadata.settings(), settings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
-        }
+        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
+            "buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +
-            "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}], path_style_access [{}]",
-            bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
-            storageClass, pathStyleAccess);
-
-        blobStore = new S3BlobStore(settings,
-            s3Service.client(metadata.settings(), endpoint, protocol, region, maxRetries, useThrottleRetries, pathStyleAccess),
-                bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
+        AmazonS3 client = s3Service.client(metadata.settings());
+        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {

@@ -19,15 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -52,14 +46,4 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(typeMapper.fieldType().fielddataBuilder(), instanceOf(DocValuesIndexFieldData.Builder.class));
     }
 
-    public void testDocValuesPre21() throws Exception {
-        // between 2.0 and 2.1, doc values was disabled for _type
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        Settings bwcSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0_beta1.id).build();
-
-        DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        TypeFieldMapper typeMapper = docMapper.metadataMapper(TypeFieldMapper.class);
-        assertFalse(typeMapper.fieldType().hasDocValues());
-        assertThat(typeMapper.fieldType().fielddataBuilder(), instanceOf(PagedBytesIndexFieldData.Builder.class));
-    }
 }

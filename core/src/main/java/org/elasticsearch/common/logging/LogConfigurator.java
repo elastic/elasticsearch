@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.nio.file.FileVisitOption;
@@ -97,7 +98,7 @@ public class LogConfigurator {
         final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
         Files.walkFileTree(configsPath, options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
                 if (file.getFileName().toString().equals("log4j2.properties")) {
                     configurations.add((PropertiesConfiguration) factory.getConfiguration(context, file.toString(), file.toUri()));
                 }
@@ -122,23 +123,53 @@ public class LogConfigurator {
         Configurator.initialize(builder.build());
     }
 
-    private static void configureLoggerLevels(Settings settings) {
+    /**
+     * Configures the logging levels for loggers configured in the specified settings.
+     *
+     * @param settings the settings from which logger levels will be extracted
+     */
+    private static void configureLoggerLevels(final Settings settings) {
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
             final Level level = ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings);
             Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
 
         final Map<String, String> levels = settings.filter(ESLoggerFactory.LOG_LEVEL_SETTING::match).getAsMap();
-        for (String key : levels.keySet()) {
-            final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
-            Loggers.setLevel(ESLoggerFactory.getLogger(key.substring("logger.".length())), level);
+        for (final String key : levels.keySet()) {
+            // do not set a log level for a logger named level (from the default log setting)
+            if (!key.equals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.getKey())) {
+                final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
+                Loggers.setLevel(ESLoggerFactory.getLogger(key.substring("logger.".length())), level);
+            }
         }
     }
 
-
+    /**
+     * Set system properties that can be used in configuration files to specify paths and file patterns for log files. We expose three
+     * properties here:
+     * <ul>
+     * <li>
+     * {@code es.logs.base_path} the base path containing the log files
+     * </li>
+     * <li>
+     * {@code es.logs.cluster_name} the cluster name, used as the prefix of log filenames in the default configuration
+     * </li>
+     * <li>
+     * {@code es.logs.node_name} the node name, can be used as part of log filenames (only exposed if {@link Node#NODE_NAME_SETTING} is
+     * explicitly set)
+     * </li>
+     * </ul>
+     *
+     * @param logsPath the path to the log files
+     * @param settings the settings to extract the cluster and node names
+     */
     @SuppressForbidden(reason = "sets system property for logging configuration")
     private static void setLogConfigurationSystemProperty(final Path logsPath, final Settings settings) {
-        System.setProperty("es.logs", logsPath.resolve(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()).toString());
+        System.setProperty("es.logs.base_path", logsPath.toString());
+        System.setProperty("es.logs.cluster_name", ClusterName.CLUSTER_NAME_SETTING.get(settings).value());
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            System.setProperty("es.logs.node_name", Node.NODE_NAME_SETTING.get(settings));
+        }
     }
 
 }

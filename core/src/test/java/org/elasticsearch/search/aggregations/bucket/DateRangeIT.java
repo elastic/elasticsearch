@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -119,7 +120,7 @@ public class DateRangeIT extends ESIntegTestCase {
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
-            rangeBuilder.script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params));
+            rangeBuilder.script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, params));
         }
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -419,10 +420,10 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        assertThat(range.getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
+        assertThat(((InternalAggregation)range).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)range).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)range).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)range).getProperty("sum.value");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
@@ -541,7 +542,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                                .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                                 .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
                 .actionGet();
 
@@ -597,7 +598,7 @@ public class DateRangeIT extends ESIntegTestCase {
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, params))
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
@@ -659,7 +660,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateRange("range").script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params))
+                        dateRange("range").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, params))
                         .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15))).execute().actionGet();
 
@@ -889,7 +890,7 @@ public class DateRangeIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
-                .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                 .addRange(new DateTime(2012, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), new DateTime(2013, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC)))
                 .get();
         assertSearchResponse(r);

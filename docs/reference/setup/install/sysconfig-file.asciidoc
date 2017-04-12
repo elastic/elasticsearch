@@ -17,7 +17,7 @@
 
 `MAX_LOCKED_MEMORY`::
 
-    Maximum locked memory size. Set to `unlimited if you use the
+    Maximum locked memory size. Set to `unlimited` if you use the
     `bootstrap.memory_lock` option in elasticsearch.yml.
 
 `MAX_MAP_COUNT`::

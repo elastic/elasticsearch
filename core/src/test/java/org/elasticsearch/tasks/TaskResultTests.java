@@ -20,14 +20,12 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -67,8 +65,8 @@ public class TaskResultTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentBuilder shuffled = shuffleXContent(builder);
-                    XContentParser parser = XContentHelper.createParser(shuffled.bytes())) {
-                read = TaskResult.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+                    XContentParser parser = createParser(shuffled)) {
+                read = TaskResult.PARSER.apply(parser, null);
             }
         } catch (IOException e) {
             throw new IOException("Error processing [" + result + "]", e);
@@ -91,10 +89,10 @@ public class TaskResultTests extends ESTestCase {
 
     private static TaskInfo randomTaskInfo() throws IOException {
         TaskId taskId = randomTaskId();
-        String type = randomAsciiOfLength(5);
-        String action = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String action = randomAlphaOfLength(5);
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
-        String description = randomBoolean() ? randomAsciiOfLength(5) : null;
+        String description = randomBoolean() ? randomAlphaOfLength(5) : null;
         long startTime = randomLong();
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
@@ -103,7 +101,7 @@ public class TaskResultTests extends ESTestCase {
     }
 
     private static TaskId randomTaskId() {
-        return new TaskId(randomAsciiOfLength(5), randomLong());
+        return new TaskId(randomAlphaOfLength(5), randomLong());
     }
 
     private static RawTaskStatus randomRawTaskStatus() throws IOException {
@@ -111,7 +109,7 @@ public class TaskResultTests extends ESTestCase {
             builder.startObject();
             int fields = between(0, 10);
             for (int f = 0; f < fields; f++) {
-                builder.field(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                builder.field(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             builder.endObject();
             return new RawTaskStatus(builder.bytes());
@@ -122,7 +120,7 @@ public class TaskResultTests extends ESTestCase {
         Map<String, String> result = new TreeMap<>();
         int fields = between(0, 10);
         for (int f = 0; f < fields; f++) {
-            result.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            result.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return new ToXContent() {
             @Override

@@ -43,11 +43,11 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         super(settings);
     }
 
-    protected abstract RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client);
+    protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);
 
     protected abstract void documentation(StringBuilder sb);
 
-    protected abstract Table getTableWithHeader(final RestRequest request);
+    protected abstract Table getTableWithHeader(RestRequest request);
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {

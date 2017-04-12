@@ -47,9 +47,9 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
 
     @Override
     protected TermsAggregationBuilder createTestAggregatorBuilder() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
         TermsAggregationBuilder factory = new TermsAggregationBuilder(name, null);
-        String field = randomAsciiOfLengthBetween(3, 20);
+        String field = randomAlphaOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {
         case 0:
@@ -69,10 +69,10 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.missing("MISSING");
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setShardSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
@@ -83,12 +83,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                minDocCount = randomInt();
+                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setMinDocCount(minDocCount);
+            factory.minDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
@@ -99,12 +99,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                shardMinDocCount = randomInt();
+                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setShardMinDocCount(shardMinDocCount);
+            factory.shardMinDocCount(shardMinDocCount);
         }
         if (randomBoolean()) {
             factory.collectMode(randomFrom(SubAggCollectionMode.values()));
@@ -117,7 +117,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         if (randomBoolean()) {
             IncludeExclude incExc = null;
-            switch (randomInt(5)) {
+            switch (randomInt(6)) {
             case 0:
                 incExc = new IncludeExclude(new RegExp("foobar"), null);
                 break;
@@ -131,7 +131,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                 SortedSet<BytesRef> includeValues = new TreeSet<>();
                 int numIncs = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs; i++) {
-                    includeValues.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 SortedSet<BytesRef> excludeValues = null;
                 incExc = new IncludeExclude(includeValues, excludeValues);
@@ -141,7 +141,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                 SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
                 int numExcs2 = randomIntBetween(1, 20);
                 for (int i = 0; i < numExcs2; i++) {
-                    excludeValues2.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues2, excludeValues2);
                 break;
@@ -149,14 +149,19 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                 SortedSet<BytesRef> includeValues3 = new TreeSet<>();
                 int numIncs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs3; i++) {
-                    includeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    includeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
                 int numExcs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numExcs3; i++) {
-                    excludeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues3, excludeValues3);
+                break;
+            case 6:
+                final int numPartitions = randomIntBetween(1, 100);
+                final int partition = randomIntBetween(0, numPartitions - 1);
+                incExc = new IncludeExclude(partition, numPartitions);
                 break;
             default:
                 fail();
@@ -183,10 +188,10 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             orders.add(Terms.Order.count(randomBoolean()));
             break;
         case 2:
-            orders.add(Terms.Order.aggregation(randomAsciiOfLengthBetween(3, 20), randomBoolean()));
+            orders.add(Terms.Order.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
             break;
         case 3:
-            orders.add(Terms.Order.aggregation(randomAsciiOfLengthBetween(3, 20), randomAsciiOfLengthBetween(3, 20), randomBoolean()));
+            orders.add(Terms.Order.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
             break;
         case 4:
             int numOrders = randomIntBetween(1, 3);

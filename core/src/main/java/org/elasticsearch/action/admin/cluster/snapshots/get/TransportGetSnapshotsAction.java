@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,25 +80,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         try {
             final String repository = request.repository();
             List<SnapshotInfo> snapshotInfoBuilder = new ArrayList<>();
+            final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
+            final List<SnapshotId> currentSnapshotIds = new ArrayList<>();
+            for (SnapshotInfo snapshotInfo : snapshotsService.currentSnapshots(repository)) {
+                SnapshotId snapshotId = snapshotInfo.snapshotId();
+                allSnapshotIds.put(snapshotId.getName(), snapshotId);
+                currentSnapshotIds.add(snapshotId);
+            }
+            if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
+                for (SnapshotId snapshotId : snapshotsService.getRepositoryData(repository).getAllSnapshotIds()) {
+                    allSnapshotIds.put(snapshotId.getName(), snapshotId);
+                }
+            }
+            final Set<SnapshotId> toResolve = new HashSet<>();
             if (isAllSnapshots(request.snapshots())) {
-                snapshotInfoBuilder.addAll(snapshotsService.currentSnapshots(repository));
-                snapshotInfoBuilder.addAll(snapshotsService.snapshots(repository,
-                                                                      snapshotsService.snapshotIds(repository),
-                                                                      request.ignoreUnavailable()));
-            } else if (isCurrentSnapshots(request.snapshots())) {
-                snapshotInfoBuilder.addAll(snapshotsService.currentSnapshots(repository));
+                toResolve.addAll(allSnapshotIds.values());
             } else {
-                final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
-                for (SnapshotInfo snapshotInfo : snapshotsService.currentSnapshots(repository)) {
-                    SnapshotId snapshotId = snapshotInfo.snapshotId();
-                    allSnapshotIds.put(snapshotId.getName(), snapshotId);
-                }
-                for (SnapshotId snapshotId : snapshotsService.snapshotIds(repository)) {
-                    allSnapshotIds.put(snapshotId.getName(), snapshotId);
-                }
-                final Set<SnapshotId> toResolve = new LinkedHashSet<>(); // maintain order
                 for (String snapshotOrPattern : request.snapshots()) {
-                    if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                    if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
+                        toResolve.addAll(currentSnapshotIds);
+                    } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
                         if (allSnapshotIds.containsKey(snapshotOrPattern)) {
                             toResolve.add(allSnapshotIds.get(snapshotOrPattern));
                         } else if (request.ignoreUnavailable() == false) {
@@ -113,12 +114,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     }
                 }
 
-                if (toResolve.isEmpty() && request.ignoreUnavailable() == false) {
+                if (toResolve.isEmpty() && request.ignoreUnavailable() == false && isCurrentSnapshotsOnly(request.snapshots()) == false) {
                     throw new SnapshotMissingException(repository, request.snapshots()[0]);
                 }
-
-                snapshotInfoBuilder.addAll(snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable()));
             }
+
+            snapshotInfoBuilder.addAll(snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable()));
             listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -129,7 +130,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return (snapshots.length == 0) || (snapshots.length == 1 && GetSnapshotsRequest.ALL_SNAPSHOTS.equalsIgnoreCase(snapshots[0]));
     }
 
-    private boolean isCurrentSnapshots(String[] snapshots) {
+    private boolean isCurrentSnapshotsOnly(String[] snapshots) {
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 }

@@ -1,0 +1,14 @@
+[[java-rest-high]]
+== Java High Level REST Client
+
+The <<java-rest-high>>'s features include:
+
+include::apis.asciidoc[]
+
+It depends on elasticsearch core project as it uses elasticsearch request and response
+objects so it will simplify a migration from the transport client.
+
+
+include::usage.asciidoc[]
+
+include::document/index.asciidoc[]

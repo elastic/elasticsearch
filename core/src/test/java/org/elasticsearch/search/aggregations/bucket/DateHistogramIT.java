@@ -23,12 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
@@ -376,10 +378,10 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        assertThat(histo.getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
+        assertThat(((InternalAggregation)histo).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)histo).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histo).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)histo).getProperty("sum.value");
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);
@@ -496,7 +498,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")
-                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -632,7 +634,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -684,8 +686,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
-                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME,
+                    params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -722,8 +724,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
-                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME,
+                    params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -1028,7 +1030,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 ).execute().actionGet();
         assertSearchResponse(response);
 
-        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2L));
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits(), equalTo(2L));
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1051,7 +1053,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy").endObject().endObject().endObject().endObject().string();
-        prepareCreate("idx2").addMapping("type", mappingJson).execute().actionGet();
+        prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).execute().actionGet();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
             reqs[i] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
@@ -1214,7 +1216,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "d");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateHistogram("histo").field("d")
-                .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                 .dateHistogramInterval(DateHistogramInterval.MONTH)).get();
         assertSearchResponse(r);
 

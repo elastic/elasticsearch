@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -28,7 +30,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -46,19 +47,26 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+/**
+ * The REST handler for get index and head index APIs.
+ */
 public class RestGetIndicesAction extends BaseRestHandler {
 
     private final IndexScopedSettings indexScopedSettings;
     private final SettingsFilter settingsFilter;
 
-    @Inject
-    public RestGetIndicesAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter) {
+    public RestGetIndicesAction(
+            final Settings settings,
+            final RestController controller,
+            final IndexScopedSettings indexScopedSettings,
+            final SettingsFilter settingsFilter) {
         super(settings);
         this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
+        controller.registerHandler(HEAD, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
         this.settingsFilter = settingsFilter;
     }
@@ -70,7 +78,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         // Work out if the indices is a list of features
         if (featureParams == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
             featureParams = indices;
-            indices = new String[] {"_all"};
+            indices = new String[]{"_all"};
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
@@ -85,67 +93,83 @@ public class RestGetIndicesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
 
             @Override
-            public RestResponse buildResponse(GetIndexResponse response, XContentBuilder builder) throws Exception {
-                Feature[] features = getIndexRequest.features();
-                String[] indices = response.indices();
-
+            public RestResponse buildResponse(final GetIndexResponse response, final XContentBuilder builder) throws Exception {
                 builder.startObject();
-                for (String index : indices) {
-                    builder.startObject(index);
-                    for (Feature feature : features) {
-                        switch (feature) {
-                        case ALIASES:
-                            writeAliases(response.aliases().get(index), builder, request);
-                            break;
-                        case MAPPINGS:
-                            writeMappings(response.mappings().get(index), builder, request);
-                            break;
-                        case SETTINGS:
-                            writeSettings(response.settings().get(index), builder, request, defaults);
-                            break;
-                        default:
-                            throw new IllegalStateException("feature [" + feature + "] is not valid");
+                {
+                    for (final String index : response.indices()) {
+                        builder.startObject(index);
+                        {
+                            for (final Feature feature : getIndexRequest.features()) {
+                                switch (feature) {
+                                    case ALIASES:
+                                        writeAliases(response.aliases().get(index), builder, request);
+                                        break;
+                                    case MAPPINGS:
+                                        writeMappings(response.mappings().get(index), builder);
+                                        break;
+                                    case SETTINGS:
+                                        writeSettings(response.settings().get(index), builder, request, defaults);
+                                        break;
+                                    default:
+                                        throw new IllegalStateException("feature [" + feature + "] is not valid");
+                                }
+                            }
                         }
-                    }
-                    builder.endObject();
+                        builder.endObject();
 
+                    }
                 }
                 builder.endObject();
 
                 return new BytesRestResponse(OK, builder);
             }
 
-            private void writeAliases(List<AliasMetaData> aliases, XContentBuilder builder, Params params) throws IOException {
-                builder.startObject(Fields.ALIASES);
-                if (aliases != null) {
-                    for (AliasMetaData alias : aliases) {
-                        AliasMetaData.Builder.toXContent(alias, builder, params);
+            private void writeAliases(
+                    final List<AliasMetaData> aliases,
+                    final XContentBuilder builder,
+                    final Params params) throws IOException {
+                builder.startObject("aliases");
+                {
+                    if (aliases != null) {
+                        for (final AliasMetaData alias : aliases) {
+                            AliasMetaData.Builder.toXContent(alias, builder, params);
+                        }
                     }
                 }
                 builder.endObject();
             }
 
-            private void writeMappings(ImmutableOpenMap<String, MappingMetaData> mappings, XContentBuilder builder, Params params)
+            private void writeMappings(final ImmutableOpenMap<String, MappingMetaData> mappings, final XContentBuilder builder)
                     throws IOException {
-                builder.startObject(Fields.MAPPINGS);
-                if (mappings != null) {
-                    for (ObjectObjectCursor<String, MappingMetaData> typeEntry : mappings) {
-                        builder.field(typeEntry.key);
-                        builder.map(typeEntry.value.sourceAsMap());
+                builder.startObject("mappings");
+                {
+                    if (mappings != null) {
+                        for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : mappings) {
+                            builder.field(typeEntry.key);
+                            builder.map(typeEntry.value.sourceAsMap());
+                        }
                     }
                 }
                 builder.endObject();
             }
 
-            private void writeSettings(Settings settings, XContentBuilder builder, Params params, boolean defaults) throws IOException {
-                builder.startObject(Fields.SETTINGS);
-                settings.toXContent(builder, params);
+            private void writeSettings(
+                    final Settings settings,
+                    final XContentBuilder builder,
+                    final Params params,
+                    final boolean defaults) throws IOException {
+                builder.startObject("settings");
+                {
+                    settings.toXContent(builder, params);
+                }
                 builder.endObject();
                 if (defaults) {
                     builder.startObject("defaults");
-                    settingsFilter
-                        .filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings))
-                        .toXContent(builder, request);
+                    {
+                        settingsFilter
+                                .filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings))
+                                .toXContent(builder, request);
+                    }
                     builder.endObject();
                 }
             }
@@ -156,12 +180,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
-    }
-
-    static class Fields {
-        static final String ALIASES = "aliases";
-        static final String MAPPINGS = "mappings";
-        static final String SETTINGS = "settings";
     }
 
 }

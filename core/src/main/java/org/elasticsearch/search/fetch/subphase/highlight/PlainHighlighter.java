@@ -31,6 +31,7 @@ import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleHTMLFormatter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -100,13 +101,18 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
 
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
 
             for (Object textToHighlight : textsToHighlight) {
-                String text = textToHighlight.toString();
+                String text;
+                if (textToHighlight instanceof BytesRef) {
+                    text = mapper.fieldType().valueForDisplay(textToHighlight).toString();
+                } else {
+                    text = textToHighlight.toString();
+                }
 
                 try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {
                     if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {

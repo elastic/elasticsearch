@@ -25,11 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected boolean keyed = false;
 
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-        super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
     }
 
@@ -53,7 +53,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
             throws IOException {
-        super(in, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(in, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
         keyed = in.readBoolean();
@@ -63,10 +63,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      * Resolve any strings in the ranges so we have a number value for the from
      * and to of each range. The ranges are also sorted before being returned.
      */
-    protected Range[] processRanges(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+    protected Range[] processRanges(SearchContext context, ValuesSourceConfig<Numeric> config) {
         Range[] ranges = new Range[this.ranges.size()];
         for (int i = 0; i < ranges.length; i++) {
-            ranges[i] = this.ranges.get(i).process(config.format(), context.searchContext());
+            ranges[i] = this.ranges.get(i).process(config.format(), context);
         }
         sortRanges(ranges);
         return ranges;

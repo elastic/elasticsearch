@@ -35,15 +35,27 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.similarity.BM25SimilarityProvider;
+import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -52,6 +64,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class IndicesServiceTests extends ESSingleNodeTestCase {
@@ -65,25 +78,32 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected boolean resetNodeAfterTest() {
-        return true;
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(TestPlugin.class);
+        return plugins;
     }
 
-    public void testCanDeleteIndexContent() throws IOException {
-        final IndicesService indicesService = getIndicesService();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                .put(IndexMetaData.SETTING_DATA_PATH, "/foo/bar")
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-                .build());
-        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
+    public static class TestPlugin extends Plugin implements MapperPlugin {
 
-        final IndexMetaData.Builder newIndexMetaData = IndexMetaData.builder(idxSettings.getIndexMetaData());
-        newIndexMetaData.state(IndexMetaData.State.CLOSE);
-        idxSettings = IndexSettingsModule.newIndexSettings(newIndexMetaData.build());
-        assertTrue("shard on shared filesystem, but closed, so it should be deletable",
-            indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
+        public TestPlugin() {}
+
+        @Override
+        public Map<String, Mapper.TypeParser> getMappers() {
+            return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
+        }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            super.onIndexModule(indexModule);
+            indexModule.addSimilarity("fake-similarity", BM25SimilarityProvider::new);
+        }
+    }
+
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
     }
 
     public void testCanDeleteShardContent() {
@@ -92,16 +112,19 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 1).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
         ShardId shardId = new ShardId(meta.getIndex(), 0);
-        assertFalse("no shard location", indicesService.canDeleteShardContent(shardId, indexSettings));
+        assertEquals("no shard location", indicesService.canDeleteShardContent(shardId, indexSettings),
+            ShardDeletionCheckResult.NO_FOLDER_FOUND);
         IndexService test = createIndex("test");
         shardId = new ShardId(test.index(), 0);
         assertTrue(test.hasShard(0));
-        assertFalse("shard is allocated", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
+        assertEquals("shard is allocated", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
+            ShardDeletionCheckResult.STILL_ALLOCATED);
         test.removeShard(0, "boom");
-        assertTrue("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
+        assertEquals("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
+            ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE);
         ShardId notAllocated = new ShardId(test.index(), 100);
-        assertFalse("shard that was never on this node should NOT be deletable",
-            indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
+        assertEquals("shard that was never on this node should NOT be deletable",
+            indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()), ShardDeletionCheckResult.NO_FOLDER_FOUND);
     }
 
     public void testDeleteIndexStore() throws Exception {
@@ -324,4 +347,26 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetaData)} contains
+     * custom types and similarities registered by plugins
+     */
+    public void testStandAloneMapperServiceWithPlugins() throws IOException {
+        final String indexName = "test";
+        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
+            .put(IndexModule.SIMILARITY_SETTINGS_PREFIX + ".test.type", "fake-similarity")
+            .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+            .settings(idxSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
+        assertNotNull(mapperService.documentMapperParser().parserContext("type").typeParser("fake-mapper"));
+        assertThat(mapperService.documentMapperParser().parserContext("type").getSimilarity("test"),
+            instanceOf(BM25SimilarityProvider.class));
+    }
 }

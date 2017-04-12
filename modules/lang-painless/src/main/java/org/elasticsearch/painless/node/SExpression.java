@@ -82,4 +82,9 @@ public final class SExpression extends AStatement {
             writer.writePop(expression.expected.sort.size);
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(expression);
+    }
 }

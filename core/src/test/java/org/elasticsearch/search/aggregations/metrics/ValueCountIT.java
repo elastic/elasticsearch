@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -122,9 +123,9 @@ public class ValueCountIT extends ESIntegTestCase {
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
         assertThat(valueCount.getValue(), equalTo(10L));
-        assertThat((ValueCount) global.getProperty("count"), equalTo(valueCount));
-        assertThat((double) global.getProperty("count.value"), equalTo(10d));
-        assertThat((double) valueCount.getProperty("value"), equalTo(10d));
+        assertThat((ValueCount) ((InternalAggregation)global).getProperty("count"), equalTo(valueCount));
+        assertThat((double) ((InternalAggregation)global).getProperty("count.value"), equalTo(10d));
+        assertThat((double) ((InternalAggregation)valueCount).getProperty("value"), equalTo(10d));
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
@@ -157,7 +158,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("value", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "value", Collections.emptyMap()))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -169,7 +170,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testMultiValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("values", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "values", Collections.emptyMap()))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -182,7 +183,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -195,7 +196,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -224,7 +225,8 @@ public class ValueCountIT extends ESIntegTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(count("foo").field("d").script(new Script("value", ScriptType.INLINE, FieldValueScriptEngine.NAME, null)))
+                .addAggregation(count("foo").field("d").script(
+                    new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "value", Collections.emptyMap())))
                 .get();
         assertSearchResponse(r);
 

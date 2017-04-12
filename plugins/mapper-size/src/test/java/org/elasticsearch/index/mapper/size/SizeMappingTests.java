@@ -27,11 +27,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -61,7 +61,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         boolean stored = false;
         boolean points = false;
@@ -82,7 +82,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -96,7 +96,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -113,43 +113,6 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
-    }
-
-    public void testBWCMapper() throws Exception {
-        {
-            // IntPoint && docvalues=true for V_5_0_0_alpha5
-            IndexService service = createIndex("foo", Settings.EMPTY, "bar", "_size", "enabled=true");
-            DocumentMapper docMapper = service.mapperService().documentMapper("bar");
-            SizeFieldMapper mapper = docMapper.metadataMapper(SizeFieldMapper.class);
-            assertThat(mapper.enabled(), is(true));
-            MappedFieldType ft = mapper.fieldType();
-            assertThat(ft.hasDocValues(), is(true));
-            assertThat(mapper.fieldType(), instanceOf(NumberFieldMapper.NumberFieldType.class));
-        }
-
-        {
-            // IntPoint with docvalues=false if version > V_5_0_0_alpha2 && version < V_5_0_0_beta1
-            IndexService service = createIndex("foo2",
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0_alpha4.id).build(),
-                "bar", "_size", "enabled=true");
-            DocumentMapper docMapper = service.mapperService().documentMapper("bar");
-            SizeFieldMapper mapper = docMapper.metadataMapper(SizeFieldMapper.class);
-            assertThat(mapper.enabled(), is(true));
-            assertThat(mapper.fieldType().hasDocValues(), is(false));
-            assertThat(mapper.fieldType(), instanceOf(NumberFieldMapper.NumberFieldType.class));
-        }
-
-        {
-            // LegacyIntField with docvalues=false if version < V_5_0_0_alpha2
-            IndexService service = createIndex("foo3",
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0_alpha1.id).build(),
-                "bar", "_size", "enabled=true");
-            DocumentMapper docMapper = service.mapperService().documentMapper("bar");
-            SizeFieldMapper mapper = docMapper.metadataMapper(SizeFieldMapper.class);
-            assertThat(mapper.enabled(), is(true));
-            assertThat(mapper.fieldType().hasDocValues(), is(false));
-            assertThat(mapper.fieldType(), instanceOf(LegacyNumberFieldMapper.NumberFieldType.class));
-        }
     }
 
 }

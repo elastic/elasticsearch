@@ -1,0 +1,5 @@
+double profit = 0;
+for (t in params._agg.transactions) {
+  profit += t
+}
+return profit

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.script.Script;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
-public class UpdateByQueryRequestTests extends ESTestCase {
+public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<UpdateByQueryRequest> {
     public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
@@ -57,5 +58,26 @@ public class UpdateByQueryRequestTests extends ESTestCase {
         for (int i = 0; i < numNewIndices; i++) {;
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
+    }
+
+    @Override
+    protected UpdateByQueryRequest newRequest() {
+        return new UpdateByQueryRequest(new SearchRequest(randomAlphaOfLength(5)));
+    }
+
+    @Override
+    protected void extraRandomizationForSlice(UpdateByQueryRequest original) {
+        if (randomBoolean()) {
+            original.setScript(new Script(randomAlphaOfLength(5)));
+        }
+        if (randomBoolean()) {
+            original.setPipeline(randomAlphaOfLength(5));
+        }
+    }
+
+    @Override
+    protected void extraForSliceAssertions(UpdateByQueryRequest original, UpdateByQueryRequest forSliced) {
+        assertEquals(original.getScript(), forSliced.getScript());
+        assertEquals(original.getPipeline(), forSliced.getPipeline());
     }
 }

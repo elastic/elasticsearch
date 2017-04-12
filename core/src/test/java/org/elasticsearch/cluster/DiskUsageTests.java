@@ -106,16 +106,16 @@ public class DiskUsageTests extends ESTestCase {
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         Path test0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
-        commonStats0.store = new StoreStats(100, 1);
+        commonStats0.store = new StoreStats(100);
         ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         Path test1Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("1");
         CommonStats commonStats1 = new CommonStats();
-        commonStats1.store = new StoreStats(1000, 1);
+        commonStats1.store = new StoreStats(1000);
         ShardStats[] stats  = new ShardStats[] {
-                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null),
-                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null)
+                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null, null),
+                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null, null)
         };
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
@@ -132,53 +132,6 @@ public class DiskUsageTests extends ESTestCase {
         assertTrue(routingToPath.containsKey(test_1));
         assertEquals(test0Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_0));
         assertEquals(test1Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_1));
-    }
-
-    public void testFillShardsWithShadowIndices() {
-        final Index index = new Index("non-shadow", "0xcafe0000");
-        ShardRouting s0 = ShardRouting.newUnassigned(new ShardId(index, 0), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        s0 = ShardRoutingHelper.initialize(s0, "node1");
-        s0 = ShardRoutingHelper.moveToStarted(s0);
-        Path i0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
-        CommonStats commonStats0 = new CommonStats();
-        commonStats0.store = new StoreStats(100, 1);
-        final Index index2 = new Index("shadow", "0xcafe0001");
-        ShardRouting s1 = ShardRouting.newUnassigned(new ShardId(index2, 0), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        s1 = ShardRoutingHelper.initialize(s1, "node2");
-        s1 = ShardRoutingHelper.moveToStarted(s1);
-        Path i1Path = createTempDir().resolve("indices").resolve(index2.getUUID()).resolve("0");
-        CommonStats commonStats1 = new CommonStats();
-        commonStats1.store = new StoreStats(1000, 1);
-        ShardStats[] stats  = new ShardStats[] {
-                new ShardStats(s0, new ShardPath(false, i0Path, i0Path, s0.shardId()), commonStats0 , null),
-                new ShardStats(s1, new ShardPath(false, i1Path, i1Path, s1.shardId()), commonStats1 , null)
-        };
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
-        ClusterState state = ClusterState.builder(new ClusterName("blarg"))
-                .version(0)
-                .metaData(MetaData.builder()
-                        .put(IndexMetaData.builder("non-shadow")
-                                .settings(Settings.builder()
-                                        .put(IndexMetaData.SETTING_INDEX_UUID, "0xcafe0000")
-                                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                                .numberOfShards(1)
-                                .numberOfReplicas(0))
-                        .put(IndexMetaData.builder("shadow")
-                                .settings(Settings.builder()
-                                        .put(IndexMetaData.SETTING_INDEX_UUID, "0xcafe0001")
-                                        .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                                .numberOfShards(1)
-                                .numberOfReplicas(0)))
-                .build();
-        logger.info("--> calling buildShardLevelInfo with state: {}", state);
-        InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath, state);
-        assertEquals(2, shardSizes.size());
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(s0)));
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(s1)));
-        assertEquals(100L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(s0)).longValue());
-        assertEquals(0L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(s1)).longValue());
     }
 
     public void testFillDiskUsage() {

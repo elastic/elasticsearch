@@ -34,8 +34,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,13 +61,13 @@ class HistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    public HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
             InternalOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
             @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            AggregationContext aggregationContext, Aggregator parent,
+            SearchContext context, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -81,7 +81,7 @@ class HistogramAggregator extends BucketsAggregator {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
 
-        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+        bucketOrds = new LongHash(1, context.bigArrays());
     }
 
     @Override

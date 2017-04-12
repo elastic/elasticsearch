@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.painless.api.Augmentation;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -85,6 +87,7 @@ public final class Definition {
     public static final Type CHAR_OBJ_TYPE = getType("Character");
     public static final Type OBJECT_TYPE = getType("Object");
     public static final Type DEF_TYPE = getType("def");
+    public static final Type NUMBER_TYPE = getType("Number");
     public static final Type STRING_TYPE = getType("String");
     public static final Type EXCEPTION_TYPE = getType("Exception");
     public static final Type PATTERN_TYPE = getType("Pattern");
@@ -432,23 +435,23 @@ public final class Definition {
         public final Type from;
         public final Type to;
         public final boolean explicit;
-        public final boolean unboxFrom;
-        public final boolean unboxTo;
-        public final boolean boxFrom;
-        public final boolean boxTo;
+        public final Type unboxFrom;
+        public final Type unboxTo;
+        public final Type boxFrom;
+        public final Type boxTo;
 
         public Cast(final Type from, final Type to, final boolean explicit) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
-            this.unboxFrom = false;
-            this.unboxTo = false;
-            this.boxFrom = false;
-            this.boxTo = false;
+            this.unboxFrom = null;
+            this.unboxTo = null;
+            this.boxFrom = null;
+            this.boxTo = null;
         }
 
         public Cast(final Type from, final Type to, final boolean explicit,
-                    final boolean unboxFrom, final boolean unboxTo, final boolean boxFrom, final boolean boxTo) {
+                    final Type unboxFrom, final Type unboxTo, final Type boxFrom, final Type boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
@@ -461,15 +464,21 @@ public final class Definition {
     }
 
     public static final class RuntimeClass {
+        private final Struct struct;
         public final Map<MethodKey, Method> methods;
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(final Map<MethodKey, Method> methods,
+        private RuntimeClass(final Struct struct, final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
+            this.struct = struct;
             this.methods = Collections.unmodifiableMap(methods);
             this.getters = Collections.unmodifiableMap(getters);
             this.setters = Collections.unmodifiableMap(setters);
+        }
+
+        public Struct getStruct() {
+            return struct;
         }
     }
 
@@ -501,6 +510,11 @@ public final class Definition {
 
     public static RuntimeClass getRuntimeClass(Class<?> clazz) {
         return INSTANCE.runtimeMap.get(clazz);
+    }
+
+    /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
+    static Collection<Type> allSimpleTypes() {
+        return INSTANCE.simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -566,11 +580,11 @@ public final class Definition {
                         }
                         if (line.startsWith("class ")) {
                             String elements[] = line.split("\u0020");
-                            assert elements[2].equals("->");
+                            assert elements[2].equals("->") : "Invalid struct definition [" + String.join(" ", elements) +"]";
                             if (elements.length == 7) {
                                 hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
                             } else {
-                                assert elements.length == 5;
+                                assert elements.length == 5 : "Invalid struct definition [" + String.join(" ", elements) + "]";
                             }
                             String className = elements[1];
                             String javaPeer = elements[3];
@@ -612,7 +626,7 @@ public final class Definition {
                     }
                 }
             } catch (Exception e) {
-                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
+                throw new RuntimeException("error in " + file + ", line: " + currentLine, e);
             }
         }
         return hierarchy;
@@ -1047,7 +1061,7 @@ public final class Definition {
             }
         }
 
-        runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
+        runtimeMap.put(struct.clazz, new RuntimeClass(struct, methods, getters, setters));
     }
 
     /** computes the functional interface method for a class, or returns null */

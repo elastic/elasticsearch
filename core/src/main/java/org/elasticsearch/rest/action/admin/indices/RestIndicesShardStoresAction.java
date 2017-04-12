@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,8 +43,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * Rest action for {@link IndicesShardStoresAction}
  */
 public class RestIndicesShardStoresAction extends BaseRestHandler {
-
-    @Inject
     public RestIndicesShardStoresAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_shard_stores", this);

@@ -129,7 +129,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static AllocationDeciders yesAllocationDeciders() {
         return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             new TestAllocateDecision(Decision.YES),
-            new SameShardAllocationDecider(Settings.EMPTY)));
+            new SameShardAllocationDecider(Settings.EMPTY,
+                                           new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
@@ -139,14 +140,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static AllocationDeciders throttleAllocationDeciders() {
         return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             new TestAllocateDecision(Decision.THROTTLE),
-            new SameShardAllocationDecider(Settings.EMPTY)));
+            new SameShardAllocationDecider(Settings.EMPTY,
+                                           new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
         ClusterState lastClusterState;
         do {
             lastClusterState = clusterState;
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
+            logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
             clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
         } while (lastClusterState.equals(clusterState) == false);
         return clusterState;

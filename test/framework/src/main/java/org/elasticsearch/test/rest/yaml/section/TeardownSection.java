@@ -19,10 +19,48 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class TeardownSection {
+    /**
+     * Parse a {@link TeardownSection} if the next field is {@code skip}, otherwise returns {@link TeardownSection#EMPTY}.
+     */
+    public static TeardownSection parseIfNext(XContentParser parser) throws IOException {
+        ParserUtils.advanceToFieldName(parser);
+
+        if ("teardown".equals(parser.currentName())) {
+            parser.nextToken();
+            TeardownSection section = parse(parser);
+            parser.nextToken();
+            return section;
+        }
+
+        return EMPTY;
+    }
+
+    public static TeardownSection parse(XContentParser parser) throws IOException {
+        TeardownSection teardownSection = new TeardownSection();
+        teardownSection.setSkipSection(SkipSection.parseIfNext(parser));
+
+        while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+            ParserUtils.advanceToFieldName(parser);
+            if (!"do".equals(parser.currentName())) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "section [" + parser.currentName() + "] not supported within teardown section");
+            }
+
+            teardownSection.addDoSection(DoSection.parse(parser));
+            parser.nextToken();
+        }
+
+        parser.nextToken();
+        return teardownSection;
+    }
 
     public static final TeardownSection EMPTY;
 

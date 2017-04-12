@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -355,10 +356,10 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
-        assertThat(histo.getProperty("_bucket_count"), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
+        assertThat(((InternalAggregation)histo).getProperty("_bucket_count"), equalTo(numValueBuckets));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)histo).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histo).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)histo).getProperty("sum.value");
 
         // TODO: use diamond once JI-9019884 is fixed
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
@@ -562,7 +563,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -639,7 +640,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -675,7 +676,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                            .script(new Script("doc['l_value'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                            .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_value'].value", emptyMap()))
                             .interval(interval))
                 .execute().actionGet();
 
@@ -699,7 +700,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                                .script(new Script("doc['l_values']", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_values']", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -989,7 +990,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         Histogram histogram = r.getAggregations().get("histo");
-        List<Bucket> buckets = histogram.getBuckets();
+        List<? extends Bucket> buckets = histogram.getBuckets();
         assertEquals(2, buckets.size());
         assertEquals(-0.65, (double) buckets.get(0).getKey(), 0.01d);
         assertEquals(1, buckets.get(0).getDocCount());
@@ -1016,7 +1017,7 @@ public class HistogramIT extends ESIntegTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d")
-                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())).interval(0.7).offset(0.05)).get();
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap())).interval(0.7).offset(0.05)).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

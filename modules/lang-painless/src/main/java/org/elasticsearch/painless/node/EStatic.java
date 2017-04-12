@@ -60,4 +60,9 @@ public final class EStatic extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type);
+    }
 }

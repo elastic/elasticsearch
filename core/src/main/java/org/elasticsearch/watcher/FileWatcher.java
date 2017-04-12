@@ -80,7 +80,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         private boolean isDirectory;
         private FileObserver[] children;
 
-        public FileObserver(Path file) {
+        FileObserver(Path file) {
             this.file = file;
         }
 

@@ -32,8 +32,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +52,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     DoubleArray negLefts;
     DoubleArray negRights;
 
-    protected GeoBoundsAggregator(String name, AggregationContext aggregationContext, Aggregator parent,
+    protected GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
             ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         super(name, aggregationContext, parent, pipelineAggregators, metaData);

@@ -383,7 +383,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                         terms("terms")
                                 .field("values")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("floor(_value / interval)", ScriptType.INLINE, CustomScriptPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", params))
                                 .size(maxNumTerms))
                 .addAggregation(
                         histogram("histo")

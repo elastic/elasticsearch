@@ -80,7 +80,7 @@ public enum MissingValues {
     }
 
     public static ValuesSource.Numeric replaceMissing(final ValuesSource.Numeric valuesSource, final Number missing) {
-        final boolean missingIsFloat = missing.longValue() != (long) missing.doubleValue();
+        final boolean missingIsFloat = missing.doubleValue() % 1 != 0;
         final boolean isFloatingPoint = valuesSource.isFloatingPoint() || missingIsFloat;
         return new ValuesSource.Numeric() {
 

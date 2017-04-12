@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,20 +37,18 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
     }
 
     public void testSigmaFromInt() throws Exception {
-        String content = XContentFactory.jsonBuilder()
+        XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
-                .field("sigma", 5)
-                .field("buckets_path", "test")
-            .endObject()
-            .string();
+                .startObject("name")
+                    .startObject("extended_stats_bucket")
+                        .field("sigma", 5)
+                        .field("buckets_path", "test")
+                    .endObject()
+                .endObject()
+            .endObject();
 
-        XContentParser parser = XContentFactory.xContent(content).createParser(content);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-        parser.nextToken(); // skip object start
-
-        ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(ExtendedStatsBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
-            .parse("test", parseContext);
+        ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) parse(
+                createParser(content));
 
         assertThat(builder.sigma(), equalTo(5.0));
     }

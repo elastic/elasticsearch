@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutReques
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndicesService;
@@ -35,6 +36,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,14 +52,14 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
-        request.template("test_shards*");
+        request.patterns(Collections.singletonList("test_shards*"));
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
         map.put("index.shard.check_on_startup", "blargh");
         request.settings(Settings.builder().put(map).build());
 
-        List<Throwable> throwables = putTemplate(request);
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(),
@@ -69,13 +71,13 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
-        request.template("_test_shards*");
+        request.patterns(Collections.singletonList("_test_shards*"));
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
         request.settings(Settings.builder().put(map).build());
 
-        List<Throwable> throwables = putTemplate(request);
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
@@ -86,18 +88,18 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testIndexTemplateWithAliasNameEqualToTemplatePattern() {
         PutRequest request = new PutRequest("api", "foobar_template");
-        request.template("foobar");
+        request.patterns(Arrays.asList("foo", "foobar"));
         request.aliases(Collections.singleton(new Alias("foobar")));
 
-        List<Throwable> errors = putTemplate(request);
+        List<Throwable> errors = putTemplate(xContentRegistry(), request);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(IllegalArgumentException.class));
-        assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as the template pattern [foobar]"));
+        assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as any pattern in [foo, foobar]"));
     }
 
     public void testIndexTemplateWithValidateEmptyMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
-        request.template("validate_template");
+        request.patterns(Collections.singletonList("validate_template"));
         request.putMapping("type1", "{}");
 
         List<Throwable> errors = putTemplateDetail(request);
@@ -108,9 +110,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
-        request.template("te*");
+        request.patterns(Collections.singletonList("te*"));
         request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-            .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+            .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
             .endObject().endObject().endObject().string());
 
         List<Throwable> errors = putTemplateDetail(request);
@@ -121,7 +123,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
-        request.template("te*");
+        request.patterns(Collections.singletonList("te*"));
         request.putMapping("type1", "abcde");
 
         List<Throwable> errors = putTemplateDetail(request);
@@ -132,7 +134,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testBlankMapping() throws Exception {
         PutRequest request = new PutRequest("api", "blank_mapping");
-        request.template("te*");
+        request.patterns(Collections.singletonList("te*"));
         request.putMapping("type1", "{}");
 
         List<Throwable> errors = putTemplateDetail(request);
@@ -144,7 +146,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAliasInvalidFilterInvalidJson() throws Exception {
         //invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
-        request.template("te*");
+        request.patterns(Collections.singletonList("te*"));
         request.putMapping("type1", "{}");
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
@@ -157,17 +159,17 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
 
-    private static List<Throwable> putTemplate(PutRequest request) {
+    private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
                 Settings.EMPTY,
                 null,
                 null,
                 null,
                 null,
-                null, null, null);
+                null, null, null, xContentRegistry);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
                 new AliasValidator(Settings.EMPTY), null,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {
@@ -195,10 +197,11 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            null);
+            null,
+            xContentRegistry());
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
                 Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);

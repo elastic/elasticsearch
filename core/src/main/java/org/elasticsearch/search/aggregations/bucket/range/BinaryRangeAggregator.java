@@ -18,15 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-
-import static java.util.Collections.emptyList;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -39,8 +30,17 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyList;
 
 /** A range aggregator for values that are stored in SORTED_SET doc values. */
 public final class BinaryRangeAggregator extends BucketsAggregator {
@@ -78,10 +78,10 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     public BinaryRangeAggregator(String name, AggregatorFactories factories,
             ValuesSource.Bytes valuesSource, DocValueFormat format,
-            List<Range> ranges, boolean keyed, AggregationContext aggregationContext,
+            List<Range> ranges, boolean keyed, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = format;
         this.keyed = keyed;

@@ -89,7 +89,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
-        logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
+        logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
     }
 
     public void testMinimalRelocations() {
@@ -150,7 +150,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         assertThat(newState, equalTo(clusterState));
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
-        logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
+        logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
     }
 
     public void testMinimalRelocationsNoLimit() {
@@ -212,7 +212,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         assertThat(newState, equalTo(clusterState));
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
-        logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
+        logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
     }
 
 

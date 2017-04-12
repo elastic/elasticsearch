@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -75,12 +74,11 @@ public class ParseFieldRegistry<T> {
      * Lookup a value from the registry by name while checking that the name matches the ParseField.
      *
      * @param name The name of the thing to look up.
-     * @param parseFieldMatcher to build nice error messages.
      * @return The value being looked up. Never null.
      * @throws ParsingException if the named thing isn't in the registry or the name was deprecated and deprecated names aren't supported.
      */
-    public T lookup(String name, ParseFieldMatcher parseFieldMatcher, XContentLocation xContentLocation) {
-        T value = lookupReturningNullIfNotFound(name, parseFieldMatcher);
+    public T lookup(String name, XContentLocation xContentLocation) {
+        T value = lookupReturningNullIfNotFound(name);
         if (value == null) {
             throw new ParsingException(xContentLocation, "no [" + registryName + "] registered for [" + name + "]");
         }
@@ -91,19 +89,17 @@ public class ParseFieldRegistry<T> {
      * Lookup a value from the registry by name while checking that the name matches the ParseField.
      *
      * @param name The name of the thing to look up.
-     * @param parseFieldMatcher The parseFieldMatcher. This is used to resolve the {@link ParseFieldMatcher} and to build nice
-     *        error messages.
      * @return The value being looked up or null if it wasn't found.
      * @throws ParsingException if the named thing isn't in the registry or the name was deprecated and deprecated names aren't supported.
      */
-    public T lookupReturningNullIfNotFound(String name, ParseFieldMatcher parseFieldMatcher) {
+    public T lookupReturningNullIfNotFound(String name) {
         Tuple<ParseField, T> parseFieldAndValue = registry.get(name);
         if (parseFieldAndValue == null) {
             return null;
         }
         ParseField parseField = parseFieldAndValue.v1();
         T value = parseFieldAndValue.v2();
-        boolean match = parseFieldMatcher.match(name, parseField);
+        boolean match = parseField.match(name);
         //this is always expected to match, ParseField is useful for deprecation warnings etc. here
         assert match : "ParseField did not match registered name [" + name + "][" + registryName + "]";
         return value;

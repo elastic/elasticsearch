@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents instanceof operator.
+ * Represents {@code instanceof} operator.
  * <p>
  * Unlike java's, this works for primitive types too.
  */
@@ -95,5 +95,10 @@ public final class EInstanceof extends AExpression {
             expression.write(writer, globals);
             writer.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(expression, type);
     }
 }

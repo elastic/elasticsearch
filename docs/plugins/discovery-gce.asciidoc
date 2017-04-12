@@ -46,7 +46,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: <your-zone>
 discovery:
-      type: gce
+      zen.hosts_provider: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:

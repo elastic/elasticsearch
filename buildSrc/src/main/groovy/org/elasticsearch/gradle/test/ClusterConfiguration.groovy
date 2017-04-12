@@ -73,8 +73,8 @@ class ClusterConfiguration {
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
 
     /**
      * A closure to call which returns the unicast host to connect to for cluster formation.
@@ -104,11 +104,13 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow")
+        String waitUrl = "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow"
+        ant.echo(message: "==> [${new Date()}] checking health: ${waitUrl}",
+                 level: 'info')
         // checking here for wait_for_nodes to be >= the number of nodes because its possible
         // this cluster is attempting to connect to nodes created by another task (same cluster name),
         // so there will be more nodes in that case in the cluster state
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+        ant.get(src: waitUrl,
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
@@ -121,7 +123,9 @@ class ClusterConfiguration {
 
     Map<String, String> systemProperties = new HashMap<>()
 
-    Map<String, String> settings = new HashMap<>()
+    Map<String, Object> settings = new HashMap<>()
+
+    Map<String, String> keystoreSettings = new HashMap<>()
 
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
@@ -138,8 +142,13 @@ class ClusterConfiguration {
     }
 
     @Input
-    void setting(String name, String value) {
+    void setting(String name, Object value) {
         settings.put(name, value)
+    }
+
+    @Input
+    void keystoreSetting(String name, String value) {
+        keystoreSettings.put(name, value)
     }
 
     @Input

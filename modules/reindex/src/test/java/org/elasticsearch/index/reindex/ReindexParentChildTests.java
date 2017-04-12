@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
@@ -89,8 +90,8 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
-        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}");
-        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
+        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
+        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);
         ensureGreen();
     }

@@ -40,14 +40,9 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-<<<<<<< HEAD
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-=======
-import java.util.ArrayList;
-import java.util.List;
->>>>>>> master
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;

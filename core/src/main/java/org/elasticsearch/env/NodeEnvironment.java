@@ -797,6 +797,13 @@ public final class NodeEnvironment  implements Closeable {
 
     }
 
+    /**
+     * Return all directory names in the nodes/{node.id}/indices directory for the given node path.
+     *
+     * @param nodePath the node path
+     * @return all directories that could be indices for the given node path.
+     * @throws IOException if an I/O exception occurs traversing the filesystem
+     */
     public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");

@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04
 [[ml-start-datafeed]]
 ==== Start Data Feeds
 
@@ -9,6 +10,9 @@ A data feed can be opened and closed multiple times throughout its lifecycle.
 `POST _xpack/ml/datafeeds/<feed_id>/_start`
 
 ===== Description
+
+NOTE: Before you can start a data feed, the job must be open. Otherwise, an error
+occurs.
 
 When you start a data feed, you can specify a start time.  This allows you to
 include a training period, providing you have this data available in {es}.
@@ -23,6 +27,19 @@ job analyzes data from the start time until the end time, at which point the
 analysis stops.  This scenario is useful for a one-off batch analysis.  If you
 do not specify an end time, the data feed runs continuously.
 
+The `start` and `end` times can be specified by using one of the
+following formats: +
+
+- ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
+- ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
+- Seconds from the Epoch, for example `1390370400`
+
+Date-time arguments using either of the ISO 8601 formats must have a time zone
+designator, where Z is accepted as an abbreviation for UTC time.
+
+NOTE: When a URL is expected (for example, in browsers), the `+` used in time
+zone designators must be encoded as `%2B`.
+
 If the system restarts, any jobs that had data feeds running are also restarted.
 
 When a stopped data feed is restarted, it continues processing input data from
@@ -32,9 +49,6 @@ for the timestamp value when the data feed stopped.  This situation can occur
 because the job might not have completely processed all data for that millisecond.
 If you specify a `start` value that is earlier than the timestamp of the latest
 processed record, that value is ignored.
-
-NOTE: Before you can start a data feed, the job must be open. Otherwise, an error
-occurs.
 
 ===== Path Parameters
 
@@ -50,18 +64,6 @@ occurs.
 `start`::
   (+string+) The time that the data feed should begin. This value is inclusive.
   The default value is an empty string.
-
-These `start` and `end` times can be specified by using one of the
-following formats:
-* ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
-* ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
-* Seconds from the Epoch, for example `1390370400`
-
-NOTE: When a URL is expected (for example, in browsers), the `+`` used in time
-zone designators has to be encoded as `%2B`.
-
-Date-time arguments using either of the ISO 8601 formats must have a time zone
-designator, where Z is accepted as an abbreviation for UTC time.
 
 `timeout`::
   (+time+) Controls the amount of time to wait until a data feed starts.

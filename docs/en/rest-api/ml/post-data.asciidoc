@@ -1,3 +1,4 @@
+//lcawley: Verified example output 2017-04-11
 [[ml-post-data]]
 ==== Post Data to Jobs
 
@@ -17,10 +18,9 @@ many small uploads, rather than queueing data to upload larger files.
 
 
 IMPORTANT:  Data can only be accepted from a single connection.
-			Do not attempt to access the data endpoint from different threads at the same time.
-			Use a single connection synchronously to send data, close, flush or delete a single job.
-			+
-			It is not currently possible to post data to multiple jobs using wildcards or a comma separated list.
+Use a single connection synchronously to send data, close, flush, or delete a single job.
+It is not currently possible to post data to multiple jobs using wildcards
+or a comma separated list.
 
 ===== Path Parameters
 
@@ -30,10 +30,10 @@ IMPORTANT:  Data can only be accepted from a single connection.
 ===== Request Body
 
 `reset_start`::
-		(+string+; default: ++null++) Specifies the start of the bucket resetting range
+		(+string+) Specifies the start of the bucket resetting range
 
 `reset_end`::
-		(+string+; default: ++null++) Specifies the end of the bucket resetting range"
+		(+string+) Specifies the end of the bucket resetting range"
 
 ////
 ===== Responses
@@ -55,30 +55,34 @@ The following example posts data from the farequote.json file to the `farequote`
 [source,js]
 --------------------------------------------------
 $ curl -s -H "Content-type: application/json"
--X POST http:\/\/localhost:9200/_xpack/ml/anomaly_detectors/farequote --data-binary @farequote.json
+-X POST http:\/\/localhost:9200/_xpack/ml/anomaly_detectors/it_ops_new_kpi/_data
+--data-binary @it_ops_new_kpi.json
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
+
+//TBD: Create example of how to post a small data example in Kibana?
 
 When the data is sent, you receive information about the operational progress of the job.
 For example:
 ----
 {
-	"job_id":"farequote",
-	"processed_record_count":86275,
-	"processed_field_count":172550,
-	"input_bytes":8678202,
-	"input_field_count":258825,
+	"job_id":"it_ops_new_kpi",
+	"processed_record_count":21435,
+	"processed_field_count":64305,
+	"input_bytes":2589063,
+	"input_field_count":85740,
 	"invalid_date_count":0,
 	"missing_field_count":0,
 	"out_of_order_timestamp_count":0,
-	"empty_bucket_count":0,
+	"empty_bucket_count":16,
 	"sparse_bucket_count":0,
-	"bucket_count":1440,
-	"earliest_record_timestamp":1454803200000,
-	"latest_record_timestamp":1455235196000,
-	"last_data_time":1491436182038,
-	"input_record_count":86275
+	"bucket_count":2165,
+	"earliest_record_timestamp":1454020569000,
+	"latest_record_timestamp":1455318669000,
+	"last_data_time":1491952300658,
+	"latest_empty_bucket_timestamp":1454541600000,
+	"input_record_count":21435
 }
 ----
 

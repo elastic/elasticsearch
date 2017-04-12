@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-job-resource]]
 ==== Job Resources
 
@@ -26,16 +27,19 @@ A job resource has the following properties:
 `job_id`::
   (+string+) A numerical character string that uniquely identifies the job.
 
+`job_type`::
+  (+string+) TBD. For example: "anomaly_detector".
+
 `model_plot_config`:: TBD
   `enabled`:: TBD. For example, `true`.
 
 `model_snapshot_id`::
-  TBD.  For example, `1491007364`.
-
+  (+string+) A numerical character string that uniquely identifies the model
+  snapshot. For example, `1491007364`.
 
 `model_snapshot_retention_days`::
-  (+long+) The time in days that model snapshots are retained for the job. Older snapshots are deleted.
-  The default value is 1 day.
+  (+long+) The time in days that model snapshots are retained for the job.
+  Older snapshots are deleted. The default value is 1 day.
 
 `results_index_name`::
   TBD.  For example, `shared`.
@@ -46,8 +50,8 @@ A job resource has the following properties:
 An analysis configuration object has the following properties:
 
 `bucket_span` (required)::
-  (+unsigned integer+) The size of the interval that the analysis is aggregated into, measured in seconds.
-  The default value is 300 seconds (5 minutes).
+  (+unsigned integer+) The size of the interval that the analysis is aggregated into, measured in seconds. The default value is 5 minutes.
+//TBD: Is this now measured in minutes?
 
 `categorization_field_name`::
   (+string+) If not null, the values of the specified field will be categorized.
@@ -78,8 +82,7 @@ and an error is returned.
   the use of influencers is recommended as it aggregates results for each influencer entity.
 
 `latency`::
-  (+unsigned integer+) The size of the window, in seconds, in which to expect data that is out of time order.
-  The default value is 0 seconds (no latency).
+  (+unsigned integer+) The size of the window, in seconds, in which to expect data that is out of time order. The default value is 0 milliseconds (no latency).
 
 NOTE: Latency is only applicable when you send data by using the <<ml-post-data, Post Data to Jobs>> API.
 
@@ -127,7 +130,7 @@ Each detector has the following properties:
   (+string+) A description of the detector. For example, `low_sum(events_per_min)`.
 
 `detector_rules`::
-  TBD
+  (+array+) TBD
 
 `exclude_frequent`::
   (+string+) Contains one of the following values: `all`, `none`, `by`, or `over`.

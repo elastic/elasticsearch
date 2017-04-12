@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-revert-snapshot]]
 ==== Revert Model Snapshots
 
-The revert model snapshot API allows you to revert to a specific snapshot.
+The revert model snapshot API enables you to revert to a specific snapshot.
 
 ===== Request
 

@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-results-resource]]
 ==== Results Resources
 
@@ -63,10 +64,9 @@ A record object has the following properties:
 `detector_index`::
   (+number+) A unique identifier for the detector.
 
-//`fieldName`::
-//  TBD: This field did not appear in my results, but it might be a valid property.
-//  (+string+) Certain functions require a field to operate on. For those functions,
-//  this is the name of the field to be analyzed.
+`field_name`::
+  (+string+) Certain functions require a field to operate on.
+  For those functions, this is the name of the field to be analyzed.
 
 `function`::
   (+string+) The function in which the anomaly occurs.
@@ -90,8 +90,9 @@ A record object has the following properties:
 `job_id`::
   (+string+) A numerical character string that uniquely identifies the job.
 
-`kpi_indicator`::
-  (++) TBD. For example, ["online_purchases"]
+//`kpi_indicator`::
+//  (++) TBD. For example, ["online_purchases"]
+// I did not receive this in later tests. Is it still valid?
 
 `partition_field_name`::
   (+string+) The name of the partition field that was used in the analysis, if
@@ -154,9 +155,6 @@ An influencer object has the following properties:
 // Same as for buckets? i.e. (+unsigned integer+) The length of the bucket in seconds.
 // This value is equal to the `bucket_span` value in the job configuration.
 
-`job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
-
 `influencer_score`::
   (+number+) An anomaly score for the influencer in this bucket time interval.
   The score is calculated based upon a sophisticated aggregation of the anomalies
@@ -176,6 +174,9 @@ An influencer object has the following properties:
   (+boolean+) If true, then this is an interim result.
   In other words, it is calculated based on partial input data.
 
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
 `kpi_indicator`::
   (++) TBD. For example, "online_purchases".
 
@@ -188,7 +189,54 @@ An influencer object has the following properties:
 
 `result_type`::
   (++) TBD. For example, "influencer".
-//TBD: How is this different from the "bucket_influencer" type?
+
+`sequence_num`::
+  (++) TBD. For example, 2.
+
+`timestamp`::
+  (+date+) Influencers are produced in buckets. This value is the start time
+  of the bucket, specified in ISO 8601 format. For example, 1454943900000.
+
+An bucket influencer object has the same following properties:
+
+`anomaly_score`::
+  (+number+) TBD
+//It is unclear how this differs from the influencer_score.
+//An anomaly score for the influencer in this bucket time interval.
+//The score is calculated based upon a sophisticated aggregation of the anomalies
+//in the bucket for this entity. For example: 94.1386.
+
+`bucket_span`::
+  (++) TBD. For example, 300.
+////
+// Same as for buckets? i.e. (+unsigned integer+) The length of the bucket in seconds.
+// This value is equal to the `bucket_span` value in the job configuration.
+////
+`initial_anomaly_score`::
+  (++) TBD. For example, 83.3831.
+
+`influencer_field_name`::
+  (+string+) The field name of the influencer.
+
+`is_interim`::
+  (+boolean+) If true, then this is an interim result.
+  In other words, it is calculated based on partial input data.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`probability`::
+  (+number+) The probability that the influencer has this behavior.
+  This value is in the range 0 to 1. For example, 0.0000109783.
+// For example, 0.03 means 3%. This value is held to a high precision of over
+//300 decimal places. In scientific notation, a value of 3.24E-300 is highly
+//unlikely and therefore highly anomalous.
+
+`raw_anomaly_score`::
+  (++) TBD. For example, 2.32119.
+
+`result_type`::
+  (++) TBD. For example, "bucket_influencer".
 
 `sequence_num`::
   (++) TBD. For example, 2.
@@ -227,7 +275,7 @@ A bucket resource has the following properties:
 
 `bucket_influencers`::
   (+array+) An array of influencer objects.
-  For more information, see <<ml-results-influencers,influencers>>.
+  For more information, see <<ml-results-influencers,Influencers>>.
 
 `bucket_span`::
   (+unsigned integer+) The length of the bucket in seconds. This value is

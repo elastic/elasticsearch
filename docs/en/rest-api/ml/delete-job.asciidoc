@@ -1,3 +1,4 @@
+//lcawley: Verified example output 2017-04-11
 [[ml-delete-job]]
 ==== Delete Jobs
 
@@ -17,7 +18,7 @@ IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
             privileges are granted to anyone over the `.ml-*` indices.
 
 Before you can delete a job, you must delete the data feeds that are associated with it.
-//See <<>>.
+See <<ml-delete-datafeed,Delete Data Feeds>>.
 
 It is not currently possible to delete multiple jobs using wildcards or a comma separated list.
 
@@ -25,6 +26,7 @@ It is not currently possible to delete multiple jobs using wildcards or a comma 
 
 `job_id` (required)::
   (+string+)    Identifier for the job
+
 ////
 ===== Responses
 

@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-get-snapshot]]
 ==== Get Model Snapshots
 
-The get model snapshots API allows you to retrieve information about model snapshots.
+The get model snapshots API enables you to retrieve information about model snapshots.
 
 ===== Request
 
@@ -11,7 +12,6 @@ The get model snapshots API allows you to retrieve information about model snaps
 ////
 ===== Description
 
-OUTDATED?: The get job API can also be applied to all jobs by using `_all` as the job name.
 ////
 ===== Path Parameters
 
@@ -74,7 +74,7 @@ The following example gets model snapshot information for the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/it_ops_new_logs/model_snapshots
+GET _xpack/ml/anomaly_detectors/farequote/model_snapshots
 {
   "start": "1491852977000"
 }
@@ -88,25 +88,25 @@ In this example, the API provides a single result:
   "count": 1,
   "model_snapshots": [
     {
-      "job_id": "it_ops_new_logs",
-      "timestamp": 1491852978000,
-      "description": "State persisted due to job close at 2017-04-10T12:36:18-0700",
-      "snapshot_id": "1491852978",
+      "job_id": "farequote",
+      "timestamp": 1491948163000,
+      "description": "State persisted due to job close at 2017-04-11T15:02:43-0700",
+      "snapshot_id": "1491948163",
       "snapshot_doc_count": 1,
       "model_size_stats": {
-        "job_id": "it_ops_new_logs",
+        "job_id": "farequote",
         "result_type": "model_size_stats",
-        "model_bytes": 100393,
-        "total_by_field_count": 13,
+        "model_bytes": 387594,
+        "total_by_field_count": 21,
         "total_over_field_count": 0,
-        "total_partition_field_count": 2,
+        "total_partition_field_count": 20,
         "bucket_allocation_failures_count": 0,
         "memory_status": "ok",
-        "log_time": 1491852978000,
-        "timestamp": 1455229800000
+        "log_time": 1491948163000,
+        "timestamp": 1455234600000
       },
-      "latest_record_time_stamp": 1455232663000,
-      "latest_result_time_stamp": 1455229800000,
+      "latest_record_time_stamp": 1455235196000,
+      "latest_result_time_stamp": 1455234900000,
       "retain": false
     }
   ]

@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-get-datafeed-stats]]
 ==== Get Data Feed Statistics
 
-The get data feed statistics API allows you to retrieve usage information for
+The get data feed statistics API enables you to retrieve usage information for
 data feeds.
 
 ===== Request
@@ -9,7 +10,6 @@ data feeds.
 `GET _xpack/ml/datafeeds/_stats` +
 
 `GET _xpack/ml/datafeeds/<feed_id>/_stats`
-
 
 ===== Description
 
@@ -25,24 +25,12 @@ If the data feed is stopped, the only information you receive is the
 
 ===== Results
 
-The API returns the following usage information:
+The API returns the following information:
 
-`assigment_explanation`::
-  TBD
-  For example: ""
+`datafeeds`::
+  (+array+) An array of data feed count objects.
+  For more information, see <<ml-datafeed-counts,Data Feed Counts>>.
 
-`datafeed_id`::
-  (+string+) A numerical character string that uniquely identifies the data feed.
-
-`node`::
-  (+object+) TBD
-
-`state`::
-  (+string+) The status of the data feed, which can be one of the following values:
-  * `started`: The data feed is actively receiving data.
-  * `stopped`: The data feed is stopped and will not receive data until
-    it is re-started.
-//failed?
 ////
 ===== Responses
 
@@ -55,7 +43,17 @@ The API returns the following usage information:
 ////
 ===== Examples
 
-.Example results for a started job
+The following example gets usage information for the
+`datafeed-farequote` data feed:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/ml/datafeeds/datafeed-farequote/_stats
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+The API returns the following results:
 ----
 {
   "count": 1,
@@ -64,15 +62,15 @@ The API returns the following usage information:
       "datafeed_id": "datafeed-farequote",
       "state": "started",
       "node": {
-        "id": "0-o0tOoRTwKFZifatTWKNw",
-        "name": "0-o0tOo",
-        "ephemeral_id": "DOZltLxLS_SzYpW6hQ9hyg",
+        "id": "IO_gxe2_S8mrzu7OpmK5Jw",
+        "name": "IO_gxe2",
+        "ephemeral_id": "KHMWPZoMToOzSsZY9lDDgQ",
         "transport_address": "127.0.0.1:9300",
         "attributes": {
           "max_running_jobs": "10"
         }
       },
-      "assigment_explanation": ""
+      "assignment_explanation": ""
     }
   ]
 }

@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-valid-job]]
 ==== Validate Jobs
 
@@ -9,29 +10,16 @@ The validate jobs API validates job configuration information.
 
 ===== Description
 
-TBD
+This API enables you validate the job configuration before you create the job.
 
 ////
 ===== Path Parameters
 
-`job_id` (required)::
-(+string+)    Identifier for the job
 ////
 ===== Request Body
 
-`description`::
-  (+string+) An optional description of the job.
-
-`analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>.
-
-`data_description`::
-  (+object+) Describes the format of the input data.
-  See <<ml-datadescription,data description objects>>.
-
-`analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
+For a list of the properties that you can specify in the body of this API,
+see <<ml-job-resource,Job Resources>>.
 
 ////
 ===== Responses
@@ -56,14 +44,14 @@ POST _xpack/ml/anomaly_detectors/_validate
         "bucket_span": "300S",
         "detectors" :[
           {
-            "function":"metric",
-            "field_name":"responsetime",
-            "by_field_name":"airline"}],
-            "influencers" : [ "airline" ]
+            "function": "metric",
+            "field_name": "responsetime",
+            "by_field_name": "airline"}],
+            "influencers": [ "airline" ]
     },
     "data_description" : {
-       "time_field":"time",
-       "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
+       "time_field": "time",
+       "time_format": "yyyy-MM-dd'T'HH:mm:ssX"
     }
 }
 --------------------------------------------------

@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-snapshot-resource]]
 ==== Model Snapshot Resources
 
@@ -31,7 +32,7 @@ A model snapshot resource has the following properties:
   (++) TBD. For example: 1455229800000.
 
 `model_size_stats`::
-  (+object+) TBD.
+  (+object+) TBD. See <<ml-snapshot-stats,Model Size Statistics>>.
 
 `retain`::
   (+boolean+) TBD. For example: false.
@@ -47,6 +48,8 @@ A model snapshot resource has the following properties:
   (+date+) The creation timestamp for the snapshot, specified in ISO 8601 format.
   For example: 1491852978000.
 
+[float]
+[[ml-snapshot-stats]]
 ===== Model Size Statistics
 
 The `model_size_stats` object has the following properties:

@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-datafeed-resource]]
 ==== Data Feed Resources
 
@@ -13,6 +14,10 @@ A data feed resource has the following properties:
   "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
   "min_doc_count": 0}, "aggregations": {"events_per_min": {"sum": {
   "field": "events_per_min"}}}}}`.
+
+`chunking_config`::
+    (+object+) TBD.
+    For example: {"mode": "manual", "time_span": "30000000ms"}
 
 `datafeed_id`::
  (+string+) A numerical character string that uniquely identifies the data feed.
@@ -41,6 +46,7 @@ A data feed resource has the following properties:
 `types` (required)::
   (+array+) TBD. For example: ["network","sql","kpi"]
 
+[float]
 [[ml-datafeed-counts]]
 ==== Data Feed Counts
 
@@ -48,14 +54,19 @@ The get data feed statistics API provides information about the operational
 progress of a data feed. For example:
 
 `assigment_explanation`::
-  TBD. For example: ""
+  TBD. For example: " "
+
+`datafeed_id`::
+ (+string+) A numerical character string that uniquely identifies the data feed.
 
 `node`::
   (+object+) TBD
   The node that is running the query?
-  For example: `{"id": "0-o0tOoRTwKFZifatTWKNw","name": "0-o0tOo",
-  "ephemeral_id": "DOZltLxLS_SzYpW6hQ9hyg","transport_address": "127.0.0.1:9300",
-  "attributes": {"max_running_jobs": "10"}}
+  `id`::: TBD. For example, "0-o0tOoRTwKFZifatTWKNw".
+  `name`::: TBD. For example, "0-o0tOo".
+  `ephemeral_id::: TBD. For example, "DOZltLxLS_SzYpW6hQ9hyg".
+  `transport_address::: TBD. For example, "127.0.0.1:9300".
+  `attributes`::: TBD. For example, {"max_running_jobs": "10"}.
 
 `state`::
   (+string+) The status of the data feed,

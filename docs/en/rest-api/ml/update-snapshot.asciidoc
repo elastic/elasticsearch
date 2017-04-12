@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-update-snapshot]]
 ==== Update Model Snapshots
 
-The update model snapshot API allows you to update certain properties of a snapshot.
+The update model snapshot API enables you to update certain properties of a snapshot.
 
 ===== Request
 

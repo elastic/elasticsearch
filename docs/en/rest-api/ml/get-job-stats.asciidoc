@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-get-job-stats]]
 ==== Get Job Statistics
 
@@ -12,7 +13,6 @@ The get jobs API allows you to retrieve usage information for jobs.
 ////
 ===== Description
 
-TBD
 ////
 ===== Path Parameters
 
@@ -23,34 +23,11 @@ TBD
 
 ===== Results
 
-The API returns the following usage information:
+The API returns the following information:
 
-`job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
-
-`data_counts`::
-  (+object+) An object that describes the number of records processed and any related error counts.
-  See <<ml-datacounts,data counts objects>>.
-
-`model_size_stats`::
-  (+object+) An object that provides information about the size and contents of the model.
-  See <<ml-modelsizestats,model size stats objects>>
-
-`state`::
-  (+string+) The status of the job, which can be one of the following values:
-  `open`::: The job is actively receiving and processing data.
-  `closed`::: The job finished successfully with its model state persisted.
-  The job is still available to accept further data.
-  `closing`::: TBD
-  `failed`::: The job did not finish successfully due to an error.
-  This situation can occur due to invalid input data. In this case,
-  sending corrected data to a failed job re-opens the job and
-  resets it to an open state.
-
-NOTE: If you send data in a periodic cycle and close the job at the end of
-each transaction, the job is marked as closed in the intervals between
-when data is sent. For example, if data is sent every minute and it takes
-1 second to process, the job has a closed state for 59 seconds.
+`jobs`::
+  (+array+) An array of job count objects.
+  For more information, see <<ml-jobcounts,Job Counts>>.
 
 ////
 ===== Responses
@@ -64,41 +41,52 @@ when data is sent. For example, if data is sent every minute and it takes
 ////
 ===== Examples
 
-.Example results for a single job
+The following example gets usage information for the `farequote` job:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/ml/anomaly_detectors/farequote/_stats
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+In this example, the API returns a single result that matches the specified
+score and time constraints:
 ----
 {
   "count": 1,
   "jobs": [
     {
-      "job_id": "it-ops-kpi",
+      "job_id": "farequote",
       "data_counts": {
-        "job_id": "it-ops",
-        "processed_record_count": 43272,
-        "processed_field_count": 86544,
-        "input_bytes": 2846163,
-        "input_field_count": 86544,
+        "job_id": "farequote",
+        "processed_record_count": 86275,
+        "processed_field_count": 172550,
+        "input_bytes": 6744714,
+        "input_field_count": 172550,
         "invalid_date_count": 0,
         "missing_field_count": 0,
         "out_of_order_timestamp_count": 0,
         "empty_bucket_count": 0,
-        "sparse_bucket_count": 0,
-        "bucket_count": 4329,
-        "earliest_record_timestamp": 1454020560000,
-        "latest_record_timestamp": 1455318900000,
-        "last_data_time": 1491235405945,
-        "input_record_count": 43272
+        "sparse_bucket_count": 15,
+        "bucket_count": 1528,
+        "earliest_record_timestamp": 1454803200000,
+        "latest_record_timestamp": 1455235196000,
+        "last_data_time": 1491948163685,
+        "latest_sparse_bucket_timestamp": 1455174900000,
+        "input_record_count": 86275
       },
       "model_size_stats": {
-        "job_id": "it-ops",
+        "job_id": "farequote",
         "result_type": "model_size_stats",
-        "model_bytes": 25586,
-        "total_by_field_count": 3,
+        "model_bytes": 387594,
+        "total_by_field_count": 21,
         "total_over_field_count": 0,
-        "total_partition_field_count": 2,
+        "total_partition_field_count": 20,
         "bucket_allocation_failures_count": 0,
         "memory_status": "ok",
-        "log_time": 1491235406000,
-        "timestamp": 1455318600000
+        "log_time": 1491948163000,
+        "timestamp": 1455234600000
       },
       "state": "closed"
     }

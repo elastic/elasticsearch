@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-update-job]]
 ==== Update Jobs
 
@@ -59,7 +60,7 @@ The following example updates the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/it-ops-kpi/_update
+POST _xpack/ml/anomaly_detectors/it-ops-kpi/_update
 {
     "description":"New description",
     "analysis_limits":{
@@ -74,10 +75,12 @@ When the job is updated, you receive the following results:
 ----
 {
   "job_id": "it-ops-kpi",
+  "job_type": "anomaly_detector",
   "description": "New description",
   ...
   "analysis_limits": {
     "model_memory_limit": 8192
+  },
   ...
 }
 ----

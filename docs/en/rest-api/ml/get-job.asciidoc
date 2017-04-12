@@ -1,17 +1,18 @@
+//lcawley Verified example output 2017-04-11
 [[ml-get-job]]
 ==== Get Jobs
 
-The get jobs API allows you to retrieve configuration information about jobs.
+The get jobs API enables you to retrieve configuration information for jobs.
 
 ===== Request
 
 `GET _xpack/ml/anomaly_detectors/` +
 
 `GET _xpack/ml/anomaly_detectors/<job_id>`
+
 ////
 ===== Description
 
-OUTDATED?: The get job API can also be applied to all jobs by using `_all` as the job name.
 ////
 ===== Path Parameters
 
@@ -21,14 +22,13 @@ OUTDATED?: The get job API can also be applied to all jobs by using `_all` as th
 
 ===== Results
 
-The API returns information about the job resource. For more information, see
-<<ml-job-resource,job resources>>.
+he API returns the following information:
+
+`jobs`::
+  (+array+) An array of job resources.
+  For more information, see <<ml-job-resource,Job Resources>>.
 
 ////
-===== Query Parameters
-
-None
-
 ===== Responses
 
 200
@@ -40,40 +40,48 @@ None
 ////
 ===== Examples
 
-.Example results for a single job
+The following example gets configuration information for the `farequote` job:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/ml/anomaly_detectors/farequote
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+In this example, the API returns a single result that matches the specified
+score and time constraints:
 ----
 {
   "count": 1,
   "jobs": [
-      {
-      "job_id": "it-ops-kpi",
-      "description": "First simple job",
-      "create_time": 1491007356077,
-      "finished_time": 1491007365347,
+    {
+      "job_id": "farequote",
+      "job_type": "anomaly_detector",
+      "description": "Multi-metric job",
+      "create_time": 1491948149563,
+      "finished_time": 1491948166289,
       "analysis_config": {
         "bucket_span": "5m",
-        "latency": "0ms",
-        "summary_count_field_name": "doc_count",
         "detectors": [
           {
-            "detector_description": "low_sum(events_per_min)",
-            "function": "low_sum",
-            "field_name": "events_per_min",
+            "detector_description": "mean(responsetime)",
+            "function": "mean",
+            "field_name": "responsetime",
+            "partition_field_name": "airline",
             "detector_rules": []
           }
         ],
-        "influencers": [],
-        "use_per_partition_normalization": false
+        "influencers": [
+          "airline"
+        ]
       },
       "data_description": {
         "time_field": "@timestamp",
         "time_format": "epoch_ms"
       },
-      "model_plot_config": {
-        "enabled": true
-      },
       "model_snapshot_retention_days": 1,
-      "model_snapshot_id": "1491007364",
+      "model_snapshot_id": "1491948163",
       "results_index_name": "shared"
     }
   ]

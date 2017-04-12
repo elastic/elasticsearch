@@ -1,7 +1,7 @@
 [[ml-get-influencer]]
 ==== Get Influencers
 
-The get influencers API allows you to retrieve information about the influencers
+The get influencers API enables you to retrieve information about the influencers
 in a job.
 
 ===== Request
@@ -10,7 +10,6 @@ in a job.
 
 ////
 ===== Description
-
 
 ////
 ===== Path Parameters
@@ -83,7 +82,7 @@ In this example, the API returns the following information, sorted based on the
 influencer score in descending order:
 ----
 {
-  "count": 22,
+  "count": 28,
   "influencers": [
     {
       "job_id": "it_ops_new_kpi",

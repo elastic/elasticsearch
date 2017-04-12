@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-put-job]]
 ==== Create Jobs
 
-The create job API enables you to instantiate a {ml} job.
+The create job API enables you to instantiate a job.
 
 ===== Request
 
@@ -10,7 +11,6 @@ The create job API enables you to instantiate a {ml} job.
 ////
 ===== Description
 
-TBD
 ////
 ===== Path Parameters
 
@@ -20,23 +20,28 @@ TBD
 
 ===== Request Body
 
-`description`::
-  (+string+) An optional description of the job.
-
 `analysis_config`::
   (+object+) The analysis configuration, which specifies how to analyze the data.
   See <<ml-analysisconfig, analysis configuration objects>>.
+
+`analysis_limits`::
+  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
 
 `data_description`::
   (+object+) Describes the format of the input data.
   See <<ml-datadescription,data description objects>>.
 
-`analysis_limits`::
-  Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
+`description`::
+  (+string+) An optional description of the job.
+
+`model_snapshot_retention_days`::
+  (+long+) The time in days that model snapshots are retained for the job.
+  Older snapshots are deleted. The default value is 1 day.
+
+`results_index_name`::
+  (+string+) TBD.  For example, `shared`.
 
 ////
-This expects data to be sent in JSON format using the POST `_data` API.
-
 ===== Responses
 
 TBD
@@ -83,8 +88,9 @@ When the job is created, you receive the following results:
 ----
 {
   "job_id": "it-ops-kpi",
+  "job_type": "anomaly_detector",
   "description": "First simple job",
-  "create_time": 1491247016391,
+  "create_time": 1491948238874,
   "analysis_config": {
     "bucket_span": "5m",
     "latency": "0ms",
@@ -96,8 +102,7 @@ When the job is created, you receive the following results:
         "detector_rules": []
       }
     ],
-    "influencers": [],
-    "use_per_partition_normalization": false
+    "influencers": []
   },
   "data_description": {
     "time_field": "@timestamp",

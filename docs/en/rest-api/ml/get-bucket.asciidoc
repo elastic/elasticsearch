@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-get-bucket]]
 ==== Get Buckets
 
-The get bucket API allows you to retrieve information about buckets in the
+The get bucket API enables you to retrieve information about buckets in the
 results from a job.
 
 ===== Request
@@ -93,9 +94,9 @@ score and time constraints:
     {
       "job_id": "it-ops-kpi",
       "timestamp": 1454943900000,
-      "anomaly_score": 87.2526,
+      "anomaly_score": 94.1706,
       "bucket_span": 300,
-      "initial_anomaly_score": 83.3831,
+      "initial_anomaly_score": 94.1706,
       "record_count": 1,
       "event_count": 153,
       "is_interim": false,
@@ -104,17 +105,17 @@ score and time constraints:
           "job_id": "it-ops-kpi",
           "result_type": "bucket_influencer",
           "influencer_field_name": "bucket_time",
-          "initial_anomaly_score": 83.3831,
-          "anomaly_score": 87.2526,
-          "raw_anomaly_score": 2.02204,
-          "probability": 0.0000109783,
+          "initial_anomaly_score": 94.1706,
+          "anomaly_score": 94.1706,
+          "raw_anomaly_score": 2.32119,
+          "probability": 0.00000575042,
           "timestamp": 1454943900000,
           "bucket_span": 300,
           "sequence_num": 2,
           "is_interim": false
         }
       ],
-      "processing_time_ms": 3,
+      "processing_time_ms": 2,
       "partition_scores": [],
       "result_type": "bucket"
     }

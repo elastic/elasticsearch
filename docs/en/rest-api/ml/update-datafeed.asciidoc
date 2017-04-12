@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04
 [[ml-update-datafeed]]
 ==== Update Data Feeds
 
-The update data feed API allows you to update certain properties of a data feed.
+The update data feed API enables you to update certain properties of a data feed.
 
 ===== Request
 
@@ -9,8 +10,6 @@ The update data feed API allows you to update certain properties of a data feed.
 
 ////
 ===== Description
-
-TBD
 
 ////
 ===== Path Parameters
@@ -22,29 +21,33 @@ TBD
 
 The following properties can be updated after the data feed is created:
 
-aggregations::
+`aggregations`::
   (+object+) TBD.
 
-frequency::
+`chunking_config`::
+  (+object+) TBD.
+  For example: {"mode": "manual", "time_span": "30000000ms"}
+
+`frequency`::
    TBD: For example: "150s"
 
-indexes (required)::
+`indexes` (required)::
   (+array+) An array of index names. For example: ["it_ops_metrics"]
 
-job_id::
+`job_id`::
  (+string+) A numerical character string that uniquely identifies the job.
 
-query::
+`query`::
   (+object+) The query that retrieves the data.
   By default, this property has the following value: `{"match_all": {"boost": 1}}`.
 
-query_delay::
+`query_delay`::
   TBD. For example: "60s"
 
-scroll_size::
+`scroll_size`::
   TBD. For example, 1000
 
-types (required)::
+`types` (required)::
   TBD. For example: ["network","sql","kpi"]
 
 For more information about these properties,
@@ -68,30 +71,41 @@ The following example updates the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-it-ops-kpi3/_update
+POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_update
 {
+  "query_delay": "60s",
+  "frequency": "150s",
   "aggregations": {
-    "@timestamp": {
-      "histogram": {
-        "field": "@timestamp",
-        "interval": 30000,
-        "offset": 0,
-        "order": {
-          "_key": "asc"
-        },
-        "keyed": false,
-        "min_doc_count": 0
-      },
-      "aggregations": {
-        "events_per_min": {
-          "sum": {
-            "field": "events_per_min"
+        "buckets": {
+          "date_histogram": {
+            "field": "@timestamp",
+            "interval": 30000,
+            "offset": 0,
+            "order": {
+              "_key": "asc"
+            },
+            "keyed": false,
+            "min_doc_count": 0
+          },
+          "aggregations": {
+            "events_per_min": {
+              "sum": {
+                "field": "events_per_min"
+              }
+            },
+            "@timestamp": {
+              "max": {
+                "field": "@timestamp"
+              }
+            }
           }
         }
-      }
-    }
-  },
-  "frequency": "160s"
+      },
+  "scroll_size": 1000,
+  "chunking_config": {
+  "mode": "manual",
+  "time_span": "30000000ms"
+  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -102,12 +116,12 @@ When the data feed is updated, you receive the following results:
 {
   "datafeed_id": "datafeed-it-ops-kpi",
   "job_id": "it-ops-kpi",
-  "query_delay": "1m",
-  "frequency": "160s",
-...
+  "query_delay": "60s",
+  "frequency": "150s",
+  ...
   "aggregations": {
-    "@timestamp": {
-      "histogram": {
+    "buckets": {
+      "date_histogram": {
         "field": "@timestamp",
         "interval": 30000,
         "offset": 0,
@@ -122,10 +136,19 @@ When the data feed is updated, you receive the following results:
           "sum": {
             "field": "events_per_min"
           }
+        },
+        "@timestamp": {
+          "max": {
+            "field": "@timestamp"
+          }
         }
       }
     }
   },
-  "scroll_size": 1000
+  "scroll_size": 1000,
+  "chunking_config": {
+    "mode": "manual",
+    "time_span": "30000000ms"
+  }
 }
 ----

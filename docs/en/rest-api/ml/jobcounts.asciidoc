@@ -1,33 +1,56 @@
+//lcawley Verified example output 2017-04-11
 [[ml-jobcounts]]
 ==== Job Counts
 
-The `data_counts` object provides information about the operational progress of a job.
-It describes the number of records processed and any related error counts.
+The get job statistics API provides information about the operational
+progress of a job.
 
 NOTE: Job count values are cumulative for the lifetime of a job. If a model snapshot is reverted
 or old results are deleted, the job counts are not reset.
 
-[[ml-datacounts]]
-===== Data Counts Objects
-
-A `data_counts` object has the following properties:
+`data_counts`::
+  (+object+) An object that describes the number of records processed and any related error counts.
+  See <<ml-datacounts,data counts objects>>.
 
 `job_id`::
   (+string+) A numerical character string that uniquely identifies the job.
 
-`processed_record_count`::
-  (+long+) The number of records that have been processed by the job.
-  This value includes records with missing fields, since they are nonetheless analyzed.
-  +
-  The following records are not processed:
-  * Records not in chronological order and outside the latency window
-  * Records with invalid timestamp
-  * Records filtered by an exclude transform
+`model_size_stats`::
+  (+object+) An object that provides information about the size and contents of the model.
+  See <<ml-modelsizestats,model size stats objects>>
 
-`processed_field_count`::
-  (+long+) The total number of fields in all the records that have been processed by the job.
-  Only fields that are specified in the detector configuration object contribute to this count.
-  The time stamp is not included in this count.
+`state`::
+  (+string+) The status of the job, which can be one of the following values:
+  `open`::: The job is actively receiving and processing data.
+  `closed`::: The job finished successfully with its model state persisted.
+  The job is still available to accept further data.
+  `closing`::: TBD
+  `failed`::: The job did not finish successfully due to an error.
+  This situation can occur due to invalid input data. In this case,
+  sending corrected data to a failed job re-opens the job and
+  resets it to an open state.
+
+NOTE: If you send data in a periodic cycle and close the job at the end of
+each transaction, the job is marked as closed in the intervals between
+when data is sent. For example, if data is sent every minute and it takes
+1 second to process, the job has a closed state for 59 seconds.
+
+[float]
+[[ml-datacounts]]
+===== Data Counts Objects
+
+The `data_counts` object describes the number of records processed
+and any related error counts. It has the following properties:
+
+`bucket_count`::
+  (+long+) The number of bucket results produced by the job.
+
+`earliest_record_timestamp`::
+  (+string+) The timestamp of the earliest chronologically ordered record.
+  The datetime string is in ISO 8601 format.
+
+`empty_bucket_count`::
+  TBD
 
 `input_bytes`::
   (+long+) The number of raw bytes read by the job.
@@ -36,8 +59,26 @@ A `data_counts` object has the following properties:
   (+long+) The total number of record fields read by the job. This count includes
   fields that are not used in the analysis.
 
+`input_record_count`::
+  (+long+) The number of data records read by the job.
+
 `invalid_date_count`::
   (+long+) The number of records with either a missing date field or a date that could not be parsed.
+
+`job_id`::
+  (+string+) A numerical character string that uniquely identifies the job.
+
+`last_data_time`::
+  (++) TBD
+
+`latest_record_timestamp`::
+  (+string+) The timestamp of the last chronologically ordered record.
+  If the records are not in strict chronological order, this value might not be
+  the same as the timestamp of the last record.
+  The datetime string is in ISO 8601 format.
+
+`latest_sparse_bucket_timestamp`::
+  (++) TBD
 
 `missing_field_count`::
   (+long+) The number of records that are missing a field that the job is configured to analyze.
@@ -48,32 +89,24 @@ A `data_counts` object has the following properties:
   (+long+) The number of records that are out of time sequence and outside of the latency window.
   These records are discarded, since jobs require time series data to be in ascending chronological order.
 
-`empty_bucket_count`::
-  TBD
+`processed_field_count`::
+  (+long+) The total number of fields in all the records that have been processed by the job.
+  Only fields that are specified in the detector configuration object contribute to this count.
+  The time stamp is not included in this count.
+
+`processed_record_count`::
+  (+long+) The number of records that have been processed by the job.
+  This value includes records with missing fields, since they are nonetheless analyzed.
+  +
+  The following records are not processed:
+  * Records not in chronological order and outside the latency window
+  * Records with invalid timestamp
+  * Records filtered by an exclude transform
 
 `sparse_bucket_count`::
   TBD
 
-`bucket_count`::
-  (+long+) The number of bucket results produced by the job.
-
-`earliest_record_timestamp`::
-  (+string+) The timestamp of the earliest chronologically ordered record.
-  The datetime string is in ISO 8601 format.
-
-`latest_record_timestamp`::
-  (+string+) The timestamp of the last chronologically ordered record.
-  If the records are not in strict chronological order, this value might not be
-  the same as the timestamp of the last record.
-  The datetime string is in ISO 8601 format.
-
-`last_data_time`::
-  TBD
-
-`input_record_count`::
-  (+long+) The number of data records read by the job.
-
-
+[float]
 [[ml-modelsizestats]]
 ===== Model Size Stats Objects
 

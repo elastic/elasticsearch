@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-put-datafeed]]
 ==== Create Data Feeds
 
@@ -6,7 +7,6 @@ The create data feed API enables you to instantiate a data feed.
 ===== Request
 
 `PUT _xpack/ml/datafeeds/<feed_id>`
-
 
 ===== Description
 
@@ -20,36 +20,37 @@ data feed to each job.
 
 ===== Request Body
 
-aggregations::
-  (+object+) TBD.  For example: {"@timestamp": {"histogram": {"field": "@timestamp",
-  "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
-  "min_doc_count": 0}, "aggregations": {"events_per_min": {"sum": {
-  "field": "events_per_min"}}}}}
+`aggregations`::
+  (+object+) TBD.
 
-frequency::
+`chunking_config`::
+  (+object+) TBD.
+  For example: {"mode": "manual", "time_span": "30000000ms"}
+
+`frequency`::
    TBD: For example: "150s"
 
-indexes (required)::
+`indexes` (required)::
   (+array+) An array of index names. For example: ["it_ops_metrics"]
 
-job_id (required)::
+`job_id` (required)::
  (+string+) A numerical character string that uniquely identifies the job.
 
-query::
+`query`::
   (+object+) The query that retrieves the data.
   By default, this property has the following value: `{"match_all": {"boost": 1}}`.
 
-query_delay::
+`query_delay`::
   TBD. For example: "60s"
 
-scroll_size::
+`scroll_size`::
   TBD. For example, 1000
 
-types (required)::
+`types` (required)::
   TBD. For example: ["network","sql","kpi"]
 
 For more information about these properties,
-see <<ml-datafeed-resource, Data Feed Resources>>.  
+see <<ml-datafeed-resource, Data Feed Resources>>.
 
 ////
 ===== Responses
@@ -72,21 +73,13 @@ The following example creates the `datafeed-it-ops-kpi` data feed:
 PUT _xpack/ml/datafeeds/datafeed-it-ops-kpi
 {
   "job_id": "it-ops-kpi",
-  "query":
-  {
-   "match_all":
-   {
-     "boost": 1
-   }
-  },
-  "indexes": [
-        "it_ops_metrics"
-      ],
-  "types": [
-        "kpi",
-        "sql",
-        "network"
-      ]
+  "indexes": ["it_ops_metrics"],
+  "types": ["kpi","network","sql"],
+  "query": {
+    "match_all": {
+          "boost": 1
+    }
+  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -103,14 +96,17 @@ When the data feed is created, you receive the following results:
   ],
   "types": [
     "kpi",
-    "sql",
-    "network"
+    "network",
+    "sql"
   ],
   "query": {
     "match_all": {
       "boost": 1
     }
   },
-  "scroll_size": 1000
+  "scroll_size": 1000,
+  "chunking_config": {
+    "mode": "auto"
+  }
 }
 ----

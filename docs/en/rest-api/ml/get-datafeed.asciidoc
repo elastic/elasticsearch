@@ -1,7 +1,8 @@
+//lcawley Verified example output 2017-04-11
 [[ml-get-datafeed]]
 ==== Get Data Feeds
 
-The get data feeds API allows you to retrieve configuration information for
+The get data feeds API enables you to retrieve configuration information for
 data feeds.
 
 ===== Request
@@ -23,14 +24,13 @@ OUTDATED?: The get job API can also be applied to all jobs by using `_all` as th
 
 ===== Results
 
-The API returns information about the data feed resource.
-For more information, see <<ml-datafeed-resource,data feed resources>>.
+The API returns the following information:
+
+`datafeeds`::
+  (+array+) An array of data feed objects.
+  For more information, see <<ml-datafeed-resource,data feed resources>>.
 
 ////
-===== Query Parameters
-
-None
-
 ===== Responses
 
 200
@@ -42,22 +42,32 @@ None
 ////
 ===== Examples
 
-.Example results for a single data feed
+The following example gets configuration information for the
+`datafeed-it-ops-kpi` data feed:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/ml/datafeeds/datafeed-it-ops-kpi
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+The API returns the following results:
 ----
 {
   "count": 1,
   "datafeeds": [
     {
-      "datafeed_id": "datafeed-it-ops",
-      "job_id": "it-ops",
+      "datafeed_id": "datafeed-it-ops-kpi",
+      "job_id": "it-ops-kpi",
       "query_delay": "60s",
       "frequency": "150s",
       "indexes": [
         "it_ops_metrics"
       ],
       "types": [
-        "network",
         "kpi",
+        "network",
         "sql"
       ],
       "query": {
@@ -66,8 +76,8 @@ None
         }
       },
       "aggregations": {
-        "@timestamp": {
-          "histogram": {
+        "buckets": {
+          "date_histogram": {
             "field": "@timestamp",
             "interval": 30000,
             "offset": 0,
@@ -82,11 +92,20 @@ None
               "sum": {
                 "field": "events_per_min"
               }
+            },
+            "@timestamp": {
+              "max": {
+                "field": "@timestamp"
+              }
             }
           }
         }
       },
-      "scroll_size": 1000
+      "scroll_size": 1000,
+      "chunking_config": {
+        "mode": "manual",
+        "time_span": "30000000ms"
+      }
     }
   ]
 }

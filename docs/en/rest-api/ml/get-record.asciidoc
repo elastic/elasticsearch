@@ -1,7 +1,8 @@
 [[ml-get-record]]
+//lcawley Verified example output 2017-04-11
 ==== Get Records
 
-The get records API allows you to retrieve anomaly records for a job.
+The get records API enables you to retrieve anomaly records for a job.
 
 ===== Request
 
@@ -9,7 +10,6 @@ The get records API allows you to retrieve anomaly records for a job.
 
 ////
 ===== Description
-
 
 ////
 ===== Path Parameters
@@ -21,7 +21,6 @@ The get records API allows you to retrieve anomaly records for a job.
 
 `desc`::
   (+boolean+) If true, the results are sorted in descending order.
-//TBD: Using the "sort" value?
 
 `end`::
   (+string+) Returns records with timestamps earlier than this time.
@@ -77,54 +76,42 @@ The following example gets bucket information for the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/it-ops-kpi/results/buckets
+GET _xpack/ml/anomaly_detectors/it-ops-kpi/results/records
 {
   "sort": "record_score",
   "desc": true,
-  "start": "1454944200000"
+  "start": "1454944100000"
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-In this example, the API returns a single result that matches the specified
-score and time constraints:
+In this example, the API returns twelve results for the specified
+time constraints:
 ----
 {
-  "count": 6,
+  "count": 12,
   "records": [
     {
-      "job_id": "it_ops_new_kpi",
+      "job_id": "it-ops-kpi",
       "result_type": "record",
-      "probability": 0.000113075,
-      "record_score": 86.9677,
-      "initial_record_score": 82.8891,
-      "bucket_span": 600,
+      "probability": 0.00000332668,
+      "record_score": 72.9929,
+      "initial_record_score": 65.7923,
+      "bucket_span": 300,
       "detector_index": 0,
       "sequence_num": 1,
       "is_interim": false,
       "timestamp": 1454944200000,
-      "partition_field_name": "kpi_indicator",
-      "partition_field_value": "online_purchases",
-      "function": "low_non_zero_count",
-      "function_description": "count",
+      "function": "low_sum",
+      "function_description": "sum",
       "typical": [
-        3582.53
+        1806.48
       ],
       "actual": [
-        575
+        288
       ],
-      "influencers": [
-        {
-          "influencer_field_name": "kpi_indicator",
-          "influencer_field_values": [
-            "online_purchases"
-          ]
-        }
-      ],
-      "kpi_indicator": [
-        "online_purchases"
-      ]
+      "field_name": "events_per_min"
     },
   ...
   ]

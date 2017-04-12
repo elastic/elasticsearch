@@ -1,7 +1,8 @@
+//lcawley: Verified example output 2017-04-11
 [[ml-preview-datafeed]]
 ==== Preview Data Feeds
 
-The preview data feed API allows you to preview a data feed.
+The preview data feed API enables you to preview a data feed.
 
 ===== Request
 
@@ -10,8 +11,7 @@ The preview data feed API allows you to preview a data feed.
 
 ===== Description
 
-TBD
-//How much data does it return?
+//TBD: How much data does it return?
 The API returns example data by using the current data feed settings.
 
 ===== Path Parameters
@@ -52,14 +52,17 @@ The data that is returned for this example is as follows:
 [
   {
     "@timestamp": 1454803200000,
+    "airline": "AAL",
     "responsetime": 132.20460510253906
   },
   {
     "@timestamp": 1454803200000,
+    "airline": "JZA",
     "responsetime": 990.4628295898438
   },
   {
     "@timestamp": 1454803200000,
+    "airline": "JBU",
     "responsetime": 877.5927124023438
   },
   ...

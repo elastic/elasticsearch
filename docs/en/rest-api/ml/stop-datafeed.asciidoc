@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-stop-datafeed]]
 ==== Stop Data Feeds
 
@@ -11,7 +12,6 @@ A data feed can be opened and closed multiple times throughout its lifecycle.
 ////
 ===== Description
 
-TBD
 ////
 ===== Path Parameters
 

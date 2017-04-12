@@ -1,7 +1,7 @@
 [[ml-delete-snapshot]]
 ==== Delete Model Snapshots
 
-The delete model snapshot API allows you to delete an existing model snapshot.
+The delete model snapshot API enables you to delete an existing model snapshot.
 
 ===== Request
 

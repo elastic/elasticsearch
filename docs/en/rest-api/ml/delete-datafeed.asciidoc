@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-delete-datafeed]]
 ==== Delete Data Feeds
 

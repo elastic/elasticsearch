@@ -1,3 +1,4 @@
+//lcawley Verified example output 2017-04-11
 [[ml-valid-detector]]
 ==== Validate Detectors
 
@@ -9,13 +10,10 @@ The validate detectors API validates detector configuration information.
 
 ===== Description
 
-TBD
+This API enables you validate the detector configuration before you create a job.
 
 ////
 ===== Path Parameters
-
-`job_id` (required)::
-(+string+)    Identifier for the job
 
 ////
 ===== Request Body
@@ -41,9 +39,9 @@ The following example validates detector configuration information:
 --------------------------------------------------
 POST _xpack/ml/anomaly_detectors/_validate/detector
 {
-  "function":"metric",
-  "field_name":"responsetime",
-  "by_field_name":"airline"
+  "function": "metric",
+  "field_name": "responsetime",
+  "by_field_name": "airline"
 }
 --------------------------------------------------
 // CONSOLE

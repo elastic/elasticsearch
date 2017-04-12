@@ -1,15 +1,16 @@
+//lcawley: Verified example output 2017-04-11
 [[ml-flush-job]]
 ==== Flush Jobs
 
-The flush job API forces any buffered data to be processed by the {ml} job.
+The flush job API forces any buffered data to be processed by the job.
 
 ===== Request
+
 `POST _xpack/ml/anomaly_detectors/<job_id>/_flush`
 
 ===== Description
 
-The flush job API is only applicable when sending data for analysis using the POST `_data` API.
-Depending on the content of the buffer, then it might additionally calculate new results.
+The flush job API is only applicable when sending data for analysis using the <<ml-post-data,post data API>>. Depending on the content of the buffer, then it might additionally calculate new results.
 
 Both flush and close operations are similar, however the flush is more efficient if you are expecting to send more data for analysis.
 When flushing, the job remains open and is available to continue analyzing data.
@@ -22,21 +23,20 @@ A close operation additionally prunes and persists the model state to disk and t
 
 ===== Query Parameters
 
-`calc_interim`::
-  (+boolean+; default: ++false++) If true (default false), will calculate interim
-  results for the most recent bucket or all buckets within the latency period
-
-`start`::
-  (+string+; default: ++null++) When used in conjunction with `calc_interim`,
-  specifies the range of buckets on which to calculate interim results
+`advance_time`::
+  (+string+) Specifies that no data prior to the date `advance_time` is expected.
 
 `end`::
-  (+string+; default: ++null++) When used in conjunction with `calc_interim`,
-  specifies the range of buckets on which to calculate interim results
+  (+string+) When used in conjunction with `calc_interim`, specifies the range
+  of buckets on which to calculate interim results.
 
+`calc_interim`::
+  (+boolean+) If true, calculates the interim results for the most recent bucket
+  or all buckets within the latency period.
 
-`advance_time`::
-  (+string+; default: ++null++) Specifies that no data prior to the date `advance_time` is expected
+`start`::
+  (+string+) When used in conjunction with `calc_interim`, specifies the range of
+  buckets on which to calculate interim results.
 
 ////
 ===== Responses
@@ -49,7 +49,7 @@ A close operation additionally prunes and persists the model state to disk and t
 ////
 ===== Examples
 
-The following example flushes the `event_rate` job:
+The following example flushes the `farequote` job:
 
 [source,js]
 --------------------------------------------------

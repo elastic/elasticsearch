@@ -55,14 +55,22 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             resize(1);
             values[0] = ((ReadableInstant) value).getMillis();
         } else if (value.getClass().isArray()) {
-            resize(Array.getLength(value));
-            for (int i = 0; i < docValueCount(); ++i) {
+            int length = Array.getLength(value);
+            if (length == 0) {
+                return false;
+            }
+            resize(length);
+            for (int i = 0; i < length; ++i) {
                 values[i] = toDoubleValue(Array.get(value, i));
             }
         } else if (value instanceof Collection) {
-            resize(((Collection<?>) value).size());
+            Collection<?> coll = (Collection<?>) value;
+            if (coll.isEmpty()) {
+                return false;
+            }
+            resize(coll.size());
             int i = 0;
-            for (Object v : (Collection<?>) value) {
+            for (Object v : coll) {
                 values[i++] = toDoubleValue(v);
             }
             assert i == docValueCount();

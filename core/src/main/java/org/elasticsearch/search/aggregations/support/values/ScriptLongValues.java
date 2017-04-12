@@ -53,16 +53,24 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
         }
 
         else if (value.getClass().isArray()) {
-            resize(Array.getLength(value));
-            for (int i = 0; i < docValueCount(); ++i) {
+            int length = Array.getLength(value);
+            if (length == 0) {
+                return false;
+            }
+            resize(length);
+            for (int i = 0; i < length; ++i) {
                 values[i] = toLongValue(Array.get(value, i));
             }
         }
 
         else if (value instanceof Collection) {
-            resize(((Collection<?>) value).size());
+            Collection<?> coll = (Collection<?>) value;
+            if (coll.isEmpty()) {
+                return false;
+            }
+            resize(coll.size());
             int i = 0;
-            for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
+            for (Iterator<?> it = coll.iterator(); it.hasNext(); ++i) {
                 values[i] = toLongValue(it.next());
             }
             assert i == docValueCount();

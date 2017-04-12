@@ -265,6 +265,9 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CleanupKey that = (CleanupKey) o;
             if (readerVersion != that.readerVersion) return false;
             if (!entity.getCacheIdentity().equals(that.entity.getCacheIdentity())) return false;

@@ -92,19 +92,15 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void write(MethodWriter writer, Globals globals) {
         if (ref != null) {
             writer.writeDebugInfo(location);
-            // convert MethodTypes to asm Type for the constant pool.
-            String invokedType = ref.invokedType.toMethodDescriptorString();
-            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
             writer.invokeDynamic(
-                ref.invokedName,
-                invokedType,
+                ref.interfaceMethodName,
+                ref.factoryDescriptor,
                 LAMBDA_BOOTSTRAP_HANDLE,
-                interfaceType,
-                "this".equals(type) ? CLASS_NAME : Definition.getType(type).clazz.getName()                                    ,
-                ref.tag,
-                call,
-                samMethodType
+                ref.interfaceType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateType
             );
         } else {
             // TODO: don't do this: its just to cutover :)

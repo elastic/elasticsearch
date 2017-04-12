@@ -20,119 +20,118 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.objectweb.asm.Handle;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.api.Augmentation;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
+import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 
 /**
  * Reference to a function or lambda.
  * <p>
- * Once you have created one of these, you have "everything you need" to call LambdaMetaFactory
+ * Once you have created one of these, you have "everything you need" to call LambdaBootstrap
  * either statically from bytecode with invokedynamic, or at runtime from Java.
  */
 public class FunctionRef {
-    /** Function Object's method name */
-    public final String invokedName;
-    /** CallSite signature */
-    public final MethodType invokedType;
-    /** Implementation method */
-    public final MethodHandle implMethod;
-    /** Function Object's method signature */
-    public final MethodType samMethodType;
-    /** When bridging is required, request this bridge interface */
-    public final MethodType interfaceMethodType;
 
-    /** ASM "Handle" to the method, for the constant pool */
-    public final Handle implMethodASM;
-    public final int tag;
-    public final String owner;
+    /** functional interface method name */
+    public final String interfaceMethodName;
+    /** factory (CallSite) method signature */
+    public final MethodType factoryMethodType;
+    /** functional interface method signature */
+    public final MethodType interfaceMethodType;
+    /** class of the delegate method to be called */
+    public final String delegateClassName;
+    /** the invocation type of the delegate method */
+    public final int delegateInvokeType;
+    /** the name of the delegate method */
+    public final String delegateMethodName;
+    /** delegate method signature */
+    public final MethodType delegateMethodType;
+
+    /** factory method type descriptor */
+    public final String factoryDescriptor;
+    /** functional interface method as type */
+    public final org.objectweb.asm.Type interfaceType;
+    /** delegate method type method as type */
+    public final org.objectweb.asm.Type delegateType;
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
-     * @param expected interface type to implement.
+     * @param expected functional interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Definition.Type expected, String type, String call, int numCaptures) {
+    public FunctionRef(Type expected, String type, String call, int numCaptures) {
         this(expected, expected.struct.getFunctionalMethod(), lookup(expected, type, call, numCaptures > 0), numCaptures);
     }
 
     /**
      * Creates a new FunctionRef (already resolved)
-     * @param expected interface type to implement
-     * @param method functional interface method
-     * @param impl implementation method
+     * @param expected functional interface type to implement
+     * @param interfaceMethod functional interface method
+     * @param delegateMethod implementation method
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Definition.Type expected, Definition.Method method, Definition.Method impl, int numCaptures) {
-        // e.g. compareTo
-        invokedName = method.name;
-        // e.g. (Object)Comparator
-        MethodType implType = impl.getMethodType();
-        // only include captured parameters as arguments
-        invokedType = MethodType.methodType(expected.clazz,
-                implType.dropParameterTypes(numCaptures, implType.parameterCount()));
-        // e.g. (Object,Object)int
-        interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
+    public FunctionRef(Type expected, Method interfaceMethod, Method delegateMethod, int numCaptures) {
+        MethodType delegateMethodType = delegateMethod.getMethodType();
 
-        if ("<init>".equals(impl.name)) {
-            tag = Opcodes.H_NEWINVOKESPECIAL;
-        } else if (Modifier.isStatic(impl.modifiers)) {
-            tag = H_INVOKESTATIC;
-        } else if (impl.owner.clazz.isInterface()) {
-            tag = Opcodes.H_INVOKEINTERFACE;
-        } else {
-            tag = Opcodes.H_INVOKEVIRTUAL;
-        }
-        final boolean ownerIsInterface;
-        if (impl.owner == null) {
-            // owner == null: script class itself
-            ownerIsInterface = false;
-            owner = WriterConstants.CLASS_TYPE.getInternalName();
-        } else if (impl.augmentation) {
-            ownerIsInterface = false;
-            owner = WriterConstants.AUGMENTATION_TYPE.getInternalName();
-        } else {
-            ownerIsInterface = impl.owner.clazz.isInterface();
-            owner = impl.owner.type.getInternalName();
-        }
-        implMethodASM = new Handle(tag, owner, impl.name, impl.method.getDescriptor(), ownerIsInterface);
-        implMethod = impl.handle;
+        interfaceMethodName = interfaceMethod.name;
+        factoryMethodType = MethodType.methodType(expected.clazz,
+                delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
+        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
 
-        // remove any prepended captured arguments for the 'natural' signature.
-        samMethodType = adapt(interfaceMethodType, impl.getMethodType().dropParameterTypes(0, numCaptures));
+        // the Painless$Script class can be inferred if owner is null
+        if (delegateMethod.owner == null) {
+            delegateClassName = CLASS_NAME;
+        } else if (delegateMethod.augmentation) {
+            delegateClassName = Augmentation.class.getName();
+        } else {
+            delegateClassName = delegateMethod.owner.clazz.getName();
+        }
+
+        if ("<init>".equals(delegateMethod.name)) {
+            delegateInvokeType = Opcodes.H_NEWINVOKESPECIAL;
+        } else if (Modifier.isStatic(delegateMethod.modifiers)) {
+            delegateInvokeType = H_INVOKESTATIC;
+        } else if (delegateMethod.owner.clazz.isInterface()) {
+            delegateInvokeType = Opcodes.H_INVOKEINTERFACE;
+        } else {
+            delegateInvokeType = Opcodes.H_INVOKEVIRTUAL;
+        }
+
+        delegateMethodName = delegateMethod.name;
+        this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
+
+        factoryDescriptor = factoryMethodType.toMethodDescriptorString();
+        interfaceType = org.objectweb.asm.Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        delegateType = org.objectweb.asm.Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**
      * Creates a new FunctionRef (low level).
-     * <p>
-     * This will <b>not</b> set implMethodASM. It is for runtime use only.
+     * It is for runtime use only.
      */
-    public FunctionRef(Definition.Type expected, Definition.Method method, MethodHandle impl, int numCaptures) {
-        // e.g. compareTo
-        invokedName = method.name;
-        // e.g. (Object)Comparator
-        MethodType implType = impl.type();
-        // only include captured parameters as arguments
-        invokedType = MethodType.methodType(expected.clazz,
-                implType.dropParameterTypes(numCaptures, implType.parameterCount()));
-        // e.g. (Object,Object)int
-        interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
+    public FunctionRef(Type expected, Method interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
+        interfaceMethodName = interfaceMethod.name;
+        factoryMethodType = MethodType.methodType(expected.clazz,
+            delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
+        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
 
-        implMethod = impl;
-        owner = method.owner.clazz.getName();
+        delegateClassName = CLASS_NAME;
+        delegateInvokeType = H_INVOKESTATIC;
+        this.delegateMethodName = delegateMethodName;
+        this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
-        implMethodASM = null;
-        tag = H_INVOKESTATIC;
-
-        // remove any prepended captured arguments for the 'natural' signature.
-        samMethodType = adapt(interfaceMethodType, impl.type().dropParameterTypes(0, numCaptures));
+        factoryDescriptor = null;
+        interfaceType = null;
+        delegateType = null;
     }
 
     /**
@@ -176,28 +175,5 @@ public class FunctionRef {
                                                "[" + expected + "]");
         }
         return impl;
-    }
-
-    /** Returns true if you should ask LambdaMetaFactory to construct a bridge for the interface signature */
-    public boolean needsBridges() {
-        // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?
-        // either way, stuff will fail if its wrong :)
-        return interfaceMethodType.equals(samMethodType) == false;
-    }
-
-    /**
-     * If the interface expects a primitive type to be returned, we can't return Object,
-     * But we can set SAM to the wrapper version, and a cast will take place
-     */
-    private MethodType adapt(MethodType expected, MethodType actual) {
-        // add some checks, now that we've set everything up, to deliver exceptions as early as possible.
-        if (expected.parameterCount() != actual.parameterCount()) {
-            throw new IllegalArgumentException("Incorrect number of parameters for [" + invokedName +
-                                               "] in [" + invokedType.returnType() + "]");
-        }
-        //if (expected.returnType().isPrimitive() && actual.returnType() == Object.class) {
-        //    actual = actual.changeReturnType(MethodType.methodType(expected.returnType()).wrap().returnType());
-        //}
-        return actual;
     }
 }

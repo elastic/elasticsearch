@@ -351,7 +351,7 @@ public final class Def {
                  MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(),
                                                                  getUserFunctionHandleFieldName(call, arity),
                                                                  MethodHandle.class);
-                 handle = (MethodHandle) accessor.invokeExact();
+                 handle = (MethodHandle)accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
                  // because the arity does not match the expected interface type.
@@ -361,20 +361,20 @@ public final class Def {
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz, interfaceMethod, handle, captures.length);
+             ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
              ref = new FunctionRef(clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
              lookup,
-             ref.invokedName,
-             ref.invokedType,
+             ref.interfaceMethodName,
+             ref.factoryMethodType,
              ref.interfaceMethodType,
-             "this".equals(type) ? CLASS_NAME : ref.owner,
-             ref.tag,
-             call,
-             ref.samMethodType
+             ref.delegateClassName,
+             ref.delegateInvokeType,
+             ref.delegateMethodName,
+             ref.delegateMethodType
          );
          return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
      }

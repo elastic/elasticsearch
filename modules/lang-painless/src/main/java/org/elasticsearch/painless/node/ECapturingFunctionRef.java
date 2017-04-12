@@ -30,11 +30,9 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
-import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -102,19 +100,15 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
-            // convert MethodTypes to asm Type for the constant pool.
-            String invokedType = ref.invokedType.toMethodDescriptorString();
-            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
             writer.invokeDynamic(
-                ref.invokedName,
-                invokedType,
+                ref.interfaceMethodName,
+                ref.factoryDescriptor,
                 LAMBDA_BOOTSTRAP_HANDLE,
-                interfaceType,
-                ref.owner                                    ,
-                ref.tag,
-                call,
-                samMethodType
+                ref.interfaceType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateType
             );
         }
     }

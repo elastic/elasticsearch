@@ -202,22 +202,17 @@ public final class ELambda extends AExpression implements ILambda {
             for (Variable capture : captures) {
                 writer.visitVarInsn(capture.type.type.getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
-            // convert MethodTypes to asm Type for the constant pool.
-            String invokedType = ref.invokedType.toMethodDescriptorString();
-            org.objectweb.asm.Type samMethodType =
-                org.objectweb.asm.Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            org.objectweb.asm.Type interfaceType =
-                org.objectweb.asm.Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
 
-            writer.invokeDynamic(ref.invokedName,
-                                 invokedType,
-                                 LAMBDA_BOOTSTRAP_HANDLE,
-                                 interfaceType,
-                CLASS_NAME,
-                H_INVOKESTATIC,
-                                 name,
-                                 samMethodType
-                                 );
+            writer.invokeDynamic(
+                ref.interfaceMethodName,
+                ref.factoryDescriptor,
+                LAMBDA_BOOTSTRAP_HANDLE,
+                ref.interfaceType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateType
+            );
         } else {
             // placeholder
             writer.push((String)null);

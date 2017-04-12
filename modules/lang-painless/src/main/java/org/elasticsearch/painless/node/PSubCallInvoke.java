@@ -33,7 +33,7 @@ import java.util.Set;
 /**
  * Represents a method call.
  */
-final class PSubCallInvoke extends AExpression {
+final class       PSubCallInvoke extends AExpression {
 
     private final Method method;
     private final Type box;

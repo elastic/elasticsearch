@@ -5,39 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
-import org.elasticsearch.xpack.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
-import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
-import org.elasticsearch.xpack.ml.action.PutJobAction;
-import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.security.Security;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -48,27 +30,15 @@ import static org.hamcrest.Matchers.is;
 /**
  * A fast integration test for categorization
  */
-public class CategorizationIT extends SecurityIntegTestCase {
+public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     private static final String DATA_INDEX = "log-data";
     private static final String DATA_TYPE = "log";
 
-    private List<Job.Builder> jobs;
     private long nowMillis;
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        Settings.Builder builder = Settings.builder();
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        builder.put(Security.USER_SETTING.getKey(), "elastic:changeme");
-        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
-        return builder.build();
-    }
 
     @Before
     public void setUpData() throws IOException {
-        jobs = new ArrayList<>();
-
         client().admin().indices().prepareCreate(DATA_INDEX)
                 .addMapping(DATA_TYPE, "time", "type=date,format=epoch_millis",
                         "msg", "type=keyword")
@@ -106,33 +76,24 @@ public class CategorizationIT extends SecurityIntegTestCase {
 
     @After
     public void tearDownData() throws Exception {
+        cleanUp();
         client().admin().indices().prepareDelete(DATA_INDEX).get();
-        for (Job.Builder job : jobs) {
-            DeleteDatafeedAction.Request deleteDatafeedRequest =
-                    new DeleteDatafeedAction.Request(job.getId() + "-feed");
-            client().execute(DeleteDatafeedAction.INSTANCE, deleteDatafeedRequest).get();
-            DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(job.getId());
-            client().execute(DeleteJobAction.INSTANCE, deleteJobRequest).get();
-        }
         client().admin().indices().prepareRefresh("*").get();
     }
 
     public void testBasicCategorization() throws Exception {
         Job.Builder job = newJobBuilder("categorization", Collections.emptyList());
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-        jobs.add(job);
-
+        registerJob(job);
+        putJob(job);
         openJob(job.getId());
 
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndexes(Arrays.asList(DATA_INDEX));
         datafeedConfig.setTypes(Arrays.asList(DATA_TYPE));
-
-        PutDatafeedAction.Request putDatafeedRequest =
-                new PutDatafeedAction.Request(datafeedConfig.build());
-        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).get();
+        DatafeedConfig datafeed = datafeedConfig.build();
+        registerDatafeed(datafeed);
+        putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, nowMillis);
         waitUntilJobIsClosed(job.getId());
 
@@ -167,22 +128,18 @@ public class CategorizationIT extends SecurityIntegTestCase {
     }
 
     public void testCategorizationWithFilters() throws Exception {
-        Job.Builder job = newJobBuilder("categorization-with-filters",
-                Arrays.asList("\\[.*\\]"));
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-        jobs.add(job);
-
+        Job.Builder job = newJobBuilder("categorization-with-filters", Arrays.asList("\\[.*\\]"));
+        registerJob(job);
+        putJob(job);
         openJob(job.getId());
 
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndexes(Arrays.asList(DATA_INDEX));
         datafeedConfig.setTypes(Arrays.asList(DATA_TYPE));
-
-        PutDatafeedAction.Request putDatafeedRequest =
-                new PutDatafeedAction.Request(datafeedConfig.build());
-        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).get();
+        DatafeedConfig datafeed = datafeedConfig.build();
+        registerDatafeed(datafeed);
+        putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, nowMillis);
         waitUntilJobIsClosed(job.getId());
 
@@ -216,47 +173,5 @@ public class CategorizationIT extends SecurityIntegTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         jobBuilder.setDataDescription(dataDescription);
         return jobBuilder;
-    }
-
-    private void openJob(String jobId) throws Exception {
-        OpenJobAction.Request openJobRequest = new OpenJobAction.Request(jobId);
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
-    }
-    private void startDatafeed(String datafeedId, long start, long end) throws Exception {
-        StartDatafeedAction.Request startRequest =
-                new StartDatafeedAction.Request(datafeedId, start);
-        startRequest.setEndTime(end);
-        client().execute(StartDatafeedAction.INSTANCE, startRequest).get();
-    }
-
-    private void waitUntilJobIsClosed(String jobId) throws Exception {
-        assertBusy(() -> {
-            try {
-                GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-                GetJobsStatsAction.Response response = client().execute(
-                        GetJobsStatsAction.INSTANCE, request).get();
-                assertThat(response.getResponse().results().get(0).getState(),
-                        equalTo(JobState.CLOSED));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        // Refresh to ensure the snapshot timestamp updates are visible
-        client().admin().indices().prepareRefresh("*").get();
-    }
-
-    private List<CategoryDefinition> getCategories(String jobId) throws Exception {
-        GetCategoriesAction.Request getCategoriesRequest =
-                new GetCategoriesAction.Request(jobId);
-        getCategoriesRequest.setPageParams(new PageParams());
-        GetCategoriesAction.Response categoriesResponse = client().execute(
-                GetCategoriesAction.INSTANCE, getCategoriesRequest).get();
-        return categoriesResponse.getResult().results();
-    }
-
-    @Override
-    protected void ensureClusterStateConsistency() throws IOException {
-        // this method in ESIntegTestCase is not plugin-friendly;
-        // it does not account for plugin NamedWritableRegistries
     }
 }

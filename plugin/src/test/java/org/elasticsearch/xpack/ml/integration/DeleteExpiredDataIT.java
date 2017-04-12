@@ -11,43 +11,24 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
-import org.elasticsearch.xpack.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
-import org.elasticsearch.xpack.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
-import org.elasticsearch.xpack.ml.action.PutJobAction;
-import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.security.Security;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -57,25 +38,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class DeleteExpiredDataIT extends SecurityIntegTestCase {
+public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
+
     private static final String DATA_INDEX = "delete-expired-data-test-data";
     private static final String DATA_TYPE = "my_type";
 
-    private List<Job.Builder> jobs;
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        Settings.Builder builder = Settings.builder();
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        builder.put(Security.USER_SETTING.getKey(), "elastic:changeme");
-        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
-        return builder.build();
-    }
-
     @Before
     public void setUpData() throws IOException {
-        jobs = new ArrayList<>();
-
         client().admin().indices().prepareCreate(DATA_INDEX)
                 .addMapping(DATA_TYPE, "time", "type=date,format=epoch_millis")
                 .get();
@@ -109,34 +78,28 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
     @After
     public void tearDownData() throws Exception {
         client().admin().indices().prepareDelete(DATA_INDEX).get();
-        for (Job.Builder job : jobs) {
-            DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(job.getId() + "-feed");
-            client().execute(DeleteDatafeedAction.INSTANCE, deleteDatafeedRequest).get();
-            DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(job.getId());
-            client().execute(DeleteJobAction.INSTANCE, deleteJobRequest).get();
-        }
+        cleanUp();
     }
 
     public void testDeleteExpiredData() throws Exception {
-        jobs.add(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(null));
-        jobs.add(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(null));
-        jobs.add(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
-        jobs.add(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
-        jobs.add(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
+        registerJob(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(null));
+        registerJob(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(null));
+        registerJob(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
+        registerJob(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
+        registerJob(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
 
         long now = System.currentTimeMillis();
         long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
-        for (Job.Builder job : jobs) {
-            PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-            client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        for (Job.Builder job : getJobs()) {
+            putJob(job);
 
             String datafeedId = job.getId() + "-feed";
             DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
             datafeedConfig.setIndexes(Arrays.asList(DATA_INDEX));
             datafeedConfig.setTypes(Arrays.asList(DATA_TYPE));
-
-            PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(datafeedConfig.build());
-            client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).get();
+            DatafeedConfig datafeed = datafeedConfig.build();
+            registerDatafeed(datafeed);
+            putDatafeed(datafeed);
 
             // Run up to a day ago
             openJob(job.getId());
@@ -160,7 +123,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
         awaitBusy(() -> false, 1, TimeUnit.SECONDS);
 
-        for (Job.Builder job : jobs) {
+        for (Job.Builder job : getJobs()) {
             // Run up to now
             openJob(job.getId());
             startDatafeed(job.getId() + "-feed", 0, now);
@@ -231,51 +194,6 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         jobBuilder.setDataDescription(dataDescription);
         return jobBuilder;
-    }
-
-    private void openJob(String jobId) throws Exception {
-        OpenJobAction.Request openJobRequest = new OpenJobAction.Request(jobId);
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
-    }
-    private void startDatafeed(String datafeedId, long start, long end) throws Exception {
-        StartDatafeedAction.Request startRequest = new StartDatafeedAction.Request(datafeedId, start);
-        startRequest.setEndTime(end);
-        client().execute(StartDatafeedAction.INSTANCE, startRequest).get();
-    }
-
-    private void waitUntilJobIsClosed(String jobId) throws Exception {
-        assertBusy(() -> {
-            try {
-                GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-                GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).get();
-                assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.CLOSED));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    private List<Bucket> getBuckets(String jobId) throws Exception {
-        GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
-        GetBucketsAction.Response response = client().execute(GetBucketsAction.INSTANCE, request).get();
-        return response.getBuckets().results();
-    }
-
-    private List<AnomalyRecord> getRecords(String jobId) throws Exception {
-        GetRecordsAction.Request request = new GetRecordsAction.Request(jobId);
-        GetRecordsAction.Response response = client().execute(GetRecordsAction.INSTANCE, request).get();
-        return response.getRecords().results();
-    }
-
-    private List<ModelSnapshot> getModelSnapshots(String jobId) throws Exception {
-        GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
-        GetModelSnapshotsAction.Response response = client().execute(GetModelSnapshotsAction.INSTANCE, request).get();
-        return response.getPage().results();
-    }
-
-    @Override
-    protected void ensureClusterStateConsistency() throws IOException {
-        // this method in ESIntegTestCase is not plugin-friendly - it does not account for plugin NamedWritableRegistries
     }
 
     private void retainAllSnapshots(String jobId) throws Exception {

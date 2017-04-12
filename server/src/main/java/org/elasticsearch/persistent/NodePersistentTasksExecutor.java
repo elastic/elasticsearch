@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,10 +34,10 @@ public class NodePersistentTasksExecutor {
         this.threadPool = threadPool;
     }
 
-    public <Request extends PersistentTaskRequest> void executeTask(Request request,
-                                                                    AllocatedPersistentTask task,
-                                                                    PersistentTasksExecutor<Request> action) {
-        threadPool.executor(action.getExecutor()).execute(new AbstractRunnable() {
+    public <Params extends PersistentTaskParams> void executeTask(@Nullable Params params,
+                                                                  AllocatedPersistentTask task,
+                                                                  PersistentTasksExecutor<Params> executor) {
+        threadPool.executor(executor.getExecutor()).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 task.markAsFailed(e);
@@ -46,7 +47,7 @@ public class NodePersistentTasksExecutor {
             @Override
             protected void doRun() throws Exception {
                 try {
-                    action.nodeOperation(task, request);
+                    executor.nodeOperation(task, params);
                 } catch (Exception ex) {
                     task.markAsFailed(ex);
                 }

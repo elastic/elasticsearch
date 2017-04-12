@@ -19,13 +19,14 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.util.function.Predicate;
 
@@ -33,7 +34,7 @@ import java.util.function.Predicate;
  * An executor of tasks that can survive restart of requesting or executing node.
  * These tasks are using cluster state rather than only transport service to send requests and responses.
  */
-public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequest> extends AbstractComponent {
+public abstract class PersistentTasksExecutor<Params extends PersistentTaskParams> extends AbstractComponent {
 
     private final String executor;
     private final String taskName;
@@ -51,11 +52,11 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
     public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
 
     /**
-     * Returns the node id where the request has to be executed,
+     * Returns the node id where the params has to be executed,
      * <p>
      * The default implementation returns the least loaded data node
      */
-    public Assignment getAssignment(Request request, ClusterState clusterState) {
+    public Assignment getAssignment(Params params, ClusterState clusterState) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, DiscoveryNode::isDataNode);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
@@ -88,12 +89,27 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
     }
 
     /**
-     * Checks the current cluster state for compatibility with the request
+     * Checks the current cluster state for compatibility with the params
      * <p>
-     * Throws an exception if the supplied request cannot be executed on the cluster in the current state.
+     * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
      */
-    public void validate(Request request, ClusterState clusterState) {
+    public void validate(Params params, ClusterState clusterState) {
 
+    }
+
+    /**
+     * Creates a AllocatedPersistentTask for communicating with task manager
+     */
+    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+                                                 PersistentTask<Params> taskInProgress) {
+        return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId);
+    }
+
+    /**
+     * Returns task description that will be available via task manager
+     */
+    protected String getDescription(PersistentTask<Params> taskInProgress) {
+        return "id=" + taskInProgress.getId();
     }
 
     /**
@@ -102,7 +118,7 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
      * NOTE: The nodeOperation has to throws an exception, trigger task.markAsCompleted() or task.completeAndNotifyIfNeeded() methods to
      * indicate that the persistent task has finished.
      */
-    protected abstract void nodeOperation(AllocatedPersistentTask task, Request request);
+    protected abstract void nodeOperation(AllocatedPersistentTask task, @Nullable Params params);
 
     public String getExecutor() {
         return executor;

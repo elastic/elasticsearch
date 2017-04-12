@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -59,13 +59,14 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
         int numberOfTasks = randomIntBetween(1, 10);
         String[] taskIds = new String[numberOfTasks];
-        List<PlainActionFuture<PersistentTask<TestRequest>>> futures = new ArrayList<>(numberOfTasks);
+        List<PlainActionFuture<PersistentTask<TestParams>>> futures = new ArrayList<>(numberOfTasks);
 
         for (int i = 0; i < numberOfTasks; i++) {
-            PlainActionFuture<PersistentTask<TestRequest>> future = new PlainActionFuture<>();
+            PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
             futures.add(future);
             taskIds[i] = UUIDs.base64UUID();
-            service.startPersistentTask(taskIds[i], TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
+            service.startPersistentTask(taskIds[i], TestPersistentTasksExecutor.NAME, randomBoolean() ? null : new TestParams("Blah"),
+                    future);
         }
 
         for (int i = 0; i < numberOfTasks; i++) {

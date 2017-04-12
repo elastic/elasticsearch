@@ -41,7 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Builder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         for (int i = 0; i < numberOfTasks; i++) {
             String taskId = UUIDs.base64UUID();
-            tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)),
+            tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)),
                     randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
@@ -80,7 +80,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         return new NamedWriteableRegistry(Arrays.asList(
                 new Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::new),
                 new Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::readDiffFrom),
-                new Entry(PersistentTaskRequest.class, TestPersistentTasksExecutor.NAME, TestRequest::new),
+                new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
                 new Entry(Task.Status.class, Status.NAME, Status::new)
         ));
     }
@@ -151,7 +151,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     private String addRandomTask(Builder builder) {
         String taskId = UUIDs.base64UUID();
-        builder.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestRequest(randomAlphaOfLength(10)), randomAssignment());
+        builder.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)), randomAssignment());
         return taskId;
     }
 
@@ -162,8 +162,8 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(TestPersistentTasksExecutor.NAME),
-                        TestRequest::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
+                        TestParams::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
         ));
     }
@@ -188,14 +188,14 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
         assertEquals(testInstance.tasks().size(), newInstance.tasks().size());
         for (PersistentTask<?> testTask : testInstance.tasks()) {
-            PersistentTask<TestRequest> newTask = (PersistentTask<TestRequest>) newInstance.getTask(testTask.getId());
+            PersistentTask<TestParams> newTask = (PersistentTask<TestParams>) newInstance.getTask(testTask.getId());
             assertNotNull(newTask);
 
             // Things that should be serialized
             assertEquals(testTask.getTaskName(), newTask.getTaskName());
             assertEquals(testTask.getId(), newTask.getId());
             assertEquals(testTask.getStatus(), newTask.getStatus());
-            assertEquals(testTask.getRequest(), newTask.getRequest());
+            assertEquals(testTask.getParams(), newTask.getParams());
 
             // Things that shouldn't be serialized
             assertEquals(0, newTask.getAllocationId());

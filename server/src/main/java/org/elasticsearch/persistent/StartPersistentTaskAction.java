@@ -11,6 +11,10 @@
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.elasticsearch.persistent;
 
@@ -27,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,14 +48,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.
  */
-public class CreatePersistentTaskAction extends Action<CreatePersistentTaskAction.Request,
+public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.Request,
         PersistentTaskResponse,
-        CreatePersistentTaskAction.RequestBuilder> {
+        StartPersistentTaskAction.RequestBuilder> {
 
-    public static final CreatePersistentTaskAction INSTANCE = new CreatePersistentTaskAction();
-    public static final String NAME = "cluster:admin/persistent/create";
+    public static final StartPersistentTaskAction INSTANCE = new StartPersistentTaskAction();
+    public static final String NAME = "cluster:admin/persistent/start";
 
-    private CreatePersistentTaskAction() {
+    private StartPersistentTaskAction() {
         super(NAME);
     }
 
@@ -68,18 +73,19 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         private String taskId;
 
+        @Nullable
         private String action;
 
-        private PersistentTaskRequest request;
+        private PersistentTaskParams params;
 
         public Request() {
 
         }
 
-        public Request(String taskId, String action, PersistentTaskRequest request) {
+        public Request(String taskId, String action, PersistentTaskParams params) {
             this.taskId = taskId;
             this.action = action;
-            this.request = request;
+            this.params = params;
         }
 
         @Override
@@ -87,7 +93,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             super.readFrom(in);
             taskId = in.readString();
             action = in.readString();
-            request = in.readNamedWriteable(PersistentTaskRequest.class);
+            params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
         }
 
         @Override
@@ -95,7 +101,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(action);
-            out.writeNamedWriteable(request);
+            out.writeOptionalNamedWriteable(params);
         }
 
         @Override
@@ -107,9 +113,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             if (this.action == null) {
                 validationException = addValidationError("action must be specified", validationException);
             }
-            if (this.request == null) {
-                validationException = addValidationError("request must be specified", validationException);
-            }
             return validationException;
         }
 
@@ -119,12 +122,12 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             if (o == null || getClass() != o.getClass()) return false;
             Request request1 = (Request) o;
             return Objects.equals(taskId, request1.taskId) && Objects.equals(action, request1.action) &&
-                    Objects.equals(request, request1.request);
+                    Objects.equals(params, request1.params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskId, action, request);
+            return Objects.hash(taskId, action, params);
         }
 
         public String getAction() {
@@ -143,20 +146,21 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             this.taskId = taskId;
         }
 
-        public PersistentTaskRequest getRequest() {
-            return request;
+        public PersistentTaskParams getParams() {
+            return params;
         }
 
-        public void setRequest(PersistentTaskRequest request) {
-            this.request = request;
+        @Nullable
+        public void setParams(PersistentTaskParams params) {
+            this.params = params;
         }
 
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CreatePersistentTaskAction.Request,
-            PersistentTaskResponse, CreatePersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<StartPersistentTaskAction.Request,
+            PersistentTaskResponse, StartPersistentTaskAction.RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, CreatePersistentTaskAction action) {
+        protected RequestBuilder(ElasticsearchClient client, StartPersistentTaskAction action) {
             super(client, action, new Request());
         }
 
@@ -170,8 +174,8 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             return this;
         }
 
-        public RequestBuilder setRequest(PersistentTaskRequest persistentTaskRequest) {
-            request.setRequest(persistentTaskRequest);
+        public RequestBuilder setRequest(PersistentTaskParams params) {
+            request.setParams(params);
             return this;
         }
 
@@ -188,7 +192,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
                                PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
                                PersistentTasksService persistentTasksService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, CreatePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
@@ -215,7 +219,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         @Override
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.createPersistentTask(request.taskId, request.action, request.request,
+            persistentTasksClusterService.createPersistentTask(request.taskId, request.action, request.params,
                     new ActionListener<PersistentTask<?>>() {
 
                 @Override

@@ -69,6 +69,9 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
                 return false;
             }
             count = coll.size();
+            if (count == 0) {
+                return false;
+            }
             grow();
             int i = 0;
             for (Object v : coll) {

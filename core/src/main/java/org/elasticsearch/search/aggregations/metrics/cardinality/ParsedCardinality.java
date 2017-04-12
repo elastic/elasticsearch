@@ -33,7 +33,8 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
 
     @Override
     public String getValueAsString() {
-        // for some reason, InternalCardinality formats the double value
+        // InternalCardinality doesn't print "value_as_string", but you can get a formated value using
+        // getValueAsString(). That method uses the raw formatter so we also use it here.
         return DocValueFormat.RAW.format((double) cardinalityValue);
     }
 

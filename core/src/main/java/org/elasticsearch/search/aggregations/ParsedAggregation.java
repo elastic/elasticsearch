@@ -38,7 +38,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
                 (parser, context) -> parser.map(), InternalAggregation.CommonFields.META);
     }
 
-    String name;
+    private String name;
     Map<String, Object> metadata;
 
     @Override

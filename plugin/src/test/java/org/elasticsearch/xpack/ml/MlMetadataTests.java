@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
@@ -27,13 +26,12 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 
-import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
+import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
@@ -150,10 +148,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
-        PersistentTask<OpenJobAction.Request> task = createJobTask("1", null, JobState.CLOSED, 0L);
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask("1", null, JobState.CLOSED, tasksBuilder);
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> builder2.deleteJob("1", new PersistentTasksCustomMetaData(0L, Collections.singletonMap("job-1", task))));
+                () -> builder2.deleteJob("1", tasksBuilder.build()));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
@@ -271,11 +270,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         builder.putDatafeed(datafeedConfig1);
         MlMetadata beforeMetadata = builder.build();
 
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
-        PersistentTask<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTask<>("datafeed-datafeed1", StartDatafeedAction.NAME, request, 0L, INITIAL_ASSIGNMENT);
-        PersistentTasksCustomMetaData tasksInProgress =
-                new PersistentTasksCustomMetaData(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed1"), StartDatafeedAction.NAME, request, INITIAL_ASSIGNMENT);
+        PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
         update.setScrollSize(5000);
@@ -333,11 +331,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getJobs().get("job_id"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
-        PersistentTask<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTask<>("datafeed-datafeed1", StartDatafeedAction.NAME, request, 0L, INITIAL_ASSIGNMENT);
-        PersistentTasksCustomMetaData tasksInProgress =
-                new PersistentTasksCustomMetaData(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed1"), StartDatafeedAction.NAME, request, INITIAL_ASSIGNMENT);
+        PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,

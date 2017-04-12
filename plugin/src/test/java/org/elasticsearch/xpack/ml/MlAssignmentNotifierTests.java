@@ -16,18 +16,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.net.InetAddress;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
+import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -50,12 +45,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                         new PersistentTasksCustomMetaData(0L, Collections.emptyMap())))
                 .build();
 
-        Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        tasks.put("0L", new PersistentTask<PersistentTaskParams>("0L", OpenJobAction.NAME,
-                new OpenJobAction.Request("job_id"), 0L, new Assignment("node_id", "")));
-
-        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
-                new PersistentTasksCustomMetaData(0L, tasks)).build();
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", "node_id", null, tasksBuilder);
+        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
                 .metaData(metaData)
                 .nodes(DiscoveryNodes.builder().add(node))
@@ -79,12 +71,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                         new PersistentTasksCustomMetaData(0L, Collections.emptyMap())))
                 .build();
 
-        Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        tasks.put("0L", new PersistentTask<PersistentTaskParams>("0L", OpenJobAction.NAME,
-                new OpenJobAction.Request("job_id"), 0L, new Assignment(null, "no nodes")));
-
-        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
-                new PersistentTasksCustomMetaData(0L, tasks)).build();
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", null, null, tasksBuilder);
+        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
                 .metaData(metaData)
                 .build();

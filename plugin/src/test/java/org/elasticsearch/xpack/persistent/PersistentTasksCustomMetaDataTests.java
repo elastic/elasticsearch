@@ -74,7 +74,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
-        Builder builder = new Builder((PersistentTasksCustomMetaData) testInstance);
+        Builder builder = PersistentTasksCustomMetaData.builder((PersistentTasksCustomMetaData) testInstance);
         switch (randomInt(3)) {
             case 0:
                 addRandomTask(builder);
@@ -196,9 +196,9 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         for (int i = 0; i < randomIntBetween(10, 100); i++) {
             final Builder builder;
             if (randomBoolean()) {
-                builder = new Builder();
+                builder = PersistentTasksCustomMetaData.builder();
             } else {
-                builder = new Builder(persistentTasks);
+                builder = PersistentTasksCustomMetaData.builder(persistentTasks);
             }
             boolean changed = false;
             for (int j = 0; j < randomIntBetween(1, 10); j++) {

@@ -486,7 +486,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         return lastAllocationId;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("last_allocation_id", lastAllocationId);
@@ -511,16 +510,20 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         private long lastAllocationId;
         private boolean changed;
 
-        public Builder() {
+        private Builder() {
         }
 
-        public Builder(PersistentTasksCustomMetaData tasksInProgress) {
+        private Builder(PersistentTasksCustomMetaData tasksInProgress) {
             if (tasksInProgress != null) {
                 tasks.putAll(tasksInProgress.tasks);
                 lastAllocationId = tasksInProgress.lastAllocationId;
             } else {
                 lastAllocationId = 0;
             }
+        }
+
+        public long getLastAllocationId() {
+            return lastAllocationId;
         }
 
         private Builder setLastAllocationId(long currentId) {

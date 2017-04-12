@@ -53,20 +53,20 @@ processed record, that value is ignored.
 ===== Path Parameters
 
 `feed_id` (required)::
-(+string+) Identifier for the data feed
+(string) Identifier for the data feed
 
 ===== Request Body
 
 `end`::
-  (+string+) The time that the data feed should end. This value is exclusive.
+  (string) The time that the data feed should end. This value is exclusive.
   The default value is an empty string.
 
 `start`::
-  (+string+) The time that the data feed should begin. This value is inclusive.
+  (string) The time that the data feed should begin. This value is inclusive.
   The default value is an empty string.
 
 `timeout`::
-  (+time+) Controls the amount of time to wait until a data feed starts.
+  (time) Controls the amount of time to wait until a data feed starts.
   The default value is 20 seconds.
 
 ////

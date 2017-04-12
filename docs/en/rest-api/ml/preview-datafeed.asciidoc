@@ -17,7 +17,7 @@ The API returns example data by using the current data feed settings.
 ===== Path Parameters
 
 `feed_id` (required)::
-  (+string+) Identifier for the data feed
+  (string) Identifier for the data feed
 
 ////
 ===== Request Body

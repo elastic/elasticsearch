@@ -17,15 +17,15 @@ The get jobs API enables you to retrieve configuration information for jobs.
 ===== Path Parameters
 
 `job_id`::
-  (+string+) Identifier for the job. If you do not specify this optional parameter,
+  (string) Identifier for the job. If you do not specify this optional parameter,
   the API returns information about all jobs that you have authority to view.
 
 ===== Results
 
-he API returns the following information:
+The API returns the following information:
 
 `jobs`::
-  (+array+) An array of job resources.
+  (array) An array of job resources.
   For more information, see <<ml-job-resource,Job Resources>>.
 
 ////

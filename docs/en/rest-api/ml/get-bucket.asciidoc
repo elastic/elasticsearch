@@ -18,46 +18,46 @@ This API presents a chronological view of the records, grouped by bucket.
 ===== Path Parameters
 
 `job_id`::
-  (+string+) Identifier for the job
+  (string) Identifier for the job
 
 `timestamp`::
-  (+string+) The timestamp of a single bucket result.
+  (string) The timestamp of a single bucket result.
   If you do not specify this optional parameter, the API returns information
   about all buckets that you have authority to view in the job.
 
 ===== Request Body
 
 `anomaly_score`::
-  (+double+) Returns buckets with anomaly scores higher than this value.
+  (double) Returns buckets with anomaly scores higher than this value.
 
 `end`::
-  (+string+) Returns buckets with timestamps earlier than this time.
+  (string) Returns buckets with timestamps earlier than this time.
 
 `expand`::
-  (+boolean+) If true, the output includes anomaly records.
+  (boolean) If true, the output includes anomaly records.
 
 `from`::
-  (+integer+) Skips the specified number of buckets.
+  (integer) Skips the specified number of buckets.
 
 `include_interim`::
-  (+boolean+) If true, the output includes interim results.
+  (boolean) If true, the output includes interim results.
 
 `partition_value`::
-  (+string+) If `expand` is true, the anomaly records are filtered by this
+  (string) If `expand` is true, the anomaly records are filtered by this
   partition value.
 
 `size`::
-  (+integer+) Specifies the maximum number of buckets to obtain.
+  (integer) Specifies the maximum number of buckets to obtain.
 
 `start`::
-  (+string+) Returns buckets with timestamps after this time.
+  (string) Returns buckets with timestamps after this time.
 
 ===== Results
 
 The API returns the following information:
 
 `buckets`::
-  (+array+) An array of bucket objects. For more information, see
+  (array) An array of bucket objects. For more information, see
   <<ml-results-buckets,Buckets>>.
 
 ////

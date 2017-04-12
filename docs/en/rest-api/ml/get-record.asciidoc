@@ -15,49 +15,49 @@ The get records API enables you to retrieve anomaly records for a job.
 ===== Path Parameters
 
 `job_id`::
-  (+string+) Identifier for the job.
+  (string) Identifier for the job.
 
 ===== Request Body
 
 `desc`::
-  (+boolean+) If true, the results are sorted in descending order.
+  (boolean) If true, the results are sorted in descending order.
 
 `end`::
-  (+string+) Returns records with timestamps earlier than this time.
+  (string) Returns records with timestamps earlier than this time.
 
 `expand`::
-  (+boolean+) TBD
+  (boolean) TBD
 //This field did not work on older build.
 
 `from`::
-  (+integer+) Skips the specified number of records.
+  (integer) Skips the specified number of records.
 
 `include_interim`::
-  (+boolean+) If true, the output includes interim results.
+  (boolean) If true, the output includes interim results.
 
 `partition_value`::
-  (+string+) If `expand` is true, the records are filtered by this
+  (string) If `expand` is true, the records are filtered by this
   partition value.
 
 `record_score`::
-  (+double+) Returns records with anomaly scores higher than this value.
+  (double) Returns records with anomaly scores higher than this value.
 
 `size`::
-  (+integer+) Specifies the maximum number of records to obtain.
+  (integer) Specifies the maximum number of records to obtain.
 
 `sort`::
-  (+string+) Specifies the sort field for the requested records.
+  (string) Specifies the sort field for the requested records.
   By default, the records are sorted by the `anomaly_score` value.
 
 `start`::
-  (+string+) Returns records with timestamps after this time.
+  (string) Returns records with timestamps after this time.
 
 ===== Results
 
 The API returns the following information:
 
 `records`::
-  (+array+) An array of record objects. For more information, see
+  (array) An array of record objects. For more information, see
   <<ml-results-records,Records>>.
 
 ////

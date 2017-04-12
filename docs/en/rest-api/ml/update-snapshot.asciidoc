@@ -19,20 +19,20 @@ and new data has been sent to it.
 ===== Path Parameters
 
 `job_id` (required)::
-  (+string+) Identifier for the job
+  (string) Identifier for the job
 
 `snapshot_id` (required)::
-  (+string+) Identifier for the model snapshot
+  (string) Identifier for the model snapshot
 
 ===== Request Body
 
 The following properties can be updated after the model snapshot is created:
 
 `description`::
-  (+string+) An optional description of the model snapshot.
+  (string) An optional description of the model snapshot.
 
 `retain`::
-  (+boolean+) TBD.
+  (boolean) TBD.
 
 ////
 ===== Responses

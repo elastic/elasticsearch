@@ -15,42 +15,42 @@ in a job.
 ===== Path Parameters
 
 `job_id`::
-  (+string+) Identifier for the job.
+  (string) Identifier for the job.
 
 ===== Request Body
 
 `desc`::
-  (+boolean+) If true, the results are sorted in descending order.
+  (boolean) If true, the results are sorted in descending order.
 //TBD: Using the "sort" value?
 
 `end`::
-  (+string+) Returns influencers with timestamps earlier than this time.
+  (string) Returns influencers with timestamps earlier than this time.
 
 `from`::
-  (+integer+) Skips the specified number of influencers.
+  (integer) Skips the specified number of influencers.
 
 `include_interim`::
-  (+boolean+) If true, the output includes interim results.
+  (boolean) If true, the output includes interim results.
 
 `influencer_score`::
-  (+double+) Returns influencers with anomaly scores higher than this value.
+  (double) Returns influencers with anomaly scores higher than this value.
 
 `size`::
-  (+integer+) Specifies the maximum number of influencers to obtain.
+  (integer) Specifies the maximum number of influencers to obtain.
 
 `sort`::
-  (+string+) Specifies the sort field for the requested influencers.
+  (string) Specifies the sort field for the requested influencers.
 //TBD: By default the results are sorted on the influencer score?
 
 `start`::
-  (+string+) Returns influencers with timestamps after this time.
+  (string) Returns influencers with timestamps after this time.
 
 ===== Results
 
 The API returns the following information:
 
 `influencers`::
-  (+array+) An array of influencer objects.
+  (array) An array of influencer objects.
   For more information, see <<ml-results-influencers,Influencers>>.
 
 ////

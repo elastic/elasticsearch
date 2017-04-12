@@ -19,10 +19,10 @@ first revert to a different one.
 ===== Path Parameters
 
 `job_id` (required)::
-  (+string+) Identifier for the job
+  (string) Identifier for the job
 
 `snapshot_id` (required)::
-  (+string+) Identifier for the model snapshot
+  (string) Identifier for the model snapshot
 ////
 ===== Responses
 

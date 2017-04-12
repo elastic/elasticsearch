@@ -15,31 +15,31 @@ The create job API enables you to instantiate a job.
 ===== Path Parameters
 
 `job_id` (required)::
-  (+string+) Identifier for the job
+  (string) Identifier for the job
 
 
 ===== Request Body
 
 `analysis_config`::
-  (+object+) The analysis configuration, which specifies how to analyze the data.
+  (object) The analysis configuration, which specifies how to analyze the data.
   See <<ml-analysisconfig, analysis configuration objects>>.
 
 `analysis_limits`::
   Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
 
 `data_description`::
-  (+object+) Describes the format of the input data.
+  (object) Describes the format of the input data.
   See <<ml-datadescription,data description objects>>.
 
 `description`::
-  (+string+) An optional description of the job.
+  (string) An optional description of the job.
 
 `model_snapshot_retention_days`::
-  (+long+) The time in days that model snapshots are retained for the job.
+  (long) The time in days that model snapshots are retained for the job.
   Older snapshots are deleted. The default value is 1 day.
 
 `results_index_name`::
-  (+string+) TBD.  For example, `shared`.
+  (string) TBD.  For example, `shared`.
 
 ////
 ===== Responses

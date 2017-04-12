@@ -15,40 +15,40 @@ The update data feed API enables you to update certain properties of a data feed
 ===== Path Parameters
 
 `feed_id` (required)::
-  (+string+) Identifier for the data feed
+  (string) Identifier for the data feed
 
 ===== Request Body
 
 The following properties can be updated after the data feed is created:
 
 `aggregations`::
-  (+object+) TBD.
+  (object) TBD.
 
 `chunking_config`::
-  (+object+) TBD.
+  (object) TBD.
   For example: {"mode": "manual", "time_span": "30000000ms"}
 
 `frequency`::
-   TBD: For example: "150s"
+  () TBD: For example: "150s"
 
 `indexes` (required)::
-  (+array+) An array of index names. For example: ["it_ops_metrics"]
+  (array) An array of index names. For example: ["it_ops_metrics"]
 
 `job_id`::
- (+string+) A numerical character string that uniquely identifies the job.
+ (string) A numerical character string that uniquely identifies the job.
 
 `query`::
-  (+object+) The query that retrieves the data.
+  (object) The query that retrieves the data.
   By default, this property has the following value: `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  TBD. For example: "60s"
+  () TBD. For example: "60s"
 
 `scroll_size`::
-  TBD. For example, 1000
+  () TBD. For example, 1000
 
 `types` (required)::
-  TBD. For example: ["network","sql","kpi"]
+  () TBD. For example: ["network","sql","kpi"]
 
 For more information about these properties,
 see <<ml-datafeed-resource, Data Feed Resources>>.

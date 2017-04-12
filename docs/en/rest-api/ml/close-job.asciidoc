@@ -28,12 +28,12 @@ operations, but you can still explore and navigate results.
 ===== Path Parameters
 
 `job_id` (required)::
-  (+string+) Identifier for the job
+  (string) Identifier for the job
 
 ===== Query Parameters
 
 `close_timeout`::
-  (+time+) Controls the time to wait until a job has closed.
+  (time) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
 
 ////

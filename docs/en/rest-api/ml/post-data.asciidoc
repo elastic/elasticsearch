@@ -25,15 +25,15 @@ or a comma separated list.
 ===== Path Parameters
 
 `job_id` (required)::
-		(+string+)    Identifier for the job
+		(string)    Identifier for the job
 
 ===== Request Body
 
 `reset_start`::
-		(+string+) Specifies the start of the bucket resetting range
+		(string) Specifies the start of the bucket resetting range
 
 `reset_end`::
-		(+string+) Specifies the end of the bucket resetting range"
+		(string) Specifies the end of the bucket resetting range"
 
 ////
 ===== Responses

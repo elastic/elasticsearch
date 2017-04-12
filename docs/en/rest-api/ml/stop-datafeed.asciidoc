@@ -16,15 +16,15 @@ A data feed can be opened and closed multiple times throughout its lifecycle.
 ===== Path Parameters
 
 `feed_id` (required)::
-  (+string+) Identifier for the data feed
+  (string) Identifier for the data feed
 
 ===== Request Body
 
 `force`::
-  (+boolean+) If true, the data feed is stopped forcefully.
+  (boolean) If true, the data feed is stopped forcefully.
 
 `timeout`::
-  (+time+) Controls the amount of time to wait until a data feed stops.
+  (time) Controls the amount of time to wait until a data feed stops.
   The default value is 20 seconds.
 
 ////

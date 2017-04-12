@@ -33,23 +33,23 @@ the anomaly records into buckets.
 A record object has the following properties:
 
 `actual`::
-  (+number+) The actual value for the bucket.
+  (number) The actual value for the bucket.
 
 `bucket_span`::
-  (+number+) The length of the bucket in seconds.
+  (number) The length of the bucket in seconds.
   This value matches the `bucket_span` that is specified in the job.
 
 //`byFieldName`::
 //TBD: This field did not appear in my results, but it might be a valid property.
-// (+string+) The name of the analyzed field, if it was specified in the detector.
+// (string) The name of the analyzed field, if it was specified in the detector.
 
 //`byFieldValue`::
 //TBD: This field did not appear in my results, but it might be a valid property.
-// (+string+) The value of `by_field_name`, if it was specified in the detecter.
+// (string) The value of `by_field_name`, if it was specified in the detecter.
 
 //`causes`
 //TBD: This field did not appear in my results, but it might be a valid property.
-// (+array+) If an over field was specified in the detector, this property
+// (array) If an over field was specified in the detector, this property
 // contains an array of anomaly records that are the causes for the anomaly
 // that has been identified for the over field.
 // If no over fields exist. this field will not be present.
@@ -62,76 +62,76 @@ A record object has the following properties:
 // Probability and scores are not applicable to causes.
 
 `detector_index`::
-  (+number+) A unique identifier for the detector.
+  (number) A unique identifier for the detector.
 
 `field_name`::
-  (+string+) Certain functions require a field to operate on.
+  (string) Certain functions require a field to operate on.
   For those functions, this is the name of the field to be analyzed.
 
 `function`::
-  (+string+) The function in which the anomaly occurs.
+  (string) The function in which the anomaly occurs.
 
 `function_description`::
-  (+string+) The description of the function in which the anomaly occurs, as
+  (string) The description of the function in which the anomaly occurs, as
   specified in the detector configuration information.
 
 `influencers`::
- (+array+) If `influencers` was specified in the detector configuration, then
+ (array) If `influencers` was specified in the detector configuration, then
  this array contains influencers that contributed to or were to blame for an
  anomaly.
 
 `initial_record_score`::
-  (++) TBD. For example, 94.1386.
+  () TBD. For example, 94.1386.
 
 `is_interim`::
-  (+boolean+) If true, then this anomaly record is an interim result.
+  (boolean) If true, then this anomaly record is an interim result.
   In other words, it is calculated based on partial input data
 
 `job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
+  (string) A numerical character string that uniquely identifies the job.
 
 //`kpi_indicator`::
-//  (++) TBD. For example, ["online_purchases"]
+//  () TBD. For example, ["online_purchases"]
 // I did not receive this in later tests. Is it still valid?
 
 `partition_field_name`::
-  (+string+) The name of the partition field that was used in the analysis, if
+  (string) The name of the partition field that was used in the analysis, if
   such a field was specified in the detector.
 
 //`overFieldName`::
 //  TBD: This field did not appear in my results, but it might be a valid property.
-//  (+string+) The name of the over field, if `over_field_name` was specified
+//  (string) The name of the over field, if `over_field_name` was specified
 // in the detector.
 
 `partition_field_value`::
-  (+string+) The value of the partition field that was used in the analysis, if
+  (string) The value of the partition field that was used in the analysis, if
   `partition_field_name` was specified in the detector.
 
 `probability`::
-  (+number+) The probability of the individual anomaly occurring.
+  (number) The probability of the individual anomaly occurring.
   This value is in the range 0 to 1. For example, 0.0000772031.
 //This value is held to a high precision of over 300 decimal places.
 //In scientific notation, a value of 3.24E-300 is highly unlikely and therefore
 //highly anomalous.
 
 `record_score`::
-  (+number+) An anomaly score for the bucket time interval.
+  (number) An anomaly score for the bucket time interval.
   The score is calculated based on a sophisticated aggregation of the anomalies
   in the bucket.
 //Use this score for rate-controlled alerting.
 
 `result_type`::
-  (+string+) TBD. For example, "record".
+  (string) TBD. For example, "record".
 
 `sequence_num`::
-  (++) TBD. For example, 1.
+  () TBD. For example, 1.
 
 `timestamp`::
-  (+date+) The start time of the bucket that contains the record, specified in
+  (date) The start time of the bucket that contains the record, specified in
   ISO 8601 format. For example, 1454020800000.
 
 `typical`::
-  (+number+) The typical value for the bucket, according to analytical modeling.
+  (number) The typical value for the bucket, according to analytical modeling.
 
 [float]
 [[ml-results-influencers]]
@@ -150,99 +150,99 @@ records that contain this influencer.
 An influencer object has the following properties:
 
 `bucket_span`::
-  (++) TBD. For example, 300.
+  () TBD. For example, 300.
 
-// Same as for buckets? i.e. (+unsigned integer+) The length of the bucket in seconds.
+// Same as for buckets? i.e. (unsigned integer) The length of the bucket in seconds.
 // This value is equal to the `bucket_span` value in the job configuration.
 
 `influencer_score`::
-  (+number+) An anomaly score for the influencer in this bucket time interval.
+  (number) An anomaly score for the influencer in this bucket time interval.
   The score is calculated based upon a sophisticated aggregation of the anomalies
   in the bucket for this entity. For example: 94.1386.
 
 `initial_influencer_score`::
-  (++) TBD. For example, 83.3831.
+  () TBD. For example, 83.3831.
 
 `influencer_field_name`::
-  (+string+) The field name of the influencer.
+  (string) The field name of the influencer.
 
 `influencer_field_value`::
-  (+string+) The entity that influenced, contributed to, or was to blame for the
+  (string) The entity that influenced, contributed to, or was to blame for the
   anomaly.
 
 `is_interim`::
-  (+boolean+) If true, then this is an interim result.
+  (boolean) If true, then this is an interim result.
   In other words, it is calculated based on partial input data.
 
 `job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
+  (string) A numerical character string that uniquely identifies the job.
 
 `kpi_indicator`::
-  (++) TBD. For example, "online_purchases".
+  () TBD. For example, "online_purchases".
 
 `probability`::
-  (+number+) The probability that the influencer has this behavior.
+  (number) The probability that the influencer has this behavior.
   This value is in the range 0 to 1. For example, 0.0000109783.
 // For example, 0.03 means 3%. This value is held to a high precision of over
 //300 decimal places. In scientific notation, a value of 3.24E-300 is highly
 //unlikely and therefore highly anomalous.
 
 `result_type`::
-  (++) TBD. For example, "influencer".
+  () TBD. For example, "influencer".
 
 `sequence_num`::
-  (++) TBD. For example, 2.
+  () TBD. For example, 2.
 
 `timestamp`::
-  (+date+) Influencers are produced in buckets. This value is the start time
+  (date) Influencers are produced in buckets. This value is the start time
   of the bucket, specified in ISO 8601 format. For example, 1454943900000.
 
 An bucket influencer object has the same following properties:
 
 `anomaly_score`::
-  (+number+) TBD
+  (number) TBD
 //It is unclear how this differs from the influencer_score.
 //An anomaly score for the influencer in this bucket time interval.
 //The score is calculated based upon a sophisticated aggregation of the anomalies
 //in the bucket for this entity. For example: 94.1386.
 
 `bucket_span`::
-  (++) TBD. For example, 300.
+  () TBD. For example, 300.
 ////
-// Same as for buckets? i.e. (+unsigned integer+) The length of the bucket in seconds.
+// Same as for buckets? i.e. (unsigned integer) The length of the bucket in seconds.
 // This value is equal to the `bucket_span` value in the job configuration.
 ////
 `initial_anomaly_score`::
-  (++) TBD. For example, 83.3831.
+  () TBD. For example, 83.3831.
 
 `influencer_field_name`::
-  (+string+) The field name of the influencer.
+  (string) The field name of the influencer.
 
 `is_interim`::
-  (+boolean+) If true, then this is an interim result.
+  (boolean) If true, then this is an interim result.
   In other words, it is calculated based on partial input data.
 
 `job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
+  (string) A numerical character string that uniquely identifies the job.
 
 `probability`::
-  (+number+) The probability that the influencer has this behavior.
+  (number) The probability that the influencer has this behavior.
   This value is in the range 0 to 1. For example, 0.0000109783.
 // For example, 0.03 means 3%. This value is held to a high precision of over
 //300 decimal places. In scientific notation, a value of 3.24E-300 is highly
 //unlikely and therefore highly anomalous.
 
 `raw_anomaly_score`::
-  (++) TBD. For example, 2.32119.
+  () TBD. For example, 2.32119.
 
 `result_type`::
-  (++) TBD. For example, "bucket_influencer".
+  () TBD. For example, "bucket_influencer".
 
 `sequence_num`::
-  (++) TBD. For example, 2.
+  () TBD. For example, 2.
 
 `timestamp`::
-  (+date+) Influencers are produced in buckets. This value is the start time
+  (date) Influencers are produced in buckets. This value is the start time
   of the bucket, specified in ISO 8601 format. For example, 1454943900000.
 
 [float]
@@ -270,48 +270,48 @@ accessing the records resource directly and filtering upon date range.
 A bucket resource has the following properties:
 
 `anomaly_score`::
-  (+number+) The aggregated and normalized anomaly score.
+  (number) The aggregated and normalized anomaly score.
   All the anomaly records in the bucket contribute to this score.
 
 `bucket_influencers`::
-  (+array+) An array of influencer objects.
+  (array) An array of influencer objects.
   For more information, see <<ml-results-influencers,Influencers>>.
 
 `bucket_span`::
-  (+unsigned integer+) The length of the bucket in seconds. This value is
+  (unsigned integer) The length of the bucket in seconds. This value is
   equal to the `bucket_span` value in the job configuration.
 
 `event_count`::
-  (+unsigned integer+) The number of input data records processed in this bucket.
+  (unsigned integer) The number of input data records processed in this bucket.
 
 `initial_anomaly_score`::
-  (+number+) The value of `anomaly_score` at the time the bucket result was
+  (number) The value of `anomaly_score` at the time the bucket result was
   created. This is normalized based on data which has already been seen;
   this is not re-normalized and therefore is not adjusted for more recent data.
 //TBD. This description is unclear.
 
 `is_interim`::
-  (+boolean+) If true, then this bucket result is an interim result.
+  (boolean) If true, then this bucket result is an interim result.
   In other words, it is calculated based on partial input data.
 
 `job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
+  (string) A numerical character string that uniquely identifies the job.
 
 `partition_scores`::
-  (+TBD+) TBD. For example, [].
+  (TBD) TBD. For example, [].
 
 `processing_time_ms`::
-  (+unsigned integer+) The time in milliseconds taken to analyze the bucket
+  (unsigned integer) The time in milliseconds taken to analyze the bucket
   contents and produce results.
 
 `record_count`::
-  (+unsigned integer+) The number of anomaly records in this bucket.
+  (unsigned integer) The number of anomaly records in this bucket.
 
 `result_type`::
-  (+string+) TBD. For example, "bucket".
+  (string) TBD. For example, "bucket".
 
 `timestamp`::
-  (+date+) The start time of the bucket, specified in ISO 8601 format.
+  (date) The start time of the bucket, specified in ISO 8601 format.
   For example, 1454020800000. This timestamp uniquely identifies the bucket.
 
 NOTE: Events that occur exactly at the timestamp of the bucket are included in
@@ -329,24 +329,24 @@ values.
 A category resource has the following properties:
 
 `category_id`::
-  (+unsigned integer+) A unique identifier for the category.
+  (unsigned integer) A unique identifier for the category.
 
 `examples`::
-  (+array+) A list of examples of actual values that matched the category.
+  (array) A list of examples of actual values that matched the category.
 
 `job_id`::
-  (+string+) A numerical character string that uniquely identifies the job.
+  (string) A numerical character string that uniquely identifies the job.
 
 `max_matching_length`::
-  (+unsigned integer+) The maximum length of the fields that matched the
+  (unsigned integer) The maximum length of the fields that matched the
   category.
 //TBD: Still true? "The value is increased by 10% to enable matching for
 //similar fields that have not been analyzed"
 
 `regex`::
-  (+string+) A regular expression that is used to search for values that match
+  (string) A regular expression that is used to search for values that match
   the category.
 
 `terms`::
-  (+string+) A space separated list of the common tokens that are matched in
+  (string) A space separated list of the common tokens that are matched in
   values of the category.

@@ -25,7 +25,7 @@ It is not currently possible to delete multiple jobs using wildcards or a comma 
 ===== Path Parameters
 
 `job_id` (required)::
-  (+string+)    Identifier for the job
+  (string)    Identifier for the job
 
 ////
 ===== Responses

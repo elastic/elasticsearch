@@ -19,7 +19,7 @@ If the data feed is stopped, the only information you receive is the
 ===== Path Parameters
 
 `feed_id`::
-  (+string+) Identifier for the data feed.
+  (string) Identifier for the data feed.
   If you do not specify this optional parameter, the API returns information
   about all data feeds that you have authority to view.
 
@@ -28,7 +28,7 @@ If the data feed is stopped, the only information you receive is the
 The API returns the following information:
 
 `datafeeds`::
-  (+array+) An array of data feed count objects.
+  (array) An array of data feed count objects.
   For more information, see <<ml-datafeed-counts,Data Feed Counts>>.
 
 ////

@@ -19,23 +19,23 @@ A close operation additionally prunes and persists the model state to disk and t
 ===== Path Parameters
 
 `job_id` (required)::
-( +string+)    Identifier for the job
+(string)    Identifier for the job
 
 ===== Query Parameters
 
 `advance_time`::
-  (+string+) Specifies that no data prior to the date `advance_time` is expected.
+  (string) Specifies that no data prior to the date `advance_time` is expected.
 
 `end`::
-  (+string+) When used in conjunction with `calc_interim`, specifies the range
+  (string) When used in conjunction with `calc_interim`, specifies the range
   of buckets on which to calculate interim results.
 
 `calc_interim`::
-  (+boolean+) If true, calculates the interim results for the most recent bucket
+  (boolean) If true, calculates the interim results for the most recent bucket
   or all buckets within the latency period.
 
 `start`::
-  (+string+) When used in conjunction with `calc_interim`, specifies the range of
+  (string) When used in conjunction with `calc_interim`, specifies the range of
   buckets on which to calculate interim results.
 
 ////

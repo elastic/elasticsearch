@@ -96,7 +96,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
                 CloseJobAction.Response closeResponse = client().execute(CloseJobAction.INSTANCE, closeRequest).actionGet();
                 assertTrue(closeResponse.isClosed());
-                client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+                client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
                     for (Client client : clients()) {
                         GetJobsStatsAction.Response statsResponse =

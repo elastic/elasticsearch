@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -414,7 +415,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(jobId);
             if (stats.isPresent()) {
-                PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+                PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
                 DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
                 JobState jobState = MlMetadata.getJobState(jobId, tasks);
                 String assignmentExplanation = pTask.getAssignment().getExplanation();
@@ -445,7 +446,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 int slot = i;
                 String jobId = jobIds.get(i);
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
-                    JobState jobState = MlMetadata.getJobState(request.jobId, tasks);
+                    JobState jobState = MlMetadata.getJobState(jobId, tasks);
                     PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
                     if (pTask != null) {

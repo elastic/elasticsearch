@@ -65,9 +65,6 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
             }
         } else if (value instanceof Collection) {
             final Collection<?> coll = (Collection<?>) value;
-            if (coll.isEmpty()) {
-                return false;
-            }
             count = coll.size();
             if (count == 0) {
                 return false;

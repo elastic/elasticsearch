@@ -435,10 +435,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final SortedSetDocValues inner;
         private final LongBitSet accepted;
 
-        private int cardinality;
-        private long[] ords = new long[0];
-        private int ordsCursor = 0;
-
         private FilteredOrdinals(SortedSetDocValues inner, LongBitSet accepted) {
             this.inner = inner;
             this.accepted = accepted;
@@ -456,26 +452,27 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public long nextOrd() throws IOException {
-            return ords[ordsCursor++];
+            for (long ord = inner.nextOrd(); ord != NO_MORE_ORDS; ord = inner.nextOrd()) {
+                if (accepted.get(ord)) {
+                    return ord;
+                }
+            }
+            return NO_MORE_ORDS;
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
             if (inner.advanceExact(target)) {
-                ordsCursor = 0;
-
-                cardinality = 0;
-                for (long ord = inner.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; 
-                        ord = inner.nextOrd()) {
+                for (long ord = inner.nextOrd(); ord != NO_MORE_ORDS; ord = inner.nextOrd()) {
                     if (accepted.get(ord)) {
-                        ords = ArrayUtil.grow(ords, cardinality + 1);
-                        ords[cardinality++] = ord;
+                        // reset the iterator
+                        boolean advanced = inner.advanceExact(target);
+                        assert advanced;
+                        return true;
                     }
                 }
-                return true;
-            } else {
-                return false;
             }
+            return false;
         }
     }
 }

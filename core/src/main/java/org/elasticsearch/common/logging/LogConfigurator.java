@@ -30,6 +30,10 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusListener;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
@@ -51,8 +55,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
+
+    private static final AtomicBoolean error = new AtomicBoolean();
+
+    private static final StatusListener LISTENER = new StatusConsoleListener(Level.ERROR) {
+        @Override
+        public void log(StatusData data) {
+            error.set(true);
+            super.log(data);
+        }
+    };
+
+    /**
+     * Registers a listener for status logger errors. This listener should be registered as early as possible to ensure that no errors are
+     * logged by the status logger before logging is configured.
+     */
+    public static void registerErrorListener() {
+        StatusLogger.getLogger().registerListener(LISTENER);
+    }
 
     /**
      * Configure logging without reading a log4j2.properties file, effectively configuring the
@@ -79,7 +103,23 @@ public class LogConfigurator {
      */
     public static void configure(final Environment environment) throws IOException, UserException {
         Objects.requireNonNull(environment);
+        try {
+            checkErrorListener();
+        } finally {
+            StatusLogger.getLogger().removeListener(LISTENER);
+        }
         configure(environment.settings(), environment.configFile(), environment.logsFile());
+    }
+
+    private static void checkErrorListener() {
+        assert errorListenerIsRegistered() : "expected error listener to be registered";
+        if (error.get()) {
+            throw new IllegalStateException("status logger logged an error before logging was configured");
+        }
+    }
+
+    private static boolean errorListenerIsRegistered() {
+        return StreamSupport.stream(StatusLogger.getLogger().getListeners().spliterator(), false).anyMatch(l -> l == LISTENER);
     }
 
     private static void configure(final Settings settings, final Path configsPath, final Path logsPath) throws IOException, UserException {

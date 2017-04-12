@@ -88,7 +88,7 @@ class ClusterConfiguration {
         if (seedNode == node) {
             return null
         }
-        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+        ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
             resourceexists {
                 file(file: seedNode.transportPortsFile.toString())
             }

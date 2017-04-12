@@ -329,7 +329,7 @@ project.afterEvaluate {
 
 integTestRunner {
   // TODO: fix this rest test to not depend on a hardcoded port!
-  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
+  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,ml/start_stop_datafeed/Test force stop datafeed'
 }
 
 integTestCluster {

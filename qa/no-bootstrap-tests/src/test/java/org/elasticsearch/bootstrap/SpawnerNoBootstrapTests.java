@@ -157,24 +157,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         }
     }
 
-    public void testSpawnerSkipsHiddenFiles() throws IOException {
-        assert Version.CURRENT.before(Version.fromString("5.5.0"))
-                : "remove support for skipping hidden files in 5.5.0";
-        final Path esHome = createTempDir().resolve("home");
-        final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
-        final Settings settings = settingsBuilder.build();
-
-        final Environment environment = new Environment(settings);
-
-        final Path hidden = environment.pluginsFile().resolve(".hidden");
-        Files.createDirectories(hidden);
-
-        final Spawner spawner = new Spawner();
-        // if the spawner were not skipping hidden files this would explode
-        spawner.spawnNativePluginControllers(environment);
-    }
-
     public void testControllerSpawnWithIncorrectDescriptor() throws IOException {
         // this plugin will have a controller daemon
         Path esHome = createTempDir().resolve("esHome");

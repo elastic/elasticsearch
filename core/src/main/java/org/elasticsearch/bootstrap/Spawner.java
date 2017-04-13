@@ -77,12 +77,6 @@ final class Spawner implements Closeable {
          */
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsFile)) {
             for (final Path plugin : stream) {
-                if (FileSystemUtils.isHidden(plugin)) {
-                    logger.trace(
-                            "skipping hidden path in plugin directory [{}]",
-                            plugin.toAbsolutePath());
-                    continue;
-                }
                 final PluginInfo info = PluginInfo.readFromProperties(plugin);
                 final Path spawnPath = Platforms.nativeControllerPath(plugin);
                 if (!Files.isRegularFile(spawnPath)) {

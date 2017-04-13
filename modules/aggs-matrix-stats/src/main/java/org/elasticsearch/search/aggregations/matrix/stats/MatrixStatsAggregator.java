@@ -106,6 +106,10 @@ public class MatrixStatsAggregator extends MetricsAggregator {
                     final NumericDoubleValues doubleValues = values[i];
                     if (doubleValues.advanceExact(doc)) {
                         final double value = doubleValues.doubleValue();
+                        if (value == Double.NEGATIVE_INFINITY) {
+                            // TODO: Fix matrix stats to treat neg inf as any other value
+                            return false;
+                        }
                         fieldVals[i] = value;
                     } else {
                         return false;

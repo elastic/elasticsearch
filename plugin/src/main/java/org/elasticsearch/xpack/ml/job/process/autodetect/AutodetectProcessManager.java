@@ -77,6 +77,10 @@ public class AutodetectProcessManager extends AbstractComponent {
     // and if we know that then we can prior to assigning a job to a node fail based on the
     // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
     // Note: on small instances on cloud, this setting will be set to: 1
+
+    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
+    // and a threadpool's size can't be changed at runtime.
+    // See MachineLearning#getExecutorBuilders(...)
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
             Setting.intSetting("max_running_jobs", 10, 1, 512, Setting.Property.NodeScope);
 

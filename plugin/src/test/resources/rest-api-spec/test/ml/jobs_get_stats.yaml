@@ -79,7 +79,7 @@ setup:
   - match: { jobs.0.state: opened }
   - is_true: jobs.0.node.name
   - is_true: jobs.0.node.transport_address
-  - match: { jobs.0.node.attributes.max_running_jobs: "10"}
+  - match: { jobs.0.node.attributes.ml\.enabled: "true"}
   - is_true: jobs.0.open_time
 
 ---

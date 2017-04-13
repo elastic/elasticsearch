@@ -378,6 +378,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         private final AutodetectProcessManager autodetectProcessManager;
         private final XPackLicenseState licenseState;
 
+        private final int maxNumberOfOpenJobs;
         private volatile int maxConcurrentJobAllocations;
 
         public OpenJobPersistentTasksExecutor(Settings settings, XPackLicenseState licenseState,
@@ -385,6 +386,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             super(settings, NAME, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.autodetectProcessManager = autodetectProcessManager;
+            this.maxNumberOfOpenJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
@@ -392,7 +394,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            return selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
+            return selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, maxNumberOfOpenJobs, logger);
         }
 
         @Override
@@ -403,7 +405,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
                 PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                 OpenJobAction.validate(request.getJobId(), mlMetadata, tasks);
-                Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
+                Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations,
+                        maxNumberOfOpenJobs, logger);
                 if (assignment.getExecutorNode() == null) {
                     String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
                             + assignment.getExplanation() + "]";
@@ -456,7 +459,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     static Assignment selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
-                                              Logger logger) {
+                                              long maxNumberOfOpenJobs, Logger logger) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(jobId, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
@@ -471,8 +474,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             Map<String, String> nodeAttributes = node.getAttributes();
-            String maxNumberOfOpenJobsStr = nodeAttributes.get(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey());
-            if (maxNumberOfOpenJobsStr == null) {
+            String enabled = nodeAttributes.get(MachineLearning.ML_ENABLED_NODE_ATTR);
+            if (Boolean.valueOf(enabled) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node isn't a ml node.";
                 logger.trace(reason);
                 reasons.add(reason);
@@ -504,7 +507,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 continue;
             }
 
-            long maxNumberOfOpenJobs = Long.parseLong(maxNumberOfOpenJobsStr);
             long available = maxNumberOfOpenJobs - numberOfAssignedJobs;
             if (available == 0) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node is full. " +

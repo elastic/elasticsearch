@@ -111,7 +111,7 @@ setup:
   - match: { datafeeds.0.state: "started"}
   - is_true: datafeeds.0.node.name
   - is_true: datafeeds.0.node.transport_address
-  - match: { datafeeds.0.node.attributes.max_running_jobs: "10"}
+  - match: { datafeeds.0.node.attributes.ml\.enabled: "true"}
 
 ---
 "Test implicit get all datafeed stats given started datafeeds":

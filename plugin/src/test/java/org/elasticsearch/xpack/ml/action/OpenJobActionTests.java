@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -44,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
 public class OpenJobActionTests extends ESTestCase {
 
@@ -79,7 +79,7 @@ public class OpenJobActionTests extends ESTestCase {
 
     public void testSelectLeastLoadedMlNode() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -103,7 +103,7 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, 10, logger);
         assertEquals("_node_id3", result.getExecutorNode());
     }
 
@@ -112,7 +112,7 @@ public class OpenJobActionTests extends ESTestCase {
         int maxRunningJobsPerNode = randomIntBetween(1, 100);
 
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), String.valueOf(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         for (int i = 0; i < numNodes; i++) {
@@ -134,7 +134,7 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, maxRunningJobsPerNode, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
                 + "], max_running_jobs [" + maxRunningJobsPerNode + "]"));
@@ -160,14 +160,14 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, 10, logger);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
         assertNull(result.getExecutorNode());
     }
 
     public void testSelectLeastLoadedMlNode_maxConcurrentOpeningJobs() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -195,7 +195,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, 10, logger);
         assertEquals("_node_id3", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
@@ -205,7 +205,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -216,7 +216,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, logger);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -227,7 +227,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, logger);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }

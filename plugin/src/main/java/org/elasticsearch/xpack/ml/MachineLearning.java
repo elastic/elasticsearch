@@ -124,13 +124,13 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentTaskParams;
-import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -155,6 +155,7 @@ public class MachineLearning implements ActionPlugin {
             Setting.boolSetting("xpack.ml.autodetect_process", true, Property.NodeScope);
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
+    public static final String ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
 
@@ -198,9 +199,7 @@ public class MachineLearning implements ActionPlugin {
         Settings.Builder additionalSettings = Settings.builder();
         Boolean allocationEnabled = ML_ENABLED.get(settings);
         if (allocationEnabled != null && allocationEnabled) {
-            // Copy max_running_jobs setting to node attribute, so that we use this information when assigning job tasks to nodes:
-            additionalSettings.put("node.attr." + AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(),
-                    AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings));
+            additionalSettings.put("node.attr." + ML_ENABLED_NODE_ATTR, "true");
         }
         return additionalSettings.build();
     }

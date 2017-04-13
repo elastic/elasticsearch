@@ -804,6 +804,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         long seqNo();
 
+        long primaryTerm();
+
         /**
          * Reads the type and the operation from the given stream. The operation must be written with
          * {@link Operation#writeType(Operation, StreamOutput)}
@@ -953,6 +955,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public long primaryTerm() {
             return primaryTerm;
         }
@@ -1104,6 +1107,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public long primaryTerm() {
             return primaryTerm;
         }
@@ -1180,6 +1184,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public long primaryTerm() {
             return primaryTerm;
         }
@@ -1446,10 +1451,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     private boolean assertCommittedGenerationIsInValidRange(final long committedGeneration) {
-        assert committedGeneration > current.generation
+        assert committedGeneration <= current.generation
                 : "tried to commit generation [" + committedGeneration + "] after current generation [" + current.generation + "]";
         final long min = readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).orElse(Long.MIN_VALUE);
-        assert committedGeneration < min
+        assert committedGeneration >= min
                 : "tried to commit generation [" + committedGeneration + "] before minimum generation [" + min + "]";
         return true;
     }

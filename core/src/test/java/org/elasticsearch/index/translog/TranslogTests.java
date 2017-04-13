@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -2185,32 +2186,38 @@ public class TranslogTests extends ESTestCase {
     public void testMinGenerationForSeqNo() throws IOException {
         final long initialGeneration = translog.getGeneration().translogFileGeneration;
         final int operations = randomIntBetween(1, 4096);
-        final List<Long> seqNos = LongStream.range(0, operations).boxed().collect(Collectors.toList());
-        Randomness.shuffle(seqNos);
+        final List<Long> shuffledSeqNos = LongStream.range(0, operations).boxed().collect(Collectors.toList());
+        Randomness.shuffle(shuffledSeqNos);
+        final List<Tuple<Long, Long>> seqNos = new ArrayList<>();
+        final Map<Long, Long> terms = new HashMap<>();
+        for (final Long seqNo : shuffledSeqNos) {
+            seqNos.add(Tuple.tuple(seqNo, terms.computeIfAbsent(seqNo, k -> 0L)));
+            Long repeatingTermSeqNo = randomFrom(seqNos.stream().map(Tuple::v1).collect(Collectors.toList()));
+            seqNos.add(Tuple.tuple(repeatingTermSeqNo, terms.computeIfPresent(repeatingTermSeqNo, (s, t) -> t + 1)));
+        }
 
-        for (int i = 0; i < operations; i++) {
-            final Long seqNo = seqNos.get(i);
-            translog.add(new Translog.NoOp(seqNo, 0, "test"));
+        for (final Tuple<Long, Long> tuple : seqNos) {
+            translog.add(new Translog.NoOp(tuple.v1(), tuple.v2(), "test"));
             if (rarely()) {
                 translog.rollGeneration();
             }
         }
 
-        Map<Long, Set<Long>> generations = new HashMap<>();
+        Map<Long, Set<Tuple<Long, Long>>> generations = new HashMap<>();
 
         translog.commit(initialGeneration);
         for (long seqNo = 0; seqNo < operations; seqNo++) {
-            final Set<Long> seenSeqNos = new HashSet<>();
+            final Set<Tuple<Long, Long>> seenSeqNos = new HashSet<>();
             final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
             for (long g = generation; g < translog.currentFileGeneration(); g++) {
                 if (!generations.containsKey(g)) {
-                    final Set<Long> generationSeenSeqNos = new HashSet<>();
+                    final Set<Tuple<Long, Long>> generationSeenSeqNos = new HashSet<>();
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
                     try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
                         Translog.Snapshot snapshot = reader.newSnapshot();
                         Translog.Operation operation;
                         while ((operation = snapshot.next()) != null) {
-                            generationSeenSeqNos.add(operation.seqNo());
+                            generationSeenSeqNos.add(Tuple.tuple(operation.seqNo(), operation.primaryTerm()));
                         }
                     }
                     generations.put(g, generationSeenSeqNos);
@@ -2219,7 +2226,8 @@ public class TranslogTests extends ESTestCase {
                 seenSeqNos.addAll(generations.get(g));
             }
 
-            final Set<Long> expected = LongStream.range(seqNo, operations).boxed().collect(Collectors.toSet());
+            final long seqNoLowerBound = seqNo;
+            final Set<Tuple<Long, Long>> expected = seqNos.stream().filter(t -> t.v1() >= seqNoLowerBound).collect(Collectors.toSet());
             seenSeqNos.retainAll(expected);
             assertThat(seenSeqNos, equalTo(expected));
         }

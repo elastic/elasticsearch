@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.service.BatchedTasksDescription;
 import org.elasticsearch.common.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-public interface ClusterStateTaskExecutor<T> {
+public interface ClusterStateTaskExecutor<T> extends BatchedTasksDescription<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.
@@ -45,25 +46,6 @@ public interface ClusterStateTaskExecutor<T> {
      *                            both old and new states
      */
     default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-    }
-
-    /**
-     * Builds a concise description of a list of tasks (to be used in logging etc.).
-     *
-     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
-     * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
-     * This allows groupd task description but the submitting source.
-     */
-    default String describeTasks(List<T> tasks) {
-        return tasks.stream().map(T::toString).reduce((s1,s2) -> {
-            if (s1.isEmpty()) {
-                return s2;
-            } else if (s2.isEmpty()) {
-                return s1;
-            } else {
-                return s1 + ", " + s2;
-            }
-        }).orElse("");
     }
 
     /**

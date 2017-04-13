@@ -30,6 +30,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -233,35 +234,27 @@ public class IpFieldMapper extends FieldMapper {
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
-            private final SortedSetDocValues values;
+            private final SortedSetDocValues in;
+            private long[] ords = new long[0];
             private int count;
-            private int lastIndex;
-            private int doc;
 
-            public IpScriptDocValues(SortedSetDocValues values) {
-                this.values = values;
+            public IpScriptDocValues(SortedSetDocValues in) {
+                this.in = in;
             }
 
             @Override
-            public void setNextDocId(int docId) {
+            public void setNextDocId(int docId) throws IOException {
                 count = 0;
-                try {
-                    if (values.advanceExact(docId)) {
-                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
-                            count++;
-                        }
-                        boolean hasValue = values.advanceExact(docId);
-                        assert hasValue;
-                        doc = docId;
-                        lastIndex = -1;
+                if (in.advanceExact(docId)) {
+                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                        ords = ArrayUtil.grow(ords, count + 1);
+                        ords[count++] = ord;
                     }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
                 }
             }
 
             public String getValue() {
-                if (isEmpty()) {
+                if (count == 0) {
                     return null;
                 } else {
                     return get(0);
@@ -271,15 +264,7 @@ public class IpFieldMapper extends FieldMapper {
             @Override
             public String get(int index) {
                 try {
-                    if (index <= lastIndex) {
-                        boolean hasValue = values.advanceExact(doc);
-                        assert hasValue;
-                        lastIndex = -1;
-                    }
-                    for (int i = lastIndex + 1; i < index; ++i) {
-                        values.nextOrd();
-                    }
-                    BytesRef encoded = values.lookupOrd(values.nextOrd());
+                    BytesRef encoded = in.lookupOrd(ords[index]);
                     InetAddress address = InetAddressPoint.decode(
                             Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
                     return InetAddresses.toAddrString(address);

@@ -36,9 +36,11 @@ public abstract class NumericDoubleValues extends DoubleValues {
   // TODO: this interaction with sort comparators is really ugly...
   /** Returns numeric docvalues view of raw double bits */
   public NumericDocValues getRawDoubleValues() {
-      return new NumericDocValues() {
+      return new AbstractNumericDocValues() {
+          private int docID = -1;
           @Override
           public boolean advanceExact(int target) throws IOException {
+              docID = target;
               return NumericDoubleValues.this.advanceExact(target);
           }
           @Override
@@ -47,19 +49,7 @@ public abstract class NumericDoubleValues extends DoubleValues {
           }
           @Override
           public int docID() {
-              throw new UnsupportedOperationException();
-          }
-          @Override
-          public int nextDoc() throws IOException {
-              throw new UnsupportedOperationException();
-          }
-          @Override
-          public int advance(int target) throws IOException {
-              throw new UnsupportedOperationException();
-          }
-          @Override
-          public long cost() {
-              throw new UnsupportedOperationException();
+              return docID;
           }
       };
   }
@@ -67,9 +57,11 @@ public abstract class NumericDoubleValues extends DoubleValues {
   // yes... this is doing what the previous code was doing...
   /** Returns numeric docvalues view of raw float bits */
   public NumericDocValues getRawFloatValues() {
-      return new NumericDocValues() {
+      return new AbstractNumericDocValues() {
+          private int docID = -1;
           @Override
           public boolean advanceExact(int target) throws IOException {
+              docID = target;
               return NumericDoubleValues.this.advanceExact(target);
           }
           @Override
@@ -78,19 +70,7 @@ public abstract class NumericDoubleValues extends DoubleValues {
           }
           @Override
           public int docID() {
-              throw new UnsupportedOperationException();
-          }
-          @Override
-          public int nextDoc() throws IOException {
-              throw new UnsupportedOperationException();
-          }
-          @Override
-          public int advance(int target) throws IOException {
-              throw new UnsupportedOperationException();
-          }
-          @Override
-          public long cost() {
-              throw new UnsupportedOperationException();
+              return docID;
           }
       };
   }

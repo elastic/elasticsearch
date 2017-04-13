@@ -439,7 +439,7 @@ public enum FieldData {
             public int docValueCount() {
                 return count;
             }
-            
+
             @Override
             public BytesRef nextValue() throws IOException {
                 return values.lookupOrd(values.nextOrd());
@@ -551,9 +551,10 @@ public enum FieldData {
 
     }
 
-    private static class LongCastedValues extends NumericDocValues {
+    private static class LongCastedValues extends AbstractNumericDocValues {
 
         private final NumericDoubleValues values;
+        private int docID = -1;
 
         LongCastedValues(NumericDoubleValues values) {
             this.values = values;
@@ -561,6 +562,7 @@ public enum FieldData {
 
         @Override
         public boolean advanceExact(int target) throws IOException {
+            docID = target;
             return values.advanceExact(target);
         }
 
@@ -571,26 +573,11 @@ public enum FieldData {
 
         @Override
         public int docID() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException();
+            return docID;
         }
     }
 
-    private static class SortedLongCastedValues extends SortedNumericDocValues {
+    private static class SortedLongCastedValues extends AbstractSortedNumericDocValues {
 
         private final SortedNumericDoubleValues values;
 
@@ -611,26 +598,6 @@ public enum FieldData {
         @Override
         public long nextValue() throws IOException {
             return (long) values.nextValue();
-        }
-
-        @Override
-        public int docID() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException();
         }
 
     }

@@ -67,7 +67,7 @@ public class SinglePackedOrdinals extends Ordinals {
         private final int maxOrd;
         private final PackedInts.Reader reader;
         private final ValuesHolder values;
-        
+
         private int currentDoc = -1;
         private int currentOrd;
 

@@ -60,9 +60,15 @@ import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
 
+    /*
+     * We want to detect situations where we touch logging before the configuration is loaded. If we do this, Log4j will status log an error
+     * message at the error level. With this error listener, we can capture if this happens. More broadly, we can detect any error-level
+     * status log message which likely indicates that something is broken. The listener is installed immediately on startup, and then when
+     * we get around to configuring logging we check that no error-level log messages have been logged by the status logger. If they have we
+     * fail startup and any such messages can be seen on the console.
+     */
     private static final AtomicBoolean error = new AtomicBoolean();
-
-    private static final StatusListener LISTENER = new StatusConsoleListener(Level.ERROR) {
+    private static final StatusListener ERROR_LISTENER = new StatusConsoleListener(Level.ERROR) {
         @Override
         public void log(StatusData data) {
             error.set(true);
@@ -75,7 +81,7 @@ public class LogConfigurator {
      * logged by the status logger before logging is configured.
      */
     public static void registerErrorListener() {
-        StatusLogger.getLogger().registerListener(LISTENER);
+        StatusLogger.getLogger().registerListener(ERROR_LISTENER);
     }
 
     /**
@@ -104,9 +110,11 @@ public class LogConfigurator {
     public static void configure(final Environment environment) throws IOException, UserException {
         Objects.requireNonNull(environment);
         try {
+            // we are about to configure logging, check that the status logger did not log any error-level messages
             checkErrorListener();
         } finally {
-            StatusLogger.getLogger().removeListener(LISTENER);
+            // whether or not the error listener check failed we can remove the listener now
+            StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
         configure(environment.settings(), environment.configFile(), environment.logsFile());
     }
@@ -119,7 +127,7 @@ public class LogConfigurator {
     }
 
     private static boolean errorListenerIsRegistered() {
-        return StreamSupport.stream(StatusLogger.getLogger().getListeners().spliterator(), false).anyMatch(l -> l == LISTENER);
+        return StreamSupport.stream(StatusLogger.getLogger().getListeners().spliterator(), false).anyMatch(l -> l == ERROR_LISTENER);
     }
 
     private static void configure(final Settings settings, final Path configsPath, final Path logsPath) throws IOException, UserException {

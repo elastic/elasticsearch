@@ -1153,15 +1153,14 @@ public abstract class Engine implements Closeable {
             return reason;
         }
 
-        public NoOp(
-                final Term uid,
-                final long seqNo,
-                final long primaryTerm,
-                final Origin origin,
-                final long startTime,
-                final String reason) {
-            super(uid, seqNo, primaryTerm, 0, null, origin, startTime);
+        public NoOp(final long seqNo, final long primaryTerm, final Origin origin, final long startTime, final String reason) {
+            super(null, seqNo, primaryTerm, Versions.NOT_FOUND, null, origin, startTime);
             this.reason = reason;
+        }
+
+        @Override
+        public Term uid() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

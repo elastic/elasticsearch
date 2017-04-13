@@ -597,7 +597,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static Engine.NoOpResult executeFailedSeqNoOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
-        final Engine.NoOp noOp = replica.preparingMarkingSeqNoAsNoOp(docWriteRequest.type(), docWriteRequest.id(),
+        final Engine.NoOp noOp = replica.prepareMarkingSeqNoAsNoOp(
                 primaryFailure.getSeqNo(), primaryFailure.getMessage());
         return replica.markSeqNoAsNoOp(noOp);
     }

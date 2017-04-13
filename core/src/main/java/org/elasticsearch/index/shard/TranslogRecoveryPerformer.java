@@ -180,7 +180,7 @@ public class TranslogRecoveryPerformer {
                     final String reason = noOp.reason();
                     logger.trace("[translog] recover [no_op] op [({}, {})] of [{}]", seqNo, primaryTerm, reason);
                     final Engine.NoOp engineNoOp =
-                        new Engine.NoOp(null, seqNo, primaryTerm, origin, System.nanoTime(), reason);
+                        new Engine.NoOp(seqNo, primaryTerm, origin, System.nanoTime(), reason);
                     noOp(engine, engineNoOp);
                     break;
                 default:

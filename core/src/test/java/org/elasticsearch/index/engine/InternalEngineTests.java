@@ -3675,8 +3675,7 @@ public class InternalEngineTests extends ESTestCase {
             final String reason = randomAlphaOfLength(16);
             noOpEngine.noOp(
                 new Engine.NoOp(
-                    null,
-                    maxSeqNo + 1,
+                        maxSeqNo + 1,
                     primaryTerm,
                         randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
                     System.nanoTime(),

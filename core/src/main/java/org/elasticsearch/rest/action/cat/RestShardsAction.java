@@ -190,18 +190,10 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shard.id());
 
             IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
-            boolean usesShadowReplicas = false;
-            if (indexMeta != null) {
-                usesShadowReplicas = indexMeta.isIndexUsingShadowReplicas();
-            }
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                if (usesShadowReplicas) {
-                    table.addCell("s");
-                } else {
-                    table.addCell("r");
-                }
+                table.addCell("r");
             }
             table.addCell(shard.state());
             table.addCell(commonStats == null ? null : commonStats.getDocs().getCount());

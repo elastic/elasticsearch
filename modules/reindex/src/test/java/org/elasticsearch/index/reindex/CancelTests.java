@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but do not exercise important portion of the stack like transport and task management.
  */
+@TestLogging("org.elasticsearch.action.bulk.byscroll:DEBUG,org.elasticsearch.index.reindex:DEBUG")
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";

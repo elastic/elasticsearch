@@ -24,11 +24,11 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * This class starts elasticsearch.
@@ -80,6 +79,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
                 // grant all permissions so that we can later set the security manager to the one that we want
             }
         });
+        LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {

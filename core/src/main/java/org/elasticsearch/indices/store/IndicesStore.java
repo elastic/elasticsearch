@@ -173,9 +173,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         case STILL_ALLOCATED:
                             // nothing to do
                             break;
-                        case SHARED_FILE_SYSTEM:
-                            // nothing to do
-                            break;
                         default:
                             assert false : "unknown shard deletion check result: " + shardDeletionCheckResult;
                     }

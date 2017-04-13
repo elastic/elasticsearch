@@ -19,6 +19,14 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,14 +39,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
-
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -125,14 +125,21 @@ public class InternalSettingsPreparer {
     }
 
     /**
-     * Initializes the builder with the given input settings, and loads system properties settings if allowed.
-     * If loadDefaults is true, system property default settings are loaded.
+     * Initializes the builder with the given input settings, and applies settings and default settings from the specified map (these
+     * settings typically come from the command line). The default settings are applied only if the setting does not exist in the specified
+     * output.
+     *
+     * @param output the settings builder to apply the input and default settings to
+     * @param input the input settings
+     * @param esSettings a map from which to apply settings and default settings
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, Map<String, String> esSettings) {
+    static void initializeSettings(final Settings.Builder output, final Settings input, final Map<String, String> esSettings) {
         output.put(input);
         output.putProperties(esSettings,
-            PROPERTY_DEFAULTS_PREDICATE.and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null),
-            STRIP_PROPERTY_DEFAULTS_PREFIX);
+                PROPERTY_DEFAULTS_PREDICATE
+                        .and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null)
+                        .and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key) + ".0") == null),
+                STRIP_PROPERTY_DEFAULTS_PREFIX);
         output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
         output.replacePropertyPlaceholders();
     }

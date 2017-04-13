@@ -168,7 +168,7 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
                 }
             });
 
-            // Rethrottle on a random number of threads, on of which is this thread.
+            // Rethrottle on a random number of threads, one of which is this thread.
             Runnable test = () -> {
                 try {
                     int rethrottles = 0;

@@ -1356,15 +1356,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public TranslogGeneration getMinGenerationForSeqNo(final long seqNo) {
         try (ReleasableLock ignored = writeLock.acquire()) {
-            final long minTranslogFileGeneration = readers
-                    .stream()
-                    .filter(r -> {
-                        final Checkpoint checkpoint = r.getCheckpoint();
-                        return seqNo <= checkpoint.maxSeqNo;
-                    })
-                    .mapToLong(TranslogReader::getGeneration)
-                    .min()
-                    .orElseGet(this::currentFileGeneration);
+            /*
+             * When flushing, the engine will ask the translog for the minimum generation that could contain any sequence number after the
+             * local checkpoint. Immediately after flushing, there will be no such generation, so this minimum generation in this case will
+             * be the current translog generation as we do not need any prior generations to have a complete history up to the current local
+             * checkpoint.
+             */
+            long minTranslogFileGeneration = this.currentFileGeneration();
+            for (final TranslogReader reader : readers) {
+                if (seqNo <= reader.getCheckpoint().maxSeqNo) {
+                    minTranslogFileGeneration = Math.min(minTranslogFileGeneration, reader.getGeneration());
+                }
+            }
             return new TranslogGeneration(translogUUID, minTranslogFileGeneration);
         }
     }

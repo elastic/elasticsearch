@@ -1694,6 +1694,9 @@ public class InternalEngine extends Engine {
         try {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
             final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
+            final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
+            final String translogUUID = translogGeneration.translogUUID;
+            final String localCheckpointValue = Long.toString(localCheckpoint);
 
             writer.setLiveCommitData(() -> {
                 /*
@@ -1706,9 +1709,9 @@ public class InternalEngine extends Engine {
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
                 final Map<String, String> commitData = new HashMap<>(5);
-                commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
-                commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
-                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration));
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
                 if (syncId != null) {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }

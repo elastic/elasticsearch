@@ -6,3 +6,15 @@
 === Delete By Query API changes
 
 Requests without an explicit query are deprecated and will be invalid in Elasticsearch 6.0.0.
+
+[[breaking_54_settings_changes]]
+[float]
+=== Default settings are no longer supported
+Previous versions of Elasticsearch allowed a user to set a default setting for
+any setting. The default setting was only applied if the actual setting was not
+already set. This feature was trappy, and the complexity that it introduced was
+prone to bugs. Due to this, we have elected to make a breaking change in a
+minor release to remove this feature with the exception of `default.path.conf`,
+`default.path.data`, and `default.path.logs` which remain to support packaging.
+A future version of Elasticsearch will remove support for these as well, so
+users should stop relying on this functionality.

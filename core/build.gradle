@@ -86,7 +86,8 @@ dependencies {
   // to bridge dependencies that are still on Log4j 1 to Log4j 2
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
 
-  compile "net.java.dev.jna:jna:${versions.jna}"
+  // repackaged jna with native bits linked against all elastic supported platforms
+  compile "org.elasticsearch:jna:${versions.jna}"
 
   if (isEclipse == false || project.path == ":core-tests") {
     testCompile("org.elasticsearch.test:framework:${version}") {

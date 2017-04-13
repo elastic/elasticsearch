@@ -60,8 +60,8 @@ The response for the above aggregation:
     "aggregations": {
         "centroid": {
             "location": {
-                "lat": 51.009829603135586,
-                "lon": 3.966213036328554
+                "lat": 51.00982963107526,
+                "lon": 3.9662130922079086
             }
         }
     }
@@ -113,7 +113,7 @@ The response for the above aggregation:
                    "centroid": {
                       "location": {
                          "lat": 52.371655656024814,
-                         "lon": 4.909563269466162
+                         "lon": 4.909563297405839
                       }
                    }
                },
@@ -122,8 +122,8 @@ The response for the above aggregation:
                    "doc_count": 2,
                    "centroid": {
                       "location": {
-                         "lat": 48.86055544484407,
-                         "lon": 2.331694420427084
+                         "lat": 48.86055548675358,
+                         "lon": 2.3316944623366
                       }
                    }
                 },
@@ -132,8 +132,8 @@ The response for the above aggregation:
                     "doc_count": 1,
                     "centroid": {
                        "location": {
-                          "lat": 51.222899928689,
-                          "lon": 4.405199903994799
+                          "lat": 51.22289997059852,
+                          "lon": 4.40519998781383
                        }
                     }
                  }

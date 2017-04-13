@@ -148,10 +148,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -1752,8 +1754,19 @@ public class InternalEngineTests extends ESTestCase {
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         final int opsPerThread = randomIntBetween(10, 20);
-        final Set<String> currentValues = ConcurrentCollections.newConcurrentSet();
+        class OpAndVersion {
+            final long version;
+            final String removed;
+            final String added;
+
+            OpAndVersion(long version, String removed, String added) {
+                this.version = version;
+                this.removed = removed;
+                this.added = added;
+            }
+        }
         final AtomicInteger idGenerator = new AtomicInteger();
+        final Queue<OpAndVersion> history = ConcurrentCollections.newQueue();
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), bytesArray(""), null);
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
@@ -1781,10 +1794,7 @@ public class InternalEngineTests extends ESTestCase {
                             PRIMARY, System.currentTimeMillis(), -1, false);
                         Engine.IndexResult indexResult = engine.index(index);
                         if (indexResult.hasFailure() == false) {
-                            boolean exists = removed == null ? true : currentValues.remove(removed);
-                            assertTrue(removed + " should exist", exists);
-                            exists = currentValues.add(added);
-                            assertTrue(added + " should not exist", exists);
+                            history.add(new OpAndVersion(indexResult.getVersion(), removed, added));
                         }
 
                     } catch (IOException e) {
@@ -1797,6 +1807,20 @@ public class InternalEngineTests extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
+        List<OpAndVersion> sortedHistory = new ArrayList<>(history);
+        sortedHistory.sort(Comparator.comparing(o -> o.version));
+        Set<String> currentValues = new HashSet<>();
+        for (int i = 0; i < sortedHistory.size(); i++) {
+            OpAndVersion op = sortedHistory.get(i);
+            if (i > 0) {
+                assertThat("duplicate version", op.version, not(equalTo(sortedHistory.get(i - 1).version)));
+            }
+            boolean exists = op.removed == null ? true : currentValues.remove(op.removed);
+            assertTrue(op.removed + " should exist", exists);
+            exists = currentValues.add(op.added);
+            assertTrue(op.added + " should not exist", exists);
+        }
+
         try (Engine.GetResult get = engine.get(new Engine.Get(true, uidTerm))) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);

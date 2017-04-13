@@ -59,6 +59,9 @@ setup:
 
 ---
 "Test force stop datafeed":
+  - skip:
+      version: " - "
+      reason: Broken test
   - do:
       xpack.ml.open_job:
         job_id: "datafeed-job"

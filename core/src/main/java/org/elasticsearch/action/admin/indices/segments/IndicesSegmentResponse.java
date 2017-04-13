@@ -34,13 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class IndicesSegmentResponse extends BroadcastResponse implements ToXContent {
 
@@ -177,12 +171,14 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
             builder.startObject();
             builder.field("field", field.getField());
             if (field instanceof SortedNumericSortField) {
-                builder.field("mode", ((SortedNumericSortField) field).getSelector().toString());
+                builder.field("mode", ((SortedNumericSortField) field).getSelector()
+                    .toString().toLowerCase(Locale.ROOT));
             } else if (field instanceof SortedSetSortField) {
-                builder.field("mode", ((SortedSetSortField) field).getSelector().toString());
+                builder.field("mode", ((SortedSetSortField) field).getSelector()
+                    .toString().toLowerCase(Locale.ROOT));
             }
             builder.field("missing", field.getMissingValue());
-            builder.field("missing", field.getReverse());
+            builder.field("reverse", field.getReverse());
             builder.endObject();
         }
         builder.endArray();

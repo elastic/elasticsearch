@@ -116,13 +116,10 @@ public final class IndexSortConfig {
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        if (fields.size() > 0) {
-            sortSpecs = fields.stream()
-                .map((name) -> new FieldSortSpec(name))
-                .toArray(FieldSortSpec[]::new);
-        } else {
-            sortSpecs = new FieldSortSpec[0];
-        }
+        this.sortSpecs = fields.stream()
+            .map((name) -> new FieldSortSpec(name))
+            .toArray(FieldSortSpec[]::new);
+
         if (sortSpecs.length > 0 && indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             /**
              * This index might be assigned to a node where the index sorting feature is not available

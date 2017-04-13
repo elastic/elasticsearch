@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction.Request;
 
 import java.util.Collections;
@@ -42,7 +43,7 @@ public class UpdatePersistentTaskRequestTests extends AbstractStreamableTestCase
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
         ));
     }
 }

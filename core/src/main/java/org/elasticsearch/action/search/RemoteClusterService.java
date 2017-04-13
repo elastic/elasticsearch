@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -56,6 +57,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -112,11 +114,13 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
 
     private final TransportService transportService;
     private final int numRemoteConnections;
+    private final ClusterNameExpressionResolver clusterNameResolver;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
+        this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
         numRemoteConnections = REMOTE_CONNECTIONS_PER_CLUSTER.get(settings);
     }
 
@@ -204,25 +208,30 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      */
     Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
+        Set<String> remoteClusterNames = this.remoteClusters.keySet();
         for (String index : requestIndices) {
             int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-            String indexName = index;
-            String clusterName = LOCAL_CLUSTER_GROUP_KEY;
             if (i >= 0) {
                 String remoteClusterName = index.substring(0, i);
-                if (isRemoteClusterRegistered(remoteClusterName)) {
+                List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
+                if (clusters.isEmpty() == false) {
                     if (indexExists.test(index)) {
                         // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
                         // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
                         // if that happens
                         throw new IllegalArgumentException("Can not filter indices; index " + index +
                             " exists but there is also a remote cluster named: " + remoteClusterName);
+                        }
+                    String indexName = index.substring(i + 1);
+                    for (String clusterName : clusters) {
+                        perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                     }
-                    indexName = index.substring(i + 1);
-                    clusterName = remoteClusterName;
+                } else {
+                    perClusterIndices.computeIfAbsent(LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
                 }
+            } else {
+                perClusterIndices.computeIfAbsent(LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
             }
-            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<String>()).add(indexName);
         }
         return perClusterIndices;
 }

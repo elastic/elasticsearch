@@ -16,23 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineFactory;
+package org.elasticsearch.action.admin.cluster.remote;
 
-public final class MockEngineFactory implements EngineFactory {
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 
-    private final Class<? extends FilterDirectoryReader> wrapper;
-
-    public MockEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
-        this.wrapper = wrapper;
-    }
+public final class RemoteInfoRequest extends ActionRequest {
 
     @Override
-    public Engine newReadWriteEngine(EngineConfig config) {
-        return new MockInternalEngine(config, wrapper);
+    public ActionRequestValidationException validate() {
+        return null;
     }
+
 }

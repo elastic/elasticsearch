@@ -74,7 +74,6 @@ public class ReplicationOperation<
      */
     private final AtomicInteger pendingActions = new AtomicInteger();
     private final AtomicInteger successfulShards = new AtomicInteger();
-    private final boolean executeOnReplicas;
     private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
     private final Replicas<ReplicaRequest> replicasProxy;
     private final AtomicBoolean finished = new AtomicBoolean();
@@ -86,9 +85,8 @@ public class ReplicationOperation<
 
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
                                 ActionListener<PrimaryResultT> listener,
-                                boolean executeOnReplicas, Replicas<ReplicaRequest> replicas,
+                                Replicas<ReplicaRequest> replicas,
                                 Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
-        this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
         this.primary = primary;
         this.resultListener = listener;
@@ -160,7 +158,7 @@ public class ReplicationOperation<
         final String localNodeId = primary.routingEntry().currentNodeId();
         // If the index gets deleted after primary operation, we skip replication
         for (final ShardRouting shard : shards) {
-            if (executeOnReplicas == false || shard.unassigned()) {
+            if (shard.unassigned()) {
                 if (shard.primary() == false) {
                     totalShards.incrementAndGet();
                 }

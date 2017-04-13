@@ -26,6 +26,16 @@
 
   - match: {transient: {search.remote.test_remote_cluster.seeds: $remote_ip}}
 
+  # we do another search here since this will enforce the connection to be established
+  # otherwise the cluster might not have been connected yet.
+  - do:
+      search:
+        index: test_remote_cluster:test_index
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
+
   - do:
       remote.info: {}
   - set: { my_remote_cluster.http_addresses.0: remote_http }

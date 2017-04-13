@@ -16,23 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineFactory;
+package org.elasticsearch.action.admin.cluster.remote;
 
-public final class MockEngineFactory implements EngineFactory {
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-    private final Class<? extends FilterDirectoryReader> wrapper;
+public final class RemoteInfoAction extends Action<RemoteInfoRequest, RemoteInfoResponse, RemoteInfoRequestBuilder> {
 
-    public MockEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
-        this.wrapper = wrapper;
+    public static final String NAME = "cluster:monitor/remote/info";
+    public static final RemoteInfoAction INSTANCE = new RemoteInfoAction();
+
+    public RemoteInfoAction() {
+        super(NAME);
     }
 
     @Override
-    public Engine newReadWriteEngine(EngineConfig config) {
-        return new MockInternalEngine(config, wrapper);
+    public RemoteInfoRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RemoteInfoRequestBuilder(client, INSTANCE);
+    }
+
+    @Override
+    public RemoteInfoResponse newResponse() {
+        return new RemoteInfoResponse();
     }
 }

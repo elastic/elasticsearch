@@ -38,6 +38,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -567,7 +569,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                     seedNodes, service, maxNumConnections, n -> true)) {
                     // test no nodes connected
-                    RemoteConnectionInfo remoteConnectionInfo = getRemoteConnectionInfo(connection);
+                    RemoteConnectionInfo remoteConnectionInfo = assertSerialization(getRemoteConnectionInfo(connection));
                     assertNotNull(remoteConnectionInfo);
                     assertEquals(0, remoteConnectionInfo.numNodesConnected);
                     assertEquals(0, remoteConnectionInfo.seedNodes.size());
@@ -582,6 +584,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
 
                     remoteConnectionInfo = getRemoteConnectionInfo(connection);
+                    remoteConnectionInfo = assertSerialization(remoteConnectionInfo);
                     assertNotNull(remoteConnectionInfo);
                     assertEquals(connection.getNumNodesConnected(), remoteConnectionInfo.numNodesConnected);
                     assertEquals(Math.min(3, maxNumConnections), connection.getNumNodesConnected());
@@ -597,11 +600,75 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    public void testRemoteConnectionInfo() throws IOException {
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats);
+
+        RemoteConnectionInfo stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 4, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster_1",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 15)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 87)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(325));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            5, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+    }
+
+    private RemoteConnectionInfo assertSerialization(RemoteConnectionInfo info) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            info.writeTo(out);
+            StreamInput in = out.bytes().streamInput();
+            in.setVersion(Version.CURRENT);
+            RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(in);
+            assertEquals(info, remoteConnectionInfo);
+            assertEquals(info.hashCode(), remoteConnectionInfo.hashCode());
+            return  randomBoolean() ? info : remoteConnectionInfo;
+        }
+    }
+
     public void testRenderConnectionInfoXContent() throws IOException {
         RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster",
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1)),
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,80)),
             4, 3, TimeValue.timeValueMinutes(30));
+        stats = assertSerialization(stats);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, null);
@@ -613,6 +680,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1), new TransportAddress(TransportAddress.META_ADDRESS,2)),
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,80), new TransportAddress(TransportAddress.META_ADDRESS,81)),
             2, 0, TimeValue.timeValueSeconds(30));
+        stats = assertSerialization(stats);
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, null);

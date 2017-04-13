@@ -486,7 +486,7 @@ public class Node implements Closeable {
 
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 logger.debug("initializing HTTP handlers ...");
-                actionModule.initRestHandlers(() -> clusterService.state().nodes(), searchTransportService.getRemoteClusterService());
+                actionModule.initRestHandlers(() -> clusterService.state().nodes());
             }
             logger.info("initialized");
 

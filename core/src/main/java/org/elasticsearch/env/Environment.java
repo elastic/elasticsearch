@@ -49,11 +49,17 @@ import static org.elasticsearch.common.Strings.cleanPath;
 // public+forbidden api!
 public class Environment {
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<String> PATH_CONF_SETTING = Setting.simpleString("path.conf", Property.NodeScope);
+    public static final Setting<String> DEFAULT_PATH_CONF_SETTING = Setting.simpleString("default.path.conf", Property.NodeScope);
+    public static final Setting<String> PATH_CONF_SETTING =
+            new Setting<>("path.conf", DEFAULT_PATH_CONF_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", Property.NodeScope);
+    public static final Setting<List<String>> DEFAULT_PATH_DATA_SETTING =
+            Setting.listSetting("default.path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
-        Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
+            Setting.listSetting("path.data", DEFAULT_PATH_DATA_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<String> DEFAULT_PATH_LOGS_SETTING = Setting.simpleString("default.path.logs", Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING =
+            new Setting<>("path.logs", DEFAULT_PATH_LOGS_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
@@ -115,7 +121,8 @@ public class Environment {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
-        if (PATH_CONF_SETTING.exists(settings)) {
+        // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
+        if (PATH_CONF_SETTING.exists(settings) || DEFAULT_PATH_CONF_SETTING.exists(settings)) {
             configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
         } else {
             configFile = homeFile.resolve("config");
@@ -156,7 +163,9 @@ public class Environment {
         } else {
             repoFiles = new Path[0];
         }
-        if (PATH_LOGS_SETTING.exists(settings)) {
+
+        // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
+        if (PATH_LOGS_SETTING.exists(settings) || DEFAULT_PATH_LOGS_SETTING.exists(settings)) {
             logsFile = PathUtils.get(cleanPath(PATH_LOGS_SETTING.get(settings)));
         } else {
             logsFile = homeFile.resolve("logs");

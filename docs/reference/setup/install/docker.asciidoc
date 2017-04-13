@@ -227,8 +227,6 @@ The image offers several methods for configuring Elasticsearch settings with the
 ===== A. Present the parameters via Docker environment variables
 For example, to define the cluster name with `docker run` you can pass `-e "cluster.name=mynewclustername"`. Double quotes are required.
 
-NOTE: There is a difference between defining <<_setting_default_settings,default settings>> and normal settings. The former are prefixed with `default.` and cannot override normal settings, if defined.
-
 ===== B. Bind-mounted configuration
 Create your custom config file and mount this over the image's corresponding file.
 For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be accomplished with the parameter:

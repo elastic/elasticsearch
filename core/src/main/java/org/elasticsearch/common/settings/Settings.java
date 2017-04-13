@@ -444,7 +444,6 @@ public final class Settings implements ToXContent {
         List<String> result = new ArrayList<>();
 
         final String valueFromPrefix = get(settingPrefix);
-
         final String valueFromPreifx0 = get(settingPrefix + ".0");
 
         if (valueFromPrefix != null && valueFromPreifx0 != null) {

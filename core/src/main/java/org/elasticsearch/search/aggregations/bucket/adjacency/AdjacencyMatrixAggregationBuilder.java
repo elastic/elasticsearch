@@ -189,7 +189,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
         int maxFilters = context.indexShard().indexSettings().getMaxAdjacencyMatrixFilters();
-        if (filters.size() > maxFilters){
+        if (filters.size() > maxFilters) {
             throw new QueryPhaseExecutionException(context,
                     "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
                             + filters.size() + "]."

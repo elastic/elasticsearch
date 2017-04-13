@@ -265,7 +265,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         }
                         try {
                             logger.info("waiting....");
-                            if (latch.await(Math.min(100, timeout.millis()), TimeUnit.MILLISECONDS)){
+                            if (latch.await(Math.min(100, timeout.millis()), TimeUnit.MILLISECONDS)) {
                                 // Done waiting - unblock
                                 logger.info("unblocked");
                                 return currentState;

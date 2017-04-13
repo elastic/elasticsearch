@@ -75,7 +75,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return name;
         }
     }

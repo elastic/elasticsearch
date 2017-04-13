@@ -81,7 +81,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return this.type;
         }
 
-        public Map<String, Object> getAttributes(){
+        public Map<String, Object> getAttributes() {
             return this.attributes;
         }
 

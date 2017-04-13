@@ -117,7 +117,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                     cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
-                } else if ("none".equals(cacheType)){
+                } else if ("none".equals(cacheType)) {
                     cache = new IndexFieldDataCache.None();
                 } else {
                     throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");

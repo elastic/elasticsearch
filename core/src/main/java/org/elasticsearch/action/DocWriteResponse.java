@@ -89,7 +89,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
         public static Result readFrom(StreamInput in) throws IOException{
             Byte opcode = in.readByte();
-            switch(opcode){
+            switch(opcode) {
                 case 0:
                     return CREATED;
                 case 1:

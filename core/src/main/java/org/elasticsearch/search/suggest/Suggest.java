@@ -568,7 +568,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
 
             @SuppressWarnings("unchecked")
-            protected O newOption(){
+            protected O newOption() {
                 return (O) new Option();
             }
 

@@ -73,7 +73,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         return terminal;
     }
 
-    private static String buildMultiline(String... args){
+    private static String buildMultiline(String... args) {
         return Arrays.stream(args).collect(Collectors.joining("\n", "", "\n"));
     }
 

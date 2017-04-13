@@ -247,7 +247,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertNull(settings.get("transport.tracer.include.FOO"));
     }
 
-    public void testIsDynamic(){
+    public void testIsDynamic() {
         ClusterSettings settings =
             new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope),

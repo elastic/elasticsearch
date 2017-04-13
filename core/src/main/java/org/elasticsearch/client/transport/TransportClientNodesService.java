@@ -405,7 +405,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
             HashSet<DiscoveryNode> newNodes = new HashSet<>();
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (DiscoveryNode listedNode : listedNodes) {
-                try (Transport.Connection connection = transportService.openConnection(listedNode, LISTED_NODES_PROFILE)){
+                try (Transport.Connection connection = transportService.openConnection(listedNode, LISTED_NODES_PROFILE)) {
                     final PlainTransportFuture<LivenessResponse> handler = new PlainTransportFuture<>(
                         new FutureTransportResponseHandler<LivenessResponse>() {
                             @Override

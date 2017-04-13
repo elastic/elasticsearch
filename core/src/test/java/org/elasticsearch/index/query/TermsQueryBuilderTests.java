@@ -103,7 +103,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
-        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
+        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));

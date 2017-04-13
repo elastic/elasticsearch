@@ -445,7 +445,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             assertNotNull(docsAndPositions);
             for (int k = 0; k < docsAndPositions.freq(); k++) {
                 docsAndPositions.nextPosition();
-                if (docsAndPositions.getPayload()!=null){
+                if (docsAndPositions.getPayload()!=null) {
                     String infoString = "\nterm: " + term + " has payload \n"+ docsAndPositions.getPayload().toString() + "\n but should have payload \n"+curPayloads.get(k).toString();
                     assertThat(infoString, docsAndPositions.getPayload(), equalTo(curPayloads.get(k)));
                 } else {
@@ -937,7 +937,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     private void checkAnalyzedFields(Fields fieldsObject, Set<String> fieldNames, Map<String, String> perFieldAnalyzer) throws IOException {
         Set<String> validFields = new HashSet<>();
-        for (String fieldName : fieldNames){
+        for (String fieldName : fieldNames) {
             if (fieldName.startsWith("non_existing")) {
                 assertThat("Non existing field\"" + fieldName + "\" should not be returned!", fieldsObject.terms(fieldName), nullValue());
                 continue;

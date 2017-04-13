@@ -197,7 +197,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
     private void toXContentCommon(XContentBuilder builder, Params params) throws IOException {
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray("task_failures");
-            for (TaskOperationFailure ex : getTaskFailures()){
+            for (TaskOperationFailure ex : getTaskFailures()) {
                 builder.startObject();
                 builder.value(ex);
                 builder.endObject();

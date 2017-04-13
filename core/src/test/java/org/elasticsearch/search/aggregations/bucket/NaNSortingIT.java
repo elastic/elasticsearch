@@ -75,7 +75,7 @@ public class NaNSortingIT extends ESIntegTestCase {
                 return ((ExtendedStats) aggregation).getVariance();
             }
         },
-        STD_DEVIATION("std_deviation"){
+        STD_DEVIATION("std_deviation") {
             @Override
             public ExtendedStatsAggregationBuilder builder() {
                 ExtendedStatsAggregationBuilder factory = extendedStats(name);

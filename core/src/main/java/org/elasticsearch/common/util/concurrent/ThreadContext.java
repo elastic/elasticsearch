@@ -563,7 +563,7 @@ public final class ThreadContext implements Closeable, Writeable {
         @Override
         public void run() {
             boolean whileRunning = false;
-            try (ThreadContext.StoredContext ignore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()) {
                 ctx.restore();
                 whileRunning = true;
                 in.run();

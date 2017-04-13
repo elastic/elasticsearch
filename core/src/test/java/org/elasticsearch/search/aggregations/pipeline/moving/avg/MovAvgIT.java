@@ -93,7 +93,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return name;
         }
     }
@@ -108,7 +108,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return name;
         }
     }

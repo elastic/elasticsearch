@@ -591,7 +591,7 @@ public class TribeService extends AbstractLifecycleComponent {
      * marshal this object into something the tribe node can work with
      */
     private MetaData.Custom marshal(MetaData.Custom custom)  {
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()){
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
             bytesStreamOutput.writeNamedWriteable(custom);
             try(StreamInput input = bytesStreamOutput.bytes().streamInput()) {
                 StreamInput namedInput = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);

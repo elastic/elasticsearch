@@ -165,7 +165,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             if (ranges[i][0] != Double.NEGATIVE_INFINITY) {
                 filter = filter.from(ranges[i][0]);
             }
-            if (ranges[i][1] != Double.POSITIVE_INFINITY){
+            if (ranges[i][1] != Double.POSITIVE_INFINITY) {
                 filter = filter.to(ranges[i][1]);
             }
             reqBuilder = reqBuilder.addAggregation(filter("filter" + i, filter));

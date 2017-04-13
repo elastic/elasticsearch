@@ -182,7 +182,7 @@ public class InternalAdjacencyMatrix
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
             for (InternalBucket bucket : filters.buckets) {
                 List<InternalBucket> sameRangeList = bucketsMap.get(bucket.key);
-                if(sameRangeList == null){
+                if (sameRangeList == null) {
                     sameRangeList = new ArrayList<>(aggregations.size());
                     bucketsMap.put(bucket.key, sameRangeList);
                 }
@@ -193,7 +193,7 @@ public class InternalAdjacencyMatrix
         ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
             InternalBucket reducedBucket = sameRangeList.get(0).reduce(sameRangeList, reduceContext);
-            if(reducedBucket.docCount >= 1){                
+            if (reducedBucket.docCount >= 1) {                
                 reducedBuckets.add(reducedBucket);
             }
         }

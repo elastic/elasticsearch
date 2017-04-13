@@ -1202,33 +1202,33 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void putStoredScript(final PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener){
+        public void putStoredScript(final PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
             execute(PutStoredScriptAction.INSTANCE, request, listener);
 
         }
 
         @Override
-        public ActionFuture<PutStoredScriptResponse> putStoredScript(final PutStoredScriptRequest request){
+        public ActionFuture<PutStoredScriptResponse> putStoredScript(final PutStoredScriptRequest request) {
             return execute(PutStoredScriptAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener){
+        public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener) {
             execute(DeleteStoredScriptAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<DeleteStoredScriptResponse> deleteStoredScript(DeleteStoredScriptRequest request){
+        public ActionFuture<DeleteStoredScriptResponse> deleteStoredScript(DeleteStoredScriptRequest request) {
             return execute(DeleteStoredScriptAction.INSTANCE, request);
         }
 
         @Override
-        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(){
+        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript() {
             return DeleteStoredScriptAction.INSTANCE.newRequestBuilder(this);
         }
 
         @Override
-        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(@Nullable String scriptLang, String id){
+        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(@Nullable String scriptLang, String id) {
             return prepareDeleteStoredScript().setLang(scriptLang).setId(id);
         }
     }

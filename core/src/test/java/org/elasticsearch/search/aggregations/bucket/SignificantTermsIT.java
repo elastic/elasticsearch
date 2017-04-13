@@ -410,7 +410,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     private void checkExpectedStringTermsFound(SignificantTerms topTerms) {
         HashMap<String,Bucket>topWords=new HashMap<>();
-        for (Bucket topTerm : topTerms ){
+        for (Bucket topTerm : topTerms ) {
             topWords.put(topTerm.getKeyAsString(), topTerm);
         }
         assertTrue( topWords.containsKey("haakonsen"));

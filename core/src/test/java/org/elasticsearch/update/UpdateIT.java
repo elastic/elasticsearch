@@ -935,7 +935,7 @@ public class UpdateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void run(){
+            public void run() {
                 try {
                     startLatch.await();
                     boolean hasWaitedForNoNode = false;
@@ -1027,7 +1027,7 @@ public class UpdateIT extends ESIntegTestCase {
         startLatch.countDown();
         latch.await();
 
-        for (UpdateThread ut : threads){
+        for (UpdateThread ut : threads) {
             ut.join(); //Threads should have finished because of the latch.await
         }
 

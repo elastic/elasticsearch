@@ -51,7 +51,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         private final LongAccessor supersetDfHolder;
         private final ExecutableScript executableScript;
 
-        ExecutableScriptHeuristic(Script script, ExecutableScript executableScript){
+        ExecutableScriptHeuristic(Script script, ExecutableScript executableScript) {
             super(script);
             subsetSizeHolder = new LongAccessor();
             supersetSizeHolder = new LongAccessor();

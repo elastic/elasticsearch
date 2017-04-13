@@ -49,7 +49,11 @@ public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
     private static final String PROPERTY_DEFAULTS_PREFIX = "default.";
-    private static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
+    private static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE =
+            key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX)
+                    && !Environment.DEFAULT_PATH_CONF_SETTING.getKey().equals(key)
+                    && !Environment.DEFAULT_PATH_DATA_SETTING.getKey().equals(key)
+                    && !Environment.DEFAULT_PATH_LOGS_SETTING.getKey().equals(key);
     private static final UnaryOperator<String> STRIP_PROPERTY_DEFAULTS_PREFIX = key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length());
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";

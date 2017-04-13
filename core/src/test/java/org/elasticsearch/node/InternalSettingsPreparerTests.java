@@ -207,4 +207,34 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertNull(settings.get("foobar"));
     }
 
+    public void testDefaultPathConfIsSpecial() {
+        final Settings.Builder output = Settings.builder();
+        final String defaultPathConf = createTempDir().toAbsolutePath().toString();
+        final Map<String, String> esSettings = Collections.singletonMap("default.path.conf", defaultPathConf);
+        InternalSettingsPreparer.initializeSettings(output, Settings.EMPTY, esSettings);
+        final Settings settings = output.build();
+        assertThat(settings.get("default.path.conf"), equalTo(defaultPathConf));
+        assertNull(settings.get("path.conf"));
+    }
+
+    public void testDefaultPathDataIsSpecial() {
+        final Settings.Builder output = Settings.builder();
+        final String defaultPathData = createTempDir().toAbsolutePath().toString();
+        final Map<String, String> esSettings = Collections.singletonMap("default.path.data", defaultPathData);
+        InternalSettingsPreparer.initializeSettings(output, Settings.EMPTY, esSettings);
+        final Settings settings = output.build();
+        assertThat(settings.get("default.path.data"), equalTo(defaultPathData));
+        assertNull(settings.get("path.data"));
+    }
+
+    public void testDefaultPathLogsIsSpecial() {
+        final Settings.Builder output = Settings.builder();
+        final String defaultPathLogs = createTempDir().toAbsolutePath().toString();
+        final Map<String, String> esSettings = Collections.singletonMap("default.path.logs", defaultPathLogs);
+        InternalSettingsPreparer.initializeSettings(output, Settings.EMPTY, esSettings);
+        final Settings settings = output.build();
+        assertThat(settings.get("default.path.logs"), equalTo(defaultPathLogs));
+        assertNull(settings.get("path.logs"));
+    }
+
 }

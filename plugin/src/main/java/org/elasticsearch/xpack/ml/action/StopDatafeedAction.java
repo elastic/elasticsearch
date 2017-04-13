@@ -289,7 +289,6 @@ public class StopDatafeedAction
                                 if (counter.incrementAndGet() == resolvedDatafeeds.size()) {
                                     sendResponseOrFailure(request.getDatafeedId(), listener, failures);
                                 }
-                                listener.onResponse(new Response(true));
                             }
                             @Override
                             public void onFailure(Exception e) {

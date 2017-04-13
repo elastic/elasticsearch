@@ -218,7 +218,7 @@ public class JiraAccountTests extends ESTestCase {
             if (setting.getValue() instanceof String) {
                 builder.put(key, setting.getValue());
             } else if (setting.getValue() instanceof Map) {
-                builder.putProperties((Map) setting.getValue(), s -> true, s -> key + "." + s);
+                builder.putProperties((Map) setting.getValue(), s -> key + "." + s);
             }
         }
     }

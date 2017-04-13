@@ -265,7 +265,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
                 .put("url", "https://internal-jira.elastic.co:443")
                 .put("user", "elastic")
                 .put("password", "secret")
-                .putProperties(accountFields, s -> true, s -> "issue_defaults." + s);
+                .putProperties(accountFields, s -> "issue_defaults." + s);
 
         JiraAccount account = new JiraAccount("account", settings.build(), mock(HttpClient.class));
 

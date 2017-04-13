@@ -87,7 +87,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
         httpExporter.put("auth.username", SecuritySettingsSource.DEFAULT_USER_NAME);
         httpExporter.put("auth.password", SecuritySettingsSource.DEFAULT_PASSWORD);
 
-        settings.putProperties(httpExporter, k -> true, k -> MonitoringSettings.EXPORTERS_SETTINGS.getKey() + "my_exporter." + k);
+        settings.putProperties(httpExporter, k -> MonitoringSettings.EXPORTERS_SETTINGS.getKey() + "my_exporter." + k);
     }
 
     @Override

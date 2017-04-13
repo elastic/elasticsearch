@@ -32,7 +32,7 @@ teardown:
             "actions": {
               "log" : {
                 "logging" : {
-                  "text" : "execute_watch/10.yaml payload: {{ctx.payload}}"
+                  "text" : "execute_watch/10.yaml payload"
                 }
               }
             }
@@ -57,6 +57,43 @@ teardown:
   - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
   - match: { watch_record.state: "executed" }
   - match: { watch_record._status.state.active: true }
+  - match: { watch_record._status.actions.log.ack.state: "ackable" }
+
+---
+"Test execute watch API with user supplied watch"
+
+  - do:
+      xpack.watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "condition": {
+                "always": {}
+              },
+              "actions": {
+                "log" : {
+                  "logging" : {
+                    "text" : "execute_watch/10.yaml payload"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record._status.state.active: true }
+  - match: { watch_record._status.actions.log.ack.state: "ackable" }
 
 ---
 "Execute unknown watch results in 404":

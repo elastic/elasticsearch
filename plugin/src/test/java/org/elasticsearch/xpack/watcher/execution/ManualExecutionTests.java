@@ -35,6 +35,7 @@ import org.joda.time.DateTimeZone;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -144,6 +145,13 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
             } else {
                 assertThat(response.getStatus().actionStatus("log").ackStatus().state(),
                         is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+            }
+        } else {
+            String ackState = executeWatchResponse.getRecordSource().getValue("_status.actions.log.ack.state");
+            if (ignoreCondition || conditionAlwaysTrue) {
+                assertThat(ackState, is(ActionStatus.AckStatus.State.ACKABLE.toString().toLowerCase(Locale.ROOT)));
+            } else {
+                assertThat(ackState, is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION.toString().toLowerCase(Locale.ROOT)));
             }
         }
     }

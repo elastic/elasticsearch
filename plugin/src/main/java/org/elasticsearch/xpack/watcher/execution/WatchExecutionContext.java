@@ -141,9 +141,7 @@ public abstract class WatchExecutionContext {
     public void onConditionResult(Condition.Result conditionResult) {
         assert !phase.sealed();
         this.conditionResult = conditionResult;
-        if (recordExecution()) {
-            watch.status().onCheck(conditionResult.met(), executionTime);
-        }
+        watch.status().onCheck(conditionResult.met(), executionTime);
     }
 
     public Condition.Result conditionResult() {
@@ -175,9 +173,7 @@ public abstract class WatchExecutionContext {
     public void onActionResult(ActionWrapper.Result result) {
         assert !phase.sealed();
         actionsResults.put(result.id(), result);
-        if (recordExecution()) {
-            watch.status().onActionResult(result.id(), executionTime, result.action());
-        }
+        watch.status().onActionResult(result.id(), executionTime, result.action());
     }
 
     public Map<String, ActionWrapper.Result> actionsResults() {

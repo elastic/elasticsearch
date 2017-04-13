@@ -477,10 +477,10 @@ class VagrantTestPlugin implements Plugin<Project> {
                     }
                 }
             }
-            packaging.doFirst {
+            platform.doFirst {
                 project.gradle.addListener(platformReproListener)
             }
-            packaging.doLast {
+            platform.doLast {
                 project.gradle.removeListener(platformReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {

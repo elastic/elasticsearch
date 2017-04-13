@@ -122,7 +122,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
-    
+
     public void testIndexingWithSimpleNumberContexts() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -139,7 +139,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", jsonBuilder()
                 .startObject()
                 .startArray("completion")
                 .startObject()
@@ -151,11 +151,12 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+            XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
-    
+
     public void testIndexingWithSimpleBooleanContexts() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -172,7 +173,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", jsonBuilder()
                 .startObject()
                 .startArray("completion")
                 .startObject()
@@ -184,11 +185,12 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+            XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
-    
+
     public void testIndexingWithSimpleNULLContexts() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -215,8 +217,9 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject();
-        
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse("test", "type1", "1", builder.bytes()));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(), XContentType.JSON)));
         assertEquals("contexts must be a string, number or boolean or a list of string, number or boolean, but was [VALUE_NULL]", e.getCause().getMessage());
     }
 
@@ -251,7 +254,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
-    
+
     public void testIndexingWithMixedTypeContextList() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -268,7 +271,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", jsonBuilder()
                 .startObject()
                 .startObject("completion")
                 .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -278,11 +281,12 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .field("weight", 5)
                 .endObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+            XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
-    
+
     public void testIndexingWithMixedTypeContextListHavingNULL() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -307,8 +311,9 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .field("weight", 5)
                 .endObject()
                 .endObject();
-        
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse("test", "type1", "1", builder.bytes()));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(), XContentType.JSON)));
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
     }
 
@@ -361,7 +366,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(0).boost, equalTo(1));
         assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
     }
-    
+
     public void testBooleanQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value(true);
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
@@ -372,7 +377,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(0).boost, equalTo(1));
         assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
     }
-    
+
     public void testNumberQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value(10);
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
@@ -383,12 +388,12 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(0).boost, equalTo(1));
         assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
     }
-    
+
     public void testNULLQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().nullValue();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        
+
         Exception e = expectThrows(ElasticsearchParseException.class, () -> mapping.parseQueryContext(createParseContext(parser)));
         assertEquals("category context must be an object, string, number or boolean", e.getMessage());
     }
@@ -409,7 +414,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(1).boost, equalTo(1));
         assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
     }
-    
+
     public void testQueryContextParsingMixedTypeValuesArray() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
                     .value("context1")
@@ -434,7 +439,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(3).boost, equalTo(1));
         assertThat(internalQueryContexts.get(3).isPrefix, equalTo(false));
     }
-    
+
     public void testQueryContextParsingMixedTypeValuesArrayHavingNULL() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
                     .value("context1")
@@ -445,7 +450,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        
+
         Exception e = expectThrows(ElasticsearchParseException.class, () -> mapping.parseQueryContext(createParseContext(parser)));
         assertEquals("category context must be an object, string, number or boolean", e.getMessage());
     }
@@ -494,7 +499,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(0).boost, equalTo(10));
         assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
     }
-    
+
     public void testQueryContextParsingObjectHavingNULL() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .nullField("context")
@@ -503,11 +508,11 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        
+
         Exception e = expectThrows(ElasticsearchParseException.class, () -> mapping.parseQueryContext(createParseContext(parser)));
         assertEquals("category context must be a string, number or boolean", e.getMessage());
     }
-    
+
     public void testQueryContextParsingObjectArray() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
                 .startObject()
@@ -532,7 +537,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(1).boost, equalTo(3));
         assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
     }
-    
+
     public void testQueryContextParsingMixedTypeObjectArray() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
                 .startObject()
@@ -573,7 +578,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(3).boost, equalTo(3));
         assertThat(internalQueryContexts.get(3).isPrefix, equalTo(false));
     }
-    
+
     public void testQueryContextParsingMixedTypeObjectArrayHavingNULL() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
                 .startObject()
@@ -604,7 +609,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        
+
         Exception e = expectThrows(ElasticsearchParseException.class, () -> mapping.parseQueryContext(createParseContext(parser)));
         assertEquals("category context must be a string, number or boolean", e.getMessage());
     }
@@ -645,7 +650,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.get(3).boost, equalTo(2));
         assertThat(internalQueryContexts.get(3).isPrefix, equalTo(true));
     }
-    
+
     public void testQueryContextParsingMixedHavingNULL() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
                 .startObject()
@@ -664,7 +669,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        
+
         Exception e = expectThrows(ElasticsearchParseException.class, () -> mapping.parseQueryContext(createParseContext(parser)));
         assertEquals("category context must be an object, string, number or boolean", e.getMessage());
     }

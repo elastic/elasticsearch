@@ -153,7 +153,7 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.configFile(), equalTo(pathConf));
     }
 
-    public void testPathConfWHenNotSet() {
+    public void testPathConfWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings);

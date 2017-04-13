@@ -110,7 +110,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                         PersistentTasksCustomMetaData::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE,
                         PersistentTasksCustomMetaData::readDiffFrom),
-                new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
         );
     }
 
@@ -121,7 +121,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                         PersistentTasksCustomMetaData::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
                         TestParams::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TestPersistentTasksExecutor.NAME), Status::fromXContent)
         );
     }
 
@@ -211,7 +211,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
     }
 
     public static class Status implements Task.Status {
-        public static final String NAME = "test";
 
         private final String phase;
 
@@ -232,7 +231,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public String getWriteableName() {
-            return NAME;
+            return TestPersistentTasksExecutor.NAME;
         }
 
         @Override

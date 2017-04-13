@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +67,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
-        when(action.getTaskName()).thenReturn("test");
+        when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         int nonLocalNodesCount = randomInt(10);
         // need to account for 5 original tasks on each node and their relocations
         for (int i = 0; i < (nonLocalNodesCount + 1) * 10; i++) {
@@ -87,11 +88,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         boolean added = false;
         if (nonLocalNodesCount > 0) {
             for (int i = 0; i < randomInt(5); i++) {
-                tasks.addTask(UUIDs.base64UUID(), "test_action", new TestParams("other_" + i),
+                tasks.addTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("other_" + i),
                         new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node"));
                 if (added == false && randomBoolean()) {
                     added = true;
-                    tasks.addTask(UUIDs.base64UUID(), "test", new TestParams("this_param"),
+                    tasks.addTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("this_param"),
                             new Assignment("this_node", "test assignment on this node"));
                 }
             }
@@ -112,7 +113,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Add task on some other node
             state = newClusterState;
-            newClusterState = addTask(state, "test", null, "some_other_node");
+            newClusterState = addTask(state, TestPersistentTasksExecutor.NAME, null, "some_other_node");
             coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
 
             // Make sure action wasn't called again
@@ -120,7 +121,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Start another task on this node
             state = newClusterState;
-            newClusterState = addTask(state, "test", new TestParams("this_param"), "this_node");
+            newClusterState = addTask(state, TestPersistentTasksExecutor.NAME, new TestParams("this_param"), "this_node");
             coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
 
             // Make sure action was called this time
@@ -135,7 +136,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Add task on some other node
             state = newClusterState;
-            newClusterState = addTask(state, "test", null, "some_other_node");
+            newClusterState = addTask(state, TestPersistentTasksExecutor.NAME, null, "some_other_node");
             coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
 
             // Make sure action wasn't called again

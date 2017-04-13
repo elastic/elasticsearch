@@ -69,15 +69,20 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     public static final ConstructingObjectParser<Assignment, Void> ASSIGNMENT_PARSER =
             new ConstructingObjectParser<>("assignment", objects -> new Assignment((String) objects[0], (String) objects[1]));
 
-    private static final NamedObjectParser<PersistentTaskParams, Void> PARAMS_PARSER =
-            (XContentParser p, Void c, String name) -> p.namedObject(PersistentTaskParams.class, name, null);
-    private static final NamedObjectParser<Status, Void> STATUS_PARSER =
-            (XContentParser p, Void c, String name) -> p.namedObject(Status.class, name, null);
+    private static final NamedObjectParser<TaskDescriptionBuilder<PersistentTaskParams>, Void> TASK_DESCRIPTION_PARSER;
 
     static {
         // Tasks parser initialization
         PERSISTENT_TASKS_PARSER.declareLong(Builder::setLastAllocationId, new ParseField("last_allocation_id"));
         PERSISTENT_TASKS_PARSER.declareObjectArray(Builder::setTasks, PERSISTENT_TASK_PARSER, new ParseField("tasks"));
+
+        // Task description parser initialization
+        ObjectParser<TaskDescriptionBuilder<PersistentTaskParams>, String> parser = new ObjectParser<>("named");
+        parser.declareObject(TaskDescriptionBuilder::setParams,
+                (p, c) -> p.namedObject(PersistentTaskParams.class, c, null), new ParseField("params"));
+        parser.declareObject(TaskDescriptionBuilder::setStatus,
+                (p, c) -> p.namedObject(Status.class, c, null), new ParseField("status"));
+        TASK_DESCRIPTION_PARSER = (XContentParser p, Void c, String name) -> parser.parse(p, new TaskDescriptionBuilder<>(name), name);
 
         // Assignment parser
         ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("executor_node"));
@@ -87,27 +92,45 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setId, new ParseField("id"));
         PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setTaskName, new ParseField("name"));
         PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationId, new ParseField("allocation_id"));
-        PERSISTENT_TASK_PARSER.declareNamedObjects(
-                (TaskBuilder<PersistentTaskParams> taskBuilder, List<PersistentTaskParams> objects) -> {
-                    if (objects.size() != 1) {
-                        throw new IllegalArgumentException("only one params per task is allowed");
-                    }
-                    taskBuilder.setParams(objects.get(0));
-                }, PARAMS_PARSER, new ParseField("params"));
 
         PERSISTENT_TASK_PARSER.declareNamedObjects(
-                (TaskBuilder<PersistentTaskParams> taskBuilder, List<Status> objects) -> {
+                (TaskBuilder<PersistentTaskParams> taskBuilder, List<TaskDescriptionBuilder<PersistentTaskParams>> objects) -> {
                     if (objects.size() != 1) {
-                        throw new IllegalArgumentException("only one status per task is allowed");
+                        throw new IllegalArgumentException("only one task description per task is allowed");
                     }
-                    taskBuilder.setStatus(objects.get(0));
-                }, STATUS_PARSER, new ParseField("status"));
-
-
+                    TaskDescriptionBuilder<PersistentTaskParams> builder = objects.get(0);
+                    taskBuilder.setTaskName(builder.taskName);
+                    taskBuilder.setParams(builder.params);
+                    taskBuilder.setStatus(builder.status);
+                }, TASK_DESCRIPTION_PARSER, new ParseField("task"));
         PERSISTENT_TASK_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
         PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationIdOnLastStatusUpdate,
                 new ParseField("allocation_id_on_last_status_update"));
     }
+
+    /**
+     * Private builder used in XContent parser to build task-specific portion (params and status)
+     */
+    private static class TaskDescriptionBuilder<Params extends PersistentTaskParams> {
+        private final String taskName;
+        private Params params;
+        private Status status;
+
+        private TaskDescriptionBuilder(String taskName) {
+            this.taskName = taskName;
+        }
+
+        private TaskDescriptionBuilder setParams(Params params) {
+            this.params = params;
+            return this;
+        }
+
+        private TaskDescriptionBuilder setStatus(Status status) {
+            this.status = status;
+            return this;
+        }
+    }
+
 
     public Collection<PersistentTask<?>> tasks() {
         return this.tasks.values();
@@ -266,6 +289,18 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             this.status = status;
             this.assignment = assignment;
             this.allocationIdOnLastStatusUpdate = allocationIdOnLastStatusUpdate;
+            if (params != null) {
+                if (params.getWriteableName().equals(taskName) == false) {
+                    throw new IllegalArgumentException("params have to have the same writeable name as task. params: " +
+                            params.getWriteableName() + " task: " + taskName);
+                }
+            }
+            if (status != null) {
+                if (status.getWriteableName().equals(taskName) == false) {
+                    throw new IllegalArgumentException("status has to have the same writeable name as task. status: " +
+                            status.getWriteableName() + " task: " + taskName);
+                }
+            }
         }
 
         @SuppressWarnings("unchecked")
@@ -371,21 +406,20 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             builder.startObject();
             {
                 builder.field("id", id);
-                builder.field("name", taskName);
-                if (params != null) {
-                    builder.startObject("params");
+                builder.startObject("task");
+                {
+                    builder.startObject(taskName);
                     {
-                        builder.field(params.getWriteableName(), params, xParams);
+                        if (params != null) {
+                            builder.field("params", params, xParams);
+                        }
+                        if (status != null) {
+                            builder.field("status", status, xParams);
+                        }
                     }
                     builder.endObject();
                 }
-                if (status != null) {
-                    builder.startObject("status");
-                    {
-                        builder.field(status.getWriteableName(), status, xParams);
-                    }
-                    builder.endObject();
-                }
+                builder.endObject();
 
                 if (API_CONTEXT.equals(xParams.param(MetaData.CONTEXT_MODE_PARAM, API_CONTEXT))) {
                     // These are transient values that shouldn't be persisted to gateway cluster state or snapshot

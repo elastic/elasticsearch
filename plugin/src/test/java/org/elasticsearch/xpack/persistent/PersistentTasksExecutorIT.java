@@ -189,9 +189,9 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertThrows(future1, IllegalStateException.class, "timed out after 10ms");
 
         PlainActionFuture<PersistentTask<?>> failedUpdateFuture = new PlainActionFuture<>();
-        persistentTasksService.updateStatus(taskId, -1, new Status("should fail"), failedUpdateFuture);
+        persistentTasksService.updateStatus(taskId, -2, new Status("should fail"), failedUpdateFuture);
         assertThrows(failedUpdateFuture, ResourceNotFoundException.class, "the task with id " + taskId +
-                " and allocation id -1 doesn't exist");
+                " and allocation id -2 doesn't exist");
 
         // Wait for the task to disappear
         WaitForPersistentTaskStatusFuture<?> future2 = new WaitForPersistentTaskStatusFuture<>();

@@ -68,7 +68,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 new Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::new),
                 new Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::readDiffFrom),
                 new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
-                new Entry(Task.Status.class, Status.NAME, Status::new)
+                new Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
         ));
     }
 
@@ -151,7 +151,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         return new NamedXContentRegistry(Arrays.asList(
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
                         TestParams::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TestPersistentTasksExecutor.NAME), Status::fromXContent)
         ));
     }
 

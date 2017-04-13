@@ -22,6 +22,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,7 +80,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         addTestNodes(nodes, randomIntBetween(1, 10));
         int numberOfTasks = randomIntBetween(2, 40);
         for (int i = 0; i < numberOfTasks; i++) {
-            addTask(tasks, "should_assign", "assign_one", randomBoolean() ? null : "no_longer_exits");
+            addTask(tasks, "assign_one", randomBoolean() ? null : "no_longer_exits");
         }
 
         MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
@@ -103,14 +104,14 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             switch (randomInt(2)) {
                 case 0:
                     // add an unassigned task that should get assigned because it's assigned to a non-existing node or unassigned
-                    addTask(tasks, "should_assign", "assign_me", randomBoolean() ? null : "no_longer_exits");
+                    addTask(tasks, "assign_me", randomBoolean() ? null : "no_longer_exits");
                     break;
                 case 1:
                     // add a task assigned to non-existing node that should not get assigned
-                    addTask(tasks, "should_not_assign", "dont_assign_me", randomBoolean() ? null : "no_longer_exits");
+                    addTask(tasks, "dont_assign_me", randomBoolean() ? null : "no_longer_exits");
                     break;
                 case 2:
-                    addTask(tasks, "assign_one", "assign_one", randomBoolean() ? null : "no_longer_exits");
+                    addTask(tasks, "assign_one", randomBoolean() ? null : "no_longer_exits");
                     break;
 
             }
@@ -129,8 +130,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
         for (PersistentTask<?> task : tasksInProgress.tasks()) {
             // explanation should correspond to the action name
-            switch (task.getTaskName()) {
-                case "should_assign":
+            switch (((TestParams) task.getParams()).getTestParam()) {
+                case "assign_me":
                     assertThat(task.getExecutorNode(), notNullValue());
                     assertThat(task.isAssigned(), equalTo(true));
                     if (clusterState.nodes().nodeExists(task.getExecutorNode()) == false) {
@@ -140,7 +141,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                             clusterState.nodes().nodeExists(task.getExecutorNode()), equalTo(true));
                     assertThat(task.getAssignment().getExplanation(), equalTo("test assignment"));
                     break;
-                case "should_not_assign":
+                case "dont_assign_me":
                     assertThat(task.getExecutorNode(), nullValue());
                     assertThat(task.isAssigned(), equalTo(false));
                     assertThat(task.getAssignment().getExplanation(), equalTo("no appropriate nodes found for the assignment"));
@@ -196,7 +197,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     private Assignment assignOnlyOneTaskAtATime(ClusterState clusterState) {
         DiscoveryNodes nodes = clusterState.nodes();
         PersistentTasksCustomMetaData tasksInProgress = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (tasksInProgress.findTasks("assign_one", task -> nodes.nodeExists(task.getExecutorNode())).isEmpty()) {
+        if (tasksInProgress.findTasks(TestPersistentTasksExecutor.NAME, task ->
+                "assign_one".equals(((TestParams) task.getParams()).getTestParam()) &&
+                        nodes.nodeExists(task.getExecutorNode())).isEmpty()) {
             return randomNodeAssignment(clusterState.nodes());
         } else {
             return new Assignment(null, "only one task can be assigned at a time");
@@ -390,11 +393,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                Assignment assignment, String param) {
         return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasksCustomMetaData.TYPE,
-                tasks.addTask(UUIDs.base64UUID(), randomAlphaOfLength(10), new TestParams(param), assignment).build()));
+                tasks.addTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams(param), assignment).build()));
     }
 
-    private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node) {
-        tasks.addTask(UUIDs.base64UUID(), action, new TestParams(param), new Assignment(node, "explanation: " + action));
+    private void addTask(PersistentTasksCustomMetaData.Builder tasks, String param, String node) {
+        tasks.addTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams(param),
+                new Assignment(node, "explanation: " + param));
     }
 
     private DiscoveryNode newNode(String nodeId) {

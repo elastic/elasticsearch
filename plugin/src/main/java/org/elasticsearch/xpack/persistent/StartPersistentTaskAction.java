@@ -61,7 +61,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         private String taskId;
 
         @Nullable
-        private String action;
+        private String taskName;
 
         private PersistentTaskParams params;
 
@@ -69,9 +69,9 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
 
         }
 
-        public Request(String taskId, String action, PersistentTaskParams params) {
+        public Request(String taskId, String taskName, PersistentTaskParams params) {
             this.taskId = taskId;
-            this.action = action;
+            this.taskName = taskName;
             this.params = params;
         }
 
@@ -79,7 +79,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             taskId = in.readString();
-            action = in.readString();
+            taskName = in.readString();
             params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
         }
 
@@ -87,7 +87,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(taskId);
-            out.writeString(action);
+            out.writeString(taskName);
             out.writeOptionalNamedWriteable(params);
         }
 
@@ -97,8 +97,14 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
             if (this.taskId == null) {
                 validationException = addValidationError("task id must be specified", validationException);
             }
-            if (this.action == null) {
+            if (this.taskName == null) {
                 validationException = addValidationError("action must be specified", validationException);
+            }
+            if (params != null) {
+                if (params.getWriteableName().equals(taskName) == false) {
+                    validationException = addValidationError("params have to have the same writeable name as task. params: " +
+                            params.getWriteableName() + " task: " + taskName, validationException);
+                }
             }
             return validationException;
         }
@@ -108,21 +114,21 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request1 = (Request) o;
-            return Objects.equals(taskId, request1.taskId) && Objects.equals(action, request1.action) &&
+            return Objects.equals(taskId, request1.taskId) && Objects.equals(taskName, request1.taskName) &&
                     Objects.equals(params, request1.params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskId, action, params);
+            return Objects.hash(taskId, taskName, params);
         }
 
-        public String getAction() {
-            return action;
+        public String getTaskName() {
+            return taskName;
         }
 
-        public void setAction(String action) {
-            this.action = action;
+        public void setTaskName(String taskName) {
+            this.taskName = taskName;
         }
 
         public String getTaskId() {
@@ -157,7 +163,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         }
 
         public RequestBuilder setAction(String action) {
-            request.setAction(action);
+            request.setTaskName(action);
             return this;
         }
 
@@ -206,7 +212,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         @Override
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.createPersistentTask(request.taskId, request.action, request.params,
+            persistentTasksClusterService.createPersistentTask(request.taskId, request.taskName, request.params,
                     new ActionListener<PersistentTask<?>>() {
 
                 @Override

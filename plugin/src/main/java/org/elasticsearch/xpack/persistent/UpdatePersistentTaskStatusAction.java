@@ -9,7 +9,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -25,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTaskStatusAction.Request,
         PersistentTaskResponse,
@@ -57,7 +57,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
         private String taskId;
 
-        private long allocationId;
+        private long allocationId = -1L;
 
         private Task.Status status;
 
@@ -101,7 +101,16 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (this.taskId == null) {
+                validationException = addValidationError("task id must be specified", validationException);
+            }
+            if (this.allocationId == -1L) {
+                validationException = addValidationError("allocationId must be specified", validationException);
+            }
+            // We cannot really check if status has the same type as task because we don't have access
+            // to the task here. We will check it when we try to update the task
+            return validationException;
         }
 
         @Override

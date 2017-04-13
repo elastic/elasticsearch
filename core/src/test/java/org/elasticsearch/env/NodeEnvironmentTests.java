@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -423,6 +425,41 @@ public class NodeEnvironmentTests extends ESTestCase {
             locations[i] = PathUtils.get(strings[i], additional);
         }
         return locations;
+    }
+
+    public void testDefaultPathData() throws IOException {
+        final Path zero = createTempDir().toAbsolutePath();
+        final Path one = createTempDir().toAbsolutePath();
+
+        final Settings.Builder builder = Settings.builder()
+                .put("path.home", "/home")
+                .put("path.data.0", zero)
+                .put("path.data.1", one);
+        final boolean defaultPathDataSet = randomBoolean();
+        final Path defaultPathData;
+        if (defaultPathDataSet) {
+            defaultPathData = createTempDir().toAbsolutePath();
+            builder.put("default.path.data", defaultPathData);
+        } else {
+            defaultPathData = null;
+        }
+        try (NodeEnvironment nodeEnv = newNodeEnvironment(builder.build())) {
+            final Set<Path> actual = Arrays.stream(nodeEnv.nodePaths()).map(np -> np.path).collect(Collectors.toSet());
+            final Set<Path> expected = new HashSet<>(Arrays.asList(zero.resolve("nodes/0"), one.resolve("nodes/0")));
+            assertThat(actual, equalTo(expected));
+
+            if (defaultPathDataSet) {
+                assertThat(nodeEnv.defaultNodePath().path, equalTo(defaultPathData.resolve("nodes/0")));
+            }
+
+            for (final NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
+                assertTrue(Files.exists(nodePath.path.resolve(NodeEnvironment.NODE_LOCK_FILENAME)));
+            }
+
+            if (defaultPathDataSet) {
+                assertTrue(Files.exists(nodeEnv.defaultNodePath().path.resolve(NodeEnvironment.NODE_LOCK_FILENAME)));
+            }
+        }
     }
 
     @Override

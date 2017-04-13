@@ -146,7 +146,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -262,6 +264,9 @@ public class Node implements Closeable {
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
             tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
+            if (DiscoveryNode.nodeRequiresLocalStorage(tmpSettings)) {
+                checkForIndexDataInDefaultPathData(nodeEnvironment, logger);
+            }
             // this must be captured after the node name is possibly added to the settings
             final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {
@@ -498,6 +503,31 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    static void checkForIndexDataInDefaultPathData(final NodeEnvironment nodeEnv, final Logger logger) throws IOException {
+        if (nodeEnv.defaultNodePath() == null) {
+            return;
+        }
+
+        final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodeEnv.defaultNodePath());
+        if (availableIndexFolders.isEmpty()) {
+            return;
+        }
+
+        final String message = String.format(
+                Locale.ROOT,
+                "detected index data in default.path.data [%s] where there should not be any",
+                nodeEnv.defaultNodePath().indicesPath);
+        logger.error(message);
+        for (final String availableIndexFolder : availableIndexFolders) {
+            logger.info(
+                    "index folder [{}] in default.path.data [{}] must be moved to any of {}",
+                    availableIndexFolder,
+                    nodeEnv.defaultNodePath().indicesPath,
+                    Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
+        }
+        throw new IllegalStateException(message);
     }
 
     // visible for testing

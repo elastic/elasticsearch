@@ -22,23 +22,32 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -162,6 +171,103 @@ public class NodeTests extends ESTestCase {
             fail("should not allow a node attribute with trailing whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());
+        }
+    }
+
+    public void testNodeConstructionWithDefaultPathDataSet() throws IOException {
+        final Path home = createTempDir().toAbsolutePath();
+        final Path zero = createTempDir().toAbsolutePath();
+        final Path one = createTempDir().toAbsolutePath();
+        final Path defaultPathData = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder()
+                .put("path.home", home)
+                .put("path.data.0", zero)
+                .put("path.data.1", one)
+                .put("default.path.data", defaultPathData)
+                .put("http.enabled", false)
+                .put("transport.type", "mock-socket-network")
+                .build();
+        Files.createDirectories(defaultPathData.resolve("nodes/0"));
+        final boolean indexExists = randomBoolean();
+        if (indexExists) {
+            for (int i = 0; i < randomIntBetween(1, 3); i++) {
+                Files.createDirectories(defaultPathData.resolve("nodes/0/indices").resolve(UUIDs.randomBase64UUID()));
+            }
+        }
+        final Supplier<MockNode> constructor = () -> new MockNode(settings, Collections.singletonList(MockTcpTransportPlugin.class));
+        if (indexExists) {
+            final IllegalStateException e = expectThrows(IllegalStateException.class, constructor::get);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "detected index data in default.path.data [%s] where there should not be any",
+                    defaultPathData.resolve("nodes/0/indices"));
+            assertThat(e, hasToString(containsString(message)));
+        } else {
+            try (Node ignored = constructor.get()) {
+                // node construction should be okay
+            }
+        }
+    }
+
+    public void testDefaultPathDataSet() throws IOException {
+        final Path zero = createTempDir().toAbsolutePath();
+        final Path one = createTempDir().toAbsolutePath();
+        final Path defaultPathData = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder()
+                .put("path.home", "/home")
+                .put("path.data.0", zero)
+                .put("path.data.1", one)
+                .put("default.path.data", defaultPathData)
+                .build();
+        try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings))) {
+            final boolean indexExists = randomBoolean();
+            final List<String> indices;
+            if (indexExists) {
+                indices = IntStream.range(0, randomIntBetween(1, 3)).mapToObj(i -> UUIDs.randomBase64UUID()).collect(Collectors.toList());
+                for (final String index : indices) {
+                    Files.createDirectories(nodeEnv.defaultNodePath().indicesPath.resolve(index));
+                }
+            } else {
+                indices = Collections.emptyList();
+            }
+            final Logger mock = mock(Logger.class);
+            if (indexExists) {
+                final IllegalStateException e = expectThrows(
+                        IllegalStateException.class,
+                        () -> Node.checkForIndexDataInDefaultPathData(nodeEnv, mock));
+                final String message = String.format(
+                        Locale.ROOT,
+                        "detected index data in default.path.data [%s] where there should not be any",
+                        defaultPathData.resolve("nodes/0/indices"));
+                assertThat(e, hasToString(containsString(message)));
+                verify(mock).error(message);
+                for (final String index : indices) {
+                    verify(mock).info(
+                            "index folder [{}] in default.path.data [{}] must be moved to any of {}",
+                            index,
+                            nodeEnv.defaultNodePath().indicesPath,
+                            Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
+                }
+                verifyNoMoreInteractions(mock);
+            } else {
+                Node.checkForIndexDataInDefaultPathData(nodeEnv, mock);
+                verifyNoMoreInteractions(mock);
+            }
+        }
+    }
+
+    public void testDefaultPathDataNotSet() throws IOException {
+        final Path zero = createTempDir().toAbsolutePath();
+        final Path one = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder()
+                .put("path.home", "/home")
+                .put("path.data.0", zero)
+                .put("path.data.1", one)
+                .build();
+        try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings))) {
+            final Logger mock = mock(Logger.class);
+            Node.checkForIndexDataInDefaultPathData(nodeEnv, mock);
+            verifyNoMoreInteractions(mock);
         }
     }
 

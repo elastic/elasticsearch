@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -34,10 +35,14 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -53,6 +58,7 @@ public class Environment {
     public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
         Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<String> DEFAULT_PATH_DATA_SETTING = Setting.simpleString("default.path.data", Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
@@ -62,6 +68,9 @@ public class Environment {
     private final Settings settings;
 
     private final Path[] dataFiles;
+
+    @Nullable
+    private final Path defaultPathData;
 
     private final Path[] dataWithClusterFiles;
 
@@ -138,9 +147,32 @@ public class Environment {
                 dataFiles[i] = PathUtils.get(dataPaths.get(i));
                 dataWithClusterFiles[i] = dataFiles[i].resolve(clusterName.value());
             }
+            if (DEFAULT_PATH_DATA_SETTING.exists(settings)) {
+                final String defaultPathDataValue = DEFAULT_PATH_DATA_SETTING.get(settings);
+                final Set<Path> dataFilesSet = Arrays.stream(dataFiles).collect(Collectors.toSet());
+                final Path defaultPathData = PathUtils.get(defaultPathDataValue);
+                if (dataFilesSet.size() == 1 && dataFilesSet.contains(defaultPathData)) {
+                    // default path data was used to set path data
+                    this.defaultPathData = null;
+                } else if (dataFilesSet.contains(defaultPathData)) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "do not include default.path.data [%s] in path.data %s",
+                            defaultPathData,
+                            Arrays.toString(dataFiles));
+                    throw new IllegalStateException(message);
+                } else {
+                    this.defaultPathData = defaultPathData;
+                }
+            } else {
+                this.defaultPathData = null;
+            }
         } else {
             dataFiles = new Path[]{homeFile.resolve("data")};
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
+            assert !DEFAULT_PATH_DATA_SETTING.exists(settings)
+                    : "expected default.path.data to be unset but was [" + DEFAULT_PATH_DATA_SETTING.get(settings) + "]";
+            this.defaultPathData = null;
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(cleanPath(PATH_SHARED_DATA_SETTING.get(settings)));
@@ -192,6 +224,16 @@ public class Environment {
      */
     public Path[] dataFiles() {
         return dataFiles;
+    }
+
+    /**
+     * The default data path which is set only if default.path.data did not overwrite path.data.
+     *
+     * @return the default data path
+     */
+    @Nullable
+    public Path defaultPathData() {
+        return defaultPathData;
     }
 
     /**

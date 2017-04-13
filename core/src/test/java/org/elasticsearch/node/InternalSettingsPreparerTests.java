@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.node.internal;
+package org.elasticsearch.node;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +37,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -196,4 +194,26 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
         assertEquals("bar", env.settings().get("setting"));
     }
+
+    public void testDefaultWithArray() {
+        final Settings.Builder output = Settings.builder().put("foobar.0", "bar").put("foobar.1", "baz");
+        final Map<String, String> esSettings = Collections.singletonMap("default.foobar", "foo");
+        InternalSettingsPreparer.initializeSettings(output, Settings.EMPTY, esSettings);
+        final Settings settings = output.build();
+        assertThat(settings.get("foobar.0"), equalTo("bar"));
+        assertThat(settings.get("foobar.1"), equalTo("baz"));
+        assertNull(settings.get("foobar"));
+    }
+
+    public void testDefaultPathDataWithArray() {
+        final Settings.Builder output = Settings.builder().put("path.data.0", "/mnt/zero").put("path.data.1", "/mnt/one");
+        final Map<String, String> esSettings = Collections.singletonMap("default.path.data", "/mnt/default");
+        InternalSettingsPreparer.initializeSettings(output, Settings.EMPTY, esSettings);
+        final Settings settings = output.build();
+        assertThat(settings.get("path.data.0"), equalTo("/mnt/zero"));
+        assertThat(settings.get("path.data.1"), equalTo("/mnt/one"));
+        assertThat(settings.get("default.path.data"), equalTo("/mnt/default"));
+        assertNull(settings.get("path.data"));
+    }
+
 }

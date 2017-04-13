@@ -51,7 +51,6 @@ integTestRunner {
     'ml/start_stop_datafeed/Test start non existing datafeed',
     'ml/start_stop_datafeed/Test stop already stopped datafeed job',
     'ml/start_stop_datafeed/Test stop non existing datafeed',
-    'ml/start_stop_datafeed/Test force stop datafeed',
     'ml/update_model_snapshot/Test without description',
     'ml/validate/Test invalid job config',
     'ml/validate/Test job config that is invalid only because of the job ID',

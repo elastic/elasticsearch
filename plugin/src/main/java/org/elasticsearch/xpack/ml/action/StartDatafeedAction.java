@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -79,7 +78,8 @@ public class StartDatafeedAction
     public static final ParseField TIMEOUT = new ParseField("timeout");
 
     public static final StartDatafeedAction INSTANCE = new StartDatafeedAction();
-    public static final String NAME = "cluster:admin/xpack/ml/datafeeds/start";
+    public static final String NAME = "cluster:admin/xpack/ml/datafeed/start";
+    public static final String TASK_NAME = "xpack/ml/datafeed";
 
     private StartDatafeedAction() {
         super(NAME);
@@ -95,17 +95,103 @@ public class StartDatafeedAction
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements PersistentTaskParams, ToXContent {
+    public static class Request extends ActionRequest implements ToXContent {
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        public static Request fromXContent(XContentParser parser) {
+            return parseRequest(null, parser);
+        }
+
+        public static Request parseRequest(String datafeedId, XContentParser parser) {
+            DatafeedParams params = DatafeedParams.PARSER.apply(parser, null);
+            if (datafeedId != null) {
+                params.datafeedId = datafeedId;
+            }
+            return new Request(params);
+        }
+
+        private DatafeedParams params;
+
+        public Request(String datafeedId, long startTime) {
+            this.params = new DatafeedParams(datafeedId, startTime);
+        }
+
+        public Request(String datafeedId, String startTime) {
+            this.params = new DatafeedParams(datafeedId, startTime);
+        }
+
+        public Request(DatafeedParams params) {
+            this.params = params;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            readFrom(in);
+        }
+
+        Request() {
+        }
+
+        public DatafeedParams getParams() {
+            return params;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException e = null;
+            if (params.endTime != null && params.endTime <= params.startTime) {
+                e = ValidateActions.addValidationError(START_TIME.getPreferredName() + " ["
+                        + params.startTime + "] must be earlier than " + END_TIME.getPreferredName()
+                        + " [" + params.endTime + "]", e);
+            }
+            return e;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            params = new DatafeedParams(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            params.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            this.params.toXContent(builder, params);
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(params);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Objects.equals(params, other.params);
+        }
+    }
+
+    public static class DatafeedParams implements PersistentTaskParams {
+
+        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, DatafeedParams::new);
 
         static {
-            PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
-            PARSER.declareString((request, startTime) -> request.startTime = parseDateOrThrow(
+            PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
+            PARSER.declareString((params, startTime) -> params.startTime = parseDateOrThrow(
                     startTime, START_TIME, System::currentTimeMillis), START_TIME);
-            PARSER.declareString(Request::setEndTime, END_TIME);
-            PARSER.declareString((request, val) ->
-                    request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString(DatafeedParams::setEndTime, END_TIME);
+            PARSER.declareString((params, val) ->
+                    params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -119,38 +205,41 @@ public class StartDatafeedAction
             }
         }
 
-        public static Request fromXContent(XContentParser parser) {
+        public static DatafeedParams fromXContent(XContentParser parser) {
             return parseRequest(null, parser);
         }
 
-        public static Request parseRequest(String datafeedId, XContentParser parser) {
-            Request request = PARSER.apply(parser, null);
+        public static DatafeedParams parseRequest(String datafeedId, XContentParser parser) {
+            DatafeedParams params = PARSER.apply(parser, null);
             if (datafeedId != null) {
-                request.datafeedId = datafeedId;
+                params.datafeedId = datafeedId;
             }
-            return request;
+            return params;
+        }
+
+        public DatafeedParams(String datafeedId, long startTime) {
+            this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
+            this.startTime = startTime;
+        }
+
+        public DatafeedParams(String datafeedId, String startTime) {
+            this(datafeedId, parseDateOrThrow(startTime, START_TIME, System::currentTimeMillis));
+        }
+
+        public DatafeedParams(StreamInput in) throws IOException {
+            datafeedId = in.readString();
+            startTime = in.readVLong();
+            endTime = in.readOptionalLong();
+            timeout = TimeValue.timeValueMillis(in.readVLong());
+        }
+
+        DatafeedParams() {
         }
 
         private String datafeedId;
         private long startTime;
         private Long endTime;
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
-
-        public Request(String datafeedId, long startTime) {
-            this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
-            this.startTime = startTime;
-        }
-
-        public Request(String datafeedId, String startTime) {
-            this(datafeedId, parseDateOrThrow(startTime, START_TIME, System::currentTimeMillis));
-        }
-
-        public Request(StreamInput in) throws IOException {
-            readFrom(in);
-        }
-
-        Request() {
-        }
 
         public String getDatafeedId() {
             return datafeedId;
@@ -181,37 +270,16 @@ public class StartDatafeedAction
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException e = null;
-            if (endTime != null && endTime <= startTime) {
-                e = ValidateActions.addValidationError(START_TIME.getPreferredName() + " ["
-                        + startTime + "] must be earlier than " + END_TIME.getPreferredName()
-                        + " [" + endTime + "]", e);
-            }
-            return e;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            startTime = in.readVLong();
-            endTime = in.readOptionalLong();
-            timeout = TimeValue.timeValueMillis(in.readVLong());
+        public String getWriteableName() {
+            return TASK_NAME;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(datafeedId);
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
             out.writeVLong(timeout.millis());
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
         }
 
         @Override
@@ -240,7 +308,7 @@ public class StartDatafeedAction
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            Request other = (Request) obj;
+            DatafeedParams other = (DatafeedParams) obj;
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(startTime, other.startTime) &&
                     Objects.equals(endTime, other.endTime) &&
@@ -297,11 +365,11 @@ public class StartDatafeedAction
         /* only pck protected for testing */
         volatile DatafeedManager datafeedManager;
 
-        DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request) {
-            super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
-            this.datafeedId = request.getDatafeedId();
-            this.startTime = request.getStartTime();
-            this.endTime = request.getEndTime();
+        DatafeedTask(long id, String type, String action, TaskId parentTaskId, DatafeedParams params) {
+            super(id, type, action, "datafeed-" + params.getDatafeedId(), parentTaskId);
+            this.datafeedId = params.getDatafeedId();
+            this.startTime = params.getStartTime();
+            this.endTime = params.getEndTime();
         }
 
         public String getDatafeedId() {
@@ -351,29 +419,30 @@ public class StartDatafeedAction
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
+            DatafeedParams params = request.params;
             if (licenseState.isMachineLearningAllowed()) {
-                ActionListener<PersistentTask<Request>> finalListener = new ActionListener<PersistentTask<Request>>() {
+                ActionListener<PersistentTask<DatafeedParams>> finalListener = new ActionListener<PersistentTask<DatafeedParams>>() {
                     @Override
-                    public void onResponse(PersistentTask<Request> persistentTask) {
-                        waitForDatafeedStarted(persistentTask.getId(), request, listener);
+                    public void onResponse(PersistentTask<DatafeedParams> persistentTask) {
+                        waitForDatafeedStarted(persistentTask.getId(), params, listener);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof ResourceAlreadyExistsException) {
-                            e = new ElasticsearchStatusException("cannot start datafeed [" + request.getDatafeedId() +
+                            e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
                                     "] because it has already been started", RestStatus.CONFLICT, e);
                         }
                         listener.onFailure(e);
                     }
                 };
-                persistentTasksService.startPersistentTask(MlMetadata.datafeedTaskId(request.datafeedId), NAME, request, finalListener);
+                persistentTasksService.startPersistentTask(MlMetadata.datafeedTaskId(params.datafeedId), TASK_NAME, params, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
         }
 
-        void waitForDatafeedStarted(String taskId, Request request, ActionListener<Response> listener) {
+        void waitForDatafeedStarted(String taskId, DatafeedParams params, ActionListener<Response> listener) {
             Predicate<PersistentTask<?>> predicate = persistentTask -> {
                 if (persistentTask == null) {
                     return false;
@@ -381,10 +450,10 @@ public class StartDatafeedAction
                 DatafeedState datafeedState = (DatafeedState) persistentTask.getStatus();
                 return datafeedState == DatafeedState.STARTED;
             };
-            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, request.timeout,
-                    new WaitForPersistentTaskStatusListener<Request>() {
+            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, params.timeout,
+                    new WaitForPersistentTaskStatusListener<DatafeedParams>() {
                 @Override
-                public void onResponse(PersistentTask<Request> task) {
+                public void onResponse(PersistentTask<DatafeedParams> task) {
                     listener.onResponse(new Response(true));
                 }
 
@@ -396,38 +465,38 @@ public class StartDatafeedAction
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(new ElasticsearchException("Starting datafeed ["
-                            + request.getDatafeedId() + "] timed out after [" + timeout + "]"));
+                            + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
                 }
             });
         }
     }
 
-    public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<Request> {
+    public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<DatafeedParams> {
         private final DatafeedManager datafeedManager;
         private final XPackLicenseState licenseState;
         private final IndexNameExpressionResolver resolver;
 
         public StartDatafeedPersistentTasksExecutor(Settings settings, XPackLicenseState licenseState, DatafeedManager datafeedManager) {
-            super(settings, NAME, ThreadPool.Names.MANAGEMENT);
+            super(settings, TASK_NAME, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.datafeedManager = datafeedManager;
             this.resolver = new IndexNameExpressionResolver(settings);
         }
 
         @Override
-        public Assignment getAssignment(Request request, ClusterState clusterState) {
-            return selectNode(logger, request.getDatafeedId(), clusterState, resolver);
+        public Assignment getAssignment(DatafeedParams params, ClusterState clusterState) {
+            return selectNode(logger, params.getDatafeedId(), clusterState, resolver);
         }
 
         @Override
-        public void validate(Request request, ClusterState clusterState) {
+        public void validate(DatafeedParams params, ClusterState clusterState) {
             if (licenseState.isMachineLearningAllowed()) {
                 MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
                 PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks);
-                Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState, resolver);
+                StartDatafeedAction.validate(params.getDatafeedId(), mlMetadata, tasks);
+                Assignment assignment = selectNode(logger, params.getDatafeedId(), clusterState, resolver);
                 if (assignment.getExecutorNode() == null) {
-                    String msg = "No node found to start datafeed [" + request.getDatafeedId()
+                    String msg = "No node found to start datafeed [" + params.getDatafeedId()
                             + "], allocation explanation [" + assignment.getExplanation() + "]";
                     throw new ElasticsearchException(msg);
                 }
@@ -437,7 +506,7 @@ public class StartDatafeedAction
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, Request request) {
+        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, DatafeedParams params) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedManager = datafeedManager;
             datafeedManager.run(datafeedTask,
@@ -452,7 +521,7 @@ public class StartDatafeedAction
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTask<Request> persistentTask) {
+                                                     PersistentTask<DatafeedParams> persistentTask) {
             return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams());
         }
     }

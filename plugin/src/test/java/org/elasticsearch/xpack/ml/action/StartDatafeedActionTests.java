@@ -300,9 +300,9 @@ public class StartDatafeedActionTests extends ESTestCase {
 
     public static StartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
                                                                       TaskId parentTaskId,
-                                                                      StartDatafeedAction.Request request,
+                                                                      StartDatafeedAction.DatafeedParams params,
                                                                       DatafeedManager datafeedManager) {
-        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(id, type, action, parentTaskId, request);
+        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(id, type, action, parentTaskId, params);
         task.datafeedManager = datafeedManager;
         return task;
     }

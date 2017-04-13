@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -74,9 +73,9 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
             entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
                     PersistentTasksCustomMetaData::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.NAME,
-                    StartDatafeedAction.Request::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.NAME, OpenJobAction.Request::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.TASK_NAME,
+                    StartDatafeedAction.DatafeedParams::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME, OpenJobAction.JobParams::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
                     PersistentTasksNodeService.Status::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new));
@@ -155,7 +154,7 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
         assertTrue(putDatafeedResponse.isAcknowledged());
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedConfig.getId(), 0L);
-        startDatafeedRequest.setEndTime(now);
+        startDatafeedRequest.getParams().setEndTime(now);
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());

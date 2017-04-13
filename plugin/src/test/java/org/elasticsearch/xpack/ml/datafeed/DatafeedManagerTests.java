@@ -281,9 +281,9 @@ public class DatafeedManagerTests extends ESTestCase {
                 new Date(0), new Date(0), new Date(0), new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed_id", 0L);
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed_id", 0L);
         DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
-                startDatafeedRequest, datafeedManager);
+                params, datafeedManager);
         task = spyDatafeedTask(task);
         datafeedManager.run(task, handler);
 
@@ -310,9 +310,9 @@ public class DatafeedManagerTests extends ESTestCase {
                 new Date(0), new Date(0), new Date(0), new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed_id", 0L);
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed_id", 0L);
         DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
-                startDatafeedRequest, datafeedManager);
+                params, datafeedManager);
         task = spyDatafeedTask(task);
         datafeedManager.run(task, handler);
 
@@ -333,9 +333,9 @@ public class DatafeedManagerTests extends ESTestCase {
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
-        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed_id", 0L);
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed_id", 0L);
         DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
-                startDatafeedRequest, datafeedManager);
+                params, datafeedManager);
         task = spyDatafeedTask(task);
         datafeedManager.run(task, handler);
 

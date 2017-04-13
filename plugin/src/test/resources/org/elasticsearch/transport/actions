@@ -132,8 +132,8 @@ cluster:admin/xpack/ml/job/model_snapshots/update
 cluster:admin/xpack/ml/job/flush
 cluster:admin/xpack/ml/filters/delete
 cluster:monitor/xpack/ml/datafeeds/stats/get
-cluster:admin/xpack/ml/datafeeds/stop
-cluster:admin/xpack/ml/datafeeds/start
+cluster:admin/xpack/ml/datafeed/stop
+cluster:admin/xpack/ml/datafeed/start
 cluster:admin/xpack/ml/job/open
 cluster:admin/xpack/ml/job/update
 indices:internal/data/write/xpackdeletebyquery

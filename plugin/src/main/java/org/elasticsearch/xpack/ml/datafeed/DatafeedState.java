@@ -23,7 +23,7 @@ public enum DatafeedState implements Task.Status {
 
     STARTED, STOPPED;
 
-    public static final String NAME = StartDatafeedAction.NAME;
+    public static final String NAME = StartDatafeedAction.TASK_NAME;
 
     private static final ConstructingObjectParser<DatafeedState, Void> PARSER =
             new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));

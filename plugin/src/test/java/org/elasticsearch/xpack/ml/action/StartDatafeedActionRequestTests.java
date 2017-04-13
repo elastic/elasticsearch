@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction.Request;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
@@ -17,14 +18,14 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(10), randomNonNegativeLong());
+        DatafeedParams params = new DatafeedParams(randomAlphaOfLength(10), randomNonNegativeLong());
         if (randomBoolean()) {
-            request.setEndTime(randomNonNegativeLong());
+            params.setEndTime(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+            params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
-        return request;
+        return new Request(params);
     }
 
     @Override
@@ -38,15 +39,15 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
     }
 
     public void testParseDateOrThrow() {
-        assertEquals(0L, StartDatafeedAction.Request.parseDateOrThrow("0",
+        assertEquals(0L, StartDatafeedAction.DatafeedParams.parseDateOrThrow("0",
                 StartDatafeedAction.START_TIME, () -> System.currentTimeMillis()));
-        assertEquals(0L, StartDatafeedAction.Request.parseDateOrThrow("1970-01-01T00:00:00Z",
+        assertEquals(0L, StartDatafeedAction.DatafeedParams.parseDateOrThrow("1970-01-01T00:00:00Z",
                 StartDatafeedAction.START_TIME, () -> System.currentTimeMillis()));
-        assertThat(StartDatafeedAction.Request.parseDateOrThrow("now",
+        assertThat(StartDatafeedAction.DatafeedParams.parseDateOrThrow("now",
                 StartDatafeedAction.START_TIME, () -> 123456789L), equalTo(123456789L));
 
         Exception e = expectThrows(ElasticsearchParseException.class,
-                () -> StartDatafeedAction.Request.parseDateOrThrow("not-a-date",
+                () -> StartDatafeedAction.DatafeedParams.parseDateOrThrow("not-a-date",
                         StartDatafeedAction.START_TIME, () -> System.currentTimeMillis()));
         assertEquals("Query param 'start' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
                 e.getMessage());

@@ -113,8 +113,8 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
                                PersistentTasksCustomMetaData.Builder tasks) {
-        tasks.addTask(MlMetadata.datafeedTaskId(datafeedId), StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
+        tasks.addTask(MlMetadata.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
         tasks.updateTaskStatus(MlMetadata.datafeedTaskId(datafeedId), state);
     }
 

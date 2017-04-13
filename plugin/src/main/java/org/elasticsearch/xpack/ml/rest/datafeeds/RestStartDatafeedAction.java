@@ -42,15 +42,16 @@ public class RestStartDatafeedAction extends BaseRestHandler {
             jobDatafeedRequest = StartDatafeedAction.Request.parseRequest(datafeedId, parser);
         } else {
             String startTime = restRequest.param(StartDatafeedAction.START_TIME.getPreferredName(), DEFAULT_START);
-            jobDatafeedRequest = new StartDatafeedAction.Request(datafeedId, startTime);
+            StartDatafeedAction.DatafeedParams datafeedParams = new StartDatafeedAction.DatafeedParams(datafeedId, startTime);
             if (restRequest.hasParam(StartDatafeedAction.END_TIME.getPreferredName())) {
-                jobDatafeedRequest.setEndTime(restRequest.param(StartDatafeedAction.END_TIME.getPreferredName()));
+                datafeedParams.setEndTime(restRequest.param(StartDatafeedAction.END_TIME.getPreferredName()));
             }
             if (restRequest.hasParam(StartDatafeedAction.TIMEOUT.getPreferredName())) {
                 TimeValue openTimeout = restRequest.paramAsTime(
                         StartDatafeedAction.TIMEOUT.getPreferredName(), TimeValue.timeValueSeconds(20));
-                jobDatafeedRequest.setTimeout(openTimeout);
+                datafeedParams.setTimeout(openTimeout);
             }
+            jobDatafeedRequest = new StartDatafeedAction.Request(datafeedParams);
         }
         return channel -> {
             client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,

@@ -14,14 +14,14 @@ public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCas
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLengthBetween(1, 20));
+        OpenJobAction.JobParams params = new OpenJobAction.JobParams(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+            params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            request.setIgnoreDowntime(randomBoolean());
+            params.setIgnoreDowntime(randomBoolean());
         }
-        return request;
+        return new Request(params);
     }
 
     @Override

@@ -48,23 +48,10 @@ import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 
 public class OpenJobActionTests extends ESTestCase {
 
-    public void testValidate() {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
-        mlBuilder.putJob(buildJobBuilder("job_id").build(), false);
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        addJobTask("job_id2", "_node_id", randomFrom(JobState.CLOSED, JobState.FAILED), tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        OpenJobAction.validate("job_id", mlBuilder.build(), tasks);
-        OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasksCustomMetaData(1L, Collections.emptyMap()));
-        OpenJobAction.validate("job_id", mlBuilder.build(), null);
-    }
-
     public void testValidate_jobMissing() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(buildJobBuilder("job_id1").build(), false);
-        expectThrows(ResourceNotFoundException.class, () -> OpenJobAction.validate("job_id2", mlBuilder.build(), null));
+        expectThrows(ResourceNotFoundException.class, () -> OpenJobAction.validate("job_id2", mlBuilder.build()));
     }
 
     public void testValidate_jobMarkedAsDeleted() {
@@ -73,7 +60,7 @@ public class OpenJobActionTests extends ESTestCase {
         jobBuilder.setDeleted(true);
         mlBuilder.putJob(jobBuilder.build(), false);
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> OpenJobAction.validate("job_id", mlBuilder.build(), null));
+                () -> OpenJobAction.validate("job_id", mlBuilder.build()));
         assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
     }
 
@@ -268,7 +255,7 @@ public class OpenJobActionTests extends ESTestCase {
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
-        builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.NAME, new OpenJobAction.Request(jobId),
+        builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
             builder.updateTaskStatus(MlMetadata.jobTaskId(jobId), new JobTaskStatus(jobState, builder.getLastAllocationId()));

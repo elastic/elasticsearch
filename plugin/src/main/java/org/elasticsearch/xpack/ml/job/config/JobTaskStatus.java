@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class JobTaskStatus implements Task.Status {
 
-    public static final String NAME = OpenJobAction.NAME;
+    public static final String NAME = OpenJobAction.TASK_NAME;
 
     private static ParseField STATE = new ParseField("state");
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");

@@ -36,12 +36,14 @@ public class RestOpenJobAction extends BaseRestHandler {
         if (restRequest.hasContentOrSourceParam()) {
             request = OpenJobAction.Request.parseRequest(restRequest.param(Job.ID.getPreferredName()), restRequest.contentParser());
         } else {
-            request = new OpenJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-            request.setIgnoreDowntime(restRequest.paramAsBoolean(OpenJobAction.Request.IGNORE_DOWNTIME.getPreferredName(), true));
-            if (restRequest.hasParam("timeout")) {
-                TimeValue openTimeout = restRequest.paramAsTime("timeout", TimeValue.timeValueSeconds(20));
-                request.setTimeout(openTimeout);
+            OpenJobAction.JobParams jobParams = new OpenJobAction.JobParams(restRequest.param(Job.ID.getPreferredName()));
+            jobParams.setIgnoreDowntime(restRequest.paramAsBoolean(OpenJobAction.JobParams.IGNORE_DOWNTIME.getPreferredName(), true));
+            if (restRequest.hasParam(OpenJobAction.JobParams.TIMEOUT.getPreferredName())) {
+                TimeValue openTimeout = restRequest.paramAsTime(OpenJobAction.JobParams.TIMEOUT.getPreferredName(),
+                        TimeValue.timeValueSeconds(20));
+                jobParams.setTimeout(openTimeout);
             }
+            request = new OpenJobAction.Request(jobParams);
         }
         return channel -> {
             client.execute(OpenJobAction.INSTANCE, request, new RestBuilderListener<OpenJobAction.Response>(channel) {

@@ -78,16 +78,16 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
             if (Objects.equals(currentAssignment, previousAssignment)) {
                 continue;
             }
-            if (OpenJobAction.NAME.equals(currentTask.getTaskName())) {
-                String jobId = ((OpenJobAction.Request) currentTask.getParams()).getJobId();
+            if (OpenJobAction.TASK_NAME.equals(currentTask.getTaskName())) {
+                String jobId = ((OpenJobAction.JobParams) currentTask.getParams()).getJobId();
                 if (currentAssignment.getExecutorNode() == null) {
                     auditor.warning(jobId, "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
                 } else {
                     DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
                     auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 }
-            } else if (StartDatafeedAction.NAME.equals(currentTask.getTaskName())) {
-                String datafeedId = ((StartDatafeedAction.Request) currentTask.getParams()).getDatafeedId();
+            } else if (StartDatafeedAction.TASK_NAME.equals(currentTask.getTaskName())) {
+                String datafeedId = ((StartDatafeedAction.DatafeedParams) currentTask.getParams()).getDatafeedId();
                 MlMetadata mlMetadata = event.state().getMetaData().custom(MlMetadata.TYPE);
                 DatafeedConfig datafeedConfig = mlMetadata.getDatafeed(datafeedId);
                 if (currentAssignment.getExecutorNode() == null) {

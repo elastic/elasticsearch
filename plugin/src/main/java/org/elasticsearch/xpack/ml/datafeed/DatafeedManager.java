@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 
@@ -376,9 +375,9 @@ public class DatafeedManager extends AbstractComponent {
 
         private void closeJob() {
             persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(20),
-                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.Request>() {
+                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
-                public void onResponse(PersistentTask<StartDatafeedAction.Request> PersistentTask) {
+                public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> PersistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
                     client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
 

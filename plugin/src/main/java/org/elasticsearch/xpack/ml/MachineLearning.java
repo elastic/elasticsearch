@@ -215,8 +215,10 @@ public class MachineLearning implements ActionPlugin {
                         PersistentTasksCustomMetaData::readDiffFrom),
 
                 // Persistent action requests
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.NAME, OpenJobAction.Request::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.TASK_NAME,
+                        StartDatafeedAction.DatafeedParams::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME,
+                        OpenJobAction.JobParams::new),
 
                 // Task statuses
                 new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
@@ -235,10 +237,10 @@ public class MachineLearning implements ActionPlugin {
                         PersistentTasksCustomMetaData::fromXContent),
 
                 // Persistent action requests
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(StartDatafeedAction.NAME),
-                        StartDatafeedAction.Request::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(OpenJobAction.NAME),
-                        OpenJobAction.Request::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(StartDatafeedAction.TASK_NAME),
+                        StartDatafeedAction.DatafeedParams::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(OpenJobAction.TASK_NAME),
+                        OpenJobAction.JobParams::fromXContent),
 
                 // Task statuses
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),

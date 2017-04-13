@@ -52,8 +52,8 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
     public void testValidate() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("foo"), StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("foo", 0L), new Assignment("node_id", ""));
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("foo", 0L), new Assignment("node_id", ""));
         tasksBuilder.updateTaskStatus(MlMetadata.datafeedTaskId("foo"), DatafeedState.STARTED);
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
 
@@ -74,8 +74,8 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         PersistentTasksCustomMetaData tasks;
         if (randomBoolean()) {
             PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-            tasksBuilder.addTask(MlMetadata.datafeedTaskId("foo2"), StartDatafeedAction.NAME,
-                    new StartDatafeedAction.Request("foo2", 0L), new Assignment("node_id", ""));
+            tasksBuilder.addTask(MlMetadata.datafeedTaskId("foo2"), StartDatafeedAction.TASK_NAME,
+                    new StartDatafeedAction.DatafeedParams("foo2", 0L), new Assignment("node_id", ""));
             tasks = tasksBuilder.build();
         } else {
             tasks = randomBoolean() ? null : new PersistentTasksCustomMetaData(0L, Collections.emptyMap());
@@ -95,22 +95,22 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     public void testResolveAll() {
         Builder mlMetadataBuilder = new MlMetadata.Builder();
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed_1"), StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("datafeed_1", 0L), new Assignment("node_id", ""));
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed_1"), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("datafeed_1", 0L), new Assignment("node_id", ""));
         tasksBuilder.updateTaskStatus(MlMetadata.datafeedTaskId("datafeed_1"), DatafeedState.STARTED);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
 
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed_2"), StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("datafeed_1", 0L), new Assignment("node_id", ""));
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed_2"), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("datafeed_1", 0L), new Assignment("node_id", ""));
         tasksBuilder.updateTaskStatus(MlMetadata.datafeedTaskId("datafeed_2"), DatafeedState.STOPPED);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
         mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
 
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed_3"), StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("datafeed_3", 0L), new Assignment("node_id", ""));
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed_3"), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("datafeed_3", 0L), new Assignment("node_id", ""));
         tasksBuilder.updateTaskStatus(MlMetadata.datafeedTaskId("datafeed_3"), DatafeedState.STARTED);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_3").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_3", "job_id_3").build();

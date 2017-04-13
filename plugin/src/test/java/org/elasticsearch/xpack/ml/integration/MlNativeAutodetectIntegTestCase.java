@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.security.Security;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -147,7 +146,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
 
     protected void startDatafeed(String datafeedId, long start, long end) throws Exception {
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedId, start);
-        request.setEndTime(end);
+        request.getParams().setEndTime(end);
         client().execute(StartDatafeedAction.INSTANCE, request).get();
     }
 

@@ -339,7 +339,7 @@
       cluster.state:
         metric: [ metadata ]
         filter_path: metadata.persistent_tasks
-  - match: {"metadata.persistent_tasks.tasks.0.task.cluster:admin/xpack/ml/job/open.status.state": opened}
+  - match: {"metadata.persistent_tasks.tasks.0.task.xpack/ml/job.status.state": opened}
 
   - do:
       xpack.ml.close_job:
@@ -396,7 +396,7 @@
       cluster.state:
         metric: [ metadata ]
         filter_path: metadata.persistent_tasks
-  - match: {"metadata.persistent_tasks.tasks.0.task.cluster:admin/xpack/ml/job/open.status.state": opened}
+  - match: {"metadata.persistent_tasks.tasks.0.task.xpack/ml/job.status.state": opened}
 
   - do:
       xpack.ml.close_job:

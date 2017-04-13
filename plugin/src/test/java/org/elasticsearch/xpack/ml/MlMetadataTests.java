@@ -271,8 +271,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata beforeMetadata = builder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed1"), StartDatafeedAction.NAME, request, INITIAL_ASSIGNMENT);
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedConfig1.getId(), 0L);
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
@@ -332,8 +332,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed1"), StartDatafeedAction.NAME, request, INITIAL_ASSIGNMENT);
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed1", 0L);
+        tasksBuilder.addTask(MlMetadata.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);

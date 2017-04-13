@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
-  classname 'org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin'
+  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
 versions << [
@@ -52,6 +52,11 @@ bundlePlugin {
   from('config/repository-s3') {
     into 'config'
   }
+}
+
+integTestCluster {
+  keystoreSetting 's3.client.default.access_key', 'myaccesskey'
+  keystoreSetting 's3.client.default.secret_key', 'mysecretkey'
 }
 
 thirdPartyAudit.excludes = [

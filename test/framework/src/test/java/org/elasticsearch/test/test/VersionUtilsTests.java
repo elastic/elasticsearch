@@ -46,21 +46,22 @@ public class VersionUtilsTests extends ESTestCase {
         assertTrue(got.onOrBefore(Version.CURRENT));
 
         // sub range
-        got = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha1);
-        assertTrue(got.onOrAfter(Version.V_2_0_0));
-        assertTrue(got.onOrBefore(Version.V_5_0_0_alpha1));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.V_6_0_0_alpha1_UNRELEASED);
+        assertTrue(got.onOrAfter(Version.V_5_0_0));
+        assertTrue(got.onOrBefore(Version.V_6_0_0_alpha1_UNRELEASED));
 
         // unbounded lower
-        got = VersionUtils.randomVersionBetween(random(), null, Version.V_5_0_0_alpha1);
+        got = VersionUtils.randomVersionBetween(random(), null, Version.V_6_0_0_alpha1_UNRELEASED);
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
-        assertTrue(got.onOrBefore(Version.V_5_0_0_alpha1));
+        assertTrue(got.onOrBefore(Version.V_6_0_0_alpha1_UNRELEASED));
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allReleasedVersions().get(0));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
 
         // unbounded upper
-        got = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, null);
-        assertTrue(got.onOrAfter(Version.V_2_0_0));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, null);
+        assertTrue(got.onOrAfter(Version.V_5_0_0));
         assertTrue(got.onOrBefore(Version.CURRENT));
         got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousVersion(), null);
         assertTrue(got.onOrAfter(VersionUtils.getPreviousVersion()));
@@ -71,8 +72,9 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(got, VersionUtils.getFirstVersion());
         got = VersionUtils.randomVersionBetween(random(), Version.CURRENT, Version.CURRENT);
         assertEquals(got, Version.CURRENT);
-        got = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha1, Version.V_5_0_0_alpha1);
-        assertEquals(got, Version.V_5_0_0_alpha1);
+        got = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1_UNRELEASED,
+                Version.V_6_0_0_alpha1_UNRELEASED);
+        assertEquals(got, Version.V_6_0_0_alpha1_UNRELEASED);
 
         // implicit range of one
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getFirstVersion());

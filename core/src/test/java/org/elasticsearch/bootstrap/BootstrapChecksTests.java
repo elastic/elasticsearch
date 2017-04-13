@@ -44,6 +44,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -98,7 +99,9 @@ public class BootstrapChecksTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        assertTrue(BootstrapChecks.enforceLimits(boundTransportAddress));
+        final String discoveryType = randomFrom("zen", "single-node");
+
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
 
     public void testEnforceLimitsWhenPublishingToNonLocalAddress() {
@@ -114,7 +117,9 @@ public class BootstrapChecksTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        assertTrue(BootstrapChecks.enforceLimits(boundTransportAddress));
+        final String discoveryType = randomFrom("zen", "single-node");
+
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
 
     public void testExceptionAggregation() {
@@ -483,7 +488,7 @@ public class BootstrapChecksTests extends ESTestCase {
             }
         };
 
-        final String command = randomAsciiOfLength(16);
+        final String command = randomAlphaOfLength(16);
         runMightForkTest(
             check,
             isSystemCallFilterInstalled,
@@ -511,7 +516,7 @@ public class BootstrapChecksTests extends ESTestCase {
             }
         };
 
-        final String command = randomAsciiOfLength(16);
+        final String command = randomAlphaOfLength(16);
         runMightForkTest(
             check,
             isSystemCallFilterInstalled,
@@ -560,12 +565,48 @@ public class BootstrapChecksTests extends ESTestCase {
         consumer.accept(e);
     }
 
+    public void testEarlyAccessCheck() throws NodeValidationException {
+        final AtomicReference<String> javaVersion
+                = new AtomicReference<>(randomFrom("1.8.0_152-ea", "9-ea"));
+        final BootstrapChecks.EarlyAccessCheck eaCheck = new BootstrapChecks.EarlyAccessCheck() {
+
+            @Override
+            String jvmVendor() {
+                return "Oracle Corporation";
+            }
+
+            @Override
+            String javaVersion() {
+                return javaVersion.get();
+            }
+
+        };
+
+        final List<BootstrapCheck> checks = Collections.singletonList(eaCheck);
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
+                () -> {
+                    BootstrapChecks.check(true, checks, "testEarlyAccessCheck");
+                });
+        assertThat(
+                e.getMessage(),
+                containsString(
+                        "Java version ["
+                                + javaVersion.get()
+                                + "] is an early-access build, only use release builds"));
+
+        // if not on an early-access build, nothing should happen
+        javaVersion.set(randomFrom("1.8.0_152", "9"));
+        BootstrapChecks.check(true, checks, "testEarlyAccessCheck");
+
+    }
+
     public void testG1GCCheck() throws NodeValidationException {
         final AtomicBoolean isG1GCEnabled = new AtomicBoolean(true);
         final AtomicBoolean isJava8 = new AtomicBoolean(true);
         final AtomicReference<String> jvmVersion =
             new AtomicReference<>(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(0, 39), randomIntBetween(1, 128)));
-        final BootstrapChecks.G1GCCheck oracleCheck = new BootstrapChecks.G1GCCheck() {
+        final BootstrapChecks.G1GCCheck g1GCCheck = new BootstrapChecks.G1GCCheck() {
 
             @Override
             String jvmVendor() {
@@ -592,7 +633,7 @@ public class BootstrapChecksTests extends ESTestCase {
         final NodeValidationException e =
             expectThrows(
                 NodeValidationException.class,
-                () -> BootstrapChecks.check(true, Collections.singletonList(oracleCheck), "testG1GCCheck"));
+                () -> BootstrapChecks.check(true, Collections.singletonList(g1GCCheck), "testG1GCCheck"));
         assertThat(
             e.getMessage(),
             containsString(
@@ -600,18 +641,18 @@ public class BootstrapChecksTests extends ESTestCase {
 
         // if G1GC is disabled, nothing should happen
         isG1GCEnabled.set(false);
-        BootstrapChecks.check(true, Collections.singletonList(oracleCheck), "testG1GCCheck");
+        BootstrapChecks.check(true, Collections.singletonList(g1GCCheck), "testG1GCCheck");
 
         // if on or after update 40, nothing should happen independent of whether or not G1GC is enabled
         isG1GCEnabled.set(randomBoolean());
         jvmVersion.set(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(40, 112), randomIntBetween(1, 128)));
-        BootstrapChecks.check(true, Collections.singletonList(oracleCheck), "testG1GCCheck");
+        BootstrapChecks.check(true, Collections.singletonList(g1GCCheck), "testG1GCCheck");
 
         final BootstrapChecks.G1GCCheck nonOracleCheck = new BootstrapChecks.G1GCCheck() {
 
             @Override
             String jvmVendor() {
-                return randomAsciiOfLength(8);
+                return randomAlphaOfLength(8);
             }
 
         };

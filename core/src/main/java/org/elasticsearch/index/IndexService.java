@@ -55,7 +55,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
@@ -343,8 +342,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final boolean canDeleteShardContent = this.indexSettings.isOnSharedFilesystem() == false ||
-                (primary && this.indexSettings.isOnSharedFilesystem());
             final Engine.Warmer engineWarmer = (searcher) -> {
                 IndexShard shard =  getShardOrNull(shardId.getId());
                 if (shard != null) {
@@ -352,18 +349,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
-                new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
-            if (useShadowEngine(primary, this.indexSettings)) {
-                indexShard = new ShadowIndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                    searchOperationListeners);
-                // no indexing listeners - shadow  engines don't index
-            } else {
-                indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
+                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
+            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
                     indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                     () -> globalCheckpointSyncer.accept(shardId),
                     searchOperationListeners, indexingOperationListeners);
-            }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -379,10 +369,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
-    }
-
-    static boolean useShadowEngine(boolean primary, IndexSettings indexSettings) {
-        return primary == false && indexSettings.isShadowReplicaIndex();
     }
 
     @Override
@@ -438,16 +424,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
 
-    private void onShardClose(ShardLock lock, boolean ownsShard) {
+    private void onShardClose(ShardLock lock) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                if (ownsShard) {
-                    try {
-                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
-                    } finally {
-                        shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
-                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
-                    }
+                try {
+                    eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
+                } finally {
+                    shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
+                    eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
@@ -514,12 +498,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
-        private final boolean ownsShard;
         private final Closeable[] toClose;
 
-        StoreCloseListener(ShardId shardId, boolean ownsShard, Closeable... toClose) {
+        StoreCloseListener(ShardId shardId, Closeable... toClose) {
             this.shardId = shardId;
-            this.ownsShard = ownsShard;
             this.toClose = toClose;
         }
 
@@ -527,7 +509,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         public void handle(ShardLock lock) {
             try {
                 assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
-                onShardClose(lock, ownsShard);
+                onShardClose(lock);
             } finally {
                 try {
                     IOUtils.close(toClose);

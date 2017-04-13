@@ -98,13 +98,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);
-            Engine engine = IndexShardTests.getEngineFromShard(replica);
-            assertEquals("expected at no version lookups ", InternalEngineTests.getNumVersionLookups((InternalEngine) engine), 0);
-            for (IndexShard shard : shards) {
-                engine = IndexShardTests.getEngineFromShard(shard);
-                assertEquals(0, InternalEngineTests.getNumIndexVersionsLookups((InternalEngine) engine));
-                assertEquals(0, InternalEngineTests.getNumVersionLookups((InternalEngine) engine));
-            }
+            Engine engine = IndexShardTests.getEngineFromShard(shards.getPrimary());
+            assertEquals(0, InternalEngineTests.getNumIndexVersionsLookups((InternalEngine) engine));
+            assertEquals(0, InternalEngineTests.getNumVersionLookups((InternalEngine) engine));
         }
     }
 

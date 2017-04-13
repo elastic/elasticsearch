@@ -40,7 +40,8 @@ buildscript {
   }
 }
 
-Collection distributions = project.subprojects.findAll { it.path.contains(':tools') == false }
+Collection distributions = project.subprojects.findAll {
+   it.path.contains(':tools') == false && it.name != 'bwc-zip' }
 
 /*****************************************************************************
  *                                Notice file                                *
@@ -48,12 +49,12 @@ Collection distributions = project.subprojects.findAll { it.path.contains(':tool
 
 // integ test zip only uses core, so a different notice file is needed there
 task buildCoreNotice(type: NoticeTask) {
-  dependencies project(':core')
+  licensesDir new File(project(':core').projectDir, 'licenses')
 }
 
 // other distributions include notices from modules as well, which are added below later
 task buildFullNotice(type: NoticeTask) {
-  dependencies project(':core')
+  licensesDir new File(project(':core').projectDir, 'licenses')
 }
 
 /*****************************************************************************
@@ -72,7 +73,10 @@ ext.restTestExpansions = [
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
   buildFullNotice {
-    dependencies module
+    def defaultLicensesDir = new File(module.projectDir, 'licenses')
+    if (defaultLicensesDir.exists()) {
+      licensesDir defaultLicensesDir
+    }
   }
   buildModules {
     dependsOn({ project(module.path).bundlePlugin })
@@ -82,7 +86,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   }
   // We would like to make sure integ tests for the distribution run after
   // integ tests for the modules included in the distribution.
-  project.configure(distributions.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+  project.configure(distributions.findAll { it.name != 'integ-test-zip'}) { Project distribution ->
     distribution.afterEvaluate({
       // some integTest tasks will have multiple finalizers
       distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }

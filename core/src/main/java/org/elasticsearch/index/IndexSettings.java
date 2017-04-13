@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -112,6 +111,25 @@ public final class IndexSettings {
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
             Property.IndexScope);
 
+    /**
+     * The maximum size of a translog generation. This is independent of the maximum size of
+     * translog operations that have not been flushed.
+     */
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING =
+            Setting.byteSizeSetting(
+                    "index.translog.generation_threshold_size",
+                    new ByteSizeValue(64, ByteSizeUnit.MB),
+                    /*
+                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * below this, the flush thread can get stuck in an infinite loop repeatedly
+                     * rolling the generation as every new generation will already exceed the
+                     * generation threshold. However, small thresholds are useful for testing so we
+                     * do not add a large lower bound here.
+                     */
+                    new ByteSizeValue(64, ByteSizeUnit.BYTES),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                    new Property[]{Property.Dynamic, Property.IndexScope});
+
     public static final Setting<TimeValue> INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL =
         Setting.timeSetting("index.seq_no.checkpoint_sync_interval", new TimeValue(30, TimeUnit.SECONDS),
             new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
@@ -142,7 +160,6 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final boolean isShadowReplicaIndex;
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
@@ -156,6 +173,7 @@ public final class IndexSettings {
     private volatile TimeValue refreshInterval;
     private final TimeValue globalCheckpointInterval;
     private volatile ByteSizeValue flushThresholdSize;
+    private volatile ByteSizeValue generationThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndexScopedSettings scopedSettings;
@@ -238,7 +256,6 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        isShadowReplicaIndex = indexMetaData.isIndexUsingShadowReplicas(settings);
 
         this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -250,6 +267,7 @@ public final class IndexSettings {
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         globalCheckpointInterval = scopedSettings.get(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
+        generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -281,6 +299,9 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(
+                INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
+                this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
@@ -288,6 +309,10 @@ public final class IndexSettings {
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
         this.flushThresholdSize = byteSizeValue;
+    }
+
+    private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
+        this.generationThresholdSize = generationThresholdSize;
     }
 
     private void setGCDeletes(TimeValue timeValue) {
@@ -333,15 +358,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index
-     * associated with these settings allocates it's shards on a shared
-     * filesystem.
-     */
-    public boolean isOnSharedFilesystem() {
-        return indexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
      * Returns the version the index was created on.
      * @see Version#indexCreated(Settings)
      */
@@ -372,12 +388,6 @@ public final class IndexSettings {
      * Returns the number of replicas this index has.
      */
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
-
-    /**
-     * Returns <code>true</code> iff this index uses shadow replicas.
-     * @see IndexMetaData#isIndexUsingShadowReplicas(Settings)
-     */
-    public boolean isShadowReplicaIndex() { return isShadowReplicaIndex; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -460,6 +470,19 @@ public final class IndexSettings {
      * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
      */
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
+
+    /**
+     * Returns the generation threshold size. As sequence numbers can cause multiple generations to
+     * be preserved for rollback purposes, we want to keep the size of individual generations from
+     * growing too large to avoid excessive disk space consumption. Therefore, the translog is
+     * automatically rolled to a new generation when the current generation exceeds this generation
+     * threshold size.
+     *
+     * @return the generation threshold size
+     */
+    public ByteSizeValue getGenerationThresholdSize() {
+        return generationThresholdSize;
+    }
 
     /**
      * Returns the {@link MergeSchedulerConfig}

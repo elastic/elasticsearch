@@ -217,7 +217,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         // Now we iterate over dependencies of the bats configuration. When a project dependency is found,
         // we bring back its own archives, test files or test utils.
         project.afterEvaluate {
-            project.configurations.bats.dependencies.findAll {it.configuration == BATS }.each { d ->
+            project.configurations.bats.dependencies.findAll {it.targetConfiguration == BATS }.each { d ->
                 if (d instanceof DefaultProjectDependency) {
                     DefaultProjectDependency externalBatsDependency = (DefaultProjectDependency) d
                     Project externalBatsProject = externalBatsDependency.dependencyProject

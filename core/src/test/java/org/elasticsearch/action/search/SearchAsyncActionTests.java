@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -92,19 +91,33 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
-        AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>("test", logger, transportService,
-            lookup::get, aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null,
-            new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
+        AbstractSearchAsyncAction asyncAction =
+                new AbstractSearchAsyncAction<TestSearchPhaseResult>(
+                        "test",
+                        logger,
+                        transportService,
+                        lookup::get,
+                        aliasFilters,
+                        Collections.emptyMap(),
+                        null,
+                        request,
+                        responseListener,
+                        shardsIter,
+                        new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+                        0,
+                        null,
+                        new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener<TestSearchPhaseResult> listener) {
+            protected void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, SearchActionListener<TestSearchPhaseResult>
+                listener) {
                 assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
                 Transport.Connection connection = getConnection(shard.currentNodeId());
                 TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                     connection.getNode());
                 Set<Long> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> new HashSet<>());
-                ids.add(testSearchPhaseResult.id);
+                ids.add(testSearchPhaseResult.getRequestId());
                 if (randomBoolean()) {
                     listener.onResponse(testSearchPhaseResult);
                 } else {
@@ -119,8 +132,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                     public void run() throws IOException {
                         for (int i = 0; i < results.getNumShards(); i++) {
                             TestSearchPhaseResult result = results.results.get(i);
-                            assertEquals(result.node.getId(), result.shardTarget().getNodeId());
-                            sendReleaseSearchContext(result.id(), new MockConnection(result.node));
+                            assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
+                            sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node));
                         }
                         responseListener.onResponse(response);
                         latch.countDown();
@@ -180,30 +193,12 @@ public class SearchAsyncActionTests extends ESTestCase {
         public final Set<ShardId> queried = new HashSet<>();
     }
 
-    public static class TestSearchPhaseResult implements SearchPhaseResult {
-        final long id;
+    public static class TestSearchPhaseResult extends SearchPhaseResult {
         final DiscoveryNode node;
-        SearchShardTarget shardTarget;
 
         public TestSearchPhaseResult(long id, DiscoveryNode node) {
-            this.id = id;
+            this.requestId = id;
             this.node = node;
-        }
-
-        @Override
-        public long id() {
-            return id;
-        }
-
-        @Override
-        public SearchShardTarget shardTarget() {
-            return this.shardTarget;
-        }
-
-        @Override
-        public void shardTarget(SearchShardTarget shardTarget) {
-            this.shardTarget = shardTarget;
-
         }
 
         @Override

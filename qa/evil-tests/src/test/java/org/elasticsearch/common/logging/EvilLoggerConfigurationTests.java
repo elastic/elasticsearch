@@ -45,6 +45,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class EvilLoggerConfigurationTests extends ESTestCase {
 
     @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        LogConfigurator.registerErrorListener();
+    }
+
+    @Override
     public void tearDown() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
@@ -179,7 +185,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         assertThat(loggerConfigs, hasKey("bar"));
         assertThat(loggerConfigs.get("bar").getLevel(), equalTo(barLevel));
 
-        assertThat(ctx.getLogger(randomAsciiOfLength(16)).getLevel(), equalTo(rootLevel));
+        assertThat(ctx.getLogger(randomAlphaOfLength(16)).getLevel(), equalTo(rootLevel));
     }
 
 }

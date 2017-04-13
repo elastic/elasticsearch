@@ -86,8 +86,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         final IndexMetaData metaData = newIndexMeta("foo", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("2.4.0"))
-            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
-            Version.CURRENT.luceneVersion.toString()).build());
+            .build());
         String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
         assertEquals(message, "The index [[foo/BOOM]] was created with version [2.4.0] but the minimum compatible version is [5.0.0]." +
@@ -96,8 +95,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("5.1.0"))
-            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
-                Version.CURRENT.luceneVersion.toString()).build());
+            .build());
         service.upgradeIndexMetaData(goodMeta, Version.V_5_0_0.minimumIndexCompatibilityVersion());
     }
 
@@ -113,5 +111,4 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
         return metaData;
     }
-
 }

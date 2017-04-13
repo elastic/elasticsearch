@@ -33,20 +33,6 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-// regeneration logic, comes in via ant right now
-// don't port it to gradle, it works fine.
-
-configurations {
-  regenerate
-}
-
-dependencies {
-  regenerate 'org.antlr:antlr4:4.5.1-1'
-}
-
-ant.references['regenerate.classpath'] = new Path(ant.project, configurations.regenerate.asPath)
-ant.importBuild 'ant.xml'
-
 integTestCluster {
   setting 'script.max_compilations_per_minute', '1000'
 }
@@ -70,3 +56,95 @@ task generatePainlessApi(type: JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   args file('../../docs/reference/painless-api-reference')
 }
+
+/**********************************************
+ *            Parser regeneration             *
+ **********************************************/
+
+configurations {
+  regenerate
+}
+
+dependencies {
+  regenerate 'org.antlr:antlr4:4.5.1-1'
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+task cleanGenerated(type: Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'Painless*.java'
+  }
+}
+
+task regenLexer(type: JavaExec) {
+  dependsOn cleanGenerated
+  main = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+       '-package', 'org.elasticsearch.painless.antlr',
+       '-o', outputPath,
+       "${file(grammarPath)}/PainlessLexer.g4"
+}
+
+task regenParser(type: JavaExec) {
+  dependsOn regenLexer
+  main = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+       '-package', 'org.elasticsearch.painless.antlr',
+       '-no-listener',
+       '-visitor',
+       // '-Xlog',
+       '-o', outputPath,
+       "${file(grammarPath)}/PainlessParser.g4"
+}
+
+task regen {
+  dependsOn regenParser
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/PainlessLexer.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/PainlessParser.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(match: 'public ((interface|class) \\QPainless\\E\\w+)',
+                      replace: '\\1',
+                      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'Painless*.java')
+    }
+    // make the lexer abstract
+    ant.replaceregexp(match: '(class \\QPainless\\ELexer)',
+                      replace: 'abstract \\1',
+                      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'PainlessLexer.java')
+    }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'Painless*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'Painless*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath) {
+      patternset(includes: 'Painless*.java')
+    }
+  }
+}
+
+

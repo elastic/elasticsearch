@@ -21,7 +21,6 @@
   - do:
       mget:
         body:
-          index:  test_2
           docs:
             - { _index: test_1, _type: test, _id: 1}
 

@@ -69,7 +69,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final String hostname = randomAsciiOfLength(16);
+        final String hostname = randomAlphaOfLength(16);
         final Settings implicitEnvSettings = Settings.builder()
             .put("setting1", "${HOSTNAME}")
             .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
@@ -555,4 +555,23 @@ public class SettingsTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
     }
+
+    public void testSecureSettingConflict() {
+        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
+        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+    }
+
+    public void testGetAsArrayFailsOnDuplicates() {
+        final Settings settings =
+                Settings.builder()
+                        .put("foobar.0", "bar")
+                        .put("foobar.1", "baz")
+                        .put("foobar", "foo")
+                        .build();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
+        assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
+    }
+
 }

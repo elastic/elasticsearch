@@ -148,7 +148,7 @@ public class OsProbeTests extends ESTestCase {
         assumeTrue("test runs on Linux only", Constants.LINUX);
 
         final boolean areCgroupStatsAvailable = randomBoolean();
-        final String hierarchy = randomAsciiOfLength(16);
+        final String hierarchy = randomAlphaOfLength(16);
 
         final OsProbe probe = new OsProbe() {
 

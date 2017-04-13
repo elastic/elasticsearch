@@ -90,19 +90,19 @@ public class IndexRequestTests extends ESTestCase {
     }
 
     public void testIndexingRejectsLongIds() {
-        String id = randomAsciiOfLength(511);
+        String id = randomAlphaOfLength(511);
         IndexRequest request = new IndexRequest("index", "type", id);
         request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
-        id = randomAsciiOfLength(512);
+        id = randomAlphaOfLength(512);
         request = new IndexRequest("index", "type", id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
-        id = randomAsciiOfLength(513);
+        id = randomAlphaOfLength(513);
         request = new IndexRequest("index", "type", id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
@@ -130,9 +130,9 @@ public class IndexRequestTests extends ESTestCase {
     }
 
     public void testIndexResponse() {
-        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10), randomIntBetween(0, 1000));
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(0, 1000));
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
         IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, created);

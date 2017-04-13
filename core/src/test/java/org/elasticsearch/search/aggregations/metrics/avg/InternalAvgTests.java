@@ -50,7 +50,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             counts += in.getCount();
         }
         assertEquals(counts, reduced.getCount());
-        assertEquals(sum, reduced.getSum(), 0.00000001);
-        assertEquals(sum / counts, reduced.value(), 0.00000001);
+        assertEquals(sum, reduced.getSum(), 0.0000001);
+        assertEquals(sum / counts, reduced.value(), 0.0000001);
     }
 }

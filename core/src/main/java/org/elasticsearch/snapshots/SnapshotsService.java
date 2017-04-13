@@ -550,7 +550,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Returns status of shards  currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
+     * This method is executed on master node and it's complimentary to the
+     * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
      * returns similar information but for already finished snapshots.
      * </p>
      *
@@ -578,8 +579,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardSnapshotStatus.failure(shardFailure.reason());
                         shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
-                        IndexShardSnapshotStatus shardSnapshotStatus =
-                            repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), snapshotInfo.version(), indexId, shardId);
+                        final IndexShardSnapshotStatus shardSnapshotStatus;
+                        if (snapshotInfo.state() == SnapshotState.FAILED) {
+                            // If the snapshot failed, but the shard's snapshot does
+                            // not have an exception, it means that partial snapshots
+                            // were disabled and in this case, the shard snapshot will
+                            // *not* have any metadata, so attempting to read the shard
+                            // snapshot status will throw an exception.  Instead, we create
+                            // a status for the shard to indicate that the shard snapshot
+                            // could not be taken due to partial being set to false.
+                            shardSnapshotStatus = new IndexShardSnapshotStatus();
+                            shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
+                            shardSnapshotStatus.failure("skipped");
+                        } else {
+                            shardSnapshotStatus = repository.getShardSnapshotStatus(
+                                snapshotInfo.snapshotId(),
+                                snapshotInfo.version(),
+                                indexId,
+                                shardId);
+                        }
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }
                 }
@@ -1150,11 +1168,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void onSnapshotFailure(Snapshot failedSnapshot, Exception e) {
                             if (failedSnapshot.equals(snapshot)) {
-                                logger.trace("deleted snapshot failed - deleting files", e);
+                                logger.warn("deleted snapshot failed - deleting files", e);
                                 removeListener(this);
-                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
-                                    deleteSnapshot(failedSnapshot.getRepository(), failedSnapshot.getSnapshotId().getName(), listener, true)
-                                );
+                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                    try {
+                                        deleteSnapshot(failedSnapshot.getRepository(),
+                                                       failedSnapshot.getSnapshotId().getName(),
+                                                       listener,
+                                                       true);
+                                    } catch (SnapshotMissingException smex) {
+                                        logger.info((Supplier<?>) () -> new ParameterizedMessage(
+                                            "Tried deleting in-progress snapshot [{}], but it " +
+                                            "could not be found after failing to abort.",
+                                            smex.getSnapshotName()), e);
+                                        listener.onFailure(new SnapshotException(snapshot,
+                                            "Tried deleting in-progress snapshot [{}], but it " +
+                                            "could not be found after failing to abort.", smex));
+                                    }
+                                });
                             }
                         }
                     });

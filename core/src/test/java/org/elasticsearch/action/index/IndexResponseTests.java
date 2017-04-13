@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -35,7 +36,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class IndexResponseTests extends ESTestCase {
 
@@ -63,16 +63,8 @@ public class IndexResponseTests extends ESTestCase {
 
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference indexResponseBytes = toXContent(indexResponse, xContentType, humanReadable);
+        BytesReference indexResponseBytes = toShuffledXContent(indexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
-        // Shuffle the XContent fields
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), indexResponseBytes)) {
-                indexResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
-        }
-
-        // Parse the XContent bytes to obtain a parsed
         IndexResponse parsedIndexResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), indexResponseBytes)) {
             parsedIndexResponse = IndexResponse.fromXContent(parser);
@@ -104,11 +96,11 @@ public class IndexResponseTests extends ESTestCase {
      * expected {@link IndexResponse} after parsing.
      */
     public static Tuple<IndexResponse, IndexResponse> randomIndexResponse() {
-        String index = randomAsciiOfLength(5);
-        String indexUUid = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
+        String indexUUid = randomAlphaOfLength(5);
         int shardId = randomIntBetween(0, 5);
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String id = randomAlphaOfLength(5);
         long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean created = randomBoolean();

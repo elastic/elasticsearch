@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -126,5 +127,10 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     @Override
     protected int doHashCode() {
         return Objects.hash(super.doHashCode(), buckets, format, otherDocCount, showTermDocCountError, shardSize);
+    }
+
+    @Override
+    public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
     }
 }

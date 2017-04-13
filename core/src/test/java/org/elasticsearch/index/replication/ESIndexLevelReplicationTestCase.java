@@ -410,7 +410,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
-                }, true, new ReplicasRef(), () -> null, logger, opType) {
+                }, new ReplicasRef(), () -> null, logger, opType) {
+
                 @Override
                 protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
                     return replicationGroup.shardRoutings();

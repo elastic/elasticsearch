@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
@@ -42,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class CompletionSuggestionOptionTests extends ESTestCase {
 
     public static Option createTestItem() {
-        Text text = new Text(randomAsciiOfLengthBetween(5, 15));
+        Text text = new Text(randomAlphaOfLengthBetween(5, 15));
         int docId = randomInt();
         int numberOfContexts = randomIntBetween(0, 3);
         Map<String, Set<CharSequence>> contexts = new HashMap<>();
@@ -50,9 +51,9 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
             int numberOfValues = randomIntBetween(0, 3);
             Set<CharSequence> values = new HashSet<>();
             for (int v = 0; v < numberOfValues; v++) {
-                values.add(randomAsciiOfLengthBetween(5, 15));
+                values.add(randomAlphaOfLengthBetween(5, 15));
             }
-            contexts.put(randomAsciiOfLengthBetween(5, 15), values);
+            contexts.put(randomAlphaOfLengthBetween(5, 15), values);
         }
         SearchHit hit = null;
         float score = randomFloat();
@@ -69,7 +70,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         Option option = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(option, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(option, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 originalBytes = shuffleXContent(parser, randomBoolean()).bytes();

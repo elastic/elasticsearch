@@ -435,7 +435,7 @@ wait_for_elasticsearch_status() {
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
-        echo "Unable to connect to Elastisearch"
+        echo "Unable to connect to Elasticsearch"
         false
     fi
 

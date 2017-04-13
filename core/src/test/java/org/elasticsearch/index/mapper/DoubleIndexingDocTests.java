@@ -48,7 +48,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = index.mapperService().documentMapper("type");
         QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L);
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", 1)
@@ -56,7 +56,8 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .field("field4", "2010-01-01")
                 .startArray("field5").value(1).value(2).value(3).endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();

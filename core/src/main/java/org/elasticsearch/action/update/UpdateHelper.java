@@ -122,6 +122,7 @@ public class UpdateHelper extends AbstractComponent {
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .routing(request.routing())
                     .parent(request.parent())
+                    .timeout(request.timeout())
                     .waitForActiveShards(request.waitForActiveShards());
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
@@ -188,12 +189,14 @@ public class UpdateHelper extends AbstractComponent {
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
                     .waitForActiveShards(request.waitForActiveShards())
+                    .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
                     .waitForActiveShards(request.waitForActiveShards())
+                    .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {

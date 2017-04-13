@@ -47,36 +47,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
-    public void testDetermineShadowEngineShouldBeUsed() {
-        IndexSettings regularSettings = new IndexSettings(
-            IndexMetaData
-                .builder("regular")
-                .settings(Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 2)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build())
-                .build(),
-            Settings.EMPTY);
-
-        IndexSettings shadowSettings = new IndexSettings(
-            IndexMetaData
-                .builder("shadow")
-                .settings(Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 2)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build())
-                .build(),
-            Settings.EMPTY);
-
-        assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(true, regularSettings));
-        assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(false, regularSettings));
-        assertFalse("no shadow replicas for primary shard with shadow settings", IndexService.useShadowEngine(true, shadowSettings));
-        assertTrue("shadow replicas for replica shards with shadow settings",IndexService.useShadowEngine(false, shadowSettings));
-    }
-
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -1,8 +1,6 @@
 [[docs-reindex]]
 == Reindex API
 
-experimental[The reindex API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
-
 IMPORTANT: Reindex does not attempt to set up the destination index.  It does
 not copy the settings of the source index.  You should set up the destination
 index prior to running a `_reindex` action, including setting up mappings, shard

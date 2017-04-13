@@ -38,6 +38,7 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 
@@ -157,10 +158,14 @@ class ClusterFormationTasks {
                 node.cwd.mkdirs()
             }
         }
+
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
+        setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
+        setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
+
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node)
@@ -301,6 +306,33 @@ class ClusterFormationTasks {
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
+    }
+
+    /** Adds a task to create keystore */
+    static Task configureCreateKeystoreTask(String name, Project project, Task setup, NodeInfo node) {
+        if (node.config.keystoreSettings.isEmpty()) {
+            return setup
+        } else {
+            File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
+        }
+    }
+
+    /** Adds tasks to add settings to the keystore */
+    static Task configureAddKeystoreSettingTasks(String parent, Project project, Task setup, NodeInfo node) {
+        Map kvs = node.config.keystoreSettings
+        File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+        Task parentTask = setup
+        for (Map.Entry<String, String> entry in kvs) {
+            String key = entry.getKey()
+            String name = taskName(parent, node, 'addToKeystore#' + key)
+            Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add', key, '-x')
+            t.doFirst {
+                standardInput = new ByteArrayInputStream(entry.getValue().getBytes(StandardCharsets.UTF_8))
+            }
+            parentTask = t
+        }
+        return parentTask
     }
 
     static Task configureExtraConfigFilesTask(String name, Project project, Task setup, NodeInfo node) {

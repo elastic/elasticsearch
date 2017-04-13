@@ -43,7 +43,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         if (randomBoolean()) {
             fieldPattern = randomFrom(MAPPED_FIELD_NAMES);
         } else {
-            fieldPattern = randomAsciiOfLengthBetween(1, 10);
+            fieldPattern = randomAlphaOfLengthBetween(1, 10);
         }
         // also sometimes test wildcard patterns
         if (randomBoolean()) {

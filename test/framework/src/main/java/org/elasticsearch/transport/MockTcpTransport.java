@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -79,7 +80,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     private final Set<MockChannel> openChannels = new HashSet<>();
 
-    static  {
+    static {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.addConnections(1,
             TransportRequestOptions.Type.BULK,
@@ -129,11 +130,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                try {
-                    onException(serverMockChannel, e);
-                } catch (IOException ex) {
-                    logger.warn("failed on handling exception", ex);
-                }
+                onException(serverMockChannel, e);
             }
 
             @Override
@@ -242,15 +239,18 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) throws IOException {
-        synchronized (mockChannel) {
-            final Socket socket = mockChannel.activeChannel;
-            OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-            reference.writeTo(outputStream);
-            outputStream.flush();
-        }
-        if (sendListener != null) {
-            sendListener.run();
+    protected void sendMessage(MockChannel mockChannel, BytesReference reference, ActionListener<MockChannel> listener) {
+        try {
+            synchronized (mockChannel) {
+                final Socket socket = mockChannel.activeChannel;
+                OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+                reference.writeTo(outputStream);
+                outputStream.flush();
+            }
+            listener.onResponse(mockChannel);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            onException(mockChannel, e);
         }
     }
 

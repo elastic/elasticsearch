@@ -42,7 +42,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
         int numberOfRepositories = randomInt(10);
         List<RepositoryMetaData> entries = new ArrayList<>();
         for (int i = 0; i < numberOfRepositories; i++) {
-            entries.add(new RepositoryMetaData(randomAsciiOfLength(10), randomAsciiOfLength(10), randomSettings()));
+            entries.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
         }
         entries.sort(Comparator.comparing(RepositoryMetaData::name));
         return new RepositoriesMetaData(entries.toArray(new RepositoryMetaData[entries.size()]));
@@ -60,7 +60,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
             int numberOfSettings = randomInt(10);
             Settings.Builder builder = Settings.builder();
             for (int i = 0; i < numberOfSettings; i++) {
-                builder.put(randomAsciiOfLength(10), randomAsciiOfLength(20));
+                builder.put(randomAlphaOfLength(10), randomAlphaOfLength(20));
             }
             return builder.build();
         }
@@ -79,7 +79,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
             // add some elements
             int addElements = randomInt(10);
             for (int i = 0; i < addElements; i++) {
-                repos.add(new RepositoryMetaData(randomAsciiOfLength(10), randomAsciiOfLength(10), randomSettings()));
+                repos.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
             }
         }
         return new RepositoriesMetaData(repos.toArray(new RepositoryMetaData[repos.size()]));

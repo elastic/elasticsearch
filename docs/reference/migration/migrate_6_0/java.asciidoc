@@ -7,3 +7,9 @@ Previously the `setSource` methods and other methods that accepted byte/string r
 an object source did not require the XContentType to be specified. The auto-detection of the content
 type is no longer used, so these methods now require the XContentType as an additional argument when
 providing the source in bytes or as a string.
+
+=== `DeleteByQueryRequest` requires an explicitly set query
+
+In previous versions of Elasticsearch, delete by query requests without an explicit query
+were accepted, match_all was used as the default query and all documents were deleted
+as a result. From version 6.0.0, a `DeleteByQueryRequest` requires an explicit query be set.

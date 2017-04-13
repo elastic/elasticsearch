@@ -19,10 +19,16 @@
 
 package org.elasticsearch.action.bulk.byscroll;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.query.QueryBuilders;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<DeleteByQueryRequest> {
     public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {
@@ -60,7 +66,7 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
 
     @Override
     protected DeleteByQueryRequest newRequest() {
-        return new DeleteByQueryRequest(new SearchRequest(randomAsciiOfLength(5)));
+        return new DeleteByQueryRequest(new SearchRequest(randomAlphaOfLength(5)));
     }
 
     @Override
@@ -95,5 +101,27 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         request.types(types);
         assertArrayEquals(request.types(), types);
+    }
+
+    public void testValidateGivenNoQuery() {
+        SearchRequest searchRequest = new SearchRequest();
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(searchRequest);
+        deleteByQueryRequest.indices("*");
+
+        ActionRequestValidationException e = deleteByQueryRequest.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("query is missing"));
+    }
+
+    public void testValidateGivenValid() {
+        SearchRequest searchRequest = new SearchRequest();
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(searchRequest);
+        deleteByQueryRequest.indices("*");
+        searchRequest.source().query(QueryBuilders.matchAllQuery());
+
+        ActionRequestValidationException e = deleteByQueryRequest.validate();
+
+        assertThat(e, is(nullValue()));
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,11 +29,11 @@ import static org.hamcrest.Matchers.containsString;
 
 public class TermsLookupTests extends ESTestCase {
     public void testTermsLookup() {
-        String index = randomAsciiOfLengthBetween(1, 10);
-        String type = randomAsciiOfLengthBetween(1, 10);
-        String id = randomAsciiOfLengthBetween(1, 10);
-        String path = randomAsciiOfLengthBetween(1, 10);
-        String routing = randomAsciiOfLengthBetween(1, 10);
+        String index = randomAlphaOfLengthBetween(1, 10);
+        String type = randomAlphaOfLengthBetween(1, 10);
+        String id = randomAlphaOfLengthBetween(1, 10);
+        String path = randomAlphaOfLengthBetween(1, 10);
+        String routing = randomAlphaOfLengthBetween(1, 10);
         TermsLookup termsLookup = new TermsLookup(index, type, id, path);
         termsLookup.routing(routing);
         assertEquals(index, termsLookup.index());
@@ -45,9 +44,9 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testIllegalArguments() {
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
-        String path = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String id = randomAlphaOfLength(5);
+        String path = randomAlphaOfLength(5);
         switch (randomIntBetween(0, 2)) {
         case 0:
             type = null;
@@ -81,10 +80,10 @@ public class TermsLookupTests extends ESTestCase {
 
     public static TermsLookup randomTermsLookup() {
         return new TermsLookup(
-                randomBoolean() ? randomAsciiOfLength(10) : null,
-                randomAsciiOfLength(10),
-                randomAsciiOfLength(10),
-                randomAsciiOfLength(10).replace('.', '_')
-        ).routing(randomBoolean() ? randomAsciiOfLength(10) : null);
+                randomBoolean() ? randomAlphaOfLength(10) : null,
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10).replace('.', '_')
+        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 }

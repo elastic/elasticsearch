@@ -56,35 +56,35 @@ public class DeleteDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDelete() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
-        // tag::delete-request[]
+        // tag::delete-request
         DeleteRequest request = new DeleteRequest(
             "index",    // <1>
             "type",     // <2>
             "id");      // <3>
-        // end::delete-request[]
+        // end::delete-request
 
-        // tag::delete-request-props[]
+        // tag::delete-request-props
         request.timeout(TimeValue.timeValueSeconds(1));                     // <1>
         request.timeout("1s");                                              // <2>
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);    // <3>
         request.setRefreshPolicy("wait_for");                               // <4>
         request.version(2);                                                 // <5>
         request.versionType(VersionType.EXTERNAL);                          // <6>
-        // end::delete-request-props[]
+        // end::delete-request-props
 
-        // tag::delete-execute[]
+        // tag::delete-execute
         DeleteResponse response = client.delete(request);
-        // end::delete-execute[]
+        // end::delete-execute
 
         try {
-            // tag::delete-notfound[]
+            // tag::delete-notfound
             if (response.getResult().equals(DocWriteResponse.Result.NOT_FOUND)) {
                 throw new Exception("Can't find document to be removed"); // <1>
             }
-            // end::delete-notfound[]
+            // end::delete-notfound
         } catch (Exception ignored) { }
 
-        // tag::delete-execute-async[]
+        // tag::delete-execute-async
         client.deleteAsync(request, new ActionListener<DeleteResponse>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
@@ -96,9 +96,9 @@ public class DeleteDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <2>
             }
         });
-        // end::delete-execute-async[]
+        // end::delete-execute-async
 
-        // tag::delete-conflict[]
+        // tag::delete-conflict
         try {
             client.delete(request);
         } catch (ElasticsearchException exception) {
@@ -106,7 +106,7 @@ public class DeleteDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <1>
             }
         }
-        // end::delete-conflict[]
+        // end::delete-conflict
 
     }
 }

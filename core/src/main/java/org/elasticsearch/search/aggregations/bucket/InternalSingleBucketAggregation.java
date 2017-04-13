@@ -131,7 +131,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.DOC_COUNT, docCount);
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         return builder;
     }

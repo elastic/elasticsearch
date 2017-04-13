@@ -21,7 +21,7 @@ This will return
 twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/3014/\\d+/]
-// TESTRESPONSE[s/31.1/\\d+\.\\d+/]
+// TESTRESPONSE[s/31.1/\\d+(\.\\d+)?/]
 // TESTRESPONSE[s/mb/.*/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
 // TESTRESPONSE[s/H5dfFeA/node-0/ _cat]

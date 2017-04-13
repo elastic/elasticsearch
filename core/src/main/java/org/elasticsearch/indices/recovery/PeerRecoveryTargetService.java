@@ -140,11 +140,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             startLegacyRecovery(indexShard, sourceNode, listener);
             return;
         }
-        if (indexShard.indexSettings().isOnSharedFilesystem()) {
-            startRecovery(onGoingRecoveries.startFileRecovery(indexShard, sourceNode, listener,
-                recoverySettings.activityTimeout()));
-            return;
-        }
         // nocommit check cancellation race
         final RecoveryListener originalListener = listener;
         final RecoveryListener primaryHandoffIfNeeded;
@@ -408,9 +403,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         }
     }
 
-    /**
-     *
-     */
     public static boolean shouldTryOpsRecovery(final IndexShard targetShard) {
         try {
             final long globalCheckpoint =

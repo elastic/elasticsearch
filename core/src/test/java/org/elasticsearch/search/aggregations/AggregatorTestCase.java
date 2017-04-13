@@ -34,16 +34,24 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -51,6 +59,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -69,11 +79,13 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
+    private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
 
-    protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
-                                                                                      IndexSearcher indexSearcher,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+    /** Create a factory for the given aggregation builder. */
+    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings);
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
@@ -93,8 +105,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryShardContext queryShardContext = queryShardContextMock(fieldTypes, indexSettings, circuitBreakerService);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
 
+        return aggregationBuilder.build(searchContext, null);
+    }
+
+    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
+                                                        IndexSearcher indexSearcher,
+                                                        MappedFieldType... fieldTypes) throws IOException {
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext, null).create(null, true);
+        A aggregator = (A) createAggregatorFactory(aggregationBuilder, indexSearcher, fieldTypes).create(null, true);
         return aggregator;
     }
 
@@ -119,6 +137,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase())
                 .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
+        when(searchContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
+            String fieldName = (String) invocation.getArguments()[0];
+            if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
+                BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
+                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested(false, false)).build(context);
+            }
+            return null;
+        });
+        when(searchContext.bitsetFilterCache()).thenReturn(new BitsetFilterCache(indexSettings, mock(Listener.class)));
         doAnswer(invocation -> {
             /* Store the releasables so we can release them at the end of the test case. This is important because aggregations don't
              * close their sub-aggregations. This is fairly similar to what the production code does. */
@@ -157,6 +184,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(indexSettings, fieldType,
                     new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
         }
+        NestedScope nestedScope = new NestedScope();
+        when(queryShardContext.isFilter()).thenCallRealMethod();
+        Mockito.doCallRealMethod().when(queryShardContext).setIsFilter(Matchers.anyBoolean());
+        when(queryShardContext.nestedScope()).thenReturn(nestedScope);
         return queryShardContext;
     }
 
@@ -218,13 +249,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
             if (aggs.isEmpty()) {
                 return null;
             } else {
-                if (randomBoolean()) {
+                if (randomBoolean() && aggs.size() > 1) {
                     // sometimes do an incremental reduce
-                    List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, aggs.size()), aggs);
-                    A internalAgg = (A) aggs.get(0).doReduce(internalAggregations,
+                    int toReduceSize = aggs.size();
+                    Collections.shuffle(aggs, random());
+                    int r = randomIntBetween(1, toReduceSize);
+                    List<InternalAggregation> toReduce = aggs.subList(0, r);
+                    A reduced = (A) aggs.get(0).doReduce(toReduce,
                         new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
-                    aggs.removeAll(internalAggregations);
-                    aggs.add(internalAgg);
+                    aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+                    aggs.add(reduced);
                 }
                 // now do the final reduce
                 @SuppressWarnings("unchecked")

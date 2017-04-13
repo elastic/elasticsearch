@@ -243,11 +243,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
                                 }, null, config);
                         }
-
-                        @Override
-                        public Engine newReadOnlyEngine(EngineConfig config) {
-                            throw new UnsupportedOperationException();
-                        }
                     };
                 } else {
                     return null;

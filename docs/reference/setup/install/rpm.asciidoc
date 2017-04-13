@@ -99,7 +99,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The RPM for Elastisearch v{version} can be downloaded from the website and installed as follows:
+The RPM for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------

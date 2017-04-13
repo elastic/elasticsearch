@@ -35,6 +35,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -74,8 +76,8 @@ public class RetryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < DOC_COUNT; i++) {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
-        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
-        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
+        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff()).using(client().threadPool());
+        BulkResponse response = retry.withSyncBackoff(client()::bulk, bulk.request(), client().settings());
         assertFalse(response.buildFailureMessage(), response.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
     }
@@ -134,8 +136,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     }
 
     public void testDeleteByQuery() throws Exception {
-        testCase(DeleteByQueryAction.NAME, DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("source"),
-                matcher().deleted(DOC_COUNT));
+        testCase(DeleteByQueryAction.NAME, DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("source")
+                .filter(QueryBuilders.matchAllQuery()), matcher().deleted(DOC_COUNT));
     }
 
     private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, ?> request, BulkIndexByScrollResponseMatcher matcher)

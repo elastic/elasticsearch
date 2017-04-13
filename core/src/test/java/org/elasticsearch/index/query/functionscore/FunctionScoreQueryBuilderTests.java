@@ -180,7 +180,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 } else if (randomBoolean()) {
                     randomScoreFunctionBuilder.seed(randomInt());
                 } else {
-                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+                    randomScoreFunctionBuilder.seed(randomAlphaOfLengthBetween(1, 10));
                 }
             }
             functionBuilder = randomScoreFunctionBuilder;

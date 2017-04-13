@@ -25,7 +25,8 @@ import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteResultEvent
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedTestResultEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
-import org.elasticsearch.gradle.ProgressLogger
+import org.gradle.internal.logging.progress.ProgressLogger
+import org.gradle.internal.logging.progress.ProgressLoggerFactory
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
 import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.ERROR
@@ -51,6 +52,8 @@ import static java.lang.Math.max
  * quick.
  */
 class TestProgressLogger implements AggregatedEventListener {
+    /** Factory to build a progress logger when testing starts */
+    ProgressLoggerFactory factory
     ProgressLogger progressLogger
     int totalSuites
     int totalSlaves
@@ -74,17 +77,14 @@ class TestProgressLogger implements AggregatedEventListener {
     /** Have we finished a whole suite yet? */
     volatile boolean suiteFinished = false
     /* Note that we probably overuse volatile here but it isn't hurting us and
-      lets us move things around without worying about breaking things. */
-
-    TestProgressLogger(Map args) {
-        progressLogger = new ProgressLogger(args.factory.newOperation(TestProgressLogger))
-        progressLogger.setDescription('Randomized test runner')
-    }
+       lets us move things around without worrying about breaking things. */
 
     @Subscribe
     void onStart(AggregatedStartEvent e) throws IOException {
         totalSuites = e.suiteCount
         totalSlaves = e.slaveCount
+        progressLogger = factory.newOperation(TestProgressLogger)
+        progressLogger.setDescription('Randomized test runner')
         progressLogger.started()
         progressLogger.progress(
             "Starting JUnit4 for ${totalSuites} suites on ${totalSlaves} jvms")

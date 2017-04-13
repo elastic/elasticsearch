@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
@@ -73,7 +74,7 @@ final class BootstrapChecks {
         final List<BootstrapCheck> combinedChecks = new ArrayList<>(builtInChecks);
         combinedChecks.addAll(additionalChecks);
         check(
-                enforceLimits(boundTransportAddress),
+                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)),
                 Collections.unmodifiableList(combinedChecks),
                 Node.NODE_NAME_SETTING.get(settings));
     }
@@ -164,13 +165,16 @@ final class BootstrapChecks {
      * Tests if the checks should be enforced.
      *
      * @param boundTransportAddress the node network bindings
+     * @param discoveryType the discovery type
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress) {
-        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
+    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
+        final Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
                 t -> t.address().getAddress().isLinkLocalAddress() || t.address().getAddress().isLoopbackAddress();
-        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
+        final boolean bound =
+                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
                 isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
+        return bound && !"single-node".equals(discoveryType);
     }
 
     // the list of checks to execute
@@ -195,6 +199,7 @@ final class BootstrapChecks {
         checks.add(new SystemCallFilterCheck(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings)));
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
+        checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
         return Collections.unmodifiableList(checks);
     }
@@ -573,6 +578,34 @@ final class BootstrapChecks {
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onOutOfMemoryError(),
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+        }
+
+    }
+
+    /**
+     * Bootstrap check for early-access builds from OpenJDK.
+     */
+    static class EarlyAccessCheck implements BootstrapCheck {
+
+        @Override
+        public boolean check() {
+            return "Oracle Corporation".equals(jvmVendor()) && javaVersion().endsWith("-ea");
+        }
+
+        String jvmVendor() {
+            return Constants.JVM_VENDOR;
+        }
+
+        String javaVersion() {
+            return Constants.JAVA_VERSION;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "Java version [%s] is an early-access build, only use release builds",
+                    javaVersion());
         }
 
     }

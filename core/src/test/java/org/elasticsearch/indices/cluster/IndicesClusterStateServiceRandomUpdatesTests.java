@@ -91,15 +91,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         terminate(threadPool);
     }
 
-    /**
-     * needed due to random usage of {@link IndexMetaData#INDEX_SHADOW_REPLICAS_SETTING}. removed once
-     * shadow replicas are removed.
-     */
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
-
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
@@ -159,7 +150,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      */
     public void testJoiningNewClusterOnlyRemovesInMemoryIndexStructures() {
         // a cluster state derived from the initial state that includes a created index
-        String name = "index_" + randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         ShardRoutingState[] replicaStates = new ShardRoutingState[randomIntBetween(0, 3)];
         Arrays.fill(replicaStates, ShardRoutingState.INITIALIZING);
         ClusterState stateWithIndex = ClusterStateCreationUtils.state(name, randomBoolean(), ShardRoutingState.INITIALIZING, replicaStates);
@@ -245,14 +236,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (state.metaData().indices().size() > 200) {
                 break;
             }
-            String name = "index_" + randomAsciiOfLength(15).toLowerCase(Locale.ROOT);
+            String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true);
-            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));

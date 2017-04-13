@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -34,7 +35,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.index.IndexResponseTests.assertDocWriteResponse;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class DeleteResponseTests extends ESTestCase {
 
@@ -62,16 +62,8 @@ public class DeleteResponseTests extends ESTestCase {
 
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference deleteResponseBytes = toXContent(deleteResponse, xContentType, humanReadable);
+        BytesReference deleteResponseBytes = toShuffledXContent(deleteResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
-        // Shuffle the XContent fields
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), deleteResponseBytes)) {
-                deleteResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
-        }
-
-        // Parse the XContent bytes to obtain a parsed DeleteResponse
         DeleteResponse parsedDeleteResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), deleteResponseBytes)) {
             parsedDeleteResponse = DeleteResponse.fromXContent(parser);
@@ -91,11 +83,11 @@ public class DeleteResponseTests extends ESTestCase {
      * expected {@link DeleteResponse} after parsing.
      */
     public static Tuple<DeleteResponse, DeleteResponse> randomDeleteResponse() {
-        String index = randomAsciiOfLength(5);
-        String indexUUid = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
+        String indexUUid = randomAlphaOfLength(5);
         int shardId = randomIntBetween(0, 5);
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String id = randomAlphaOfLength(5);
         long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean found = randomBoolean();

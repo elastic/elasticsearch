@@ -283,17 +283,10 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
                             request.targetNode(),
                             recoverySettings,
                             throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
-                    Supplier<Long> currentClusterStateVersionSupplier =
-                        () -> clusterService.state().getVersion();
-                    if (shard.indexSettings().isOnSharedFilesystem()) {
-                        handler = new SharedFSRecoverySourceHandler(shard, recoveryTarget,
-                            fullRequest, currentClusterStateVersionSupplier,
-                            this::delayNewRecoveries, settings, targetRouting.primary());
-                    } else {
-                        handler = new FileRecoverySourceHandler(shard, recoveryTarget, fullRequest,
-                            currentClusterStateVersionSupplier, this::delayNewRecoveries,
-                            recoverySettings.getChunkSize().bytesAsInt(), settings);
-                    }
+                    Supplier<Long> currentClusterStateVersionSupplier = () -> clusterService.state().getVersion();
+                    handler = new FileRecoverySourceHandler(shard, recoveryTarget, fullRequest,
+                        currentClusterStateVersionSupplier, this::delayNewRecoveries,
+                        recoverySettings.getChunkSize().bytesAsInt(), settings);
                 } else if (request instanceof StartPrimaryHandoffRequest) {
                     RemotePrimaryHandoffRecoveryTarget recoveryTarget =
                         new RemotePrimaryHandoffRecoveryTarget(request.recoveryId(),

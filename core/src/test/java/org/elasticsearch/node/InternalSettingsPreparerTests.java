@@ -182,29 +182,11 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertEquals("secret", fakeSetting.get(env.settings()).toString());
     }
 
-    public void testDefaultProperties() throws Exception {
+    public void testDefaultPropertiesDoNothing() throws Exception {
         Map<String, String> props = Collections.singletonMap("default.setting", "foo");
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
-        assertEquals("foo", env.settings().get("setting"));
-    }
-
-    public void testDefaultPropertiesOverride() throws Exception {
-        Path configDir = homeDir.resolve("config");
-        Files.createDirectories(configDir);
-        Files.write(configDir.resolve("elasticsearch.yml"), Collections.singletonList("setting: bar"), StandardCharsets.UTF_8);
-        Map<String, String> props = Collections.singletonMap("default.setting", "foo");
-        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
-        assertEquals("bar", env.settings().get("setting"));
-    }
-
-    public void testDefaultWithArray() {
-        final Settings.Builder output = Settings.builder().put("foobar.0", "bar").put("foobar.1", "baz");
-        final Map<String, String> esSettings = Collections.singletonMap("default.foobar", "foo");
-        InternalSettingsPreparer.initializeSettings(output, Settings.EMPTY, esSettings);
-        final Settings settings = output.build();
-        assertThat(settings.get("foobar.0"), equalTo("bar"));
-        assertThat(settings.get("foobar.1"), equalTo("baz"));
-        assertNull(settings.get("foobar"));
+        assertEquals("foo", env.settings().get("default.setting"));
+        assertNull(env.settings().get("setting"));
     }
 
 }

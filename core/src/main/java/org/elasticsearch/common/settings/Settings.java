@@ -1063,12 +1063,10 @@ public final class Settings implements ToXContent {
             return this;
         }
 
-        public Builder putProperties(Map<String, String> esSettings, Predicate<String> keyPredicate, Function<String, String> keyFunction) {
+        public Builder putProperties(final Map<String, String> esSettings, final Function<String, String> keyFunction) {
             for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
                 final String key = esSetting.getKey();
-                if (keyPredicate.test(key)) {
-                    map.put(keyFunction.apply(key), esSetting.getValue());
-                }
+                map.put(keyFunction.apply(key), esSetting.getValue());
             }
             return this;
         }

@@ -81,6 +81,7 @@ public class LogConfigurator {
      * logged by the status logger before logging is configured.
      */
     public static void registerErrorListener() {
+        error.set(false);
         StatusLogger.getLogger().registerListener(ERROR_LISTENER);
     }
 

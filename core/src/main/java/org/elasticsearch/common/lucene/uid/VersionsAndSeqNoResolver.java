@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentMap;
 import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
 
 /** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
-public class VersionsAndSeqNoResolver {
+public final class VersionsAndSeqNoResolver {
 
     static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionSeqNoLookup>> lookupStates =
         ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -113,7 +113,7 @@ public class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME);
+        assert term.field().equals(UidFieldMapper.NAME) : "unexpected term field " + term.field();
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;
@@ -139,7 +139,7 @@ public class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME);
+        assert term.field().equals(UidFieldMapper.NAME) : "unexpected term field " + term.field();
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;

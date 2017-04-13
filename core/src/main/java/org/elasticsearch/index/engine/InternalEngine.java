@@ -390,10 +390,10 @@ public class InternalEngine extends Engine {
                     if (versionValue.isDelete()) {
                         return GetResult.NOT_EXISTS;
                     }
-                    if (get.versionType().isVersionConflictForReads(versionValue.getVersion(), get.version())) {
+                    if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         Uid uid = Uid.createUid(get.uid().text());
                         throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
-                            get.versionType().explainConflictForReads(versionValue.getVersion(), get.version()));
+                            get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
                     refresh("realtime_get");
                 }
@@ -423,8 +423,8 @@ public class InternalEngine extends Engine {
         final VersionValue versionValue = versionMap.getUnderLock(op.uid());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if  (op.seqNo() > versionValue.getSeqNo() ||
-                (op.seqNo() == versionValue.getSeqNo() && op.primaryTerm() > versionValue.getTerm()))
+            if  (op.seqNo() > versionValue.seqNo ||
+                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
                 status = OpVsLuceneDocStatus.OP_NEWER;
             else {
                 status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -465,8 +465,7 @@ public class InternalEngine extends Engine {
                 versionValue = new VersionValue(currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0L);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
-            (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.getTime()) >
-                getGcDeletesInMillis()) {
+            (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
             versionValue = null;
         }
         return versionValue;
@@ -480,7 +479,7 @@ public class InternalEngine extends Engine {
         if (versionValue == null) {
             return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
-            return op.versionType().isVersionConflictForWrites(versionValue.getVersion(), op.version(), versionValue.isDelete()) ?
+            return op.versionType().isVersionConflictForWrites(versionValue.version, op.version(), versionValue.isDelete()) ?
                 OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
         }
     }
@@ -644,6 +643,8 @@ public class InternalEngine extends Engine {
             if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             } else {
+                // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
+                // created by an old version.
                 assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) :
                     "index is newly created but op has no sequence numbers. op: " + index;
                 opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
@@ -679,7 +680,7 @@ public class InternalEngine extends Engine {
                 currentVersion = Versions.NOT_FOUND;
                 currentNotFoundOrDeleted = true;
             } else {
-                currentVersion = versionValue.getVersion();
+                currentVersion = versionValue.version;
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
             if (index.versionType().isVersionConflictForWrites(
@@ -951,7 +952,7 @@ public class InternalEngine extends Engine {
             currentVersion = Versions.NOT_FOUND;
             currentlyDeleted = true;
         } else {
-            currentVersion = versionValue.getVersion();
+            currentVersion = versionValue.version;
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
@@ -1288,14 +1289,14 @@ public class InternalEngine extends Engine {
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
-        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
+        for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
             try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
+                DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
                 if (versionValue != null) {
-                    if (timeMSec - versionValue.getTime() > getGcDeletesInMillis()) {
+                    if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
                         versionMap.removeTombstoneUnderLock(uid);
                     }
                 }

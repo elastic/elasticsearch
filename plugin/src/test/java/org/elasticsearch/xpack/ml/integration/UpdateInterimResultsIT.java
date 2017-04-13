@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,6 +35,11 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
     private static final long BUCKET_SPAN_SECONDS = 1000;
 
     private long time;
+
+    @After
+    public void cleanUpTest() throws Exception {
+        cleanUp();
+    }
 
     public void test() throws Exception {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(

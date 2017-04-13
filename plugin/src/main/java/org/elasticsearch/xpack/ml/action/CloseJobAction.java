@@ -307,6 +307,11 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
             ClusterState state = clusterService.state();
             request.resolvedJobIds = resolveAndValidateJobId(request.getJobId(), state).toArray(new String[0]);
+            if (request.resolvedJobIds.length == 0) {
+                listener.onResponse(new Response(true));
+                return;
+            }
+
             Set<String> executorNodes = new HashSet<>();
             for (String resolvedJobId : request.resolvedJobIds) {
                 JobManager.getJobOrThrowIfUnknown(state, resolvedJobId);
@@ -323,10 +328,6 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             }
 
             request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
-            if (request.resolvedJobIds.length == 0) {
-                listener.onResponse(new Response(true));
-                return;
-            }
             if (request.isForce()) {
                 forceCloseJob(state, request, listener);
             } else {
@@ -374,9 +375,10 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                     throw org.elasticsearch.ExceptionsHelper
                             .convertToElastic(failedNodeExceptions.get(0));
                 } else {
-                    throw new IllegalStateException(
-                            "Expected [" + request.resolvedJobIds.length
-                                    + "] number of tasks but " + "got [" + tasks.size() + "]");
+                    // This can happen we the actual task in the node no longer exists,
+                    // which means the job(s) have already been closed.
+                    // returning false, here because the current close request hasn't actually closed anything.
+                    return new Response(false);
                 }
             }
 

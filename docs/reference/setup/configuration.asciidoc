@@ -86,7 +86,7 @@ like so:
 Enter value for [node.name]:
 --------------------------------------------------
 
-NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`P
+NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`
 is used in the settings and the process is run as a service or in the background.
 
 [float]

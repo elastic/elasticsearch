@@ -30,9 +30,11 @@ teardown:
               "always": {}
             },
             "actions": {
-              "log" : {
-                "logging" : {
-                  "text" : "execute_watch/10.yaml payload"
+              "indexme" : {
+                "index" : {
+                  "index" : "my-index",
+                  "doc_type" : "my-type",
+                  "doc_id": "my-id"
                 }
               }
             }
@@ -57,6 +59,44 @@ teardown:
   - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
   - match: { watch_record.state: "executed" }
   - match: { watch_record._status.state.active: true }
+  - match: { watch_record._status.actions.indexme.ack.state: "ackable" }
+
+---
+"Test execute watch API with user supplied watch":
+
+  - do:
+      xpack.watcher.execute_watch:
+        body: >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "condition": {
+                "always": {}
+              },
+              "actions": {
+                "indexme" : {
+                  "index" : {
+                    "index" : "my-index",
+                    "doc_type" : "my-type",
+                    "doc_id": "my-id"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.watch_id: "_inlined_" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record._status.state.active: true }
+  - match: { watch_record._status.actions.indexme.ack.state: "ackable" }
 
 ---
 "Execute unknown watch results in 404":

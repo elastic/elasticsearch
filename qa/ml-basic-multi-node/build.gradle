@@ -7,6 +7,8 @@ dependencies {
 
 integTestCluster {
     setting 'xpack.security.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.ml.enabled', 'true'
     numNodes = 3
     distribution = 'zip'

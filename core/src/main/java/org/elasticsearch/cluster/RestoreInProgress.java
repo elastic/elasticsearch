@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

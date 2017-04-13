@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.ObjectContainer;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;

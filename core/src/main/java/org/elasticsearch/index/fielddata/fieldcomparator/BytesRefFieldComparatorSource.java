@@ -163,7 +163,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         }
 
         @Override
-        public int ordValue() {
+        public int ordValue() throws IOException {
             if (hasValue == false) {
                 return substituteOrd;
             }

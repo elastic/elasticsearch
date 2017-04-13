@@ -270,7 +270,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 }
 
                 @Override
-                public int ordValue() {
+                public int ordValue() throws IOException {
                     return (int) globalOrds.get(segmentValues.ordValue());
                 }
 

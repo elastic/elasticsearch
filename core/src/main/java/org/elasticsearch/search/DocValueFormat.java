@@ -179,6 +179,25 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            DateTime dateTime = (DateTime) o;
+            return Objects.equals(formatter.format(), dateTime.formatter.format())
+                    && Objects.equals(formatter.locale(), dateTime.formatter.locale())
+                    && Objects.equals(timeZone, dateTime.timeZone);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(formatter.format(), formatter.locale(), timeZone);
+        }
     }
 
     DocValueFormat GEOHASH = new DocValueFormat() {

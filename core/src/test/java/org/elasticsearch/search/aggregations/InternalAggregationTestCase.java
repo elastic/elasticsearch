@@ -162,23 +162,25 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
 
+            assertEquals(aggregation.getName(), parsedAggregation.getName());
+            assertEquals(aggregation.getMetaData(), parsedAggregation.getMetaData());
+
+            assertTrue(parsedAggregation instanceof ParsedAggregation);
+            assertEquals(aggregation.getType(), ((ParsedAggregation) parsedAggregation).getType());
+
             final BytesReference parsedBytes = toXContent((ToXContent) parsedAggregation, xContentType, params, humanReadable);
             assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
-            assertFromXContent(aggregation, parsedAggregation);
+            assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
 
         } catch (ElasticsearchException e) {
-            // TODO Remove this when all aggregations can be parsed back.
+            //norelease Remove this when all aggregations can be parsed back.
             if ("Unknown namedObject category [org.elasticsearch.search.aggregations.Aggregation]".equals(e.getMessage()) == false) {
                 throw e;
             }
         }
     }
 
-    // TODO make abstract
-    protected void assertFromXContent(T aggregation, Aggregation parsedAggregation) {
-        assertEquals(aggregation.getName(), parsedAggregation.getName());
-        assertEquals(aggregation.getMetaData(), parsedAggregation.getMetaData());
-        assertTrue(parsedAggregation instanceof ParsedAggregation);
-        assertEquals(aggregation.getType(), ((ParsedAggregation) parsedAggregation).getType());
+    //norelease TODO make abstract
+    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
     }
 }

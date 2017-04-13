@@ -25,8 +25,8 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesRanksTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
@@ -34,21 +34,13 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
-public class InternalHDRPercentilesRanksTests extends InternalAggregationTestCase<InternalHDRPercentileRanks> {
+public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalHDRPercentileRanks> {
 
     @Override
-    protected InternalHDRPercentileRanks createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        double[] cdfValues = new double[] { 0.5 };
-        int numberOfSignificantValueDigits = 3;
-        DoubleHistogram state = new DoubleHistogram(numberOfSignificantValueDigits);
-        int numValues = randomInt(100);
-        for (int i = 0; i < numValues; ++i) {
-            state.recordValue(randomDouble());
-        }
-        boolean keyed = randomBoolean();
-        DocValueFormat format = DocValueFormat.RAW;
-        return new InternalHDRPercentileRanks(name, cdfValues, state, keyed, format, pipelineAggregators, metaData);
+    protected InternalHDRPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators, Map<String, Object> metadata,
+                                                            double[] cdfValues, boolean keyed, DocValueFormat format) {
+        DoubleHistogram state = new DoubleHistogram(3);
+        return new InternalHDRPercentileRanks(name, cdfValues, state, keyed, format, aggregators, metadata);
     }
 
     @Override
@@ -76,16 +68,7 @@ public class InternalHDRPercentilesRanksTests extends InternalAggregationTestCas
     }
 
     @Override
-    protected void assertFromXContent(InternalHDRPercentileRanks aggregation, Aggregation parsedAggregation) {
-        super.assertFromXContent(aggregation, parsedAggregation);
-
-        assertTrue(parsedAggregation instanceof ParsedHDRPercentileRanks);
-        ParsedHDRPercentileRanks hdrPercentileRanks = (ParsedHDRPercentileRanks) parsedAggregation;
-        for (Percentile percentile : aggregation) {
-            assertEquals(percentile.getPercent(), hdrPercentileRanks.percentile(percentile.getValue()), 0);
-        }
-        for (Percentile percentile : hdrPercentileRanks) {
-            assertEquals(percentile.getValue(), aggregation.percent(percentile.getPercent()), 0);
-        }
+    protected Class<? extends ParsedPercentileRanks> parsedParsedPercentileRanksClass() {
+        return ParsedHDRPercentileRanks.class;
     }
 }

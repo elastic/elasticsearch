@@ -21,11 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
+import org.elasticsearch.search.aggregations.metrics.percentiles.AbstractParsedPercentiles;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
 
 import java.io.IOException;
 
-public class ParsedTDigestPercentileRanks extends ParsedPercentiles {
+public class ParsedTDigestPercentileRanks extends ParsedPercentileRanks {
 
     @Override
     protected String getType() {
@@ -33,14 +34,14 @@ public class ParsedTDigestPercentileRanks extends ParsedPercentiles {
     }
 
     private static ObjectParser<ParsedTDigestPercentileRanks, Void> PARSER =
-            new ObjectParser<>("ParsedTDigestPercentileRanks", true, ParsedTDigestPercentileRanks::new);
+            new ObjectParser<>(ParsedTDigestPercentileRanks.class.getSimpleName(), true, ParsedTDigestPercentileRanks::new);
     static {
-        ParsedPercentiles.declarePercentilesFields(PARSER);
+        AbstractParsedPercentiles.declarePercentilesFields(PARSER);
     }
 
     public static ParsedTDigestPercentileRanks fromXContent(XContentParser parser, String name) throws IOException {
         ParsedTDigestPercentileRanks aggregation = PARSER.parse(parser, null);
-        aggregation.name = name;
+        aggregation.setName(name);
         return aggregation;
     }
 }

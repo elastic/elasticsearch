@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesRanksTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
@@ -33,20 +33,18 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
-public class InternalTDigestPercentilesRanksTests extends InternalAggregationTestCase<InternalTDigestPercentileRanks> {
+public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
     @Override
-    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        double[] cdfValues = new double[] { 0.5 };
+    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators,
+                                                                Map<String, Object> metadata,
+                                                                double[] cdfValues, boolean keyed, DocValueFormat format) {
         TDigestState state = new TDigestState(100);
         int numValues = randomInt(100);
         for (int i = 0; i < numValues; ++i) {
             state.add(randomDouble());
         }
-        boolean keyed = randomBoolean();
-        DocValueFormat format = DocValueFormat.RAW;
-        return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, pipelineAggregators, metaData);
+        return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, aggregators, metadata);
     }
 
     @Override
@@ -83,20 +81,11 @@ public class InternalTDigestPercentilesRanksTests extends InternalAggregationTes
                 new NamedXContentRegistry.Entry(
                         Aggregation.class,
                         new ParseField(InternalTDigestPercentileRanks.NAME),
-                        (parser, context) -> ParsedTDigestPercentileRanks.fromXContent(parser, (String) context))));
+                        (parser, name) -> ParsedTDigestPercentileRanks.fromXContent(parser, (String) name))));
     }
 
     @Override
-    protected void assertFromXContent(InternalTDigestPercentileRanks aggregation, Aggregation parsedAggregation) {
-        super.assertFromXContent(aggregation, parsedAggregation);
-
-        assertTrue(parsedAggregation instanceof ParsedTDigestPercentileRanks);
-        ParsedTDigestPercentileRanks tDigestPercentileRanks = (ParsedTDigestPercentileRanks) parsedAggregation;
-        for (Percentile percentile : aggregation) {
-            assertEquals(percentile.getPercent(), tDigestPercentileRanks.percentile(percentile.getValue()), 0);
-        }
-        for (Percentile percentile : tDigestPercentileRanks) {
-            assertEquals(percentile.getValue(), aggregation.percent(percentile.getPercent()), 0);
-        }
+    protected Class<? extends ParsedPercentileRanks> parsedParsedPercentileRanksClass() {
+        return ParsedTDigestPercentileRanks.class;
     }
 }

@@ -22,47 +22,51 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
-public abstract class ParsedPercentiles extends ParsedAggregation implements Percentiles {
+public abstract class AbstractParsedPercentiles extends ParsedAggregation implements Iterable<Percentile>  {
 
-    private final Map<Double, Double> percentiles = new HashMap<>();
+    private final List<InternalPercentile> percentiles = new ArrayList<>();
     private final Map<Double, String> percentilesAsString = new HashMap<>();
 
-    protected boolean keyed;
+    private boolean keyed;
 
     void addPercentile(double key, double value) {
-        percentiles.put(key, value);
+        percentiles.add(new InternalPercentile(key, value));
     }
 
     void addPercentileAsString(double key, String valueAsString) {
         percentilesAsString.put(key, valueAsString);
     }
 
-    @Override
-    public double percentile(double percent) {
-        Double percentile = percentiles.get(percent);
-        if (percentile == null) {
-            return Double.NaN;
+    InternalPercentile getPercentile(double percent) {
+        for (InternalPercentile percentile : percentiles) {
+            if (percentile.getPercent() == percent) {
+                return percentile;
+            }
         }
-        return percentile;
+        return null;
     }
 
-    @Override
-    public String percentileAsString(double percent) {
+    String percentileAsString(double percent) {
         return percentilesAsString.get(percent);
+    }
+
+    void setKeyed(boolean keyed) {
+        this.keyed = keyed;
     }
 
     @Override
     public Iterator<Percentile> iterator() {
         return new Iterator<Percentile>() {
-            final Iterator<Map.Entry<Double, Double>> iterator = percentiles.entrySet().iterator();
+            final Iterator<InternalPercentile> iterator = percentiles.iterator();
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();
@@ -70,8 +74,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Per
 
             @Override
             public Percentile next() {
-                Map.Entry<Double, Double> next = iterator.next();
-                return new InternalPercentile(next.getKey(), next.getValue());
+                return iterator.next();
             }
         };
     }
@@ -79,28 +82,28 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Per
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(InternalAggregation.CommonFields.VALUES.getPreferredName());
-            for (Map.Entry<Double, Double> percentile : percentiles.entrySet()) {
-                Double key = percentile.getKey();
+            builder.startObject(CommonFields.VALUES.getPreferredName());
+            for (InternalPercentile percentile : percentiles) {
+                Double key = percentile.getPercent();
                 builder.field(String.valueOf(key), percentile.getValue());
 
-                String valueAsString = percentilesAsString.get(key);
+                String valueAsString = percentileAsString(key);
                 if (valueAsString != null && valueAsString.isEmpty() == false) {
                     builder.field(key + "_as_string", valueAsString);
                 }
             }
             builder.endObject();
         } else {
-            builder.startArray(InternalAggregation.CommonFields.VALUES.getPreferredName());
-            for (Map.Entry<Double, Double> percentile : percentiles.entrySet()) {
-                Double key = percentile.getKey();
+            builder.startArray(CommonFields.VALUES.getPreferredName());
+            for (InternalPercentile percentile : percentiles) {
+                Double key = percentile.getPercent();
                 builder.startObject();
                 {
-                    builder.field(InternalAggregation.CommonFields.KEY.getPreferredName(), key);
-                    builder.field(InternalAggregation.CommonFields.VALUE.getPreferredName(), percentile.getValue());
-                    String valueAsString = percentilesAsString.get(key);
+                    builder.field(CommonFields.KEY.getPreferredName(), key);
+                    builder.field(CommonFields.VALUE.getPreferredName(), percentile.getValue());
+                    String valueAsString = percentileAsString(key);
                     if (valueAsString != null && valueAsString.isEmpty() == false) {
-                        builder.field(InternalAggregation.CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);
+                        builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);
                     }
                 }
                 builder.endObject();
@@ -110,13 +113,13 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Per
         return builder;
     }
 
-    protected static void declarePercentilesFields(ObjectParser<? extends ParsedPercentiles, Void> objectParser) {
+    protected static void declarePercentilesFields(ObjectParser<? extends AbstractParsedPercentiles, Void> objectParser) {
         ParsedAggregation.declareCommonFields(objectParser);
 
         objectParser.declareField((parser, aggregation, context) -> {
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.START_OBJECT) {
-                aggregation.keyed = true;
+                aggregation.setKeyed(true);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token.isValue()) {
                         if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -134,11 +137,11 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Per
                     }
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                aggregation.keyed = false;
+                aggregation.setKeyed(false);
 
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    Double key = null;
+                    double key = 0.0d;
                     double value = 0.0d;
                     String valueAsString = null;
 
@@ -146,23 +149,21 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Per
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (InternalAggregation.CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                            if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
                                 key = parser.doubleValue();
-                            } else if (InternalAggregation.CommonFields.VALUE.getPreferredName().equals(currentFieldName)) {
+                            } else if (CommonFields.VALUE.getPreferredName().equals(currentFieldName)) {
                                 value = parser.doubleValue();
-                            } else if (InternalAggregation.CommonFields.VALUE_AS_STRING.getPreferredName().equals(currentFieldName)) {
+                            } else if (CommonFields.VALUE_AS_STRING.getPreferredName().equals(currentFieldName)) {
                                 valueAsString = parser.text();
                             }
                         }
                     }
-                    if (key != null) {
-                        aggregation.addPercentile(key, value);
-                        if (valueAsString != null) {
-                            aggregation.addPercentileAsString(key, valueAsString);
-                        }
+                    aggregation.addPercentile(key, value);
+                    if (valueAsString != null) {
+                        aggregation.addPercentileAsString(key, valueAsString);
                     }
                 }
             }
-        }, InternalAggregation.CommonFields.VALUES, ObjectParser.ValueType.OBJECT_ARRAY);
+        }, CommonFields.VALUES, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 }

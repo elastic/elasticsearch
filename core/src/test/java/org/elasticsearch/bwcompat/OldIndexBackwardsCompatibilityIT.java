@@ -166,6 +166,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Files.createDirectories(multiDataPath[0]);
         Files.createDirectories(multiDataPath[1]);
         logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
+        ensureGreen();
     }
 
     void upgradeIndexFolder() throws Exception {

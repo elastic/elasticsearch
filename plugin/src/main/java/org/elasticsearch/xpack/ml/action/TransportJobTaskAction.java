@@ -25,7 +25,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
@@ -39,8 +38,8 @@ import java.util.function.Supplier;
  */
 // TODO: Hacking around here with TransportTasksAction. Ideally we should have another base class in core that
 // redirects to a single node only
-public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction.JobTask, Request extends TransportJobTaskAction.JobTaskRequest<Request>,
-        Response extends BaseTasksResponse & Writeable> extends TransportTasksAction<OperationTask, Request, Response, Response> {
+public abstract class TransportJobTaskAction<Request extends TransportJobTaskAction.JobTaskRequest<Request>,
+        Response extends BaseTasksResponse & Writeable> extends TransportTasksAction<OpenJobAction.JobTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
 
@@ -70,25 +69,6 @@ public abstract class TransportJobTaskAction<OperationTask extends OpenJobAction
             super.doExecute(task, request, listener);
         }
     }
-
-    @Override
-    protected final void taskOperation(Request request, OperationTask task, ActionListener<Response> listener) {
-        ClusterState state = clusterService.state();
-        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        JobState jobState = MlMetadata.getJobState(task.getJobId(), tasks);
-        if (jobState == JobState.OPENED) {
-            innerTaskOperation(request, task, listener, state);
-        } else {
-            logger.warn("Unexpected job state based on cluster state version [{}]", state.getVersion());
-            // Note that DatafeedJob relies on this exception being thrown to detect the state
-            // conflict and stop the datafeed. If this exception type/status changes, DatafeedJob
-            // also needs to change.
-            listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot perform requested action because job [" +
-                    request.getJobId() + "] is not open"));
-        }
-    }
-
-    protected abstract void innerTaskOperation(Request request, OperationTask task, ActionListener<Response> listener, ClusterState state);
 
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,

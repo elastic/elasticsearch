@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
@@ -16,10 +15,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentType.JSON;
@@ -44,7 +41,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
-        assertBusy(this::assertSameClusterStateOnAllNodes);
 
         String postData =
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
@@ -149,7 +145,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         response = client().performRequest("post", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop");
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("stopped", true), responseEntityToMap(response));
-        assertBusy(this::assertSameClusterStateOnAllNodes);
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
                 Collections.singletonMap("timeout", "20s"));
@@ -170,7 +165,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
-        assertBusy(this::assertSameClusterStateOnAllNodes);
 
         String postData =
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
@@ -210,8 +204,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 Collections.singletonMap("timeout", "20s"));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
-        assertBusy(this::assertSameClusterStateOnAllNodes);
-        
+
         // feed some more data points
         postData =
                 "{\"airline\":\"AAL\",\"responsetime\":\"136.2361\",\"sourcetype\":\"farequote\",\"time\":\"1407081600\"}\n" +
@@ -306,30 +299,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
     private static Map<String, Object> responseEntityToMap(Response response) throws IOException {
         return XContentHelper.convertToMap(JSON.xContent(), response.getEntity().getContent(), false);
-    }
-
-    // When open job api returns the cluster state on nodes other than master node or node that acted as coordinating node,
-    // may not have had the latest update with job state set to opened. This may fail subsequent post data, flush, or
-    // close calls until that node that is running the job task has applied the cluster state where job state has been set to opened.
-    // this method waits until all nodes in the cluster have the same cluster state version, so that such failures can be
-    // avoided in tests. Note that the job has been started on the node running the job task (autodetect process is running),
-    // this is just a workaround for inconsistency in cluster states that may happen for a small amount of time.
-    private void assertSameClusterStateOnAllNodes(){
-        assert getClusterHosts().size() > 1;
-        Set<Integer> versions = new HashSet<>();
-        for (HttpHost host : getClusterHosts()) {
-            try {
-                // Client round robins between cluster hosts:
-                Response response = client().performRequest("get", "/_cluster/state/version", Collections.singletonMap("local", "true"));
-                assertEquals(200, response.getStatusLine().getStatusCode());
-                int version = (Integer) responseEntityToMap(response).get("version");
-                logger.info("Sampled version [{}]", version);
-                versions.add(version);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        assertEquals(1, versions.size());
     }
 
 }

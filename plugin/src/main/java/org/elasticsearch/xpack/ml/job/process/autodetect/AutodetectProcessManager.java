@@ -156,7 +156,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                             DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            throw new IllegalStateException("[" + jobId + "] Cannot process data: no active autodetect process for job");
+            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobId + "] is not open");
         }
         communicator.writeToJob(input, xContentType, params, handler);
     }
@@ -174,9 +174,9 @@ public class AutodetectProcessManager extends AbstractComponent {
         logger.debug("Flushing job {}", jobId);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "[%s] Cannot flush: no active autodetect process for job", jobId);
+            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobId);
             logger.debug(message);
-            throw new IllegalArgumentException(message);
+            throw ExceptionsHelper.conflictStatusException(message);
         }
 
         communicator.flushJob(params, (aVoid, e) -> {
@@ -194,8 +194,9 @@ public class AutodetectProcessManager extends AbstractComponent {
                                           Consumer<Exception> handler) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
-            handler.accept(null);
+            String message = "Cannot process update model debug config because job [" + jobId + "] is not open";
+            logger.debug(message);
+            handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
         }
         communicator.writeUpdateProcessMessage(config, updates, (aVoid, e) -> {

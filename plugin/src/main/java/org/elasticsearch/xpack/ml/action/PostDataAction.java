@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -233,7 +232,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
     }
 
 
-    public static class TransportAction extends TransportJobTaskAction<OpenJobAction.JobTask, Request, Response> {
+    public static class TransportAction extends TransportJobTaskAction<Request, Response> {
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
@@ -252,7 +251,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
 
         @Override
-        protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener, ClusterState state) {
+        protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             try {

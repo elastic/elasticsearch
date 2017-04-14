@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -236,7 +235,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
     }
 
-    public static class TransportAction extends TransportJobTaskAction<OpenJobAction.JobTask, Request, Response> {
+    public static class TransportAction extends TransportJobTaskAction<Request, Response> {
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
@@ -255,8 +254,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
 
         @Override
-        protected void innerTaskOperation(Request request, OpenJobAction.JobTask task,
-                                          ActionListener<Response> listener, ClusterState state) {
+        protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
             paramsBuilder.calcInterim(request.getCalcInterim());
             if (request.getAdvanceTime() != null) {

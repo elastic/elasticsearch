@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -291,47 +294,58 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            /*
-             * Closing of multiple jobs:
-             *
-             * 1. Resolve and validate jobs first: if any job does not meet the
-             * criteria (e.g. open datafeed), fail immediately, do not close any
-             * job
-             *
-             * 2. Internally a task request is created for every job, so there
-             * are n inner tasks for 1 user request
-             *
-             * 3. Collect n inner task results or failures and send 1 outer
-             * result/failure
-             */
-
-            ClusterState state = clusterService.state();
-            request.resolvedJobIds = resolveAndValidateJobId(request.getJobId(), state).toArray(new String[0]);
-            if (request.resolvedJobIds.length == 0) {
-                listener.onResponse(new Response(true));
-                return;
-            }
-
-            Set<String> executorNodes = new HashSet<>();
-            for (String resolvedJobId : request.resolvedJobIds) {
-                JobManager.getJobOrThrowIfUnknown(state, resolvedJobId);
-                PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
-                if (jobTask == null || jobTask.isAssigned() == false) {
-                    String message = "Cannot perform requested action because job [" + resolvedJobId
-                            + "] is not open";
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                    return;
+            final ClusterState state = clusterService.state();
+            final DiscoveryNodes nodes = state.nodes();
+            if (nodes.isLocalNodeElectedMaster() == false) {
+                // Delegates close job to elected master node, so it becomes the coordinating node.
+                // See comment in OpenJobAction.Transport class for more information.
+                if (nodes.getMasterNode() == null) {
+                    listener.onFailure(new MasterNotDiscoveredException("no known master node"));
                 } else {
-                    executorNodes.add(jobTask.getExecutorNode());
+                    transportService.sendRequest(nodes.getMasterNode(), actionName, request,
+                            new ActionListenerResponseHandler<>(listener, Response::new));
                 }
-            }
-
-            request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
-            if (request.isForce()) {
-                forceCloseJob(state, request, listener);
             } else {
-                normalCloseJob(state, task, request, listener);
+                /*
+                 * Closing of multiple jobs:
+                 *
+                 * 1. Resolve and validate jobs first: if any job does not meet the
+                 * criteria (e.g. open datafeed), fail immediately, do not close any
+                 * job
+                 *
+                 * 2. Internally a task request is created for every job, so there
+                 * are n inner tasks for 1 user request
+                 *
+                 * 3. Collect n inner task results or failures and send 1 outer
+                 * result/failure
+                 */
+                request.resolvedJobIds = resolveAndValidateJobId(request.getJobId(), state).toArray(new String[0]);
+                if (request.resolvedJobIds.length == 0) {
+                    listener.onResponse(new Response(true));
+                    return;
+                }
+
+                Set<String> executorNodes = new HashSet<>();
+                for (String resolvedJobId : request.resolvedJobIds) {
+                    JobManager.getJobOrThrowIfUnknown(state, resolvedJobId);
+                    PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
+                    if (jobTask == null || jobTask.isAssigned() == false) {
+                        String message = "Cannot perform requested action because job [" + resolvedJobId
+                                + "] is not open";
+                        listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+                        return;
+                    } else {
+                        executorNodes.add(jobTask.getExecutorNode());
+                    }
+                }
+
+                request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
+                if (request.isForce()) {
+                    forceCloseJob(state, request, listener);
+                } else {
+                    normalCloseJob(state, task, request, listener);
+                }
             }
         }
 

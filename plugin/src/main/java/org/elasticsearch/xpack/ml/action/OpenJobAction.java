@@ -11,14 +11,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -88,7 +90,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContent {
 
         public static Request fromXContent(XContentParser parser) {
             return parseRequest(null, parser);
@@ -356,22 +358,41 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    // This class extends from TransportMasterNodeAction for cluster state observing purposes.
+    // The close job api also redirect the elected master node.
+    // The master node will wait for the job to be opened by checking the persistent task's status and then return.
+    // To ensure that a subsequent close job call will see that same task status (and sanity validation doesn't fail)
+    // both open and close job apis redirect to the elected master node.
+    // In case of instability persistent tasks checks may fail and that is ok, in that case all bets are off.
+    // The open job api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
+    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
-                               PersistentTasksService persistentTasksService, ActionFilters actionFilters,
+                               ClusterService clusterService, PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected String executor() {
+            // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
+            // so we can do this on the network thread
+            return ThreadPool.Names.SAME;
+        }
+
+        @Override
+        protected Response newResponse() {
+            return new Response();
+        }
+
+        @Override
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             JobParams jobParams = request.getJobParams();
             if (licenseState.isMachineLearningAllowed()) {
                 ActionListener<PersistentTask<JobParams>> finalListener = new ActionListener<PersistentTask<JobParams>>() {
@@ -393,6 +414,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
+        }
+
+        @Override
+        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+            // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
+            // then delagating to PersistentTasksService doesn't make a whole lot of sense,
+            // because PersistentTasksService will then fail.
+            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
 
         void waitForJobStarted(String taskId, JobParams jobParams, ActionListener<Response> listener) {

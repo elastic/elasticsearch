@@ -23,15 +23,11 @@ public abstract class ParsedPercentileRanks extends AbstractParsedPercentiles im
 
     @Override
     public double percent(double value) {
-        InternalPercentile percentile = getPercentile(value);
-        if (percentile != null) {
-            return percentile.getValue();
-        }
-        return Double.NaN;
+        return getPercentile(value);
     }
 
     @Override
     public String percentAsString(double value) {
-        return percentileAsString(value);
+        return getPercentileAsString(value);
     }
 }

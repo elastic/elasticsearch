@@ -19,11 +19,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +33,10 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.ParsedHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.ParsedTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -41,15 +46,30 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
+
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+
+    private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
+
+    static List<NamedXContentRegistry.Entry> getNamedXContents() {
+        Map<String, ContextParser<Object, ? extends Aggregation>> namedXContents = new HashMap<>();
+        namedXContents.put(InternalHDRPercentileRanks.NAME, (p, c) -> ParsedHDRPercentileRanks.fromXContent(p, (String) c));
+        namedXContents.put(InternalTDigestPercentileRanks.NAME, (p, c) -> ParsedTDigestPercentileRanks.fromXContent(p, (String) c));
+
+        return namedXContents.entrySet().stream()
+                .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
+                .collect(Collectors.toList());
+    }
 
     protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
@@ -137,7 +157,12 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return namedWriteableRegistry;
     }
 
-    public void testFromXContent() throws IOException {
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return namedXContentRegistry;
+    }
+
+    public final void testFromXContent() throws IOException {
         final NamedXContentRegistry xContentRegistry = xContentRegistry();
         final T aggregation = createTestInstance();
 
@@ -172,11 +197,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
             assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
 
-        } catch (ElasticsearchException e) {
-            //norelease Remove this when all aggregations can be parsed back.
-            if ("Unknown namedObject category [org.elasticsearch.search.aggregations.Aggregation]".equals(e.getMessage()) == false) {
-                throw e;
-            }
+        } catch (NamedXContentRegistry.UnknownNamedObjectException e) {
+            //norelease Remove this catch block when all aggregations can be parsed back.
+            assertThat(e.getMessage(), containsString("Unknown Aggregation"));
         }
     }
 

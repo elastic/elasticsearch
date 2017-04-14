@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -1117,7 +1118,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         SearchRequest request = new SearchRequest(pattern);
         if (randomBoolean()) {
-            request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            final boolean expandIndicesOpen = Regex.isSimpleMatchPattern(pattern) ? true : randomBoolean();
+            request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), expandIndicesOpen, randomBoolean()));
         }
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
         assertThat(indices.size(), equalTo(1));

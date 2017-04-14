@@ -33,7 +33,7 @@ import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 /**
  * Reference to a function or lambda.
  * <p>
- * Once you have created one of these, you have "everything you need" to call LambdaBootstrap
+ * Once you have created one of these, you have "everything you need" to call {@link LambdaBootstrap}
  * either statically from bytecode with invokedynamic, or at runtime from Java.
  */
 public class FunctionRef {

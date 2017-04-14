@@ -58,8 +58,8 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * lambda functions and method references within Painless.  The code generation
  * used here is based upon the following article:
  * http://cr.openjdk.java.net/~briangoetz/lambda/lambda-translation.html
- * However, it is a simplified version as Painless has no concept of generics.
- * LambdaBootstrap is being used as a replacement for
+ * However, it is a simplified version as Painless has no concept of generics
+ * or serialization.  LambdaBootstrap is being used as a replacement for
  * {@link java.lang.invoke.LambdaMetafactory} since the Painless casting model
  * cannot be fully supported through this class.
  *
@@ -184,16 +184,15 @@ public final class LambdaBootstrap {
      * @throws LambdaConversionException Thrown when an illegal type conversion occurs at link time
      */
     public static CallSite lambdaBootstrap(
-        Lookup lookup,
-        String interfaceMethodName,
-        MethodType factoryMethodType,
-        MethodType interfaceMethodType,
-        String delegateClassName,
-        int delegateInvokeType,
-        String delegateMethodName,
-        MethodType delegateMethodType)
-        throws LambdaConversionException {
-
+            Lookup lookup,
+            String interfaceMethodName,
+            MethodType factoryMethodType,
+            MethodType interfaceMethodType,
+            String delegateClassName,
+            int delegateInvokeType,
+            String delegateMethodName,
+            MethodType delegateMethodType)
+            throws LambdaConversionException {
         String factoryMethodName = "get$lambda";
         String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') +
             "$$Lambda" + COUNTER.getAndIncrement();
@@ -232,7 +231,7 @@ public final class LambdaBootstrap {
      * with a return value cannot delegate to a delegate method with no return type.
      */
     private static void validateTypes(MethodType interfaceMethodType, MethodType delegateMethodType)
-        throws LambdaConversionException {
+            throws LambdaConversionException {
 
         if (interfaceMethodType.returnType() != void.class &&
             delegateMethodType.returnType() == void.class) {
@@ -288,10 +287,10 @@ public final class LambdaBootstrap {
      * if there are captured arguments
      */
     private static Method generateLambdaConstructor(
-        ClassWriter cw,
-        Type lambdaClassType,
-        MethodType factoryMethodType,
-        Capture[] captures) {
+            ClassWriter cw,
+            Type lambdaClassType,
+            MethodType factoryMethodType,
+            Capture[] captures) {
 
         String conName = "<init>";
         String conDesc = factoryMethodType.changeReturnType(void.class).toMethodDescriptorString();
@@ -325,11 +324,11 @@ public final class LambdaBootstrap {
      * if there are captured variables.
      */
     private static void generateFactoryMethod(
-        ClassWriter cw,
-        String factoryMethodName,
-        MethodType factoryMethodType,
-        Type lambdaClassType,
-        Method constructorMethod) {
+            ClassWriter cw,
+            String factoryMethodName,
+            MethodType factoryMethodType,
+            Type lambdaClassType,
+            Method constructorMethod) {
 
         String facDesc = factoryMethodType.toMethodDescriptorString();
         Method facMeth = new Method(factoryMethodName, facDesc);
@@ -350,18 +349,18 @@ public final class LambdaBootstrap {
      * Generates the interface method that will delegate (call) to the delegate method.
      */
     private static void generateInterfaceMethod(
-        ClassWriter cw,
-        MethodType factoryMethodType,
-        String lambdaClassName,
-        Type lambdaClassType,
-        String interfaceMethodName,
-        MethodType interfaceMethodType,
-        String delegateClassName,
-        int delegateInvokeType,
-        String delegateMethodName,
-        MethodType delegateMethodType,
-        Capture[] captures)
-        throws LambdaConversionException {
+            ClassWriter cw,
+            MethodType factoryMethodType,
+            String lambdaClassName,
+            Type lambdaClassType,
+            String interfaceMethodName,
+            MethodType interfaceMethodType,
+            String delegateClassName,
+            int delegateInvokeType,
+            String delegateMethodName,
+            MethodType delegateMethodType,
+            Capture[] captures)
+            throws LambdaConversionException {
 
         String lamDesc = interfaceMethodType.toMethodDescriptorString();
         Method lamMeth = new Method(lambdaClassName, lamDesc);
@@ -461,9 +460,9 @@ public final class LambdaBootstrap {
      * that originally defined the class for the Painless script.
      */
     private static Class<?> createLambdaClass(
-        Loader loader,
-        ClassWriter cw,
-        String lambdaClassName) {
+            Loader loader,
+            ClassWriter cw,
+            String lambdaClassName) {
 
         byte[] classBytes = cw.toByteArray();
         return AccessController.doPrivileged((PrivilegedAction<Class<?>>)() ->
@@ -475,8 +474,8 @@ public final class LambdaBootstrap {
      * of the generated lambda class every time this linked factory method is called.
      */
     private static CallSite createNoCaptureCallSite(
-        MethodType factoryMethodType,
-        Class<?> lambdaClass) {
+            MethodType factoryMethodType,
+            Class<?> lambdaClass) {
 
         Constructor<?> constructor = AccessController.doPrivileged(
             (PrivilegedAction<Constructor<?>>)() -> {
@@ -501,10 +500,10 @@ public final class LambdaBootstrap {
      * Creates an {@link ConstantCallSite}
      */
     private static CallSite createCaptureCallSite(
-        Lookup lookup,
-        String factoryMethodName,
-        MethodType factoryMethodType,
-        Class<?> lambdaClass) {
+            Lookup lookup,
+            String factoryMethodName,
+            MethodType factoryMethodType,
+            Class<?> lambdaClass) {
 
         try {
             return new ConstantCallSite(

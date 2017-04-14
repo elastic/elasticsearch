@@ -63,7 +63,7 @@ final class Compiler {
     }
 
     /**
-     * A secure class loader used to defineScript Painless scripts.
+     * A secure class loader used to define Painless scripts.
      */
     static final class Loader extends SecureClassLoader {
         /**
@@ -91,7 +91,7 @@ final class Compiler {
     /**
      * Runs the two-pass compiler to generate a Painless script.
      * @param <T> the type of the script
-     * @param loader The ClassLoader used to defineScript the script.
+     * @param loader The ClassLoader used to define the script.
      * @param iface Interface the compiled script should implement
      * @param name The name of the script.
      * @param source The source code for the script.
@@ -118,7 +118,7 @@ final class Compiler {
 
             return iface.cast(constructor.newInstance(name, source, root.getStatements()));
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
-            throw new IllegalStateException("An internal error occurred attempting to defineScript the script [" + name + "].", exception);
+            throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
     }
 

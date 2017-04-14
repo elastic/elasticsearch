@@ -46,7 +46,7 @@ import java.io.IOException;
  *  in more than one document!  It will only return the first one it
  *  finds. */
 
-final class PerThreadIDAndVersionSeqNoLookup {
+final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
@@ -67,7 +67,7 @@ final class PerThreadIDAndVersionSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDAndVersionSeqNoLookup(LeafReader reader) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader) throws IOException {
         Fields fields = reader.fields();
         Terms terms = fields.terms(UidFieldMapper.NAME);
         termsEnum = terms.iterator();
@@ -123,7 +123,7 @@ final class PerThreadIDAndVersionSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    public DocIdAndSeqNo lookupSequenceNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+    DocIdAndSeqNo lookupSeqNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, liveDocs);
@@ -134,8 +134,12 @@ final class PerThreadIDAndVersionSeqNoLookup {
         }
     }
 
-    /** returns 0 if the primary term is not found */
-    public long lookUpPrimaryTerm(int docID) throws IOException {
+    /**
+     * returns 0 if the primary term is not found.
+     *
+     * Note that 0 is an illegal primary term. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
+     **/
+    long lookUpPrimaryTerm(int docID) throws IOException {
             return primaryTerms == null ? 0  : primaryTerms.get(docID);
     }
 }

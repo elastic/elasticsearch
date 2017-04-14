@@ -53,7 +53,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDAndVersionSeqNoLookup lookup = new PerThreadIDAndVersionSeqNoLookup(segment.reader());
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader());
         // found doc
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), null, segment);
         assertNotNull(result);
@@ -81,7 +81,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDAndVersionSeqNoLookup lookup = new PerThreadIDAndVersionSeqNoLookup(segment.reader());
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader());
         // return the last doc when there are duplicates
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), null, segment);
         assertNotNull(result);

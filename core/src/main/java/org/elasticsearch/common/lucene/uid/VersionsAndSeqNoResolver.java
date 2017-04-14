@@ -37,39 +37,36 @@ import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
 /** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
 public final class VersionsAndSeqNoResolver {
 
-    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionSeqNoLookup>> lookupStates =
+    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup>> lookupStates =
         ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
     private static final CoreClosedListener removeLookupState = key -> {
-        CloseableThreadLocal<PerThreadIDAndVersionSeqNoLookup> ctl = lookupStates.remove(key);
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.remove(key);
         if (ctl != null) {
             ctl.close();
         }
     };
 
-    private static PerThreadIDAndVersionSeqNoLookup getLookupState(LeafReader reader) throws IOException {
+    private static PerThreadIDVersionAndSeqNoLookup getLookupState(LeafReader reader) throws IOException {
         Object key = reader.getCoreCacheKey();
-        CloseableThreadLocal<PerThreadIDAndVersionSeqNoLookup> ctl = lookupStates.get(key);
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.get(key);
         if (ctl == null) {
-            // First time we are seeing this reader's core; make a
-            // new CTL:
+            // First time we are seeing this reader's core; make a new CTL:
             ctl = new CloseableThreadLocal<>();
-            CloseableThreadLocal<PerThreadIDAndVersionSeqNoLookup> other = lookupStates.putIfAbsent(key, ctl);
+            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> other = lookupStates.putIfAbsent(key, ctl);
             if (other == null) {
-                // Our CTL won, we must remove it when the
-                // core is closed:
+                // Our CTL won, we must remove it when the core is closed:
                 reader.addCoreClosedListener(removeLookupState);
             } else {
-                // Another thread beat us to it: just use
-                // their CTL:
+                // Another thread beat us to it: just use their CTL:
                 ctl = other;
             }
         }
 
-        PerThreadIDAndVersionSeqNoLookup lookupState = ctl.get();
+        PerThreadIDVersionAndSeqNoLookup lookupState = ctl.get();
         if (lookupState == null) {
-            lookupState = new PerThreadIDAndVersionSeqNoLookup(reader);
+            lookupState = new PerThreadIDVersionAndSeqNoLookup(reader);
             ctl.set(lookupState);
         }
 
@@ -85,7 +82,7 @@ public final class VersionsAndSeqNoResolver {
         public final long version;
         public final LeafReaderContext context;
 
-        public DocIdAndVersion(int docId, long version, LeafReaderContext context) {
+        DocIdAndVersion(int docId, long version, LeafReaderContext context) {
             this.docId = docId;
             this.version = version;
             this.context = context;
@@ -98,7 +95,7 @@ public final class VersionsAndSeqNoResolver {
         public final long seqNo;
         public final LeafReaderContext context;
 
-        public DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context) {
+        DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context) {
             this.docId = docId;
             this.seqNo = seqNo;
             this.context = context;
@@ -123,7 +120,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
-            PerThreadIDAndVersionSeqNoLookup lookup = getLookupState(leaf);
+            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
             DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
@@ -149,8 +146,8 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
-            PerThreadIDAndVersionSeqNoLookup lookup = getLookupState(leaf);
-            DocIdAndSeqNo result = lookup.lookupSequenceNo(term.bytes(), leaf.getLiveDocs(), context);
+            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
+            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
             }
@@ -163,7 +160,7 @@ public final class VersionsAndSeqNoResolver {
      */
     public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo) throws IOException {
         LeafReader leaf = docIdAndSeqNo.context.reader();
-        PerThreadIDAndVersionSeqNoLookup lookup = getLookupState(leaf);
+        PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
         long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId);
         assert result > 0 : "should always resolve a primary term for a resolved sequence number. primary_term [" + result + "]"
             + " docId [" + docIdAndSeqNo.docId + "] seqNo [" + docIdAndSeqNo.seqNo + "]";

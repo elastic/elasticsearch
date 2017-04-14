@@ -96,7 +96,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             provided "com.vividsolutions:jts:${project.versions.jts}"
             provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            provided "net.java.dev.jna:jna:${project.versions.jna}"
+            provided "org.elasticsearch:jna:${project.versions.jna}"
         }
     }
 

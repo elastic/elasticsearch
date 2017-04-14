@@ -124,7 +124,7 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
     }
 
     @Override
-    public StartRecoveryRequest createStartRecoveryRequest(Logger logger, DiscoveryNode localNode) {
+    public StartFileRecoveryRequest createStartRecoveryRequest(Logger logger, DiscoveryNode localNode) {
         logger.trace("{} collecting local files for [{}]", shardId(), sourceNode());
 
         final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(logger);
@@ -139,13 +139,7 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
      */
     private Store.MetadataSnapshot getStoreMetadataSnapshot(Logger logger) {
         try {
-            if (indexShard().indexSettings().isOnSharedFilesystem()) {
-                // we are not going to copy any files, so don't bother listing files, potentially running into concurrency issues with the
-                // primary changing files underneath us
-                return Store.MetadataSnapshot.EMPTY;
-            } else {
-                return indexShard().snapshotStoreMetadata();
-            }
+            return indexShard().snapshotStoreMetadata();
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
             logger.trace("{} shard folder empty, recovering all files", this);

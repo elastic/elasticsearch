@@ -150,9 +150,8 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
             logger.trace("snapshot translog for recovery; current size is [{}]",
                 translogView.totalOperations());
             try {
-                OpsRecoverySourceHandler.sendSnapshot(SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    translogView.snapshot(), cancellableThreads, recoveryTarget, response,
-                    chunkSizeInBytes, logger);
+                final Translog.Snapshot snapshot = translogView.snapshot();
+                sendTranslogSnapshot(snapshot);
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
@@ -162,7 +161,7 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
         return response;
     }
 
-    public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
+    protected void phase1(final IndexCommit snapshot, final Translog.View translogView) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -324,7 +323,7 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
         }
     }
 
-    void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp)
+    protected void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp)
         throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("recovery [phase1]: prepare remote engine for translog");
@@ -342,11 +341,15 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
         response.apprendTraceSummary(message);
     }
 
+    protected void sendTranslogSnapshot(Translog.Snapshot snapshot) throws IOException {
+        OpsRecoverySourceHandler.sendSnapshot(SequenceNumbersService.UNASSIGNED_SEQ_NO, snapshot, cancellableThreads,
+            recoveryTarget, response, chunkSizeInBytes, logger);
+    }
 
     /*
      * finalizes the recovery process
      */
-    public void finalizeRecovery() {
+    protected void finalizeRecovery() {
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");

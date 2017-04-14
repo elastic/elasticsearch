@@ -36,7 +36,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         IndexShard replica = newShard(false);
-        FullRecoveryTarget recoveryTarget = new FullRecoveryTarget(replica, null, null, null);
+        OpsRecoveryTarget recoveryTarget = new OpsRecoveryTarget(replica, null, null);
         try {
             recoveryEmptyReplica(replica);
             int docs = randomIntBetween(1, 10);
@@ -56,23 +56,31 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             final long maxSeqNo = replica.seqNoStats().getMaxSeqNo();
             final long localCheckpoint = replica.getLocalCheckpoint();
 
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertThat(
+                ((StartOpsRecoveryRequest)recoveryTarget.createStartRecoveryRequest(null, null)).getStartingSeqNo(),
+                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
             replica.updateGlobalCheckpointOnReplica(maxSeqNo - 1);
             replica.getTranslog().sync();
 
             // commit is enough, global checkpoint is below max *committed* which is NO_OPS_PERFORMED
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
+            assertThat(
+                ((StartOpsRecoveryRequest)recoveryTarget.createStartRecoveryRequest(null, null)).getStartingSeqNo(),
+                equalTo(0));
 
             replica.flush(new FlushRequest());
 
             // commit is still not good enough, global checkpoint is below max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertThat(
+                ((StartOpsRecoveryRequest)recoveryTarget.createStartRecoveryRequest(null, null)).getStartingSeqNo(),
+                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
             replica.updateGlobalCheckpointOnReplica(maxSeqNo);
             replica.getTranslog().sync();
             // commit is enough, global checkpoint is below max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));
+            assertThat(
+                ((StartOpsRecoveryRequest)recoveryTarget.createStartRecoveryRequest(null, null)).getStartingSeqNo(),
+                equalTo(localCheckpoint + 1));
         } finally {
             closeShards(replica);
             recoveryTarget.decRef();

@@ -246,6 +246,26 @@ public class IndicesAndAliasesResolver {
                 aliasOrIndex = index;
             }
 
+            // we always need to check for date math expressions
+            final String dateMathName = nameExpressionResolver.resolveDateMathExpression(aliasOrIndex);
+            if (dateMathName != aliasOrIndex) {
+                assert dateMathName.equals(aliasOrIndex) == false;
+                if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
+                    // continue
+                    aliasOrIndex = dateMathName;
+                } else if (authorizedIndices.contains(dateMathName) && isIndexVisible(dateMathName, indicesOptions, metaData, true)) {
+                    if (minus) {
+                        finalIndices.remove(dateMathName);
+                    } else {
+                        finalIndices.add(dateMathName);
+                    }
+                } else {
+                    if (indicesOptions.ignoreUnavailable() == false) {
+                        throw new IndexNotFoundException(dateMathName);
+                    }
+                }
+            }
+
             if (replaceWildcards && Regex.isSimpleMatchPattern(aliasOrIndex)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
@@ -266,34 +286,19 @@ public class IndicesAndAliasesResolver {
                         finalIndices.addAll(resolvedIndices);
                     }
                 }
-            } else {
-                // we always need to check for date math expressions
-                String dateMathName = nameExpressionResolver.resolveDateMathExpression(aliasOrIndex);
-                // we can use != here to compare strings since the name expression resolver returns the same instance, but add an assert
+            } else if (dateMathName == aliasOrIndex) {
+                // we can use == here to compare strings since the name expression resolver returns the same instance, but add an assert
                 // to ensure we catch this if it changes
-                if (dateMathName != aliasOrIndex) {
-                    assert dateMathName.equals(aliasOrIndex) == false;
-                    if (authorizedIndices.contains(dateMathName) && isIndexVisible(dateMathName, indicesOptions, metaData, true)) {
-                        if (minus) {
-                            finalIndices.remove(dateMathName);
-                        } else {
-                            finalIndices.add(dateMathName);
-                        }
-                    } else {
-                        if (indicesOptions.ignoreUnavailable() == false) {
-                            throw new IndexNotFoundException(dateMathName);
-                        }
-                    }
+
+                assert dateMathName.equals(aliasOrIndex);
+                //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on
+                // ignore_unavailable). We only add/remove the index: if the index is missing or the current user is not authorized
+                // to access it either an AuthorizationException will be thrown later in AuthorizationService, or the index will be
+                // removed from the list, based on the ignore_unavailable option.
+                if (minus) {
+                    finalIndices.remove(aliasOrIndex);
                 } else {
-                    //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on
-                    // ignore_unavailable). We only add/remove the index: if the index is missing or the current user is not authorized
-                    // to access it either an AuthorizationException will be thrown later in AuthorizationService, or the index will be
-                    // removed from the list, based on the ignore_unavailable option.
-                    if (minus) {
-                        finalIndices.remove(aliasOrIndex);
-                    } else {
-                        finalIndices.add(aliasOrIndex);
-                    }
+                    finalIndices.add(aliasOrIndex);
                 }
             }
         }

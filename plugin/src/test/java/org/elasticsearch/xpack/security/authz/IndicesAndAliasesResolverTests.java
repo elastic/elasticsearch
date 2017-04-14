@@ -1109,18 +1109,19 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveDateMathExpression() {
         // make the user authorized
-        String dateTimeIndex = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
+        final String pattern = randomBoolean() ? "<datetime-{now/M}" : "<datetime-{now/M}*";
+        String dateTimeIndex = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}");
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed", dateTimeIndex};
         roleMap.put("role", new RoleDescriptor("role", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() }, null));
 
-        SearchRequest request = new SearchRequest("<datetime-{now/M}>");
+        SearchRequest request = new SearchRequest(pattern);
         if (randomBoolean()) {
             request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
         assertThat(indices.size(), equalTo(1));
-        assertThat(request.indices()[0], equalTo(indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")));
+        assertThat(request.indices()[0], equalTo(indexNameExpressionResolver.resolveDateMathExpression(pattern)));
     }
 
     public void testMissingDateMathExpressionIgnoreUnavailable() {

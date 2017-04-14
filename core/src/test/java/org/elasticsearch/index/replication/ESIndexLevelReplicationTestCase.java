@@ -27,13 +27,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -98,6 +94,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected IndexMetaData buildIndexMetaData(int replicas) throws IOException {
+        return buildIndexMetaData(replicas, indexMapping);
+    }
+
+    protected IndexMetaData buildIndexMetaData(int replicas, Map<String, String> mappings) throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -105,7 +105,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
             .settings(settings)
             .primaryTerm(0, 1);
-        for (Map.Entry<String, String> typeMapping : indexMapping.entrySet()) {
+        for (Map.Entry<String, String> typeMapping : mappings.entrySet()) {
             metaData.putMapping(typeMapping.getKey(), typeMapping.getValue());
         }
         return metaData.build();
@@ -224,14 +224,23 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             updateAllocationIDsOnPrimary();
         }
 
-        public synchronized IndexShard addReplica() throws IOException {
+        public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica =
                 newShard(replicaRouting, indexMetaData, null, this::syncGlobalCheckpoint, getEngineFactory(replicaRouting));
-            replicas.add(replica);
-            updateAllocationIDsOnPrimary();
+            addReplica(replica);
             return replica;
         }
+
+        public synchronized void addReplica(IndexShard replica) {
+            assert shardRoutings().stream()
+                .filter(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())).findFirst().isPresent() == false :
+                "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
+            replica.updatePrimaryTerm(primary.getPrimaryTerm());
+            replicas.add(replica);
+            updateAllocationIDsOnPrimary();
+        }
+
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
             final ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -264,6 +273,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
             boolean found = replicas.remove(replica);
             assert found;
+            closeShards(primary);
             primary = replica;
             replica.updateRoutingEntry(replica.routingEntry().moveActiveReplicaToPrimary());
             updateAllocationIDsOnPrimary();

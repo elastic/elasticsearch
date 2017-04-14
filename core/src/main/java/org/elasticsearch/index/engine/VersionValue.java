@@ -30,18 +30,17 @@ class VersionValue implements Accountable {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
 
     /** the version of the document. used for versioned indexed operations and as a BWC layer, where no seq# are set yet */
-    private final long version;
+    final long version;
 
-    VersionValue(long version) {
+    /** the seq number of the operation that last changed the associated uuid */
+    final long seqNo;
+    /** the the term of the operation that last changed the associated uuid */
+    final long term;
+
+    VersionValue(long version, long seqNo, long term) {
         this.version = version;
-    }
-
-    public long getTime() {
-        throw new UnsupportedOperationException();
-    }
-
-    public long getVersion() {
-        return version;
+        this.seqNo = seqNo;
+        this.term = term;
     }
 
     public boolean isDelete() {
@@ -61,6 +60,9 @@ class VersionValue implements Accountable {
     @Override
     public String toString() {
         return "VersionValue{" +
-            "version=" + version + "}";
+            "version=" + version +
+            ", seqNo=" + seqNo +
+            ", term=" + term +
+            '}';
     }
 }

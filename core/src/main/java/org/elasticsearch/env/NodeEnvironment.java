@@ -735,7 +735,7 @@ public final class NodeEnvironment  implements Closeable {
         return nodePaths;
     }
 
-    public int nodeLockId() {
+    public int getNodeLockId() {
         assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");

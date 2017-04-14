@@ -516,18 +516,22 @@ public class Node implements Closeable {
      * @throws IOException if an I/O exception occurs reading the directory structure
      */
     static void checkForIndexDataInDefaultPathData(
-            final Settings settings,
-            final NodeEnvironment nodeEnv,
-            final Logger logger) throws IOException {
-        if (!Environment.PATH_DATA_SETTING.exists(settings) || !Environment.DEFAULT_PATH_DATA_SETTING.exists(settings)) return;
+            final Settings settings, final NodeEnvironment nodeEnv, final Logger logger) throws IOException {
+        if (!Environment.PATH_DATA_SETTING.exists(settings) || !Environment.DEFAULT_PATH_DATA_SETTING.exists(settings)) {
+            return;
+        }
 
         boolean clean = true;
         for (final String defaultPathData : Environment.DEFAULT_PATH_DATA_SETTING.get(settings)) {
-            final Path nodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.nodeLockId());
-            if (!Files.exists(nodeDirectory)) continue;
+            final Path nodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
+            if (Files.exists(nodeDirectory) == false) {
+                continue;
+            }
             final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(nodeDirectory);
             final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodePath);
-            if (availableIndexFolders.isEmpty()) continue;
+            if (availableIndexFolders.isEmpty()) {
+                continue;
+            }
             clean = false;
             logger.error("detected index data in default.path.data [{}] where there should not be any", nodePath.indicesPath);
             for (final String availableIndexFolder : availableIndexFolders) {
@@ -539,7 +543,9 @@ public class Node implements Closeable {
             }
         }
 
-        if (clean) return;
+        if (clean) {
+            return;
+        }
 
         final String message = String.format(
                 Locale.ROOT,

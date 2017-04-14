@@ -307,8 +307,8 @@ public class MachineLearning implements ActionPlugin {
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
 
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
-                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, licenseState, clusterService, autodetectProcessManager),
-                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, licenseState, datafeedManager)
+                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager),
+                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager)
         ));
 
         return Arrays.asList(

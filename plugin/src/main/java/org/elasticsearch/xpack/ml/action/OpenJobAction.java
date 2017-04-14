@@ -447,15 +447,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     public static class OpenJobPersistentTasksExecutor extends PersistentTasksExecutor<JobParams> {
 
         private final AutodetectProcessManager autodetectProcessManager;
-        private final XPackLicenseState licenseState;
 
         private final int maxNumberOfOpenJobs;
         private volatile int maxConcurrentJobAllocations;
 
-        public OpenJobPersistentTasksExecutor(Settings settings, XPackLicenseState licenseState,
-                                              ClusterService clusterService, AutodetectProcessManager autodetectProcessManager) {
+        public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
+                                              AutodetectProcessManager autodetectProcessManager) {
             super(settings, TASK_NAME, ThreadPool.Names.MANAGEMENT);
-            this.licenseState = licenseState;
             this.autodetectProcessManager = autodetectProcessManager;
             this.maxNumberOfOpenJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
@@ -470,21 +468,17 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public void validate(JobParams params, ClusterState clusterState) {
-            if (licenseState.isMachineLearningAllowed()) {
-                // If we already know that we can't find an ml node because all ml nodes are running at capacity or
-                // simply because there are no ml nodes in the cluster then we fail quickly here:
-                MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-                OpenJobAction.validate(params.getJobId(), mlMetadata);
-                Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations,
-                        maxNumberOfOpenJobs, logger);
-                if (assignment.getExecutorNode() == null) {
-                    String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
-                            + assignment.getExplanation() + "]";
-                    logger.warn("[{}] {}", params.getJobId(), msg);
-                    throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
-                }
-            } else {
-                throw LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING);
+            // If we already know that we can't find an ml node because all ml nodes are running at capacity or
+            // simply because there are no ml nodes in the cluster then we fail quickly here:
+            MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+            OpenJobAction.validate(params.getJobId(), mlMetadata);
+            Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations,
+                    maxNumberOfOpenJobs, logger);
+            if (assignment.getExecutorNode() == null) {
+                String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
+                        + assignment.getExplanation() + "]";
+                logger.warn("[{}] {}", params.getJobId(), msg);
+                throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
             }
         }
 

@@ -473,12 +473,10 @@ public class StartDatafeedAction
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<DatafeedParams> {
         private final DatafeedManager datafeedManager;
-        private final XPackLicenseState licenseState;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(Settings settings, XPackLicenseState licenseState, DatafeedManager datafeedManager) {
+        public StartDatafeedPersistentTasksExecutor(Settings settings, DatafeedManager datafeedManager) {
             super(settings, TASK_NAME, ThreadPool.Names.MANAGEMENT);
-            this.licenseState = licenseState;
             this.datafeedManager = datafeedManager;
             this.resolver = new IndexNameExpressionResolver(settings);
         }
@@ -490,18 +488,14 @@ public class StartDatafeedAction
 
         @Override
         public void validate(DatafeedParams params, ClusterState clusterState) {
-            if (licenseState.isMachineLearningAllowed()) {
-                MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-                PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                StartDatafeedAction.validate(params.getDatafeedId(), mlMetadata, tasks);
-                Assignment assignment = selectNode(logger, params.getDatafeedId(), clusterState, resolver);
-                if (assignment.getExecutorNode() == null) {
-                    String msg = "No node found to start datafeed [" + params.getDatafeedId()
-                            + "], allocation explanation [" + assignment.getExplanation() + "]";
-                    throw new ElasticsearchException(msg);
-                }
-            } else {
-                throw LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING);
+            MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            StartDatafeedAction.validate(params.getDatafeedId(), mlMetadata, tasks);
+            Assignment assignment = selectNode(logger, params.getDatafeedId(), clusterState, resolver);
+            if (assignment.getExecutorNode() == null) {
+                String msg = "No node found to start datafeed [" + params.getDatafeedId()
+                        + "], allocation explanation [" + assignment.getExplanation() + "]";
+                throw new ElasticsearchException(msg);
             }
         }
 

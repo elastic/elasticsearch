@@ -211,16 +211,12 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
     @Override
     public void rethrottle(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("[{}]: Rethrottling to [{}] requests per second", getId(), newRequestsPerSecond);
-            }
+            logger.debug("[{}]: rethrottling to [{}] requests per second", getId(), newRequestsPerSecond);
             setRequestsPerSecond(newRequestsPerSecond);
 
             DelayedPrepareBulkRequest delayedPrepareBulkRequest = this.delayedPrepareBulkRequestReference.get();
             if (delayedPrepareBulkRequest == null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}]: Skipping rescheduling because there is no scheduled task", getId());
-                }
+                logger.debug("[{}]: skipping rescheduling because there is no scheduled task", getId());
                 // No request has been queued yet so nothing to reschedule.
                 return;
             }
@@ -259,10 +255,8 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
                  * The user is attempting to slow the request down. We'll let the change in throttle take effect the next time we delay
                  * prepareBulkRequest. We can't just reschedule the request further out in the future the bulk context might time out.
                  */
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}]: Skipping rescheduling because the new throttle [{}] is slower than the old one [{}].", getId(),
-                            newRequestsPerSecond, requestsPerSecond);
-                }
+                logger.debug("[{}]: skipping rescheduling because the new throttle [{}] is slower than the old one [{}]", getId(),
+                        newRequestsPerSecond, requestsPerSecond);
                 return this;
             }
 
@@ -270,9 +264,7 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
             // Actually reschedule the task
             if (false == FutureUtils.cancel(future)) {
                 // Couldn't cancel, probably because the task has finished or been scheduled. Either way we have nothing to do here.
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}]: Skipping rescheduling we couldn't cancel the task.", getId());
-                }
+                logger.debug("[{}]: skipping rescheduling because we couldn't cancel the task", getId());
                 return this;
             }
 
@@ -281,9 +273,7 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
              * test it you'll find that requests sneak through. So each request is given a runOnce boolean to prevent that.
              */
             TimeValue newDelay = newDelay(remainingDelay, newRequestsPerSecond);
-            if (logger.isDebugEnabled()) {
-                logger.debug("[{}]: Rescheduling for [{}] in the future.", getId(), newDelay);
-            }
+            logger.debug("[{}]: rescheduling for [{}] in the future", getId(), newDelay);
             return new DelayedPrepareBulkRequest(threadPool, requestsPerSecond, newDelay, command);
         }
 

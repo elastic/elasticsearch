@@ -25,20 +25,14 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 /**
@@ -46,62 +40,42 @@ import java.util.function.Predicate;
  */
 public class Retry {
     private final Class<? extends Throwable> retryOnThrowable;
+    private final BackoffPolicy backoffPolicy;
+    private final ThreadPool threadPool;
 
-    private BackoffPolicy backoffPolicy;
-    private ThreadPool threadPool;
 
-    public static Retry on(Class<? extends Throwable> retryOnThrowable) {
-        return new Retry(retryOnThrowable);
-    }
-
-    Retry(Class<? extends Throwable> retryOnThrowable) {
+    public Retry(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, ThreadPool threadPool) {
         this.retryOnThrowable = retryOnThrowable;
-    }
-
-    /**
-     * @param backoffPolicy The backoff policy that defines how long and how often to wait for retries.
-     */
-    public Retry policy(BackoffPolicy backoffPolicy) {
         this.backoffPolicy = backoffPolicy;
-        return this;
-    }
-
-    /**
-     * @param threadPool The threadPool that will be used to schedule retries.
-     */
-    public Retry using(ThreadPool threadPool) {
         this.threadPool = threadPool;
-        return this;
     }
 
     /**
-     * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
-     * provided listener. Retries will be attempted using the provided schedule function
+     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
+     * provided listener. Retries will be scheduled using the class's thread pool.
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
      * @param settings settings
      */
-    public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
+    public void withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
         RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, threadPool);
         r.execute(bulkRequest);
     }
 
     /**
-     * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be attempted using
-     * the provided schedule function.
+     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be scheduled using
+     * the class's thread pool.
      *
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
      * @param settings settings
-     * @return the bulk response as returned by the client.
-     * @throws Exception Any exception thrown by the callable.
+     * @return a future representing the bulk response returned by the client.
      */
-    public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
-        PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, threadPool);
-        r.execute(bulkRequest);
-        return actionFuture.actionGet();
+    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) {
+        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        withBackoff(consumer, bulkRequest, future, settings);
+        return future;
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {

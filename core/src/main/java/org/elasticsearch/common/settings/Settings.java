@@ -57,6 +57,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -441,6 +442,20 @@ public final class Settings implements ToXContent {
      */
     public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = new ArrayList<>();
+
+        final String valueFromPrefix = get(settingPrefix);
+        final String valueFromPreifx0 = get(settingPrefix + ".0");
+
+        if (valueFromPrefix != null && valueFromPreifx0 != null) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "settings object contains values for [%s=%s] and [%s=%s]",
+                    settingPrefix,
+                    valueFromPrefix,
+                    settingPrefix + ".0",
+                    valueFromPreifx0);
+            throw new IllegalStateException(message);
+        }
 
         if (get(settingPrefix) != null) {
             if (commaDelimited) {
@@ -1048,12 +1063,10 @@ public final class Settings implements ToXContent {
             return this;
         }
 
-        public Builder putProperties(Map<String, String> esSettings, Predicate<String> keyPredicate, Function<String, String> keyFunction) {
+        public Builder putProperties(final Map<String, String> esSettings, final Function<String, String> keyFunction) {
             for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
                 final String key = esSetting.getKey();
-                if (keyPredicate.test(key)) {
-                    map.put(keyFunction.apply(key), esSetting.getValue());
-                }
+                map.put(keyFunction.apply(key), esSetting.getValue());
             }
             return this;
         }

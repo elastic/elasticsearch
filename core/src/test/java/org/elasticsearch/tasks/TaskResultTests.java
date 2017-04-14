@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +66,7 @@ public class TaskResultTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentBuilder shuffled = shuffleXContent(builder);
-                    XContentParser parser = createParser(shuffled)) {
+                 XContentParser parser = createParser(shuffled)) {
                 read = TaskResult.PARSER.apply(parser, null);
             }
         } catch (IOException e) {
@@ -74,16 +75,52 @@ public class TaskResultTests extends ESTestCase {
         assertEquals(result, read);
     }
 
+    public void testTaskInfoIsForwardCompatible() throws IOException {
+        TaskInfo taskInfo = randomTaskInfo();
+        TaskInfo read;
+        try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
+            builder.startObject();
+            taskInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            try (XContentBuilder withExtraFields = addRandomUnknownFields(builder)) {
+                try (XContentBuilder shuffled = shuffleXContent(withExtraFields)) {
+                    try (XContentParser parser = createParser(shuffled)) {
+                        read = TaskInfo.PARSER.apply(parser, null);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new IOException("Error processing [" + taskInfo + "]", e);
+        }
+        assertEquals(taskInfo, read);
+    }
+
+    private XContentBuilder addRandomUnknownFields(XContentBuilder builder) throws IOException {
+        try (XContentParser parser = createParser(builder)) {
+            Map<String, Object> map = parser.mapOrdered();
+            int numberOfNewFields = randomIntBetween(2, 10);
+            for (int i = 0; i < numberOfNewFields; i++) {
+                if (randomBoolean()) {
+                    map.put("unknown_field" + i, randomAlphaOfLength(20));
+                } else {
+                    map.put("unknown_field" + i, Collections.singletonMap("inner", randomAlphaOfLength(20)));
+                }
+            }
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+            return xContentBuilder.map(map);
+        }
+    }
+
     private static TaskResult randomTaskResult() throws IOException {
         switch (between(0, 2)) {
-        case 0:
-            return new TaskResult(randomBoolean(), randomTaskInfo());
-        case 1:
-            return new TaskResult(randomTaskInfo(), new RuntimeException("error"));
-        case 2:
-            return new TaskResult(randomTaskInfo(), randomTaskResponse());
-        default:
-            throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
+            case 0:
+                return new TaskResult(randomBoolean(), randomTaskInfo());
+            case 1:
+                return new TaskResult(randomTaskInfo(), new RuntimeException("error"));
+            case 2:
+                return new TaskResult(randomTaskInfo(), randomTaskResponse());
+            default:
+                throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
         }
     }
 

@@ -54,6 +54,11 @@ bundlePlugin {
   }
 }
 
+integTestCluster {
+  keystoreSetting 's3.client.default.access_key', 'myaccesskey'
+  keystoreSetting 's3.client.default.secret_key', 'mysecretkey'
+}
+
 thirdPartyAudit.excludes = [
   // classes are missing
   'javax.servlet.ServletContextEvent', 

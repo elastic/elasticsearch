@@ -137,6 +137,10 @@ setup() {
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Delasticsearch.json.allow_unquoted_field_names=true" >> "$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     export ES_JVM_OPTIONS="$temp/jvm.options"
     start_elasticsearch_service
     # unquoted field name

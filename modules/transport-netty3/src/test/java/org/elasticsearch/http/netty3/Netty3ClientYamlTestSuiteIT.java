@@ -30,7 +30,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import java.io.IOException;
 
 // TODO: remove timeout after address slow test issue
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class Netty3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public Netty3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

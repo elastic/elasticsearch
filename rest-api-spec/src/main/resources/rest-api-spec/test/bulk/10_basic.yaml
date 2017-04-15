@@ -25,6 +25,9 @@
 
 ---
 "Empty _id":
+  - skip:
+      version: " - 5.3.0"
+      reason: empty IDs were not rejected until 5.3.1
   - do:
       bulk:
         refresh: true

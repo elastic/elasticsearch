@@ -1182,13 +1182,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").get();
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
+            assertThat(e.toString(), containsString("can't specify parent if no parent field has been configured"));
         }
         try {
             client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").get();
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
+            assertThat(e.toString(), containsString("can't specify parent if no parent field has been configured"));
         }
 
         refresh();

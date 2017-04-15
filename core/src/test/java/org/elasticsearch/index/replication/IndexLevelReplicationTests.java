@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -37,6 +40,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
@@ -152,4 +156,28 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    public void testConflictingOpsOnReplica() throws Exception {
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+            shards.startAll();
+            IndexShard replica1 = shards.getReplicas().get(0);
+            logger.info("--> isolated replica " + replica1.routingEntry());
+            shards.removeReplica(replica1);
+            IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            shards.index(indexRequest);
+            shards.addReplica(replica1);
+            logger.info("--> promoting replica to primary " + replica1.routingEntry());
+            shards.promoteReplicaToPrimary(replica1);
+            indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"2\"}", XContentType.JSON);
+            shards.index(indexRequest);
+            shards.refresh("test");
+            for (IndexShard shard : shards) {
+                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                    TopDocs search = searcher.searcher().search(new TermQuery(new Term("f", "2")), 10);
+                    assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits);
+                }
+            }
+        }
+    }
 }

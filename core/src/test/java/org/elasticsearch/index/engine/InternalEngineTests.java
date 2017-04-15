@@ -83,7 +83,8 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.lucene.uid.VersionsResolver;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -292,7 +293,7 @@ public class InternalEngineTests extends ESTestCase {
     private static ParsedDocument testParsedDocument(String id, String type, String routing, Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
         document.add(versionField);
         document.add(seqID.seqNo);
@@ -1369,18 +1370,9 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testOutOfOrderDocsOnReplica() throws IOException {
         final List<Engine.Operation> ops = generateSingleDocHistory(true,
-            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), false, 2, 2, 20);
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE), false, 2, 2, 20);
         assertOpsOnReplica(ops, replicaEngine, true);
     }
-
-    public void testNonStandardVersioningOnReplica() throws IOException {
-        // TODO: this can be folded into testOutOfOrderDocsOnReplica once out of order
-        // is detected using seq#
-        final List<Engine.Operation> ops = generateSingleDocHistory(true,
-            randomFrom(VersionType.EXTERNAL_GTE, VersionType.FORCE), false, 2, 2, 20);
-        assertOpsOnReplica(ops, replicaEngine, false);
-    }
-
 
     public void testOutOfOrderDocsOnReplicaOldPrimary() throws IOException {
         IndexSettings oldSettings = IndexSettingsModule.newIndexSettings("testOld", Settings.builder()
@@ -3601,9 +3593,17 @@ public class InternalEngineTests extends ESTestCase {
      */
     private Tuple<Long, Long> getSequenceID(Engine engine, Engine.Get get) throws EngineException {
         try (Searcher searcher = engine.acquireSearcher("get")) {
-            long seqNum = VersionsResolver.loadSeqNo(searcher.reader(), get.uid());
-            long primaryTerm = VersionsResolver.loadPrimaryTerm(searcher.reader(), get.uid());
-            return new Tuple<>(seqNum, primaryTerm);
+            final long primaryTerm;
+            final long seqNo;
+            DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), get.uid());
+            if (docIdAndSeqNo == null) {
+                primaryTerm = 0;
+                seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            } else {
+                seqNo = docIdAndSeqNo.seqNo;
+                primaryTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docIdAndSeqNo);
+            }
+            return new Tuple<>(seqNo, primaryTerm);
         } catch (Exception e) {
             throw new EngineException(shardId, "unable to retrieve sequence id", e);
         }

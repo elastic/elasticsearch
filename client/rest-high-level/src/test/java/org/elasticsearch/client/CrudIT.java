@@ -308,7 +308,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
             assertEquals("Elasticsearch exception [type=illegal_argument_exception, " +
-                         "reason=Can't specify parent if no parent field has been configured]", exception.getMessage());
+                         "reason=can't specify parent if no parent field has been configured]", exception.getMessage());
         }
         {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {

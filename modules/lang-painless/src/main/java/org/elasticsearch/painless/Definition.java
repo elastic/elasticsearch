@@ -87,6 +87,7 @@ public final class Definition {
     public static final Type CHAR_OBJ_TYPE = getType("Character");
     public static final Type OBJECT_TYPE = getType("Object");
     public static final Type DEF_TYPE = getType("def");
+    public static final Type NUMBER_TYPE = getType("Number");
     public static final Type STRING_TYPE = getType("String");
     public static final Type EXCEPTION_TYPE = getType("Exception");
     public static final Type PATTERN_TYPE = getType("Pattern");
@@ -434,23 +435,23 @@ public final class Definition {
         public final Type from;
         public final Type to;
         public final boolean explicit;
-        public final boolean unboxFrom;
-        public final boolean unboxTo;
-        public final boolean boxFrom;
-        public final boolean boxTo;
+        public final Type unboxFrom;
+        public final Type unboxTo;
+        public final Type boxFrom;
+        public final Type boxTo;
 
         public Cast(final Type from, final Type to, final boolean explicit) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
-            this.unboxFrom = false;
-            this.unboxTo = false;
-            this.boxFrom = false;
-            this.boxTo = false;
+            this.unboxFrom = null;
+            this.unboxTo = null;
+            this.boxFrom = null;
+            this.boxTo = null;
         }
 
         public Cast(final Type from, final Type to, final boolean explicit,
-                    final boolean unboxFrom, final boolean unboxTo, final boolean boxFrom, final boolean boxTo) {
+                    final Type unboxFrom, final Type unboxTo, final Type boxFrom, final Type boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;

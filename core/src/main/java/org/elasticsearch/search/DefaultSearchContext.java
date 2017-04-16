@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -244,7 +244,7 @@ final class DefaultSearchContext extends SearchContext {
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
-        this.query = buildFilteredQuery();
+        this.query = buildFilteredQuery(query);
         if (rewrite) {
             try {
                 this.query = searcher.rewrite(query);
@@ -254,67 +254,51 @@ final class DefaultSearchContext extends SearchContext {
         }
     }
 
-    private Query buildFilteredQuery() {
-        final Query searchFilter = searchFilter(queryShardContext.getTypes());
-        if (searchFilter == null) {
-            return originalQuery.query();
-        }
-        final Query result;
-        if (Queries.isConstantMatchAllQuery(query())) {
-            result = new ConstantScoreQuery(searchFilter);
-        } else {
-            result = new BooleanQuery.Builder()
-                    .add(query, Occur.MUST)
-                    .add(searchFilter, Occur.FILTER)
-                    .build();
-        }
-        return result;
-    }
-
     @Override
-    @Nullable
-    public Query searchFilter(String[] types) {
-        Query typesFilter = createSearchFilter(types, aliasFilter, mapperService().hasNested());
-        if (sliceBuilder == null) {
-            return typesFilter;
+    public Query buildFilteredQuery(Query query) {
+        List<Query> filters = new ArrayList<>();
+        Query typeFilter = createTypeFilter(queryShardContext.getTypes());
+        if (typeFilter != null) {
+            filters.add(typeFilter);
         }
-         Query sliceFilter = sliceBuilder.toFilter(queryShardContext, shardTarget().getShardId().getId(),
-                queryShardContext.getIndexSettings().getNumberOfShards());
-        if (typesFilter == null) {
-            return sliceFilter;
+
+        if (mapperService().hasNested()
+                && typeFilter == null // when a _type filter is set, it will automatically exclude nested docs
+                && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
+                && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
+            filters.add(Queries.newNonNestedFilter());
         }
-        return new BooleanQuery.Builder()
-            .add(typesFilter, Occur.FILTER)
-            .add(sliceFilter, Occur.FILTER)
-            .build();
+
+        if (aliasFilter != null) {
+            filters.add(aliasFilter);
+        }
+
+        if (sliceBuilder != null) {
+            filters.add(sliceBuilder.toFilter(queryShardContext, shardTarget().getShardId().getId(),
+                    queryShardContext.getIndexSettings().getNumberOfShards()));
+        }
+
+        if (filters.isEmpty()) {
+            return query;
+        } else {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(query, Occur.MUST);
+            for (Query filter : filters) {
+                builder.add(filter, Occur.FILTER);
+            }
+            return builder.build();
+        }
     }
 
-    // extracted to static helper method to make writing unit tests easier:
-    static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
-        Query typesFilter = null;
+    private static Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
             BytesRef[] typesBytes = new BytesRef[types.length];
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            typesFilter = new TypeFieldMapper.TypesQuery(typesBytes);
+            return new TypeFieldMapper.TypesQuery(typesBytes);
         }
-
-        if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {
-            return null;
-        }
-
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        if (typesFilter != null) {
-            bq.add(typesFilter, Occur.FILTER);
-        } else if (hasNestedFields) {
-            bq.add(Queries.newNonNestedFilter(), Occur.FILTER);
-        }
-        if (aliasFilter != null) {
-            bq.add(aliasFilter, Occur.FILTER);
-        }
-
-        return bq.build();
+        return null;
     }
 
     @Override

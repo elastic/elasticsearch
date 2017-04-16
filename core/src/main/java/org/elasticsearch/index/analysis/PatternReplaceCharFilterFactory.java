@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.analysis;
 
+import java.io.Reader;
+import java.util.regex.Pattern;
+
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -25,10 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-import java.io.Reader;
-import java.util.regex.Pattern;
-
-public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
+public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
 
     private final Pattern pattern;
     private final String replacement;
@@ -55,5 +55,10 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
     @Override
     public Reader create(Reader tokenStream) {
         return new PatternReplaceCharFilter(pattern, replacement, tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

@@ -45,7 +45,7 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
 
     @Override
     public ScriptEngineService getScriptEngineService(Settings settings) {
-        return new MustacheScriptEngineService(settings);
+        return new MustacheScriptEngineService();
     }
 
     @Override

@@ -6,9 +6,6 @@ setup:
                 mappings:
                     test:
                         properties:
-                            binary:
-                                type: binary
-                                doc_values: true
                             boolean:
                                 type: boolean
                             date:
@@ -46,7 +43,6 @@ setup:
             type: test
             id: 1
             body:
-                binary: U29tZSBiaW5hcnkgYmxvYg==
                 boolean: true
                 date: 2017-01-01T12:11:12
                 geo_point: 41.12,-71.34
@@ -64,26 +60,6 @@ setup:
 
     - do:
         indices.refresh: {}
-
----
-"binary":
-    - do:
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            inline: "doc['binary'].get(0).utf8ToString()"
-    - match: { hits.hits.0.fields.field.0: "Some binary blob" }
-
-    - do:
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            inline: "doc['binary'].value.utf8ToString()"
-    - match: { hits.hits.0.fields.field.0: "Some binary blob" }
 
 ---
 "boolean":

@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -107,9 +106,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         private void setCode(XContentParser parser) {
             try {
                 if (parser.currentToken() == Token.START_OBJECT) {
-                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                    code = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-                    options.put(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType());
+                    //this is really for search templates, that need to be converted to json format
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    code = builder.copyCurrentStructure(parser).string();
+                    options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     code = parser.text();
                 }
@@ -263,11 +263,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     if (lang == null) {
                         return PARSER.apply(parser, null).build();
                     } else {
-                        try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
+                        //this is really for search templates, that need to be converted to json format
+                        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.copyCurrentStructure(parser);
-
                             return new StoredScriptSource(lang, builder.string(),
-                                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
+                                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
                         }
                     }
 
@@ -284,11 +284,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
                     if (token == Token.VALUE_STRING) {
                         return new StoredScriptSource(lang, parser.text(),
-                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
+                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
                     }
                 }
 
-                try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                     if (token != Token.START_OBJECT) {
                         builder.startObject();
                         builder.copyCurrentStructure(parser);
@@ -298,7 +298,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     }
 
                     return new StoredScriptSource(lang, builder.string(),
-                        Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
+                        Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
                 }
             }
         } catch (IOException ioe) {

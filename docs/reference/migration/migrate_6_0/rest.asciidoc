@@ -19,6 +19,9 @@ In previous versions of Elasticsearch, having a proper Content-Type for the data
 Elasticsearch 6.0.0 enforces that all requests with a body must have a supported Content-Type and this type will
 be used when parsing the data.
 
+When using the `source` query string parameter, the `source_content_type` parameter must also be specified with
+the media type of the source.
+
 ==== Boolean API parameters
 
 All REST APIs parameters (both request parameters and JSON body) support providing boolean "false" as the
@@ -44,3 +47,9 @@ requests.
 Refresh requests that are broadcast to multiple shards that can have one or more
 shards fail during the request now return a 500 response instead of a 200
 response in the event there is at least one failure.
+
+=== Delete by Query API requires an explicit query
+
+In previous versions of Elasticsearch, delete by query requests without an explicit query
+were accepted, match_all was used as the default query and all documents were deleted
+as a result. From version 6.0.0, delete by query requests require an explicit query.

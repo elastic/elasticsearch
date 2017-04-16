@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -47,7 +46,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
     private BytesRefHash bucketOrds;
 
-    public DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
+    DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
             SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
             ValuesSource valuesSource, int maxDocsPerValue) throws IOException {
         super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);

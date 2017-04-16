@@ -21,10 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -228,7 +228,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+                if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
                     xContentType = XContentType.readFrom(in);
                 } else {
                     xContentType = XContentFactory.xContentType(doc);
@@ -250,7 +250,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+                if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
                     xContentType.writeTo(out);
                 }
             } else {
@@ -1165,7 +1165,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
+            TermInSetQuery query = new TermInSetQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

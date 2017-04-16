@@ -24,6 +24,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -160,7 +162,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,
-                xContentRegistry(), (request, channel, context) -> {});
+                xContentRegistry(), new NullDispatcher());
         }
 
         @Override
@@ -254,11 +256,14 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 assert uri.matches("/\\d+");
             }
 
+            final ChannelPromise promise = ctx.newPromise();
+            final Object msg;
             if (pipelinedRequest != null) {
-                ctx.writeAndFlush(pipelinedRequest.createHttpResponse(httpResponse, ctx.channel().newPromise()));
+                msg = pipelinedRequest.createHttpResponse(httpResponse, promise);
             } else {
-                ctx.writeAndFlush(httpResponse);
+                msg = httpResponse;
             }
+            ctx.writeAndFlush(msg, promise);
         }
 
     }

@@ -54,7 +54,6 @@ public class TeardownSection {
                         "section [" + parser.currentName() + "] not supported within teardown section");
             }
 
-            parser.nextToken();
             teardownSection.addDoSection(DoSection.parse(parser));
             parser.nextToken();
         }

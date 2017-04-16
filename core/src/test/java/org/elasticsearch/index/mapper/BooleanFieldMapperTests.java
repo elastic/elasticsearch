@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
@@ -80,11 +81,12 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", true)
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         try (Directory dir = new RAMDirectory();
              IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
@@ -150,12 +152,13 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         String falsy = randomFrom("false", "off", "no", "0");
         String truthy = randomFrom("true", "on", "yes", "1");
 
-        ParsedDocument parsedDoc = defaultMapper.parse("legacy", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("legacy", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
                 .field("field1", falsy)
                 .field("field2", truthy)
             .endObject()
-            .bytes());
+            .bytes(),
+            XContentType.JSON));
         Document doc = parsedDoc.rootDoc();
         assertEquals("F", doc.getField("field1").stringValue());
         assertEquals("T", doc.getField("field2").stringValue());
@@ -190,7 +193,8 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     // omit "false"/"true" here as they should still be parsed correctly
                     .field("field", randomFrom("off", "no", "0", "on", "yes", "1"))
                 .endObject().bytes();
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> defaultMapper.parse("test", "type", "1", source));
+        MapperParsingException ex = expectThrows(MapperParsingException.class, 
+                () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)));
         assertEquals("failed to parse [field]", ex.getMessage());
     }
 
@@ -213,7 +217,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                     .field("field", false)
                 .endObject().bytes();
-        ParsedDocument doc = mapper.parse("test", "type", "1", source);
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
         assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 
@@ -236,13 +240,14 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("bool1", true)
                 .field("bool2", true)
                 .field("bool3", true)
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         Document doc = parsedDoc.rootDoc();
         IndexableField[] fields = doc.getFields("bool1");
         assertEquals(2, fields.length);

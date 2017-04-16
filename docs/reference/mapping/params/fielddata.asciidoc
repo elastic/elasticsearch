@@ -135,8 +135,7 @@ whenever a once new segment becomes visible.
 The loading time of global ordinals depends on the number of terms in a field,
 but in general it is low, since it source field data has already been loaded.
 The memory overhead of global ordinals is a small because it is very
-efficiently compressed. Eager loading of global ordinals can move the loading
-time from the first search request, to the refresh itself.
+efficiently compressed.
 
 *****************************************
 

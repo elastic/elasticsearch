@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,7 +33,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -73,6 +74,7 @@ public final class ThreadContext implements Closeable, Writeable {
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
+    private boolean isSystemContext;
 
     /**
      * Creates a new ThreadContext instance
@@ -257,12 +259,25 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
-     * Add the <em>unique</em> response {@code value} for the specified {@code key}.
-     * <p>
-     * Any duplicate {@code value} is ignored.
+     * Add the {@code value} for the specified {@code key} Any duplicate {@code value} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
      */
-    public void addResponseHeader(String key, String value) {
-        threadLocal.set(threadLocal.get().putResponse(key, value));
+    public void addResponseHeader(final String key, final String value) {
+        addResponseHeader(key, value, v -> v);
+    }
+
+    /**
+     * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
+     * {@code value} after applying {@code uniqueValue} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
+     * @param uniqueValue the function that produces de-duplication values
+     */
+    public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue));
     }
 
     /**
@@ -303,6 +318,21 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
+     * Marks this thread context as an internal system context. This signals that actions in this context are issued
+     * by the system itself rather than by a user action.
+     */
+    public void markAsSystemContext() {
+        threadLocal.set(threadLocal.get().setSystemContext());
+    }
+
+    /**
+     * Returns <code>true</code> iff this context is a system context
+     */
+    public boolean isSystemContext() {
+        return threadLocal.get().isSystemContext;
+    }
+
+    /**
      * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
      */
     boolean isClosed() {
@@ -323,6 +353,7 @@ public final class ThreadContext implements Closeable, Writeable {
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
         private final Map<String, List<String>> responseHeaders;
+        private final boolean isSystemContext;
 
         private ThreadContextStruct(StreamInput in) throws IOException {
             final int numRequest = in.readVInt();
@@ -334,27 +365,36 @@ public final class ThreadContext implements Closeable, Writeable {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
+            isSystemContext = false; // we never serialize this it's a transient flag
+        }
+
+        private ThreadContextStruct setSystemContext() {
+            if (isSystemContext) {
+                return this;
+            }
+            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, true);
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
                                     Map<String, List<String>> responseHeaders,
-                                    Map<String, Object> transientHeaders) {
+                                    Map<String, Object> transientHeaders, boolean isSystemContext) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
+            this.isSystemContext = isSystemContext;
         }
 
         /**
          * This represents the default context and it should only ever be called by {@link #DEFAULT_CONTEXT}.
          */
         private ThreadContextStruct() {
-            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
         }
 
         private ThreadContextStruct putRequest(String key, String value) {
             Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
             putSingleHeader(key, value, newRequestHeaders);
-            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders);
+            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, isSystemContext);
         }
 
         private void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
@@ -372,7 +412,7 @@ public final class ThreadContext implements Closeable, Writeable {
                     putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
                 }
                 newHeaders.putAll(this.requestHeaders);
-                return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders);
+                return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders, isSystemContext);
             }
         }
 
@@ -393,17 +433,19 @@ public final class ThreadContext implements Closeable, Writeable {
                     newResponseHeaders.put(key, entry.getValue());
                 }
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
-        private ThreadContextStruct putResponse(String key, String value) {
+        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue) {
             assert value != null;
 
             final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             final List<String> existingValues = newResponseHeaders.get(key);
 
             if (existingValues != null) {
-                if (existingValues.contains(value)) {
+                final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
+                assert existingValues.size() == existingUniqueValues.size();
+                if (existingUniqueValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
 
@@ -415,7 +457,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 newResponseHeaders.put(key, Collections.singletonList(value));
             }
 
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
         private ThreadContextStruct putTransient(String key, Object value) {
@@ -423,7 +465,7 @@ public final class ThreadContext implements Closeable, Writeable {
             if (newTransient.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
-            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient);
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 
         boolean isEmpty() {

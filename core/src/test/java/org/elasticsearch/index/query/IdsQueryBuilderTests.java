@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -45,7 +45,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 if (frequently()) {
                     types[i] = randomFrom(getCurrentTypes());
                 } else {
-                    types[i] = randomAsciiOfLengthBetween(1, 10);
+                    types[i] = randomAlphaOfLengthBetween(1, 10);
                 }
             }
         } else {
@@ -58,7 +58,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
         for (int i = 0; i < numberOfIds; i++) {
-            ids[i] = randomAsciiOfLengthBetween(1, 10);
+            ids[i] = randomAlphaOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
         if (types.length > 0 || randomBoolean()) {
@@ -76,7 +76,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         if (queryBuilder.ids().size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
-            assertThat(query, instanceOf(TermsQuery.class));
+            assertThat(query, instanceOf(TermInSetQuery.class));
         }
     }
 

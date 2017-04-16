@@ -20,18 +20,16 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.emptyMap;
+import java.util.function.Function;
 
 /**
  * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link LeafSearchScript}
@@ -40,9 +38,9 @@ import static java.util.Collections.emptyMap;
 final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
     /**
-     * The Painless Executable script that can be run.
+     * The Painless script that can be run.
      */
-    private final Executable executable;
+    private final GenericElasticsearchScript script;
 
     /**
      * A map that can be used to access input parameters at run-time.
@@ -60,6 +58,16 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     private final LeafDocLookup doc;
 
     /**
+     * Looks up the {@code _score} from {@link #scorer} if {@code _score} is used, otherwise returns {@code 0.0}.
+     */
+    private final ScoreLookup scoreLookup;
+
+    /**
+     * Looks up the {@code ctx} from the {@link #variables} if {@code ctx} is used, otherwise return {@code null}.
+     */
+    private final Function<Map<String, Object>, Map<?, ?>> ctxLookup;
+
+    /**
      * Current scorer being used
      * @see #setScorer(Scorer)
      */
@@ -73,12 +81,12 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
-     * @param executable The previously compiled Painless script.
+     * @param script The previously compiled Painless script.
      * @param vars The initial variables to run the script with.
      * @param lookup The lookup to allow search fields to be available if this is run as a search script.
      */
-    ScriptImpl(final Executable executable, final Map<String, Object> vars, final LeafSearchLookup lookup) {
-        this.executable = executable;
+    ScriptImpl(final GenericElasticsearchScript script, final Map<String, Object> vars, final LeafSearchLookup lookup) {
+        this.script = script;
         this.lookup = lookup;
         this.variables = new HashMap<>();
 
@@ -92,6 +100,9 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         } else {
             doc = null;
         }
+
+        scoreLookup = script.uses$_score() ? ScriptImpl::getScore : scorer -> 0.0;
+        ctxLookup = script.uses$ctx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
     /**
@@ -119,77 +130,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public Object run() {
-        try {
-            return executable.execute(variables, scorer, doc, aggregationValue);
-        } catch (PainlessExplainError e) {
-            throw convertToScriptException(e, e.getHeaders());
-            // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-            throw convertToScriptException(e, emptyMap());
-        }
-    }
-
-    /**
-     * Adds stack trace and other useful information to exceptions thrown
-     * from a Painless script.
-     * @param t The throwable to build an exception around.
-     * @return The generated ScriptException.
-     */
-    private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> metadata) {
-        // create a script stack: this is just the script portion
-        List<String> scriptStack = new ArrayList<>();
-        for (StackTraceElement element : t.getStackTrace()) {
-            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
-                // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
-                    scriptStack.add("<<< unknown portion of script >>>");
-                } else {
-                    offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = executable.getPreviousStatement(offset);
-                    if (startOffset == -1) {
-                        assert false; // should never happen unless we hit exc in ctor prologue...
-                        startOffset = 0;
-                    }
-                    int endOffset = executable.getNextStatement(startOffset);
-                    if (endOffset == -1) {
-                        endOffset = executable.getSource().length();
-                    }
-                    // TODO: if this is still too long, truncate and use ellipses
-                    String snippet = executable.getSource().substring(startOffset, endOffset);
-                    scriptStack.add(snippet);
-                    StringBuilder pointer = new StringBuilder();
-                    for (int i = startOffset; i < offset; i++) {
-                        pointer.append(' ');
-                    }
-                    pointer.append("^---- HERE");
-                    scriptStack.add(pointer.toString());
-                }
-                break;
-            // but filter our own internal stacks (e.g. indy bootstrap)
-            } else if (!shouldFilter(element)) {
-                scriptStack.add(element.toString());
-            }
-        }
-        // build a name for the script:
-        final String name;
-        if (PainlessScriptEngineService.INLINE_NAME.equals(executable.getName())) {
-            name = executable.getSource();
-        } else {
-            name = executable.getName();
-        }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
-        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            scriptException.addMetadata(entry.getKey(), entry.getValue());
-        }
-        return scriptException;
-    }
-
-    /** returns true for methods that are part of the runtime */
-    private static boolean shouldFilter(StackTraceElement element) {
-        return element.getClassName().startsWith("org.elasticsearch.painless.") ||
-               element.getClassName().startsWith("java.lang.invoke.") ||
-               element.getClassName().startsWith("sun.invoke.");
+        return script.execute(variables, scoreLookup.apply(scorer), doc, aggregationValue, ctxLookup.apply(variables));
     }
 
     /**
@@ -239,5 +180,17 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         if (lookup != null) {
             lookup.source().setSource(source);
         }
+    }
+
+    private static double getScore(Scorer scorer) {
+        try {
+            return scorer.score();
+        } catch (IOException e) {
+            throw new ElasticsearchException("couldn't lookup score", e);
+        }
+    }
+
+    interface ScoreLookup {
+        double apply(Scorer scorer);
     }
 }

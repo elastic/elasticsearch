@@ -61,7 +61,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
+    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards,
+                          long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
@@ -104,6 +105,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public Boolean isTerminatedEarly() {
         return internalResponse.terminatedEarly();
+    }
+
+    /**
+     * Returns the number of reduce phases applied to obtain this search response
+     */
+    public int getNumReducePhases() {
+        return internalResponse.getNumReducePhases();
     }
 
     /**
@@ -172,13 +180,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.profile();
     }
 
-    static final class Fields {
-        static final String _SCROLL_ID = "_scroll_id";
-        static final String TOOK = "took";
-        static final String TIMED_OUT = "timed_out";
-        static final String TERMINATED_EARLY = "terminated_early";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -189,14 +190,18 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
-            builder.field(Fields._SCROLL_ID, scrollId);
+            builder.field("_scroll_id", scrollId);
         }
-        builder.field(Fields.TOOK, tookInMillis);
-        builder.field(Fields.TIMED_OUT, isTimedOut());
+        builder.field("took", tookInMillis);
+        builder.field("timed_out", isTimedOut());
         if (isTerminatedEarly() != null) {
-            builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+            builder.field("terminated_early", isTerminatedEarly());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
+        if (getNumReducePhases() != 1) {
+            builder.field("num_reduce_phases", getNumReducePhases());
+        }
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(),
+            getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
     }

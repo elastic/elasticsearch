@@ -81,7 +81,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Query searchFilter(String[] types) {
+    public Query buildFilteredQuery(Query query) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 

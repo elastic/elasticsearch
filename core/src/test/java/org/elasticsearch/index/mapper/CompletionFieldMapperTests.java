@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -152,11 +153,12 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("completion", "suggestion")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 1);
     }
@@ -171,11 +173,12 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .array("completion", "suggestion1", "suggestion2")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 2);
     }
@@ -190,14 +193,15 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("completion")
                 .field("input", "suggestion")
                 .field("weight", 2)
                 .endObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 1);
     }
@@ -212,14 +216,15 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("completion")
                 .array("input", "suggestion1", "suggestion2", "suggestion3")
                 .field("weight", 2)
                 .endObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 3);
     }
@@ -234,7 +239,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("completion")
                 .startObject()
@@ -251,7 +256,8 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 3);
     }
@@ -266,7 +272,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("completion")
                 .startObject()
@@ -283,7 +289,8 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 6);
     }
@@ -297,7 +304,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         try {
-            defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("field1")
                     .field("input", "suggestion1")
@@ -307,7 +314,8 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                     .field("weight", 3)
                     .endObject()
                     .endObject()
-                    .bytes());
+                    .bytes(),
+                    XContentType.JSON));
             fail("Supplying contexts to a non context-enabled field should error");
         } catch (MapperParsingException e) {
             assertThat(e.getRootCause().getMessage(), containsString("field1"));
@@ -326,11 +334,12 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         charsRefBuilder.append("sugg");
         charsRefBuilder.setCharAt(2, '\u001F');
         try {
-            defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("completion", charsRefBuilder.get().toString())
                     .endObject()
-                    .bytes());
+                    .bytes(),
+                    XContentType.JSON));
             fail("No error indexing value with reserved character [0x1F]");
         } catch (MapperParsingException e) {
             Throwable cause = e.unwrapCause().getCause();
@@ -340,11 +349,12 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
         charsRefBuilder.setCharAt(2, '\u0000');
         try {
-            defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("completion", charsRefBuilder.get().toString())
                     .endObject()
-                    .bytes());
+                    .bytes(),
+                    XContentType.JSON));
             fail("No error indexing value with reserved character [0x0]");
         } catch (MapperParsingException e) {
             Throwable cause = e.unwrapCause().getCause();
@@ -354,11 +364,12 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
         charsRefBuilder.setCharAt(2, '\u001E');
         try {
-            defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("completion", charsRefBuilder.get().toString())
                     .endObject()
-                    .bytes());
+                    .bytes(),
+                    XContentType.JSON));
             fail("No error indexing value with reserved character [0x1E]");
         } catch (MapperParsingException e) {
             Throwable cause = e.unwrapCause().getCause();

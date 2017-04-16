@@ -1,6 +1,5 @@
 eclipse.preferences.version=1
 
-# previous configuration from maven build
 # this is merged with gradle's generated properties during 'gradle eclipse'
 
 # NOTE: null pointer analysis etc is not enabled currently, it seems very unstable

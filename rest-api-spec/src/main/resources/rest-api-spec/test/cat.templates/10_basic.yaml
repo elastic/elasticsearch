@@ -61,7 +61,8 @@
         cat.templates: {}
 
     - match:
-        $body: /
+        $body: >
+               /
                  (^|\n)test     \s+
                  \[test-\*\]    \s+
                  0              \s+
@@ -70,7 +71,8 @@
                /
 
     - match:
-        $body: /
+        $body: >
+               /
                 (^|\n)test_2    \s+
                 \[test-2\*\]    \s+
                 1               \s+

@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
@@ -55,6 +56,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -198,7 +200,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
                 final long generation = 1;
-                Checkpoint checkpoint = new Checkpoint(0, 0, generation, globalCheckpointSupplier.getAsLong());
+                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, globalCheckpointSupplier.getAsLong());
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
@@ -329,7 +331,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Returns the generation of the current transaction log.
      */
     public long currentFileGeneration() {
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             return current.getGeneration();
         }
     }
@@ -400,47 +402,69 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds a delete / index operations to the transaction log.
+     * Adds an operation to the transaction log.
      *
-     * @see org.elasticsearch.index.translog.Translog.Operation
-     * @see Index
-     * @see org.elasticsearch.index.translog.Translog.Delete
+     * @param operation the operation to add
+     * @return the location of the operation in the translog
+     * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
-    public Location add(Operation operation) throws IOException {
+    public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
             final long start = out.position();
             out.skip(Integer.BYTES);
-            writeOperationNoSize(checksumStreamOutput, operation);
+            writeOperationNoSize(new BufferedChecksumStreamOutput(out), operation);
             final long end = out.position();
             final int operationSize = (int) (end - Integer.BYTES - start);
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
-            try (ReleasableLock lock = readLock.acquire()) {
+            try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
-                Location location = current.add(bytes);
-                return location;
+                return current.add(bytes, operation.seqNo());
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (final AlreadyClosedException | IOException ex) {
             try {
                 closeOnTragicEvent(ex);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 ex.addSuppressed(inner);
             }
             throw ex;
-        } catch (Exception e) {
+        } catch (final Exception e) {
             try {
                 closeOnTragicEvent(e);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 e.addSuppressed(inner);
             }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
-            Releasables.close(out.bytes());
+            Releasables.close(out);
         }
+    }
+
+    /**
+     * Tests whether or not the translog should be flushed. This test is based on the current size
+     * of the translog comparted to the configured flush threshold size.
+     *
+     * @return {@code true} if the translog should be flushed
+     */
+    public boolean shouldFlush() {
+        final long size = this.sizeInBytes();
+        return size > this.indexSettings.getFlushThresholdSize().getBytes();
+    }
+
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation. This test
+     * is based on the size of the current generation compared to the configured generation
+     * threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    public boolean shouldRollGeneration() {
+        final long size = this.current.sizeInBytes();
+        final long threshold = this.indexSettings.getGenerationThresholdSize().getBytes();
+        return size > threshold;
     }
 
     /**
@@ -669,7 +693,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public final long translogLocation;
         public final int size;
 
-        Location(long generation, long translogLocation, int size) {
+        public Location(long generation, long translogLocation, int size) {
             this.generation = generation;
             this.translogLocation = translogLocation;
             this.size = size;
@@ -1222,6 +1246,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     public enum Durability {
+
         /**
          * Async durability - translogs are synced based on a time interval.
          */
@@ -1229,7 +1254,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Request durability - translogs are synced for each high level request (bulk, index, delete)
          */
-        REQUEST;
+        REQUEST
 
     }
 
@@ -1307,7 +1332,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 bytes.writeTo(outStream);
             }
         } finally {
-            Releasables.close(out.bytes());
+            Releasables.close(out);
         }
 
     }
@@ -1322,44 +1347,63 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
+    /**
+     * Roll the current translog generation into a new generation. This does not commit the
+     * translog.
+     *
+     * @throws IOException if an I/O exception occurred during any file operations
+     */
+    public void rollGeneration() throws IOException {
+        try (Releasable ignored = writeLock.acquire()) {
+            try {
+                final TranslogReader reader = current.closeIntoReader();
+                readers.add(reader);
+                final Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
+                assert Checkpoint.read(checkpoint).generation == current.getGeneration();
+                final Path generationCheckpoint =
+                        location.resolve(getCommitCheckpointFileName(current.getGeneration()));
+                Files.copy(checkpoint, generationCheckpoint);
+                IOUtils.fsync(generationCheckpoint, false);
+                IOUtils.fsync(generationCheckpoint.getParent(), true);
+                // create a new translog file; this will sync it and update the checkpoint data;
+                current = createWriter(current.getGeneration() + 1);
+                logger.trace("current translog set to [{}]", current.getGeneration());
+            } catch (final Exception e) {
+                IOUtils.closeWhileHandlingException(this); // tragic event
+                throw e;
+            }
+        }
+    }
+
     @Override
     public long prepareCommit() throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
-                throw new IllegalStateException("already committing a translog with generation: " + currentCommittingGeneration);
+                final String message = String.format(
+                        Locale.ROOT,
+                        "already committing a translog with generation [%d]",
+                        currentCommittingGeneration);
+                throw new IllegalStateException(message);
             }
             currentCommittingGeneration = current.getGeneration();
-            TranslogReader currentCommittingTranslog = current.closeIntoReader();
-            readers.add(currentCommittingTranslog);
-            Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
-            assert Checkpoint.read(checkpoint).generation == currentCommittingTranslog.getGeneration();
-            Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(currentCommittingTranslog.getGeneration()));
-            Files.copy(checkpoint, commitCheckpoint);
-            IOUtils.fsync(commitCheckpoint, false);
-            IOUtils.fsync(commitCheckpoint.getParent(), true);
-            // create a new translog file - this will sync it and update the checkpoint data;
-            current = createWriter(current.getGeneration() + 1);
-            logger.trace("current translog set to [{}]", current.getGeneration());
-
-        } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(this); // tragic event
-            throw e;
+            rollGeneration();
         }
-        return 0L;
+        return 0;
     }
 
     @Override
     public long commit() throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
                 prepareCommit();
             }
             assert currentCommittingGeneration != NOT_SET_GENERATION;
-            assert readers.stream().filter(r -> r.getGeneration() == currentCommittingGeneration).findFirst().isPresent()
-                    : "reader list doesn't contain committing generation [" + currentCommittingGeneration + "]";
-            lastCommittedTranslogFileGeneration = current.getGeneration(); // this is important - otherwise old files will not be cleaned up
+            assert readers.stream().anyMatch(r -> r.getGeneration() == currentCommittingGeneration)
+                    : "readers missing committing generation [" + currentCommittingGeneration + "]";
+            // set the last committed generation otherwise old files will not be cleaned up
+            lastCommittedTranslogFileGeneration = currentCommittingGeneration + 1;
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }

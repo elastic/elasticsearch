@@ -88,7 +88,7 @@ class ClusterConfiguration {
         if (seedNode == node) {
             return null
         }
-        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
             resourceexists {
                 file(file: seedNode.transportPortsFile.toString())
             }
@@ -125,6 +125,8 @@ class ClusterConfiguration {
 
     Map<String, Object> settings = new HashMap<>()
 
+    Map<String, String> keystoreSettings = new HashMap<>()
+
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
@@ -142,6 +144,11 @@ class ClusterConfiguration {
     @Input
     void setting(String name, Object value) {
         settings.put(name, value)
+    }
+
+    @Input
+    void keystoreSetting(String name, String value) {
+        keystoreSettings.put(name, value)
     }
 
     @Input

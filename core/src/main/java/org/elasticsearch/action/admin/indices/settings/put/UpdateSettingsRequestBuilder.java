@@ -72,16 +72,6 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
 
     /**
      * Sets the settings to be updated (either json or yaml format)
-     * @deprecated use {@link #setSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public UpdateSettingsRequestBuilder setSettings(String source) {
-        request.settings(source);
-        return this;
-    }
-
-    /**
-     * Sets the settings to be updated (either json or yaml format)
      */
     public UpdateSettingsRequestBuilder setSettings(String source, XContentType xContentType) {
         request.settings(source, xContentType);

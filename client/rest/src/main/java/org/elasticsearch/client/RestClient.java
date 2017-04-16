@@ -289,40 +289,44 @@ public class RestClient implements Closeable {
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        Objects.requireNonNull(params, "params must not be null");
-        Map<String, String> requestParams = new HashMap<>(params);
-        //ignore is a special parameter supported by the clients, shouldn't be sent to es
-        String ignoreString = requestParams.remove("ignore");
-        Set<Integer> ignoreErrorCodes;
-        if (ignoreString == null) {
-            if (HttpHead.METHOD_NAME.equals(method)) {
-                //404 never causes error if returned for a HEAD request
-                ignoreErrorCodes = Collections.singleton(404);
+        try {
+            Objects.requireNonNull(params, "params must not be null");
+            Map<String, String> requestParams = new HashMap<>(params);
+            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = requestParams.remove("ignore");
+            Set<Integer> ignoreErrorCodes;
+            if (ignoreString == null) {
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes = Collections.singleton(404);
+                } else {
+                    ignoreErrorCodes = Collections.emptySet();
+                }
             } else {
-                ignoreErrorCodes = Collections.emptySet();
-            }
-        } else {
-            String[] ignoresArray = ignoreString.split(",");
-            ignoreErrorCodes = new HashSet<>();
-            if (HttpHead.METHOD_NAME.equals(method)) {
-                //404 never causes error if returned for a HEAD request
-                ignoreErrorCodes.add(404);
-            }
-            for (String ignoreCode : ignoresArray) {
-                try {
-                    ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                String[] ignoresArray = ignoreString.split(",");
+                ignoreErrorCodes = new HashSet<>();
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes.add(404);
+                }
+                for (String ignoreCode : ignoresArray) {
+                    try {
+                        ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                    }
                 }
             }
+            URI uri = buildUri(pathPrefix, endpoint, requestParams);
+            HttpRequestBase request = createHttpRequest(method, uri, entity);
+            setHeaders(request, headers);
+            FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+            long startTime = System.nanoTime();
+            performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+                    failureTrackingResponseListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
         }
-        URI uri = buildUri(pathPrefix, endpoint, requestParams);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
-                            failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,

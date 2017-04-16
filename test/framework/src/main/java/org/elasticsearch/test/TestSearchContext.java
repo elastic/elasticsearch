@@ -115,7 +115,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Query searchFilter(String[] types) {
+    public Query buildFilteredQuery(Query query) {
         return null;
     }
 

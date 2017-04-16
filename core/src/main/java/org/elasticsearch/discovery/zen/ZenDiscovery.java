@@ -170,7 +170,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             this::handleMinimumMasterNodesChanged, (value) -> {
                 final ClusterState clusterState = clusterService.state();
                 int masterNodes = clusterState.nodes().getMasterNodes().size();
-                if (value > masterNodes) {
+                // the purpose of this validation is to make sure that the master doesn't step down
+                // due to a change in master nodes, which also means that there is no way to revert
+                // an accidental change. Since we validate using the current cluster state (and
+                // not the one from which the settings come from) we have to be careful and only
+                // validate if the local node is already a master. Doing so all the time causes
+                // subtle issues. For example, a node that joins a cluster has no nodes in its
+                // current cluster state. When it receives a cluster state from the master with
+                // a dynamic minimum master nodes setting int it, we must make sure we don't reject
+                // it.
+
+                if (clusterState.nodes().isLocalNodeElectedMaster() && value > masterNodes) {
                     throw new IllegalArgumentException("cannot set "
                         + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current" +
                         " master nodes count [" + masterNodes + "]");
@@ -191,7 +201,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         new NewPendingClusterStateListener(),
                         discoverySettings,
                         clusterService.getClusterName());
-        this.membership = new MembershipAction(settings, transportService, this::localNode, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, new MembershipListener());
         this.joinThreadControl = new JoinThreadControl();
 
         transportService.registerRequestHandler(
@@ -839,7 +849,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
-            MembershipAction.ensureIndexCompatibility(node.getVersion().minimumIndexCompatibilityVersion(), state.getMetaData());
+            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

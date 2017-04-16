@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -73,8 +74,8 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     public void testParentIsAString() throws Exception {
         // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
         Exception e = expectThrows(MapperParsingException.class, () -> client().admin().indices().prepareCreate("test")
-                .addMapping("parent", "{\"properties\":{}}")
-                .addMapping("child", "{\"_parent\": \"parent\",\"properties\":{}}")
+                .addMapping("parent", "{\"properties\":{}}", XContentType.JSON)
+                .addMapping("child", "{\"_parent\": \"parent\",\"properties\":{}}", XContentType.JSON)
                 .get());
         assertEquals("Failed to parse mapping [child]: [_parent] must be an object containing [type]", e.getMessage());
     }

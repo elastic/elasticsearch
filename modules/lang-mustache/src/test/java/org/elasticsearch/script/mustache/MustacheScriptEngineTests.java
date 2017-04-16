@@ -19,8 +19,8 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
@@ -47,7 +47,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
+        qe = new MustacheScriptEngineService();
         factory = new CustomMustacheFactory();
     }
 

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,6 +33,8 @@ import java.util.Set;
 public class MockSecureSettings implements SecureSettings {
 
     private Map<String, SecureString> secureStrings = new HashMap<>();
+    private Map<String, byte[]> files = new HashMap<>();
+    private Set<String> settingNames = new HashSet<>();
 
     @Override
     public boolean isLoaded() {
@@ -38,7 +43,7 @@ public class MockSecureSettings implements SecureSettings {
 
     @Override
     public Set<String> getSettingNames() {
-        return secureStrings.keySet();
+        return settingNames;
     }
 
     @Override
@@ -46,8 +51,19 @@ public class MockSecureSettings implements SecureSettings {
         return secureStrings.get(setting);
     }
 
+    @Override
+    public InputStream getFile(String setting) {
+        return new ByteArrayInputStream(files.get(setting));
+    }
+
     public void setString(String setting, String value) {
         secureStrings.put(setting, new SecureString(value.toCharArray()));
+        settingNames.add(setting);
+    }
+
+    public void setFile(String setting, byte[] value) {
+        files.put(setting, value);
+        settingNames.add(setting);
     }
 
     @Override

@@ -56,11 +56,11 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         // TODO: randomize the wait for active shards value on index creation and ensure the appropriate
         // number of data nodes are started for the randomized active shard count value
-        String id = randomAsciiOfLength(5);
+        String id = randomAlphaOfLength(5);
         // we will go the primary or the replica, but in a
         // randomized re-creatable manner
         int counter = 0;
-        String preference = randomAsciiOfLength(5);
+        String preference = randomAlphaOfLength(5);
 
         logger.info("running iteration for id {}, preference {}", id, preference);
 

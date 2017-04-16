@@ -131,7 +131,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             }
             InternalAggregation.ReduceContext ctx =
                 new InternalAggregation.ReduceContext(new MockBigArrays(Settings.EMPTY,
-                    new NoneCircuitBreakerService()), null);
+                    new NoneCircuitBreakerService()), null, true);
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);

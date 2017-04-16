@@ -107,7 +107,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS).endArray();
+        builder.startArray(CommonFields.BUCKETS.getPreferredName()).endArray();
         return builder;
     }
 

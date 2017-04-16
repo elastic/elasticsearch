@@ -23,8 +23,8 @@ apply plugin: 'groovy'
 
 group = 'org.elasticsearch.gradle'
 
-if (GradleVersion.current() < GradleVersion.version('2.13')) {
-  throw new GradleException('Gradle 2.13+ is required to build elasticsearch')
+if (GradleVersion.current() < GradleVersion.version('3.3')) {
+  throw new GradleException('Gradle 3.3+ is required to build elasticsearch')
 }
 
 if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
@@ -92,27 +92,16 @@ dependencies {
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.2'
+  compile 'de.thetaphi:forbiddenapis:2.3'
   compile 'org.apache.rat:apache-rat:0.11'
 }
 
-// Gradle version-specific options (allows build to run with Gradle 2.13 as well as 2.14+/3.+)
-if (GradleVersion.current() == GradleVersion.version("2.13")) {
-  // ProgressLogger(-Factory) classes are part of the public Gradle API
-  sourceSets.main.groovy.srcDir 'src/main/gradle-2.13-groovy'
+// Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
+// Use logging dependency instead
 
-  dependencies {
-    compile 'ru.vyarus:gradle-animalsniffer-plugin:1.0.1' // last version compatible with Gradle 2.13
-  }
-} else {
-  // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
-  // Use logging dependency instead
-  sourceSets.main.groovy.srcDir 'src/main/gradle-2.14-groovy'
-
-  dependencies {
-    compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
-    compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
-  }
+dependencies {
+  compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
+  compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
 }
 
 /*****************************************************************************
@@ -122,6 +111,9 @@ if (GradleVersion.current() == GradleVersion.version("2.13")) {
 if (project == rootProject) {
 
   repositories {
+    if (System.getProperty("repos.mavenLocal") != null) {
+      mavenLocal()
+    }
     mavenCentral()
   }
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'

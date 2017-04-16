@@ -28,7 +28,7 @@ setup:
 ---
 "Basic":
   - skip:
-      version: " - 5.2.99"
+      version: " - 5.99.99"
       reason:  this uses a new highlighter that has been added in 5.3
   - do:
       search:

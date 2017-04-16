@@ -28,12 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -48,7 +47,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.adjacenc
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +68,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
                 .setSettings(
                         Settings.builder().put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), MAX_NUM_FILTERS))
                 .get());
-        
+
         numDocs = randomIntBetween(5, 20);
         numTag1Docs = randomIntBetween(1, numDocs - 1);
         numTag2Docs = randomIntBetween(1, numDocs - numTag1Docs);
@@ -165,7 +163,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         }
 
     }
-          
+
 
     // See NullPointer issue when filters are empty:
     // https://github.com/elastic/elasticsearch/issues/8438
@@ -196,7 +194,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
                 .addAggregation(
                         adjacencyMatrix("tags",
                                 newMap("tag1", termQuery("tag", "tag1"))
-                                    .add("tag2", termQuery("tag", "tag2")) 
+                                    .add("tag2", termQuery("tag", "tag2"))
                                     .add("both", boolQ))
                                .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
@@ -215,16 +213,16 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
             expectedBuckets ++;
         }
         if (numMultiTagDocs > 0) {
-            // both, both&tag1, both&tag2, tag1&tag2 
+            // both, both&tag1, both&tag2, tag1&tag2
             expectedBuckets += 4;
         }
 
         assertThat(matrix.getBuckets().size(), equalTo(expectedBuckets));
-        assertThat(matrix.getProperty("_bucket_count"), equalTo(expectedBuckets));
+        assertThat(((InternalAggregation)matrix).getProperty("_bucket_count"), equalTo(expectedBuckets));
 
-        Object[] propertiesKeys = (Object[]) matrix.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) matrix.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) matrix.getProperty("avg_value.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)matrix).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)matrix).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)matrix).getProperty("avg_value.value");
 
         assertEquals(expectedBuckets, propertiesKeys.length);
         assertEquals(propertiesKeys.length, propertiesDocCounts.length);
@@ -283,7 +281,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
             assertThat(bucketBothQ, Matchers.notNullValue());
             assertThat(bucketBothQ.getDocCount(), equalTo((long) numMultiTagDocs));
             Avg avgValueBothQ = bucketBothQ.getAggregations().get("avg_value");
-            
+
             Bucket bucketIntersectQ = matrix.getBucketByKey("tag1&tag2");
             assertThat(bucketIntersectQ, Matchers.notNullValue());
             assertThat(bucketIntersectQ.getDocCount(), equalTo((long) numMultiTagDocs));
@@ -299,23 +297,23 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
 
 
     }
-    
+
     public void testTooLargeMatrix() throws Exception{
-    
-        // Create more filters than is permitted by index settings.        
+
+        // Create more filters than is permitted by index settings.
         MapBuilder filtersMap = new MapBuilder();
         for (int i = 0; i <= MAX_NUM_FILTERS; i++) {
             filtersMap.add("tag" + i, termQuery("tag", "tag" + i));
         }
-        
+
         try {
             client().prepareSearch("idx")
                 .addAggregation(adjacencyMatrix("tags", "\t", filtersMap))
                 .execute().actionGet();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getCause().getMessage(), containsString("Number of filters is too large"));
-        }        
+            assertThat(ex.getCause().getMessage(), containsString("Number of filters is too large"));
+        }
     }
 
     public void testAsSubAggregation() {

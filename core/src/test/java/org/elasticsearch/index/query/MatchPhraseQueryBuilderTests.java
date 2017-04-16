@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -51,7 +52,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -73,8 +74,8 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     @Override
     protected Map<String, MatchPhraseQueryBuilder> getAlternateVersions() {
         Map<String, MatchPhraseQueryBuilder> alternateVersions = new HashMap<>();
-        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(randomAsciiOfLengthBetween(1, 10),
-                randomAsciiOfLengthBetween(1, 10));
+        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"match_phrase\" : {\n" +
                 "        \"" + matchPhraseQuery.fieldName() + "\" : \"" + matchPhraseQuery.value() + "\"\n" +
@@ -88,7 +89,8 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
         assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+                .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
+                .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
     }
 
     public void testIllegalValues() {

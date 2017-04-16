@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -419,10 +420,10 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        assertThat(range.getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
+        assertThat(((InternalAggregation)range).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)range).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)range).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)range).getProperty("sum.value");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());

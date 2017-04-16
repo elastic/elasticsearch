@@ -54,7 +54,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,7 +126,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             validateSpec(restSpec);
             List<HttpHost> hosts = getClusterHosts();
             RestClient restClient = client();
-            Tuple<Version, Map<HttpHost, Version>> versionMapTuple = readVersionsFromInfo(restClient, hosts.size());
+            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
             Version esVersion;
             try {
                 Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
@@ -138,16 +137,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             } catch (ResponseException ex) {
                 if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
                     logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = versionMapTuple.v1();
+                    esVersion = infoVersion;
                     logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
                 } else {
                     throw ex;
                 }
             }
             ClientYamlTestClient clientYamlTestClient =
-                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, versionMapTuple.v2());
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
+                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (String entry : blacklist) {
@@ -294,7 +293,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
-        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response, Version.CURRENT);
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
         Version version = null;
@@ -317,13 +316,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    private static Tuple<Version, Map<HttpHost, Version>> readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
+    private static Version readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
         Version version = null;
-        Map<HttpHost, Version> hostVersionMap = new HashMap<>();
         for (int i = 0; i < numHosts; i++) {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             Response response = restClient.performRequest("GET", "/");
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response, Version.CURRENT);
+            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {
                 throw new RuntimeException("elasticsearch version not found in the response");
@@ -334,9 +332,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             } else if (version.onOrAfter(currentVersion)) {
                 version = currentVersion;
             }
-            hostVersionMap.put(response.getHost(), currentVersion);
         }
-        return new Tuple<>(version, Collections.unmodifiableMap(hostVersionMap));
+        return version;
     }
 
     public void test() throws IOException {
@@ -383,5 +380,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private String errorMessage(ExecutableSection executableSection, Throwable t) {
         return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber + "]: " + t.getMessage();
+    }
+
+    protected boolean randomizeContentType() {
+        return true;
     }
 }

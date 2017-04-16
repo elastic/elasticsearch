@@ -21,11 +21,16 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,34 +42,30 @@ import java.util.List;
 public class ClientYamlTestResponse {
 
     private final Response response;
-    private final String body;
-    private final Version nodeVersion;
+    private final byte[] body;
+    private final XContentType bodyContentType;
     private ObjectPath parsedResponse;
+    private String bodyAsString;
 
-    ClientYamlTestResponse(Response response, Version version) throws IOException {
+    ClientYamlTestResponse(Response response) throws IOException {
         this.response = response;
-        this.nodeVersion = version;
         if (response.getEntity() != null) {
+            String contentType = response.getHeader("Content-Type");
+            this.bodyContentType = XContentType.fromMediaTypeOrFormat(contentType);
             try {
-                this.body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                byte[] bytes = EntityUtils.toByteArray(response.getEntity());
+                //skip parsing if we got text back (e.g. if we called _cat apis)
+                if (bodyContentType != null) {
+                    this.parsedResponse = ObjectPath.createFromXContent(bodyContentType.xContent(), new BytesArray(bytes));
+                }
+                this.body = bytes;
             } catch (IOException e) {
                 EntityUtils.consumeQuietly(response.getEntity());
-                throw new RuntimeException(e);
+                throw e;
             }
         } else {
             this.body = null;
-        }
-        parseResponseBody();
-    }
-
-    private void parseResponseBody() throws IOException {
-        if (body != null) {
-            String contentType = response.getHeader("Content-Type");
-            XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
-            //skip parsing if we got text back (e.g. if we called _cat apis)
-            if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
-                this.parsedResponse = ObjectPath.createFromXContent(xContentType.xContent(), body);
-            }
+            this.bodyContentType = null;
         }
     }
 
@@ -83,18 +84,7 @@ public class ClientYamlTestResponse {
         List<String> warningHeaders = new ArrayList<>();
         for (Header header : response.getHeaders()) {
             if (header.getName().equals("Warning")) {
-                if (nodeVersion.after(Version.V_5_3_0_UNRELEASED) && response.getRequestLine().getMethod().equals("GET")
-                    && response.getRequestLine().getUri().contains("source")
-                    && response.getRequestLine().getUri().contains("source_content_type") == false && header.getValue().startsWith(
-                        "Deprecated use of the [source] parameter without the [source_content_type] parameter.")) {
-                    // this is because we do not send the source content type header when the node is 5.3.0 or below and the request
-                    // might have been sent to a node with a version > 5.3.0 when running backwards 5.0 tests. The Java RestClient
-                    // has control of the node the request is sent to so we can only detect this after the fact right now
-                    // TODO remove this when we bump versions
-                } else {
-                    warningHeaders.add(header.getValue());
-                }
-
+                warningHeaders.add(header.getValue());
             }
         }
         return warningHeaders;
@@ -108,14 +98,32 @@ public class ClientYamlTestResponse {
         if (parsedResponse != null) {
             return parsedResponse.evaluate("");
         }
-        return body;
+        //we only get here if there is no response body or the body is text
+        assert bodyContentType == null;
+        return getBodyAsString();
     }
 
     /**
      * Returns the body as a string
      */
     public String getBodyAsString() {
-        return body;
+        if (bodyAsString == null && body != null) {
+            //content-type null means that text was returned
+            if (bodyContentType == null || bodyContentType == XContentType.JSON || bodyContentType == XContentType.YAML) {
+                bodyAsString = new String(body, StandardCharsets.UTF_8);
+            } else {
+                //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
+                try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
+                    try (XContentParser parser = bodyContentType.xContent().createParser(NamedXContentRegistry.EMPTY, body)) {
+                        jsonBuilder.copyCurrentStructure(parser);
+                    }
+                    bodyAsString = jsonBuilder.string();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("unable to convert response body to a string format", e);
+                }
+            }
+        }
+        return bodyAsString;
     }
 
     public boolean isError() {

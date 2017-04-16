@@ -313,14 +313,14 @@ public abstract class MappedFieldType extends FieldType {
     /** Returns true if the field is searchable.
      *
      */
-    protected boolean isSearchable() {
+    public boolean isSearchable() {
         return indexOptions() != IndexOptions.NONE;
     }
 
     /** Returns true if the field is aggregatable.
      *
      */
-    protected boolean isAggregatable() {
+    public boolean isAggregatable() {
         try {
             fielddataBuilder();
             return true;

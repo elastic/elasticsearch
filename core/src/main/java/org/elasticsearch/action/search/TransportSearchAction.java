@@ -36,15 +36,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,12 +47,12 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
@@ -67,7 +60,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
-            "action.search.shard_count.limit", 1000L, 1L, Property.Dynamic, Property.NodeScope);
+            "action.search.shard_count.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.NodeScope);
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
@@ -124,10 +117,62 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return Collections.unmodifiableMap(concreteIndexBoosts);
     }
 
+    /**
+     * Search operations need two clocks. One clock is to fulfill real clock needs (e.g., resolving
+     * "now" to an index name). Another clock is needed for measuring how long a search operation
+     * took. These two uses are at odds with each other. There are many issues with using a real
+     * clock for measuring how long an operation took (they often lack precision, they are subject
+     * to moving backwards due to NTP and other such complexities, etc.). There are also issues with
+     * using a relative clock for reporting real time. Thus, we simply separate these two uses.
+     */
+    static class SearchTimeProvider {
+
+        private final long absoluteStartMillis;
+        private final long relativeStartNanos;
+        private final LongSupplier relativeCurrentNanosProvider;
+
+        /**
+         * Instantiates a new search time provider. The absolute start time is the real clock time
+         * used for resolving index expressions that include dates. The relative start time is the
+         * start of the search operation according to a relative clock. The total time the search
+         * operation took can be measured against the provided relative clock and the relative start
+         * time.
+         *
+         * @param absoluteStartMillis the absolute start time in milliseconds since the epoch
+         * @param relativeStartNanos the relative start time in nanoseconds
+         * @param relativeCurrentNanosProvider provides the current relative time
+         */
+        SearchTimeProvider(
+                final long absoluteStartMillis,
+                final long relativeStartNanos,
+                final LongSupplier relativeCurrentNanosProvider) {
+            this.absoluteStartMillis = absoluteStartMillis;
+            this.relativeStartNanos = relativeStartNanos;
+            this.relativeCurrentNanosProvider = relativeCurrentNanosProvider;
+        }
+
+        long getAbsoluteStartMillis() {
+            return absoluteStartMillis;
+        }
+
+        long getRelativeStartNanos() {
+            return relativeStartNanos;
+        }
+
+        long getRelativeCurrentNanos() {
+            return relativeCurrentNanosProvider.getAsLong();
+        }
+
+    }
+
+
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        // pure paranoia if time goes backwards we are at least positive
-        final long startTimeInMillis = Math.max(0, System.currentTimeMillis());
+        final long absoluteStartMillis = System.currentTimeMillis();
+        final long relativeStartNanos = System.nanoTime();
+        final SearchTimeProvider timeProvider =
+                new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
+
         final String[] localIndices;
         final Map<String, List<String>> remoteClusterIndices;
         final ClusterState clusterState = clusterService.state();
@@ -142,7 +187,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         if (remoteClusterIndices.isEmpty()) {
-            executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, Collections.emptyList(),
+            executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, Collections.emptyList(),
                 (nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
             remoteClusterService.collectSearchShards(searchRequest, remoteClusterIndices,
@@ -151,13 +196,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                     Function<String, Transport.Connection> connectionFunction = remoteClusterService.processRemoteShards(
                         searchShardsResponses, remoteShardIterators, remoteAliasFilters);
-                    executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, remoteShardIterators,
+                    executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteShardIterators,
                         connectionFunction, clusterState, remoteAliasFilters, listener);
                 }, listener::onFailure));
         }
     }
 
-    private void executeSearch(SearchTask task, long startTimeInMillis, SearchRequest searchRequest, String[] localIndices,
+    private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest, String[] localIndices,
                                List<ShardIterator> remoteShardIterators, Function<String, Transport.Connection> remoteConnections,
                                ClusterState clusterState, Map<String, AliasFilter> remoteAliasMap,
                                ActionListener<SearchResponse> listener) {
@@ -171,7 +216,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             indices = Index.EMPTY_ARRAY; // don't search on _all if only remote indices were specified
         } else {
             indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),
-                startTimeInMillis, localIndices);
+                timeProvider.getAbsoluteStartMillis(), localIndices);
         }
         Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
@@ -219,24 +264,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return connection;
         };
 
-        // Only enrich the search response iff collapsing has been specified:
-        final ActionListener<SearchResponse> wrapper;
-        if (searchRequest.source() != null &&
-            searchRequest.source().collapse() != null &&
-            searchRequest.source().collapse().getInnerHit() != null) {
-
-            wrapper = ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    listener.onResponse(searchResponse);
-                } else {
-                    expandCollapsedHits(nodes.getLocalNode(), task, searchRequest, searchResponse, listener);
-                }
-            }, listener::onFailure);
-        } else {
-            wrapper = listener;
-        }
-        searchAsyncAction(task, searchRequest, shardIterators, startTimeInMillis, connectionLookup, clusterState.version(),
-            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, wrapper).start();
+        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
+            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
     private static GroupShardsIterator mergeShardsIterators(GroupShardsIterator localShardsIterator,
@@ -260,7 +289,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest, GroupShardsIterator shardIterators,
-                                                        long startTime, Function<String, Transport.Connection> connectionLookup,
+                                                        SearchTimeProvider timeProvider, Function<String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
                                                         ActionListener<SearchResponse> listener) {
@@ -269,12 +298,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, timeProvider,
                     clusterStateVersion, task);
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, timeProvider,
                     clusterStateVersion, task);
                 break;
             default:
@@ -292,91 +321,5 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 + "have a smaller number of larger shards. Update [" + SHARD_COUNT_LIMIT_SETTING.getKey()
                 + "] to a greater value if you really want to query that many shards at the same time.");
         }
-    }
-
-    /**
-     * Expands collapsed using the {@link CollapseBuilder#innerHit} options.
-     */
-    void expandCollapsedHits(DiscoveryNode node,
-                             SearchTask parentTask,
-                             SearchRequest searchRequest,
-                             SearchResponse searchResponse,
-                             ActionListener<SearchResponse> finalListener) {
-        CollapseBuilder collapseBuilder = searchRequest.source().collapse();
-        MultiSearchRequest multiRequest = new MultiSearchRequest();
-        if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
-            multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
-        }
-        for (SearchHit hit : searchResponse.getHits()) {
-            BoolQueryBuilder groupQuery = new BoolQueryBuilder();
-            Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
-            if (collapseValue != null) {
-                groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
-            } else {
-                groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
-            }
-            QueryBuilder origQuery = searchRequest.source().query();
-            if (origQuery != null) {
-                groupQuery.must(origQuery);
-            }
-            SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(collapseBuilder.getInnerHit())
-                .query(groupQuery);
-            SearchRequest groupRequest = new SearchRequest(searchRequest.indices())
-                .types(searchRequest.types())
-                .source(sourceBuilder);
-            multiRequest.add(groupRequest);
-        }
-        searchTransportService.sendExecuteMultiSearch(node, multiRequest, parentTask,
-            ActionListener.wrap(response -> {
-                Iterator<MultiSearchResponse.Item> it = response.iterator();
-                for (SearchHit hit : searchResponse.getHits()) {
-                    MultiSearchResponse.Item item = it.next();
-                    if (item.isFailure()) {
-                        finalListener.onFailure(item.getFailure());
-                        return;
-                    }
-                    SearchHits innerHits = item.getResponse().getHits();
-                    if (hit.getInnerHits() == null) {
-                        hit.setInnerHits(new HashMap<>(1));
-                    }
-                    hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
-                }
-                finalListener.onResponse(searchResponse);
-            }, finalListener::onFailure)
-        );
-    }
-
-    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options) {
-        SearchSourceBuilder groupSource = new SearchSourceBuilder();
-        groupSource.from(options.getFrom());
-        groupSource.size(options.getSize());
-        if (options.getSorts() != null) {
-            options.getSorts().forEach(groupSource::sort);
-        }
-        if (options.getFetchSourceContext() != null) {
-            if (options.getFetchSourceContext().includes() == null && options.getFetchSourceContext().excludes() == null) {
-                groupSource.fetchSource(options.getFetchSourceContext().fetchSource());
-            } else {
-                groupSource.fetchSource(options.getFetchSourceContext().includes(),
-                    options.getFetchSourceContext().excludes());
-            }
-        }
-        if (options.getDocValueFields() != null) {
-            options.getDocValueFields().forEach(groupSource::docValueField);
-        }
-        if (options.getStoredFieldsContext() != null && options.getStoredFieldsContext().fieldNames() != null) {
-            options.getStoredFieldsContext().fieldNames().forEach(groupSource::storedField);
-        }
-        if (options.getScriptFields() != null) {
-            for (SearchSourceBuilder.ScriptField field : options.getScriptFields()) {
-                groupSource.scriptField(field.fieldName(), field.script());
-            }
-        }
-        if (options.getHighlightBuilder() != null) {
-            groupSource.highlighter(options.getHighlightBuilder());
-        }
-        groupSource.explain(options.isExplain());
-        groupSource.trackScores(options.isTrackScores());
-        return groupSource;
     }
 }

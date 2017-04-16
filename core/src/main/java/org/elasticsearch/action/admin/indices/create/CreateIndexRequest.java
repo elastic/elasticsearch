@@ -172,16 +172,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * The settings to create the index with (either json or yaml format)
-     * @deprecated use {@link #source(String, XContentType)} instead to avoid content type detection
-     */
-    @Deprecated
-    public CreateIndexRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
-        return this;
-    }
-
-    /**
-     * The settings to create the index with (either json or yaml format)
      */
     public CreateIndexRequest settings(String source, XContentType xContentType) {
         this.settings = Settings.builder().loadFromSource(source, xContentType).build();
@@ -213,18 +203,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @deprecated use {@link #mapping(String, String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public CreateIndexRequest mapping(String type, String source) {
-        return mapping(type, new BytesArray(source), XContentFactory.xContentType(source));
     }
 
     /**
@@ -364,15 +342,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * Sets the settings and mappings as a single source.
-     * @deprecated use {@link #source(String, XContentType)}
-     */
-    @Deprecated
-    public CreateIndexRequest source(String source) {
-        return source(new BytesArray(source));
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(String source, XContentType xContentType) {
         return source(new BytesArray(source), xContentType);
@@ -382,16 +351,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        return source(source.bytes());
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     * @deprecated use {@link #source(byte[], XContentType)}
-     */
-    @Deprecated
-    public CreateIndexRequest source(byte[] source) {
-        return source(source, 0, source.length);
+        return source(source.bytes(), source.contentType());
     }
 
     /**
@@ -403,29 +363,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * Sets the settings and mappings as a single source.
-     * @deprecated use {@link #source(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public CreateIndexRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     * @deprecated use {@link #source(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public CreateIndexRequest source(BytesReference source) {
-        XContentType xContentType = XContentFactory.xContentType(source);
-        source(source, xContentType);
-        return this;
     }
 
     /**

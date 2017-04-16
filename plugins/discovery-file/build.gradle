@@ -39,7 +39,7 @@ task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
 // for unicast discovery
 ClusterConfiguration config = new ClusterConfiguration(project)
 config.clusterName = 'discovery-file-test-cluster'
-List<NodeInfo> nodes = ClusterFormationTasks.setup(project, setupSeedNodeAndUnicastHostsFile, config)
+List<NodeInfo> nodes = ClusterFormationTasks.setup(project, 'initialCluster', setupSeedNodeAndUnicastHostsFile, config)
 File srcUnicastHostsFile = file('build/cluster/unicast_hosts.txt')
 
 // write the unicast_hosts.txt file to a temporary location to be used by the second cluster
@@ -49,11 +49,13 @@ setupSeedNodeAndUnicastHostsFile.doLast {
 }
 
 // second cluster, which will connect to the first via the unicast_hosts.txt file
+integTestCluster {
+    clusterName = 'discovery-file-test-cluster'
+    extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
+}
+
+integTestRunner.finalizedBy ':plugins:discovery-file:initialCluster#stop'
+
 integTest {
     dependsOn(setupSeedNodeAndUnicastHostsFile)
-    cluster {
-        clusterName = 'discovery-file-test-cluster'
-        extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
-    }
-    finalizedBy ':plugins:discovery-file:setupSeedNodeAndUnicastHostsFile#stop'
 }

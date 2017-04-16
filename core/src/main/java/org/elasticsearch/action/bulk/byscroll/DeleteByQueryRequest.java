@@ -74,6 +74,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         }
         if (getSearchRequest() == null || getSearchRequest().source() == null) {
             e = addValidationError("source is missing", e);
+        } else if (getSearchRequest().source().query() == null) {
+            e = addValidationError("query is missing", e);
         }
         return e;
     }
@@ -111,4 +113,16 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         assert getSearchRequest() != null;
         return getSearchRequest().indicesOptions();
     }
+
+    public String[] types() {
+        assert getSearchRequest() != null;
+        return getSearchRequest().types();
+    }
+
+    public DeleteByQueryRequest types(String... types) {
+        assert getSearchRequest() != null;
+        getSearchRequest().types(types);
+        return this;
+    }
+
 }

@@ -253,8 +253,8 @@ public class GetActionIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping1)
-                .addMapping("type2", mapping2)
+                .addMapping("type1", mapping1, XContentType.JSON)
+                .addMapping("type2", mapping2, XContentType.JSON)
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 

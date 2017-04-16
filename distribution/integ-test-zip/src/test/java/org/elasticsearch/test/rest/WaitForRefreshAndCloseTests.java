@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionFuture;
@@ -50,7 +51,8 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
             // If we get an error, it should be because the index doesn't exist
             assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         }
-        client().performRequest("PUT", indexName(), emptyMap(), new StringEntity("{\"settings\":{\"refresh_interval\":-1}}"));
+        client().performRequest("PUT", indexName(), emptyMap(),
+            new StringEntity("{\"settings\":{\"refresh_interval\":-1}}", ContentType.APPLICATION_JSON));
     }
 
     @After
@@ -67,16 +69,17 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
     }
 
     public void testIndexAndThenClose() throws Exception {
-        closeWhileListenerEngaged(start("PUT", "", new StringEntity("{\"test\":\"test\"}")));
+        closeWhileListenerEngaged(start("PUT", "", new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON)));
     }
 
     public void testUpdateAndThenClose() throws Exception {
-        client().performRequest("PUT", docPath(), emptyMap(), new StringEntity("{\"test\":\"test\"}"));
-        closeWhileListenerEngaged(start("POST", "/_update", new StringEntity("{\"doc\":{\"name\":\"test\"}}")));
+        client().performRequest("PUT", docPath(), emptyMap(), new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON));
+        closeWhileListenerEngaged(start("POST", "/_update",
+            new StringEntity("{\"doc\":{\"name\":\"test\"}}", ContentType.APPLICATION_JSON)));
     }
 
     public void testDeleteAndThenClose() throws Exception {
-        client().performRequest("PUT", docPath(), emptyMap(), new StringEntity("{\"test\":\"test\"}"));
+        client().performRequest("PUT", docPath(), emptyMap(), new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON));
         closeWhileListenerEngaged(start("DELETE", "", null));
     }
 

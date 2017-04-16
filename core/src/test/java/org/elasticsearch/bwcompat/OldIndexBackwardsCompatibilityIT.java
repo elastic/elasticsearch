@@ -166,6 +166,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Files.createDirectories(multiDataPath[0]);
         Files.createDirectories(multiDataPath[1]);
         logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
+        ensureGreen();
     }
 
     void upgradeIndexFolder() throws Exception {
@@ -316,13 +317,11 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
-        Version versionCreated = Version.fromId(Integer.parseInt(getSettingsResponse.getSetting(indexName, "index.version.created")));
-        if (versionCreated.onOrAfter(Version.V_2_4_0)) {
-            searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.existsQuery("field.with.dots"));
-            searchRsp = searchReq.get();
-            ElasticsearchAssertions.assertNoFailures(searchRsp);
-            assertEquals(numDocs, searchRsp.getHits().getTotalHits());
-        }
+        searchReq = client().prepareSearch(indexName)
+                .setQuery(QueryBuilders.existsQuery("field.with.dots"));
+        searchRsp = searchReq.get();
+        ElasticsearchAssertions.assertNoFailures(searchRsp);
+        assertEquals(numDocs, searchRsp.getHits().getTotalHits());
     }
 
     boolean findPayloadBoostInExplanation(Explanation expl) {

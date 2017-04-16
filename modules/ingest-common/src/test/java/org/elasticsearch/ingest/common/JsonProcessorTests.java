@@ -36,9 +36,9 @@ public class JsonProcessorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
-        String processorTag = randomAsciiOfLength(3);
-        String randomField = randomAsciiOfLength(3);
-        String randomTargetField = randomAsciiOfLength(2);
+        String processorTag = randomAlphaOfLength(3);
+        String randomField = randomAlphaOfLength(3);
+        String randomTargetField = randomAlphaOfLength(2);
         JsonProcessor jsonProcessor = new JsonProcessor(processorTag, randomField, randomTargetField, false);
         Map<String, Object> document = new HashMap<>();
 
@@ -76,8 +76,8 @@ public class JsonProcessorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testAddToRoot() throws Exception {
-        String processorTag = randomAsciiOfLength(3);
-        String randomTargetField = randomAsciiOfLength(2);
+        String processorTag = randomAlphaOfLength(3);
+        String randomTargetField = randomAlphaOfLength(2);
         JsonProcessor jsonProcessor = new JsonProcessor(processorTag, "a", randomTargetField, true);
         Map<String, Object> document = new HashMap<>();
 

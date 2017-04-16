@@ -23,7 +23,6 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -46,7 +45,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MAX_CHUNK_SIZE;
 import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MIN_CHUNK_SIZE;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValue;
 
 /**
  * Azure file system implementation of the BlobStoreRepository
@@ -86,10 +84,10 @@ public class AzureRepository extends BlobStoreRepository {
         super(metadata, environment.settings(), namedXContentRegistry);
 
         blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
-        String container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
-        this.chunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Storage.CHUNK_SIZE_SETTING);
-        this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Storage.COMPRESS_SETTING);
-        String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
+        String container = Repository.CONTAINER_SETTING.get(metadata.settings());
+        this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
+        this.compress = Repository.COMPRESS_SETTING.get(metadata.settings());
+        String modeStr = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         Boolean forcedReadonly = metadata.settings().getAsBoolean("readonly", null);
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
@@ -104,7 +102,7 @@ public class AzureRepository extends BlobStoreRepository {
             readonly = forcedReadonly;
         }
 
-        String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Storage.BASE_PATH_SETTING);
+        String basePath = Repository.BASE_PATH_SETTING.get(metadata.settings());
 
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any

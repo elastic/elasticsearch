@@ -102,8 +102,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Query searchFilter(String[] types) {
-        return in.searchFilter(types);
+    public Query buildFilteredQuery(Query query) {
+        return in.buildFilteredQuery(query);
     }
 
     @Override

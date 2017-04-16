@@ -23,27 +23,28 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.Locale;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -196,36 +197,49 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
+    @Override
     public RestStatus status() {
         return getShardInfo().status();
     }
 
     /**
-     * Gets the location of the written document as a string suitable for a {@code Location} header.
-     * @param routing any routing used in the request. If null the location doesn't include routing information.
+     * Return the relative URI for the location of the document suitable for use in the {@code Location} header. The use of relative URIs is
+     * permitted as of HTTP/1.1 (cf. https://tools.ietf.org/html/rfc7231#section-7.1.2).
      *
+     * @param routing custom routing or {@code null} if custom routing is not used
+     * @return the relative URI for the location of the document
      */
-    public String getLocation(@Nullable String routing) throws URISyntaxException {
-        // Absolute path for the location of the document. This should be allowed as of HTTP/1.1:
-        // https://tools.ietf.org/html/rfc7231#section-7.1.2
-        String index = getIndex();
-        String type = getType();
-        String id = getId();
-        String routingStart = "?routing=";
-        int bufferSize = 3 + index.length() + type.length() + id.length();
-        if (routing != null) {
-            bufferSize += routingStart.length() + routing.length();
+    public String getLocation(@Nullable String routing) {
+        final String encodedIndex;
+        final String encodedType;
+        final String encodedId;
+        final String encodedRouting;
+        try {
+            // encode the path components separately otherwise the path separators will be encoded
+            encodedIndex = URLEncoder.encode(getIndex(), "UTF-8");
+            encodedType = URLEncoder.encode(getType(), "UTF-8");
+            encodedId = URLEncoder.encode(getId(), "UTF-8");
+            encodedRouting = routing == null ? null : URLEncoder.encode(routing, "UTF-8");
+        } catch (final UnsupportedEncodingException e) {
+            throw new AssertionError(e);
         }
-        StringBuilder location = new StringBuilder(bufferSize);
-        location.append('/').append(index);
-        location.append('/').append(type);
-        location.append('/').append(id);
-        if (routing != null) {
-            location.append(routingStart).append(routing);
+        final String routingStart = "?routing=";
+        final int bufferSizeExcludingRouting = 3 + encodedIndex.length() + encodedType.length() + encodedId.length();
+        final int bufferSize;
+        if (encodedRouting == null) {
+            bufferSize = bufferSizeExcludingRouting;
+        } else {
+            bufferSize = bufferSizeExcludingRouting + routingStart.length() + encodedRouting.length();
+        }
+        final StringBuilder location = new StringBuilder(bufferSize);
+        location.append('/').append(encodedIndex);
+        location.append('/').append(encodedType);
+        location.append('/').append(encodedId);
+        if (encodedRouting != null) {
+            location.append(routingStart).append(encodedRouting);
         }
 
-        URI uri = new URI(location.toString());
-        return uri.toASCIIString();
+        return location.toString();
     }
 
     @Override
@@ -284,16 +298,115 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Declare the {@link ObjectParser} fields to use when parsing a {@link DocWriteResponse}
+     * Parse the output of the {@link #innerToXContent(XContentBuilder, Params)} method.
+     *
+     * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
+     * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
+     * if needed and then immediately returns.
      */
-    protected static void declareParserFields(ConstructingObjectParser<? extends DocWriteResponse, Void> objParser) {
-        objParser.declareString(constructorArg(), new ParseField(_INDEX));
-        objParser.declareString(constructorArg(), new ParseField(_TYPE));
-        objParser.declareString(constructorArg(), new ParseField(_ID));
-        objParser.declareLong(constructorArg(), new ParseField(_VERSION));
-        objParser.declareString(constructorArg(), new ParseField(RESULT));
-        objParser.declareObject(optionalConstructorArg(), (p, c) -> ShardInfo.fromXContent(p), new ParseField(_SHARDS));
-        objParser.declareLong(optionalConstructorArg(), new ParseField(_SEQ_NO));
-        objParser.declareBoolean(DocWriteResponse::setForcedRefresh, new ParseField(FORCED_REFRESH));
+    protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        if (token.isValue()) {
+            if (_INDEX.equals(currentFieldName)) {
+                // index uuid and shard id are unknown and can't be parsed back for now.
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetaData.INDEX_UUID_NA_VALUE), -1));
+            } else if (_TYPE.equals(currentFieldName)) {
+                context.setType(parser.text());
+            } else if (_ID.equals(currentFieldName)) {
+                context.setId(parser.text());
+            } else if (_VERSION.equals(currentFieldName)) {
+                context.setVersion(parser.longValue());
+            } else if (RESULT.equals(currentFieldName)) {
+                String result = parser.text();
+                for (Result r :  Result.values()) {
+                    if (r.getLowercase().equals(result)) {
+                        context.setResult(r);
+                        break;
+                    }
+                }
+            } else if (FORCED_REFRESH.equals(currentFieldName)) {
+                context.setForcedRefresh(parser.booleanValue());
+            } else if (_SEQ_NO.equals(currentFieldName)) {
+                context.setSeqNo(parser.longValue());
+            } else {
+                throwUnknownField(currentFieldName, parser.getTokenLocation());
+            }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            if (_SHARDS.equals(currentFieldName)) {
+                context.setShardInfo(ShardInfo.fromXContent(parser));
+            } else {
+                throwUnknownField(currentFieldName, parser.getTokenLocation());
+            }
+        } else {
+            throwUnknownToken(token, parser.getTokenLocation());
+        }
+    }
+
+    /**
+     * Base class of all {@link DocWriteResponse} builders. These {@link DocWriteResponse.Builder} are used during
+     * xcontent parsing to temporarily store the parsed values, then the {@link Builder#build()} method is called to
+     * instantiate the appropriate {@link DocWriteResponse} with the parsed values.
+     */
+    public abstract static class Builder {
+
+        protected ShardId shardId = null;
+        protected String type = null;
+        protected String id = null;
+        protected Long version = null;
+        protected Result result = null;
+        protected boolean forcedRefresh;
+        protected ShardInfo shardInfo = null;
+        protected Long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        public void setShardId(ShardId shardId) {
+            this.shardId = shardId;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public void setVersion(Long version) {
+            this.version = version;
+        }
+
+        public void setResult(Result result) {
+            this.result = result;
+        }
+
+        public void setForcedRefresh(boolean forcedRefresh) {
+            this.forcedRefresh = forcedRefresh;
+        }
+
+        public void setShardInfo(ShardInfo shardInfo) {
+            this.shardInfo = shardInfo;
+        }
+
+        public void setSeqNo(Long seqNo) {
+            this.seqNo = seqNo;
+        }
+
+        public abstract DocWriteResponse build();
     }
 }

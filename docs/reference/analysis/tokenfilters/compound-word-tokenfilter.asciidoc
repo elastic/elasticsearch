@@ -1,5 +1,5 @@
 [[analysis-compound-word-tokenfilter]]
-=== Compound Word Token Filter
+=== Compound Word Token Filters
 
 The `hyphenation_decompounder` and `dictionary_decompounder` token filters can
 decompose compound words found in many German languages into word parts.
@@ -26,7 +26,7 @@ output tokens is directly connected to the quality of the grammar file you
 use. For languages like German they are quite good.
 
 XML based hyphenation grammar files can be found in the
-http://offo.sourceforge.net/hyphenation/#FOP+XML+Hyphenation+Patterns[Objects For Formatting Objects]
+http://offo.sourceforge.net/#FOP+XML+Hyphenation+Patterns[Objects For Formatting Objects]
 (OFFO) Sourceforge project. Currently only FOP v1.2 compatible hyphenation files
 are supported. You can download https://sourceforge.net/projects/offo/files/offo-hyphenation/1.2/offo-hyphenation_v1.2.zip/download[offo-hyphenation_v1.2.zip]
 directly and look in the `offo-hyphenation/hyph/` directory.
@@ -84,20 +84,31 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-index :
-    analysis :
-        analyzer :
-            myAnalyzer2 :
-                type : custom
-                tokenizer : standard
-                filter : [myTokenFilter1, myTokenFilter2]
-        filter :
-            myTokenFilter1 :
-                type : dictionary_decompounder
-                word_list: [one, two, three]
-            myTokenFilter2 :
-                type : hyphenation_decompounder
-                word_list_path: path/to/words.txt
-                hyphenation_patterns_path: path/to/fop.xml
-                max_subword_size : 22
+PUT /compound_word_example
+{
+    "index": {
+        "analysis": {
+            "analyzer": {
+                "my_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["dictionary_decompounder", "hyphenation_decompounder"]
+                }
+            },
+            "filter": {
+                "dictionary_decompounder": {
+                    "type": "dictionary_decompounder",
+                    "word_list": ["one", "two", "three"]
+                },
+                "hyphenation_decompounder": {
+                    "type" : "hyphenation_decompounder",
+                    "word_list_path": "analysis/example_word_list.txt",
+                    "hyphenation_patterns_path": "analysis/hyphenation_patterns.xml",
+                    "max_subword_size": 22
+                }
+            }
+        }
+    }
+}
 --------------------------------------------------
+// CONSOLE

@@ -142,7 +142,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     private final ScheduledThreadPoolExecutor scheduler;
 
-    private final EstimatedTimeThread estimatedTimeThread;
+    private final CachedTimeThread cachedTimeThread;
 
     static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectExecutorService();
 
@@ -213,16 +213,33 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         this.scheduler.setRemoveOnCancelPolicy(true);
 
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
-        this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
-        this.estimatedTimeThread.start();
+        this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
+        this.cachedTimeThread.start();
     }
 
-    public long estimatedTimeInMillis() {
-        return estimatedTimeThread.estimatedTimeInMillis();
+    /**
+     * Returns a value of milliseconds that may be used for relative time calculations.
+     *
+     * This method should only be used for calculating time deltas. For an epoch based
+     * timestamp, see {@link #absoluteTimeInMillis()}.
+     */
+    public long relativeTimeInMillis() {
+        return cachedTimeThread.relativeTimeInMillis();
+    }
+
+    /**
+     * Returns the value of milliseconds since UNIX epoch.
+     *
+     * This method should only be used for exact date/time formatting. For calculating
+     * time deltas that should not suffer from negative deltas, which are possible with
+     * this method, see {@link #relativeTimeInMillis()}.
+     */
+    public long absoluteTimeInMillis() {
+        return cachedTimeThread.absoluteTimeInMillis();
     }
 
     public Counter estimatedTimeInMillisCounter() {
-        return estimatedTimeThread.counter;
+        return cachedTimeThread.counter;
     }
 
     public ThreadPoolInfo info() {
@@ -342,8 +359,8 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     public void shutdown() {
-        estimatedTimeThread.running = false;
-        estimatedTimeThread.interrupt();
+        cachedTimeThread.running = false;
+        cachedTimeThread.interrupt();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
@@ -353,8 +370,8 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     public void shutdownNow() {
-        estimatedTimeThread.running = false;
-        estimatedTimeThread.interrupt();
+        cachedTimeThread.running = false;
+        cachedTimeThread.interrupt();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
@@ -371,7 +388,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             }
         }
 
-        estimatedTimeThread.join(unit.toMillis(timeout));
+        cachedTimeThread.join(unit.toMillis(timeout));
         return result;
     }
 
@@ -471,29 +488,50 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    static class EstimatedTimeThread extends Thread {
+    /**
+     * A thread to cache millisecond time values from
+     * {@link System#nanoTime()} and {@link System#currentTimeMillis()}.
+     *
+     * The values are updated at a specified interval.
+     */
+    static class CachedTimeThread extends Thread {
 
         final long interval;
         final TimeCounter counter;
         volatile boolean running = true;
-        volatile long estimatedTimeInMillis;
+        volatile long relativeMillis;
+        volatile long absoluteMillis;
 
-        EstimatedTimeThread(String name, long interval) {
+        CachedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
-            this.estimatedTimeInMillis = TimeValue.nsecToMSec(System.nanoTime());
+            this.relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
+            this.absoluteMillis = System.currentTimeMillis();
             this.counter = new TimeCounter();
             setDaemon(true);
         }
 
-        public long estimatedTimeInMillis() {
-            return this.estimatedTimeInMillis;
+        /**
+         * Return the current time used for relative calculations. This is
+         * {@link System#nanoTime()} truncated to milliseconds.
+         */
+        long relativeTimeInMillis() {
+            return relativeMillis;
+        }
+
+        /**
+         * Return the current epoch time, used to find absolute time. This is
+         * a cached version of {@link System#currentTimeMillis()}.
+         */
+        long absoluteTimeInMillis() {
+            return absoluteMillis;
         }
 
         @Override
         public void run() {
             while (running) {
-                estimatedTimeInMillis = TimeValue.nsecToMSec(System.nanoTime());
+                relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
+                absoluteMillis = System.currentTimeMillis();
                 try {
                     Thread.sleep(interval);
                 } catch (InterruptedException e) {
@@ -512,7 +550,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
             @Override
             public long get() {
-                return estimatedTimeInMillis;
+                return relativeMillis;
             }
         }
     }
@@ -641,14 +679,23 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     public static boolean terminate(ExecutorService service, long timeout, TimeUnit timeUnit) {
         if (service != null) {
             service.shutdown();
-            try {
-                if (service.awaitTermination(timeout, timeUnit)) {
-                    return true;
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            if (awaitTermination(service, timeout, timeUnit)) return true;
             service.shutdownNow();
+            return awaitTermination(service, timeout, timeUnit);
+        }
+        return false;
+    }
+
+    private static boolean awaitTermination(
+            final ExecutorService service,
+            final long timeout,
+            final TimeUnit timeUnit) {
+        try {
+            if (service.awaitTermination(timeout, timeUnit)) {
+                return true;
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }
@@ -661,18 +708,27 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         if (pool != null) {
             try {
                 pool.shutdown();
-                try {
-                    if (pool.awaitTermination(timeout, timeUnit)) {
-                        return true;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                if (awaitTermination(pool, timeout, timeUnit)) return true;
                 // last resort
                 pool.shutdownNow();
+                return awaitTermination(pool, timeout, timeUnit);
             } finally {
                 IOUtils.closeWhileHandlingException(pool);
             }
+        }
+        return false;
+    }
+
+    private static boolean awaitTermination(
+            final ThreadPool pool,
+            final long timeout,
+            final TimeUnit timeUnit) {
+        try {
+            if (pool.awaitTermination(timeout, timeUnit)) {
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }

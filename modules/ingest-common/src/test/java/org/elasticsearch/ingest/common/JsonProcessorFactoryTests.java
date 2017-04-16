@@ -21,11 +21,8 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,9 +33,9 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     private static final JsonProcessor.Factory FACTORY = new JsonProcessor.Factory();
 
     public void testCreate() throws Exception {
-        String processorTag = randomAsciiOfLength(10);
-        String randomField = randomAsciiOfLength(10);
-        String randomTargetField = randomAsciiOfLength(5);
+        String processorTag = randomAlphaOfLength(10);
+        String randomField = randomAlphaOfLength(10);
+        String randomTargetField = randomAlphaOfLength(5);
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
@@ -49,8 +46,8 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithAddToRoot() throws Exception {
-        String processorTag = randomAsciiOfLength(10);
-        String randomField = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
+        String randomField = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("add_to_root", true);
@@ -62,8 +59,8 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithDefaultTarget() throws Exception {
-        String processorTag = randomAsciiOfLength(10);
-        String randomField = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
+        String randomField = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
@@ -74,21 +71,21 @@ public class JsonProcessorFactoryTests extends ESTestCase {
 
     public void testCreateWithMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> FACTORY.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
 
     public void testCreateWithBothTargetFieldAndAddToRoot() throws Exception {
-        String randomField = randomAsciiOfLength(10);
-        String randomTargetField = randomAsciiOfLength(5);
+        String randomField = randomAlphaOfLength(10);
+        String randomTargetField = randomAlphaOfLength(5);
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
         config.put("add_to_root", true);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, randomAsciiOfLength(10), config));
+            () -> FACTORY.create(null, randomAlphaOfLength(10), config));
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
 }

@@ -170,9 +170,9 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 if (size2++ == size) {
                     break;
                 }
-                assertTrue(it2.hasNext());
+                assertTrue("minDocCount: " + minDocCount, it2.hasNext());
                 final Terms.Bucket bucket2 = it2.next();
-                assertEquals(bucket1.getDocCount(), bucket2.getDocCount());
+                assertEquals("minDocCount: " + minDocCount, bucket1.getDocCount(), bucket2.getDocCount());
             }
         }
         assertFalse(it2.hasNext());
@@ -336,24 +336,8 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                             .shardSize(cardinality + randomInt(10))
                             .minDocCount(minDocCount)).request();
             final SearchResponse response = client().search(request).get();
-            try {
-                assertAllSuccessful(response);
-                assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
-            } catch (AssertionError ae) {
-                if (!retry) {
-                    throw ae;
-                }
-                logger.info("test failed. trying to see if it recovers after 1m.", ae);
-                try {
-                    Thread.sleep(60000);
-                    logger.debug("1m passed. retrying.");
-                    testMinDocCountOnTerms(field, script, order, include, false);
-                } catch (Exception secondFailure) {
-                    secondFailure.addSuppressed(ae);
-                    logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
-                }
-                throw ae;
-            }
+            assertAllSuccessful(response);
+            assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
         }
     }
 

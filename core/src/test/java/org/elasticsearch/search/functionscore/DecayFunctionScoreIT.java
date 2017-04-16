@@ -613,7 +613,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .field("doc_values", true).endObject().startObject("geo").field("type", "geo_point")
                 .field("ignore_malformed", true);
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder.string()));
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder));
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 

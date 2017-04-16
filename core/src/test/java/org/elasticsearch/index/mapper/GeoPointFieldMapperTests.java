@@ -25,6 +25,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -54,11 +55,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.endObject().endObject().endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("point", stringEncode(1.3, 1.2))
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -69,11 +71,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -84,14 +87,15 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point")
                 .startObject().field("lat", 1.2).field("lon", 1.3).endObject()
                 .startObject().field("lat", 1.4).field("lon", 1.5).endObject()
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
@@ -105,11 +109,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type",
             new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("point", "1.2,1.3")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -121,11 +126,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type",
             new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("point", "1.2,1.3")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
 
@@ -136,14 +142,15 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type",
             new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point")
                 .value("1.2,1.3")
                 .value("1.4,1.5")
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
@@ -156,11 +163,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.endObject().endObject().endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -172,11 +180,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.endObject().endObject().endObject().endArray().endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -187,11 +196,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
         assertThat(doc.rootDoc().getFields("point").length, equalTo(3));
@@ -204,14 +214,15 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point")
                 .startArray().value(1.3).value(1.2).endArray()
                 .startArray().value(1.5).value(1.4).endArray()
                 .endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
         assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(4));
@@ -227,7 +238,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().endObject().endObject().string();
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
-            .addMapping("pin", mapping);
+            .addMapping("pin", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
 
         // create index and add random test points

@@ -27,7 +27,7 @@ public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRank
 
     @Override
     protected PercentileRanksAggregationBuilder createTestAggregatorBuilder() {
-        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }

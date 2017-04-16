@@ -35,6 +35,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchPath;
@@ -95,12 +96,12 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test sort:_doc for versions that support it.
-        Version remoteVersion = Version.fromId(between(Version.V_2_1_0_ID, Version.CURRENT.id));
+        Version remoteVersion = Version.fromId(between(2010099, Version.CURRENT.id));
         searchRequest.source().sort("_doc");
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sort", "_doc:asc"));
 
         // Test search_type scan for versions that don't support sort:_doc.
-        remoteVersion = Version.fromId(between(0, Version.V_2_1_0_ID - 1));
+        remoteVersion = Version.fromId(between(0, 2010099 - 1));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("search_type", "scan"));
 
         // Test sorting by some field. Version doesn't matter.
@@ -149,7 +150,11 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         Map<String, String> params = initialSearchParams(searchRequest, remoteVersion);
 
-        assertThat(params, scroll == null ? not(hasKey("scroll")) : hasEntry("scroll", scroll.toString()));
+        if (scroll == null) {
+            assertThat(params, not(hasKey("scroll")));
+        } else {
+            assertEquals(scroll, TimeValue.parseTimeValue(params.get("scroll"), "scroll"));
+        }
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
     }
@@ -180,14 +185,32 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
     public void testScrollParams() {
         TimeValue scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
-        assertThat(scrollParams(scroll), hasEntry("scroll", scroll.toString()));
+        assertEquals(scroll, TimeValue.parseTimeValue(scrollParams(scroll).get("scroll"), "scroll"));
     }
 
     public void testScrollEntity() throws IOException {
-        String scroll = randomAsciiOfLength(30);
-        HttpEntity entity = scrollEntity(scroll);
+        String scroll = randomAlphaOfLength(30);
+        HttpEntity entity = scrollEntity(scroll, Version.V_5_0_0);
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         assertThat(Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
             containsString("\"" + scroll + "\""));
+
+        // Test with version < 2.0.0
+        entity = scrollEntity(scroll, Version.fromId(1070499));
+        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
+        assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+    }
+
+    public void testClearScrollEntity() throws IOException {
+        String scroll = randomAlphaOfLength(30);
+        HttpEntity entity = clearScrollEntity(scroll, Version.V_5_0_0);
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertThat(Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
+            containsString("\"" + scroll + "\""));
+
+        // Test with version < 2.0.0
+        entity = clearScrollEntity(scroll, Version.fromId(1070499));
+        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
+        assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
     }
 }

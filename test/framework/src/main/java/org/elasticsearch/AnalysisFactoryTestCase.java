@@ -147,6 +147,10 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         .put("wikipedia",     Void.class)
+
+        // TODO: expose these
+        .put("simplepattern",    Void.class)
+        .put("simplepatternsplit",    Void.class)
         .immutableMap();
 
     static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;

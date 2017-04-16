@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class MainResponse extends ActionResponse implements ToXContentObject {
 
@@ -136,5 +137,27 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     public static MainResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        MainResponse other = (MainResponse) o;
+        return Objects.equals(nodeName, other.nodeName) &&
+                Objects.equals(version, other.version) &&
+                Objects.equals(clusterUuid, other.clusterUuid) &&
+                Objects.equals(build, other.build) &&
+                Objects.equals(available, other.available) &&
+                Objects.equals(clusterName, other.clusterName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeName, version, clusterUuid, build, clusterName, available);
     }
 }

@@ -28,8 +28,10 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -96,7 +98,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.VALUES);
+            builder.startObject(CommonFields.VALUES.getPreferredName());
             for(int i = 0; i < keys.length; ++i) {
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
@@ -107,19 +109,32 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             }
             builder.endObject();
         } else {
-            builder.startArray(CommonFields.VALUES);
+            builder.startArray(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; i++) {
                 double value = value(keys[i]);
                 builder.startObject();
-                builder.field(CommonFields.KEY, keys[i]);
-                builder.field(CommonFields.VALUE, value);
+                builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
+                builder.field(CommonFields.VALUE.getPreferredName(), value);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.VALUE_AS_STRING, format.format(value));
+                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
                 }
                 builder.endObject();
             }
             builder.endArray();
         }
         return builder;
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        AbstractInternalTDigestPercentiles that = (AbstractInternalTDigestPercentiles) obj;
+        return keyed == that.keyed
+                && Arrays.equals(keys, that.keys)
+                && Objects.equals(state, that.state);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(keyed, Arrays.hashCode(keys), state);
     }
 }

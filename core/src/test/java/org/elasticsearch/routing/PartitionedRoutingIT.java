@@ -22,6 +22,7 @@ package org.elasticsearch.routing;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
@@ -42,7 +43,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", shards)
                         .put("index.routing_partition_size", partitionSize))
-                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
                     .execute().actionGet();
                 ensureGreen();
 
@@ -67,7 +68,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", currentShards)
                 .put("index.routing_partition_size", partitionSize))
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
             .execute().actionGet();
         ensureGreen();
 

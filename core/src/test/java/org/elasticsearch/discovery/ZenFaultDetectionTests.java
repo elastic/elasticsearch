@@ -234,7 +234,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
-        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+        ClusterName clusterName = new ClusterName(randomAlphaOfLengthBetween(3, 20));
 
         // make sure we don't ping
         settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
@@ -272,7 +272,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
 
     public void testMasterFaultDetectionNotSizeLimited() throws InterruptedException {
         boolean shouldRetry = randomBoolean();
-        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+        ClusterName clusterName = new ClusterName(randomAlphaOfLengthBetween(3, 20));
         final Settings settings = Settings.builder()
             .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
             .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "1s")

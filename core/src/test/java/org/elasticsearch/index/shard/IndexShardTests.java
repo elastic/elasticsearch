@@ -284,7 +284,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
         } else if (randomBoolean()) {
             // simulate promotion
-            indexShard = newShard(shardId, false);
+            indexShard = newStartedShard(false);
             ShardRouting replicaRouting = indexShard.routingEntry();
             indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
@@ -551,7 +551,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
         document.add(versionField);
         document.add(seqID.seqNo);

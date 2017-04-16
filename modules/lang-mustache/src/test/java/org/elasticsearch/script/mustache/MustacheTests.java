@@ -20,8 +20,8 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.CompiledScript;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
+    private ScriptEngineService engine = new MustacheScriptEngineService();
 
     public void testBasics() {
         String template = "GET _search {\"query\": " + "{\"boosting\": {"
@@ -377,7 +377,7 @@ public class MustacheTests extends ESTestCase {
         assertScript("{{#url}}{{index}}{{/url}}", singletonMap("index", "<logstash-{now/d{YYYY.MM.dd|+12:00}}>"),
                 equalTo("%3Clogstash-%7Bnow%2Fd%7BYYYY.MM.dd%7C%2B12%3A00%7D%7D%3E"));
 
-        final String random = randomAsciiOfLength(10);
+        final String random = randomAlphaOfLength(10);
         assertScript("{{#url}}prefix_{{s}}{{/url}}", singletonMap("s", random),
                 equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name())));
     }

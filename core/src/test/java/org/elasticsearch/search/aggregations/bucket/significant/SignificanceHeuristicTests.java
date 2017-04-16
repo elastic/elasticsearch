@@ -146,7 +146,8 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
-        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, null);
+        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
@@ -264,7 +265,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
             String faultyHeuristicDefinition, String expectedError) throws IOException {
 
         try {
-            XContentParser stParser = createParser(JsonXContent.jsonXContent, 
+            XContentParser stParser = createParser(JsonXContent.jsonXContent,
                     "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(stParser);
             stParser.nextToken();
@@ -302,7 +303,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     protected SignificanceHeuristic parseFromString(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             String heuristicString) throws IOException {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, 
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
         return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
     }

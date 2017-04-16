@@ -455,8 +455,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("parent", "{\"parent\":{}}")
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
+                .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
+                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON)
                 .execute().actionGet();
         ensureGreen();
 
@@ -519,8 +519,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateUpsertWithParent() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("parent", "{\"parent\":{}}")
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
+                .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
+                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();
 
         BulkRequestBuilder builder = client().prepareBulk();
@@ -603,8 +603,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      * Test for https://github.com/elastic/elasticsearch/issues/8365
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}").addMapping("child",
-                "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
+        assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
+            .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();
 
         BulkRequestBuilder builder = client().prepareBulk();

@@ -109,6 +109,10 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
 
     @Override
     public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
+        return compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
+    }
+
+    <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -161,10 +165,11 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
+            return AccessController.doPrivileged(new PrivilegedAction<T>() {
                 @Override
-                public Executable run() {
-                    return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
+                public T run() {
+                    String name = scriptName == null ? INLINE_NAME : scriptName;
+                    return Compiler.compile(loader, iface, name, scriptSource, compilerSettings);
                 }
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
@@ -181,7 +186,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      */
     @Override
     public ExecutableScript executable(final CompiledScript compiledScript, final Map<String, Object> vars) {
-        return new ScriptImpl((Executable)compiledScript.compiled(), vars, null);
+        return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, null);
     }
 
     /**
@@ -201,7 +206,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
              */
             @Override
             public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                return new ScriptImpl((Executable)compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
+                return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
             }
 
             /**
@@ -209,7 +214,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
              */
             @Override
             public boolean needsScores() {
-                return compiledScript.compiled() instanceof NeedsScore;
+                return ((GenericElasticsearchScript) compiledScript.compiled()).uses$_score();
             }
         };
     }

@@ -37,6 +37,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -135,8 +136,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public IndexFieldData.XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
-                IndexFieldData.XFieldComparatorSource.Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -225,8 +225,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
-                XFieldComparatorSource.Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 

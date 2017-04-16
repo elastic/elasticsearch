@@ -24,47 +24,32 @@ import org.elasticsearch.gradle.test.NodeInfo
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-List<NodeInfo> oneNodes
 
-task setupClusterOne(type: DefaultTask) {
-  mustRunAfter(precommit)
-  ClusterConfiguration configOne = new ClusterConfiguration(project)
-  configOne.clusterName = 'one'
-  configOne.setting('node.name', 'one')
-  oneNodes = ClusterFormationTasks.setup(project, setupClusterOne, configOne)
-}
+ClusterConfiguration configOne = new ClusterConfiguration(project)
+configOne.clusterName = 'one'
+configOne.setting('node.name', 'one')
+List<NodeInfo> oneNodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, configOne)
 
-List<NodeInfo> twoNodes
+ClusterConfiguration configTwo = new ClusterConfiguration(project)
+configTwo.clusterName = 'two'
+configTwo.setting('node.name', 'two')
+List<NodeInfo> twoNodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, configTwo)
 
-task setupClusterTwo(type: DefaultTask) {
-  mustRunAfter(precommit)
-  ClusterConfiguration configTwo = new ClusterConfiguration(project)
-  configTwo.clusterName = 'two'
-  configTwo.setting('node.name', 'two')
-  twoNodes = ClusterFormationTasks.setup(project, setupClusterTwo, configTwo)
-}
-
-integTest {
-  dependsOn(setupClusterOne, setupClusterTwo)
-  cluster {
-    // tribe nodes had a bug where if explicit ports was specified for the tribe node, the dynamic socket permissions that were applied
-    // would not account for the fact that the internal node client needed to bind to sockets too; thus, we use explicit port ranges to
-    // ensure that the code that fixes this bug is exercised
-    setting 'http.port', '40200-40249'
-    setting 'transport.tcp.port', '40300-40349'
-    setting 'node.name', 'quest'
-    setting 'tribe.one.cluster.name', 'one'
-    setting 'tribe.one.discovery.zen.ping.unicast.hosts', "'${-> oneNodes.get(0).transportUri()}'"
-    setting 'tribe.one.http.enabled', 'true'
-    setting 'tribe.one.http.port', '40250-40299'
-    setting 'tribe.one.transport.tcp.port', '40350-40399'
-    setting 'tribe.two.cluster.name', 'two'
-    setting 'tribe.two.discovery.zen.ping.unicast.hosts', "'${-> twoNodes.get(0).transportUri()}'"
-    setting 'tribe.two.http.enabled', 'true'
-    setting 'tribe.two.http.port', '40250-40299'
-    setting 'tribe.two.transport.tcp.port', '40250-40399'
-  }
-  // need to kill the standalone nodes here
-  finalizedBy 'setupClusterOne#stop'
-  finalizedBy 'setupClusterTwo#stop'
+integTestCluster {
+  // tribe nodes had a bug where if explicit ports was specified for the tribe node, the dynamic socket permissions that were applied
+  // would not account for the fact that the internal node client needed to bind to sockets too; thus, we use explicit port ranges to
+  // ensure that the code that fixes this bug is exercised
+  setting 'http.port', '40200-40249'
+  setting 'transport.tcp.port', '40300-40349'
+  setting 'node.name', 'quest'
+  setting 'tribe.one.cluster.name', 'one'
+  setting 'tribe.one.discovery.zen.ping.unicast.hosts', "'${-> oneNodes.get(0).transportUri()}'"
+  setting 'tribe.one.http.enabled', 'true'
+  setting 'tribe.one.http.port', '40250-40299'
+  setting 'tribe.one.transport.tcp.port', '40350-40399'
+  setting 'tribe.two.cluster.name', 'two'
+  setting 'tribe.two.discovery.zen.ping.unicast.hosts', "'${-> twoNodes.get(0).transportUri()}'"
+  setting 'tribe.two.http.enabled', 'true'
+  setting 'tribe.two.http.port', '40250-40299'
+  setting 'tribe.two.transport.tcp.port', '40250-40399'
 }

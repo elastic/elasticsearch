@@ -86,7 +86,7 @@ in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 [role="exclude",id="query-dsl-not-filter"]
 === Not Filter
 
-The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
+The `not` query has been replaced by using a `must_not` clause in a `bool` query (see <<query-dsl-bool-query>>).
 
 [role="exclude",id="query-dsl-bool-filter"]
 === Bool Filter

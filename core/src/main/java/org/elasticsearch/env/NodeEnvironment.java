@@ -158,13 +158,6 @@ public final class NodeEnvironment  implements Closeable {
         Property.NodeScope);
 
     /**
-     * If true automatically append node lock id to custom data paths.
-     */
-    public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
-
-
-    /**
      * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
      * this seed will be ignored and the uuid from disk will be reused.
      */
@@ -922,11 +915,7 @@ public final class NodeEnvironment  implements Closeable {
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            if (ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(indexSettings.getNodeSettings())) {
-                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
-            } else {
-                return sharedDataPath.resolve(customDataDir);
-            }
+            return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
         }

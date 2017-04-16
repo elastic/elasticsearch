@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
@@ -88,14 +89,15 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("a", "100")
                     .startObject("b")
                         .field("c", 42)
                     .endObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertFieldNames(set("a", "a.keyword", "b", "b.c", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source"), doc);
     }
@@ -108,11 +110,12 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()
-            .bytes());
+            .bytes(),
+            XContentType.JSON));
 
         assertFieldNames(set("field", "field.keyword", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source"), doc);
     }
@@ -125,11 +128,12 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()
-            .bytes());
+            .bytes(),
+            XContentType.JSON));
 
         assertNull(doc.rootDoc().get("_field_names"));
     }
@@ -244,7 +248,8 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                 queryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument parsedDocument = mapper.parse("index", "type", "id", new BytesArray("{}"));
+        ParsedDocument parsedDocument = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"),
+                XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         boolean found = false;
         for (IndexableField f : fields) {

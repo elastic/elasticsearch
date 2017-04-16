@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -45,11 +46,11 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     }
 
     protected void testConflict(String mapping, String mappingUpdate, Version idxVersion, String... errorMessages) throws InterruptedException {
-        assertAcked(prepareCreate(INDEX).setSource(mapping).setSettings("index.version.created", idxVersion.id));
+        assertAcked(prepareCreate(INDEX).setSource(mapping, XContentType.JSON).setSettings("index.version.created", idxVersion.id));
         ensureGreen(INDEX);
         GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
         try {
-            client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mappingUpdate).get();
+            client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mappingUpdate, XContentType.JSON).get();
             fail();
         } catch (IllegalArgumentException e) {
             for (String errorMessage : errorMessages) {

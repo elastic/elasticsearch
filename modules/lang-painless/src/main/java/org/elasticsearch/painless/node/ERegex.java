@@ -68,8 +68,9 @@ public final class ERegex extends AExpression {
 
         try {
             Pattern.compile(pattern, flags);
-        } catch (PatternSyntaxException exception) {
-            throw createError(exception);
+        } catch (PatternSyntaxException e) {
+            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
+                    new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
         constant = new Constant(location, Definition.PATTERN_TYPE.type, "regexAt$" + location.getOffset(), this::initializeConstant);

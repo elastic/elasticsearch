@@ -27,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -157,7 +156,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         final String phase = randomFrom("query", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", shardSearchFailures);
 
-        BytesReference exceptionBytes = XContentHelper.toXContent(actual, xContent.type(), randomBoolean());
+        BytesReference exceptionBytes = toShuffledXContent(actual, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         ElasticsearchException parsedException;
         try (XContentParser parser = createParser(xContent, exceptionBytes)) {

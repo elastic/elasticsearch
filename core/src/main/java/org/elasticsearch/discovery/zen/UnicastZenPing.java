@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -214,6 +215,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final List<Future<TransportAddress[]>> futures =
             executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
         final List<DiscoveryNode> discoveryNodes = new ArrayList<>();
+        final Set<TransportAddress> localAddresses = new HashSet<>();
+        localAddresses.add(transportService.boundAddress().publishAddress());
+        localAddresses.addAll(Arrays.asList(transportService.boundAddress().boundAddresses()));
         // ExecutorService#invokeAll guarantees that the futures are returned in the iteration order of the tasks so we can associate the
         // hostname with the corresponding task by iterating together
         final Iterator<String> it = hosts.iterator();
@@ -225,13 +229,17 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     final TransportAddress[] addresses = future.get();
                     logger.trace("resolved host [{}] to {}", hostname, addresses);
                     for (int addressId = 0; addressId < addresses.length; addressId++) {
-                        discoveryNodes.add(
-                            new DiscoveryNode(
-                                nodeId_prefix + hostname + "_" + addressId + "#",
-                                addresses[addressId],
-                                emptyMap(),
-                                emptySet(),
-                                Version.CURRENT.minimumCompatibilityVersion()));
+                        final TransportAddress address = addresses[addressId];
+                        // no point in pinging ourselves
+                        if (localAddresses.contains(address) == false) {
+                            discoveryNodes.add(
+                                new DiscoveryNode(
+                                    nodeId_prefix + hostname + "_" + addressId + "#",
+                                    address,
+                                    emptyMap(),
+                                    emptySet(),
+                                    Version.CURRENT.minimumCompatibilityVersion()));
+                        }
                     }
                 } catch (final ExecutionException e) {
                     assert e.getCause() != null;

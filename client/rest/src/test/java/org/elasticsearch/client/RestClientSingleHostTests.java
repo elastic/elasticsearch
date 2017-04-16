@@ -38,6 +38,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -293,7 +294,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     public void testBody() throws IOException {
         String body = "{ \"field\": \"value\" }";
-        StringEntity entity = new StringEntity(body);
+        StringEntity entity = new StringEntity(body, ContentType.APPLICATION_JSON);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT")) {
             for (int okStatusCode : getOkStatusCodes()) {
                 Response response = restClient.performRequest(method, "/" + okStatusCode, Collections.<String, String>emptyMap(), entity);
@@ -431,7 +432,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         HttpEntity entity = null;
         boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
         if (hasBody) {
-            entity = new StringEntity(randomAsciiOfLengthBetween(10, 100));
+            entity = new StringEntity(randomAsciiOfLengthBetween(10, 100), ContentType.APPLICATION_JSON);
             ((HttpEntityEnclosingRequest) request).setEntity(entity);
         }
 

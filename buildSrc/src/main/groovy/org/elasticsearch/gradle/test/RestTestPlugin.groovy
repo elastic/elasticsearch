@@ -43,7 +43,7 @@ public class RestTestPlugin implements Plugin<Project> {
         }
 
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
+        integTest.clusterConfig.distribution = 'zip' // rest tests should run with the real zip
         integTest.mustRunAfter(project.precommit)
         project.check.dependsOn(integTest)
     }

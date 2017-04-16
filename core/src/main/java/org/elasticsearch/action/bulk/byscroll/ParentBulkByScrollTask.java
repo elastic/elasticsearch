@@ -40,7 +40,7 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
      * Holds the responses as they come back. This uses {@link Tuple} as an "Either" style holder where only the response or the exception
      * is set.
      */
-    private final AtomicArray<Tuple<BulkByScrollResponse, Exception>> results;
+    private final AtomicArray<Result> results;
     private final AtomicInteger counter;
 
     public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, int slices) {
@@ -82,13 +82,11 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
     }
 
     private void addResultsToList(List<StatusOrException> sliceStatuses) {
-        for (AtomicArray.Entry<Tuple<BulkByScrollResponse, Exception>> t : results.asList()) {
-            if (t.value != null) {
-                if (t.value.v1() != null) {
-                    sliceStatuses.set(t.index, new StatusOrException(t.value.v1().getStatus()));
-                } else {
-                    sliceStatuses.set(t.index, new StatusOrException(t.value.v2()));
-                }
+        for (Result t : results.asList()) {
+            if (t.response != null) {
+                sliceStatuses.set(t.sliceId, new StatusOrException(t.response.getStatus()));
+            } else {
+                sliceStatuses.set(t.sliceId, new StatusOrException(t.failure));
             }
         }
     }
@@ -97,7 +95,7 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
      * Record a response from a slice and respond to the listener if the request is finished.
      */
     public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
-        results.setOnce(sliceId, new Tuple<>(response, null));
+        results.setOnce(sliceId, new Result(sliceId, response));
         /* If the request isn't finished we could automatically rethrottle the sub-requests here but we would only want to do that if we
          * were fairly sure they had a while left to go. */
         recordSliceCompletionAndRespondIfAllDone(listener);
@@ -107,7 +105,7 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
      * Record a failure from a slice and respond to the listener if the request is finished.
      */
     void onSliceFailure(ActionListener<BulkByScrollResponse> listener, int sliceId, Exception e) {
-        results.setOnce(sliceId, new Tuple<>(null, e));
+        results.setOnce(sliceId, new Result(sliceId, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
         // TODO cancel when a slice fails?
     }
@@ -118,17 +116,17 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
         }
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
         Exception exception = null;
-        for (AtomicArray.Entry<Tuple<BulkByScrollResponse, Exception>> t : results.asList()) {
-            if (t.value.v1() == null) {
-                assert t.value.v2() != null : "exception shouldn't be null if value is null";
+        for (Result t : results.asList()) {
+            if (t.response == null) {
+                assert t.failure != null : "exception shouldn't be null if value is null";
                 if (exception == null) {
-                    exception = t.value.v2();
+                    exception = t.failure;
                 } else {
-                    exception.addSuppressed(t.value.v2());
+                    exception.addSuppressed(t.failure);
                 }
             } else {
-                assert t.value.v2() == null : "exception should be null if response is not null";
-                responses.add(t.value.v1());
+                assert t.failure == null : "exception should be null if response is not null";
+                responses.add(t.response);
             }
         }
         if (exception == null) {
@@ -138,4 +136,21 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
         }
     }
 
+    private static final class Result {
+        final BulkByScrollResponse response;
+        final int sliceId;
+        final Exception failure;
+
+        private Result(int sliceId, BulkByScrollResponse response) {
+            this.sliceId = sliceId;
+            this.response = response;
+            failure = null;
+        }
+
+        private Result(int sliceId, Exception failure) {
+            this.sliceId = sliceId;
+            this.failure = failure;
+            response = null;
+        }
+    }
 }

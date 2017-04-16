@@ -58,7 +58,7 @@ public class ScriptProcessorTests extends ESTestCase {
             return null;
         }).when(executableScript).run();
 
-        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), script, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
 
         processor.execute(ingestDocument);
 

@@ -51,16 +51,18 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
-                .endObject().bytes());
+                .endObject().bytes(),
+                XContentType.JSON));
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
-        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
+        doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
-                .endObject().bytes());
+                .endObject().bytes(),
+                XContentType.JSON));
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
@@ -72,10 +74,11 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
             .startObject("path2").field("field2", "value2").endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
@@ -93,10 +96,11 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
             .startObject("path2").field("field2", "value2").endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
@@ -276,7 +280,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
-            documentMapper.parse("test", "type", "1", new BytesArray("{}}")); // extra end object (invalid JSON)
+            documentMapper.parse(SourceToParse.source("test", "type", "1", new BytesArray("{}}"), XContentType.JSON)); // extra end object (invalid JSON)
             fail("Expected parse exception");
         } catch (MapperParsingException e) {
             assertNotNull(e.getRootCause());

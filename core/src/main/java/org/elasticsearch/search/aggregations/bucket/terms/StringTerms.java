@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is a String.
@@ -84,16 +85,18 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY, getKeyAsString());
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            if (showDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
-            }
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
-            return builder;
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(termBytes, ((Bucket) obj).termBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), termBytes);
         }
     }
 
@@ -132,18 +135,6 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     protected StringTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
         return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
-    }
-
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
-        builder.startArray(CommonFields.BUCKETS);
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
     }
 
     @Override

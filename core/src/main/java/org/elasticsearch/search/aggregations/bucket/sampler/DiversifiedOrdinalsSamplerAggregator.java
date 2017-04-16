@@ -29,7 +29,6 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -44,7 +43,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     private ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
     private int maxDocsPerValue;
 
-    public DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
+    DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
             SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, int maxDocsPerValue) throws IOException {
         super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);

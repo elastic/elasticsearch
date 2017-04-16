@@ -165,7 +165,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .startObject("field3").field("type", "text").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -255,7 +255,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .startObject("num1").field("type", "double").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
@@ -560,7 +560,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("byte_field", (byte) 1)
@@ -776,7 +776,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         ReadableDateTime date = new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC);
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()

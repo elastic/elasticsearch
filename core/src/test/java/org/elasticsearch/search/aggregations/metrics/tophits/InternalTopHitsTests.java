@@ -122,9 +122,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         case SCORE:
             return randomFloat();
         case STRING:
-            return new BytesRef(randomAsciiOfLength(5));
+            return new BytesRef(randomAlphaOfLength(5));
         case STRING_VAL:
-            return new BytesRef(randomAsciiOfLength(5));
+            return new BytesRef(randomAlphaOfLength(5));
         default:
             throw new UnsupportedOperationException("Unkown SortField.Type: " + type);
         }
@@ -155,7 +155,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
         }
-        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore);
+        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
+        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore == Float.MIN_VALUE ? Float.NaN : maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 
@@ -168,7 +169,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SortField[] sortFields = new SortField[between(1, 5)];
         Set<String> usedSortFields = new HashSet<>();
         for (int i = 0; i < sortFields.length; i++) {
-            String sortField = randomValueOtherThanMany(usedSortFields::contains, () -> randomAsciiOfLength(5));
+            String sortField = randomValueOtherThanMany(usedSortFields::contains, () -> randomAlphaOfLength(5));
             usedSortFields.add(sortField);
             SortField.Type type = randomValueOtherThanMany(t -> t == SortField.Type.CUSTOM || t == SortField.Type.REWRITEABLE,
                     () -> randomFrom(SortField.Type.values()));

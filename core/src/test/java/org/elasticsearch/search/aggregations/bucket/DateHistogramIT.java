@@ -23,12 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
@@ -376,10 +378,10 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        assertThat(histo.getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
+        assertThat(((InternalAggregation)histo).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)histo).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histo).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)histo).getProperty("sum.value");
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);
@@ -1051,7 +1053,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy").endObject().endObject().endObject().endObject().string();
-        prepareCreate("idx2").addMapping("type", mappingJson).execute().actionGet();
+        prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).execute().actionGet();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
             reqs[i] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());

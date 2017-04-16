@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.SortBy;
@@ -40,7 +41,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    private static final String NAME = "term";
+    public static final String NAME = "term";
 
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
@@ -131,6 +132,13 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         sort.writeTo(out);
     }
 
+    public static TermSuggestion fromXContent(XContentParser parser, String name) throws IOException {
+        // the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
+        TermSuggestion suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
+        parseEntries(parser, suggestion, TermSuggestion.Entry::fromXContent);
+        return suggestion;
+    }
+
     @Override
     protected Entry newEntry() {
         return new Entry();
@@ -139,10 +147,9 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     /**
      * Represents a part from the suggest text with suggested options.
      */
-    public static class Entry extends
-            org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
+    public static class Entry extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
-        Entry(Text text, int offset, int length) {
+        public Entry(Text text, int offset, int length) {
             super(text, offset, length);
         }
 
@@ -152,6 +159,17 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         @Override
         protected Option newOption() {
             return new Option();
+        }
+
+        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
+
+        static {
+            declareCommonFields(PARSER);
+            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+        }
+
+        public static Entry fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         /**
@@ -223,7 +241,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 PARSER.declareFloat(constructorArg(), Suggestion.Entry.Option.SCORE);
             }
 
-            public static final Option fromXContent(XContentParser parser) {
+            public static Option fromXContent(XContentParser parser) {
                 return PARSER.apply(parser, null);
             }
         }

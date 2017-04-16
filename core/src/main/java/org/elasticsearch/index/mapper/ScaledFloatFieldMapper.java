@@ -28,8 +28,10 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -251,7 +253,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue * scalingFactor));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -265,11 +267,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (stats == null) {
                 return null;
             }
-            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
+            if (stats.hasMinMax()) {
+                return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
                     stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
                     stats.isSearchable(), stats.isAggregatable(),
-                    stats.getMinValue() == null ? null : stats.getMinValue() / scalingFactor,
-                    stats.getMaxValue() == null ? null : stats.getMaxValue() / scalingFactor);
+                    stats.getMinValue() / scalingFactor,
+                    stats.getMaxValue() / scalingFactor);
+            }
+            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
+                stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
+                stats.isSearchable(), stats.isAggregatable());
         }
 
         @Override
@@ -487,9 +494,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue,
-                MultiValueMode sortMode, Nested nested) {
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+            final XFieldComparatorSource source = new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
         }
 
         @Override

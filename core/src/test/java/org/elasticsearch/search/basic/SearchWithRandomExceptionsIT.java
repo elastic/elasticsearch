@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -109,7 +110,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping));
+                .addMapping("type", mapping, XContentType.JSON));
         ensureSearchable();
         final int numDocs = between(10, 100);
         int numCreated = 0;

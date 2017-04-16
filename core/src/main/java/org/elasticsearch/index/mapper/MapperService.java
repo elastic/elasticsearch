@@ -21,16 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -100,8 +97,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
-    @Deprecated
-    public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -115,7 +110,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
     private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
+    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
     private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
@@ -399,6 +394,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
+                    // first time through the loops
                     fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
                 }
                 fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
@@ -419,6 +415,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             if (oldMapper == null && newMapper.parentFieldMapper().active()) {
                 if (parentTypes == this.parentTypes) {
+                    // first time through the loop
                     parentTypes = new HashSet<>(this.parentTypes);
                 }
                 parentTypes.add(mapper.parentFieldMapper().type());
@@ -461,8 +458,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // make structures immutable
         mappers = Collections.unmodifiableMap(mappers);
         results = Collections.unmodifiableMap(results);
-        parentTypes = Collections.unmodifiableSet(parentTypes);
-        fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        // only need to immutably rewrap these if the previous reference was changed.
+        // if not then they are already implicitly immutable.
+        if (fullPathObjectMappers != this.fullPathObjectMappers) {
+            fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+        }
+        if (parentTypes != this.parentTypes) {
+            parentTypes = Collections.unmodifiableSet(parentTypes);
+        }
 
         // commit the change
         if (defaultMappingSource != null) {
@@ -494,12 +498,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        boolean legacyIndex = getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1);
-        if (legacyIndex) {
-            return mapper.type().startsWith(".") && !PERCOLATOR_LEGACY_TYPE_NAME.equals(mapper.type());
-        } else {
-            return mapper.type().startsWith(".");
-        }
+        return mapper.type().startsWith(".");
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

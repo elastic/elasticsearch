@@ -75,7 +75,6 @@ import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
@@ -248,7 +247,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request, SearchTask task) throws IOException {
+    public SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws IOException {
         final SearchContext context = createAndPutContext(request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
@@ -260,7 +259,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             loadOrExecuteQueryPhase(request, context);
 
-            if (context.queryResult().hasHits() == false && context.scrollContext() == null) {
+            if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
                 freeContext(context.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -342,7 +341,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
-            if (context.queryResult().hasHits() == false && context.scrollContext() == null) {
+            if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
                 // no hits, we can release the context since there will be no fetch phase
                 freeContext(context.id());
             } else {
@@ -561,7 +560,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void contextProcessedSuccessfully(SearchContext context) {
-        context.accessed(threadPool.estimatedTimeInMillis());
+        context.accessed(threadPool.relativeTimeInMillis());
     }
 
     private void cleanContext(SearchContext context) {
@@ -794,7 +793,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     class Reaper implements Runnable {
         @Override
         public void run() {
-            final long time = threadPool.estimatedTimeInMillis();
+            final long time = threadPool.relativeTimeInMillis();
             for (SearchContext context : activeContexts.values()) {
                 // Use the same value for both checks since lastAccessTime can
                 // be modified by another thread between checks!

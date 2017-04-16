@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +96,12 @@ public class Setting<T> extends ToXContentToBytes {
         Dynamic,
 
         /**
+         * mark this setting as final, not updateable even when the context is not dynamic
+         * ie. Setting this property on an index scoped setting will fail update when the index is closed
+         */
+        Final,
+
+        /**
          * mark this setting as deprecated
          */
         Deprecated,
@@ -136,6 +141,9 @@ public class Setting<T> extends ToXContentToBytes {
             this.properties = EMPTY_PROPERTIES;
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
+            if (isDynamic() && isFinal()) {
+                throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
         }
     }
 
@@ -217,6 +225,13 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public final boolean isDynamic() {
         return properties.contains(Property.Dynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is final, otherwise <code>false</code>
+     */
+    public final boolean isFinal() {
+        return properties.contains(Property.Final);
     }
 
     /**
@@ -345,8 +360,8 @@ public class Setting<T> extends ToXContentToBytes {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
-            deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
-                "See the breaking changes lists in the documentation for details", getKey());
+            deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.", getKey());
         }
     }
 
@@ -377,11 +392,11 @@ public class Setting<T> extends ToXContentToBytes {
         if (exists(primary)) {
             return get(primary);
         }
-        if (fallbackSetting == null) {
-            return get(secondary);
-        }
         if (exists(secondary)) {
             return get(secondary);
+        }
+        if (fallbackSetting == null) {
+            return get(primary);
         }
         if (fallbackSetting.exists(primary)) {
             return fallbackSetting.get(primary);

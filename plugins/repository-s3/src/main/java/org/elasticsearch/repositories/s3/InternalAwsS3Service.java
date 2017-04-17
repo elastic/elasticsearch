@@ -75,7 +75,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
 
-        String endpoint = findEndpoint(logger, clientSettings, repositorySettings);
         Integer maxRetries = getValue(repositorySettings, settings,
             S3Repository.Repository.MAX_RETRIES_SETTING,
             S3Repository.Repositories.MAX_RETRIES_SETTING);
@@ -94,10 +93,10 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
         logger.debug("creating S3 client with client_name [{}], endpoint [{}], max_retries [{}], " +
                 "use_throttle_retries [{}], path_style_access [{}]",
-            clientName, endpoint, maxRetries, useThrottleRetries, pathStyleAccess);
+            clientName, clientSettings.endpoint, maxRetries, useThrottleRetries, pathStyleAccess);
 
-        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
-        ClientConfiguration configuration = buildConfiguration(logger, clientSettings, repositorySettings, maxRetries, endpoint, useThrottleRetries);
+        AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+        ClientConfiguration configuration = buildConfiguration(clientSettings, maxRetries, useThrottleRetries);
 
         client = new AmazonS3Client(credentials, configuration);
 
@@ -105,8 +104,8 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
         }
 
-        if (Strings.hasText(endpoint)) {
-            client.setEndpoint(endpoint);
+        if (Strings.hasText(clientSettings.endpoint)) {
+            client.setEndpoint(clientSettings.endpoint);
         }
 
         clientsCache.put(clientName, client);
@@ -114,14 +113,12 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(Logger logger, S3ClientSettings clientSettings, Settings repositorySettings,
-                                                  Integer maxRetries, String endpoint, boolean useThrottleRetries) {
+    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings, Integer maxRetries, boolean useThrottleRetries) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
-        Protocol protocol = getRepoValue(repositorySettings, S3Repository.Repository.PROTOCOL_SETTING, clientSettings.protocol);
-        clientConfiguration.setProtocol(protocol);
+        clientConfiguration.setProtocol(clientSettings.protocol);
 
         if (Strings.hasText(clientSettings.proxyHost)) {
             // TODO: remove this leniency, these settings should exist together and be validated
@@ -142,50 +139,14 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                   S3ClientSettings clientSettings, Settings repositorySettings) {
-        BasicAWSCredentials credentials = clientSettings.credentials;
-        if (S3Repository.Repository.KEY_SETTING.exists(repositorySettings)) {
-            if (S3Repository.Repository.SECRET_SETTING.exists(repositorySettings) == false) {
-                throw new IllegalArgumentException("Repository setting [" + S3Repository.Repository.KEY_SETTING +
-                    " must be accompanied by setting [" + S3Repository.Repository.SECRET_SETTING + "]");
-            }
-            // backcompat for reading keys out of repository settings
-            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead " +
-                "store these in named clients and the elasticsearch keystore for secure settings.");
-            try (SecureString key = S3Repository.Repository.KEY_SETTING.get(repositorySettings);
-                 SecureString secret = S3Repository.Repository.SECRET_SETTING.get(repositorySettings)) {
-                credentials = new BasicAWSCredentials(key.toString(), secret.toString());
-            }
-        } else if (S3Repository.Repository.SECRET_SETTING.exists(repositorySettings)) {
-            throw new IllegalArgumentException("Repository setting [" + S3Repository.Repository.SECRET_SETTING +
-                " must be accompanied by setting [" + S3Repository.Repository.KEY_SETTING + "]");
-        }
-        if (credentials == null) {
+    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
+        if (clientSettings.credentials == null) {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();
         } else {
             logger.debug("Using basic key/secret credentials");
-            return new StaticCredentialsProvider(credentials);
+            return new StaticCredentialsProvider(clientSettings.credentials);
         }
-    }
-
-    // pkg private for tests
-    /** Returns the endpoint the client should use, based on the available endpoint settings found. */
-    static String findEndpoint(Logger logger, S3ClientSettings clientSettings, Settings repositorySettings) {
-        String endpoint = getRepoValue(repositorySettings, S3Repository.Repository.ENDPOINT_SETTING, clientSettings.endpoint);
-        if (Strings.hasText(endpoint)) {
-            logger.debug("using repository level endpoint [{}]", endpoint);
-        }
-        return endpoint;
-    }
-
-    /** Returns the value for a given setting from the repository, or returns the fallback value. */
-    private static <T> T getRepoValue(Settings repositorySettings, Setting<T> repositorySetting, T fallback) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting.get(repositorySettings);
-        }
-        return fallback;
     }
 
     @Override

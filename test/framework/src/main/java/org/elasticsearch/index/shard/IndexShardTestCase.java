@@ -386,7 +386,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary) throws IOException {
         boolean opsRecoverySuccessful = false;
-        markReplicaAsRecovering(replica, primary);
+        markReplicaAsRecovering(replica, primary.routingEntry());
         if (PeerRecoveryTargetService.shouldTryOpsRecovery(replica)) {
             try {
                 recoverReplica(replica, primary,
@@ -427,7 +427,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                         final ReplicaRecoveryPreparer prepareShardForRecovery,
                                         final boolean markAsRecovering) throws IOException {
         if (markAsRecovering) {
-            markReplicaAsRecovering(replica, primary);
+            markReplicaAsRecovering(replica, primary.routingEntry());
         }
         assertNotNull(replica.recoveryState());
         assertEquals("shard state is [" + replica.state() + "] but should be recovering", replica.state(), IndexShardState.RECOVERING);
@@ -456,8 +456,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
     }
 
-    private void markReplicaAsRecovering(IndexShard replica, IndexShard primary) {
-        final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+    protected void markReplicaAsRecovering(IndexShard replica, ShardRouting primaryRouting) {
+        final DiscoveryNode pNode = getFakeDiscoNode(primaryRouting.currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         replica.markAsRecovering("peer_ops", new RecoveryState(replica.shardRouting, rNode, pNode));
     }

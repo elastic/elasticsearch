@@ -22,11 +22,12 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Set;
@@ -35,15 +36,16 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class RecoveryStatusTests extends ESSingleNodeTestCase {
+public class RecoveryStatusTests extends IndexShardTestCase {
     private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
 
     public void testRenameTempFiles() throws IOException {
-        IndexService service = createIndex("foo");
-
-        IndexShard indexShard = service.getShardOrNull(0);
+        IndexShard indexShard = newShard(false);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        markReplicaAsRecovering(indexShard,
+            TestShardRouting.newShardRouting(indexShard.shardId(), "p_node", true, ShardRoutingState.STARTED));
+        indexShard.prepareForIndexRecovery();
         FileAndOpsRecoveryTarget target = new FileAndOpsRecoveryTarget(indexShard, node, new PeerRecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
@@ -82,6 +84,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         assertNotNull(expectedFile);
         indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
         target.renameAllTempFiles();
+        target.store().close();
         strings = Sets.newHashSet(target.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));
         assertFalse(strings.toString(), strings.contains(expectedFile));

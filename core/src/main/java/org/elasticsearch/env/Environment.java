@@ -183,7 +183,9 @@ public class Environment {
 
         Settings.Builder finalSettings = Settings.builder().put(settings);
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
-        finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+        if (PATH_DATA_SETTING.exists(settings)) {
+            finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+        }
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile);
         this.settings = finalSettings.build();
 

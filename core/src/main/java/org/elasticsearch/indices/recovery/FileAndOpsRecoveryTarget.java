@@ -74,18 +74,27 @@ public class FileAndOpsRecoveryTarget extends OpsRecoveryTarget implements FileA
     public FileAndOpsRecoveryTarget(final IndexShard indexShard,
                                     final DiscoveryNode sourceNode,
                                     final PeerRecoveryTargetService.RecoveryListener listener) {
+        this(indexShard, sourceNode, listener, true);
+    }
+
+    private FileAndOpsRecoveryTarget(final IndexShard indexShard,
+                                    final DiscoveryNode sourceNode,
+                                    final PeerRecoveryTargetService.RecoveryListener listener, boolean assertState) {
         super(indexShard, sourceNode, listener);
         this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
-        assert indexShard.recoveryState().getStage() == RecoveryState.Stage.INDEX : indexShard.recoveryState().getStage();
+        if (assertState) {
+            assert indexShard.recoveryState().getStage() == RecoveryState.Stage.INDEX : indexShard.recoveryState().getStage();
+        }
     }
-
 
     @Override
     public FileAndOpsRecoveryTarget retryCopy() {
-        return new FileAndOpsRecoveryTarget(indexShard(), sourceNode(), listener());
+        // retry copy is called before the old recovery is reset, meaning that shard can be in many states,
+        // hence we can't assert on it
+        return new FileAndOpsRecoveryTarget(indexShard(), sourceNode(), listener(), false);
     }
 
     public Store store() {

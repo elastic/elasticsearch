@@ -54,9 +54,7 @@ load $BATS_UTILS/utils.bash
 
 @test "[BAD data.path] check for bad dir after starting from package" {
     skip_not_dpkg_or_rpm
-    # assert_file_not_exist /var/lib/elasticsearch/nodes
-    # TODO flip these
-    assert_file_exist /var/lib/elasticsearch/nodes
+    assert_file_not_exist /var/lib/elasticsearch/nodes
 }
 
 @test "[BAD data.path] install tar" {
@@ -75,7 +73,5 @@ load $BATS_UTILS/utils.bash
 }
 
 @test "[BAD data.path] check for bad dir after starting from tar" {
-    # assert_file_not_exist "/tmp/elasticsearch/data/nodes"
-    # TODO flip these
-    assert_file_exist "/tmp/elasticsearch/data/nodes"
+    assert_file_not_exist "/tmp/elasticsearch/data/nodes"
 }

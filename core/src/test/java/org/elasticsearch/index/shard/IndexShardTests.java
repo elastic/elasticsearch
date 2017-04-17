@@ -1227,32 +1227,33 @@ public class IndexShardTests extends IndexShardTestCase {
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoveryShardFromStore(primary);
-
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        recoverReplica(replica, primary, (shard, sourceNode) -> {
+        IndexShard replica1 = newShard(primary.shardId(), false, "n2", metaData, null);
+        recoverReplica(replica1, primary, (shard, sourceNode) -> {
             shard.prepareForIndexRecovery();
-            if (randomBoolean()) {
-                return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
-                    @Override
-                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                        super.indexTranslogOperations(operations, totalTranslogOps);
-                        assertFalse(replica.getTranslog().syncNeeded());
-                    }
-                };
-            } else {
-                shard.skipTranslogRecovery(-1);
-                return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
-                    @Override
-                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                        super.indexTranslogOperations(operations, totalTranslogOps);
-                        assertFalse(replica.getTranslog().syncNeeded());
-                    }
-                };
-            }
+            return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                    super.indexTranslogOperations(operations, totalTranslogOps);
+                    assertFalse(replica1.getTranslog().syncNeeded());
+                }
+            };
+        }, true);
+        indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
+        IndexShard replica2 = reinitShard(replica1);
+        recoverReplica(replica2, primary, (shard, sourceNode) -> {
+            shard.prepareForIndexRecovery();
+            shard.skipTranslogRecovery(-1);
+            return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                    super.indexTranslogOperations(operations, totalTranslogOps);
+                    assertFalse(replica2.getTranslog().syncNeeded());
+                }
+            };
         }, true);
 
-        closeShards(primary, replica);
+        closeShards(primary, replica2);
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {

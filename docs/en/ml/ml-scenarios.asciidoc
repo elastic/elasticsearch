@@ -1,6 +1,9 @@
 [[ml-scenarios]]
 == Use Cases
 
+TBD
+
+////
 Enterprises, government organizations and cloud based service providers daily
 process volumes of machine data so massive as to make real-time human
 analysis impossible. Changing behaviors hidden in this data provide the
@@ -98,3 +101,4 @@ would be very different than the thresholds that would be effective during the d
 
 By using {ml}, time-related trends are automatically identified and smoothed,
 leaving the residual to be analyzed for anomalies.
+////

@@ -1,11 +1,270 @@
 [[ml-getting-started]]
 == Getting Started
 
+TBD.
+////
+{xpack} {ml} features automatically detect:
+* Anomalies in single or multiple time series
+* Outliers in a population (also known as _entity profiling_)
+* Rare events (also known as _log categorization_)
+
+This tutorial is focuses on an anomaly detection scenario in single time series.
+////
+
+In this tutorial, you will explore the {xpack} {ml} features by using sample
+data. You will create two simple jobs and use the results to identify possible
+anomalies in the data. You can also optionally create an alert. At the end of
+this tutorial, you should have a good idea of what {ml} is and will hopefully
+be inspired to use it to detect anomalies in your own data.
+
+[float]
+[[ml-gs-sysoverview]]
+=== System Overview
+
+TBD.
+
+To follow the steps in this tutorial, you will need the following
+components of the Elastic Stack:
+
+* Elasticsearch {version}, which stores the data and the analysis results
+* {xpack} {version}, which provides the {ml} features
+* Kibana {version}, which provides a helpful user interface for creating
+and viewing jobs
+
+See the https://www.elastic.co/support/matrix[Elastic Support Matrix] for
+information about supported operating systems and product compatibility.
+
+See {stack-ref}/installing-elastic-stack.html[Installing the Elastic Stack] for
+information about installing each of the components.
+
+NOTE: To get started, you can install Elasticsearch and Kibana on a
+single VM or even on your laptop. As you add more data and your traffic grows,
+you'll want to replace the single Elasticsearch instance with a cluster.
+
+When you install {xpack} into Elasticsearch and Kibana, the {ml} features are
+enabled by default. If you have multiple nodes in your cluster, you can
+optionally dedicate nodes to specific purposes. If you want to control which
+nodes are _machine learning nodes_ or limit which nodes run resource-intensive
+activity related to jobs, see <<ml-settings>>.
+
+NOTE: This tutorial uses Kibana to create jobs and view results, but you can
+alternatively use APIs to accomplish most tasks.
+For API reference information, see <<ml-apis>>.
+
+[[ml-gs-data]]
+=== Identifying Data for Analysis
+
+TBD.
+
+For the purposes of this tutorial, we provide sample data that you can play with.
+When you consider your own data, however, it's important to take a moment
+and consider where the {xpack} {ml} features will be most impactful.
+
+The first consideration is that it must be time series data.
+Generally, it's best to use data that is in chronological order. When the data
+feed occurs in ascending time order, the statistical models and calculations are
+very efficient and occur in real-time.
+//TBD: Talk about handling out of sequence data?
+
+The second consideration, especially when you are first learning to use {ml},
+is the importance of the data and how familiar you are with it. Ideally, it is
+information that contains key performance indicators (KPIs) for the health or
+success of your business or system. It is information for which you want alarms
+to ring when anomalous behavior occurs. You might even have Kibana dashboards
+that you're already using to watch this data. The better you know the data,
+the quicker you will be able to create jobs that generate useful insights from
+{ml}.
+
+//TBD: Talk about layering additional jobs?
+////
+ You can then create additional jobs to troubleshoot the situation and put it
+into context of what was going on in the system at the time.
+The troubleshooting job would not create alarms of its own, but rather would
+help explain the overall situation.  It's usually a different job because it's
+operating on different indices. Layering jobs is an important concept.
+////
+////
+* Working with out of sequence data:
+** In the typical case where data arrives in ascending time order,
+each new record pushes the time forward. When a record is received that belongs
+to a new bucket, the current bucket is considered to be completed.
+At this point, the model is updated and final results are calculated for the
+completed bucket and the new bucket is created.
+** Expecting data to be in time sequence means that modeling and results
+calculations can be performed very efficiently and in real-time.
+As a direct consequence of this approach, out-of-sequence records are ignored.
+** When data is expected to arrive out-of-sequence, a latency window can be
+specified in the job configuration (does not apply to data feeds?). (If we're
+using a data feed in the sample, perhaps this discussion can be deferred for
+future more-advanced scenario.)
+//See http://www.prelert.com/docs/behavioral_analytics/latest/concepts/outofsequence.html
+////
+
+The final consideration is where the data is located. If the data that you want
+to analyze is stored in Elasticsearch, you can define a _data feed_ that
+provides data to the job in real time. By having both the input data and the
+analytical results in Elasticsearch, you get performance benefits? (TBD)
+The alternative to data feeds is to upload batches of data to the job by
+using the <<ml-post-data,post data API>>.
+//TBD: The data must be provided in JSON format?
+
+[float]
+[[ml-gs-sampledata]]
+==== Obtaining a sample dataset
+
+TBD.
+
+* Provide instructions for downloading the sample data from https://github.com/elastic/examples
+* Provide overview/context of the sample data
+
+[[ml-gs-jobs]]
+=== Working with Jobs
+
+TBD.
+
+Machine learning jobs contain the configuration information and metadata
+necessary to perform an analytical task. They also contain the results of the
+analytical task. Each job ID must be unique in your cluster.
+
+To work with jobs in Kibana:
+
+. Open Kibana in your web browser and log in. If you are running Kibana
+locally, go to `http://localhost:5601/`. To use the {ml} features,
+you must log in as a user who has the `kibana_user`
+and `monitor_ml` roles (TBD).
+
+. Click **Machine Learning** in the side navigation.
+
+//image::ml.jpg["Job Management"]
+
+You can choose to create single-metric, multi-metric, or advanced jobs in Kibana.
+
+[float]
+[[ml-gs-job1-create]]
+==== Creating a Single Metric Job
+
+TBD.
+
+* Walk through creation of a simple single metric job.
+* Provide overview of:
+** aggregations
+** detectors (define which fields to analyze)
+*** The detectors define what type of analysis needs to be done
+(e.g. max, average, rare) and upon which fields (e.g. IP address, Host name, Num bytes).
+** bucket spans (define time intervals to analyze across)
+*** Take into account the granularity at which you want to analyze,
+the frequency of the input data, and the frequency at which alerting is required.
+*** When we analyze data, we use the concept of a bucket to divide up a continuous
+stream of data into batches for processing. For example, if you were monitoring the
+average response time of a system and received a data point every 10 minutes,
+using a bucket span of 1 hour means that at the end of each hour we would calculate
+the average (mean) value of the data for the last hour and compute the
+anomalousness of that average value compared to previous hours.
+*** The bucket span has two purposes: it dictates over what time span to look for
+anomalous features in data, and also determines how quickly anomalies can be detected.
+Choosing a shorter bucket span allows anomalies to be detected more quickly but
+at the risk of being too sensitive to natural variations or noise in the input data.
+Choosing too long a bucket span however can mean that interesting anomalies are averaged away.
+** analysis functions
+*** Some of the analytical functions look for single anomalous data points, e.g. max,
+which identifies the maximum value seen within a bucket.
+Others perform some aggregation over the length of the bucket, e.g. mean,
+which calculates the mean of all the data points seen within the bucket,
+or count, which calculates the total number of data points within the bucket.
+There is the possibility that the aggregation might smooth out some anomalies
+based on when the bucket starts in time.
+**** To avoid this, you can use overlapping buckets (how/where?).
+We analyze the data points in two buckets simultaneously, one starting half a bucket
+span later than the other. Overlapping buckets are only beneficial for
+aggregating functions, and should not be used for non-aggregating functions.
+
+[float]
+[[ml-gs-job1-analyze]]
+===== Viewing Single Metric Job Results
+
+TBD.
+
+* Walk through exploration of job results.
+** Based on this job configuration we analyze the input stream of data.
+We model the behavior of the data, perform analysis based upon the defined detectors
+and for the time interval. When we see an event occurring outside of our model,
+we identify this as an anomaly. For each anomaly detected, we store the
+result records of our analysis, which includes the probability of
+detecting that anomaly.
+** With high volumes of real-life data, many anomalies may be found.
+These vary in probability from very likely to highly unlikely i.e. from not
+particularly anomalous to highly anomalous. There can be none, one or two or
+tens, sometimes hundreds of anomalies found within each bucket.
+There can be many thousands found per job.
+In order to provide a sensible view of the results, we calculate an anomaly score
+for each time interval. An interval with a high anomaly score is significant
+and requires investigation.
+** The anomaly score is a sophisticated aggregation of the anomaly records.
+The calculation is optimized for high throughput, gracefully ages historical data,
+and reduces the signal to noise levels.
+It adjusts for variations in event rate, takes into account the frequency
+and the level of anomalous activity and is adjusted relative to past anomalous behavior.
+In addition, it is boosted if anomalous activity occurs for related entities,
+for example if disk IO and CPU are both behaving unusually for a given host.
+** Once an anomalous time interval has been identified, it can be expanded to
+view the detailed anomaly records which are the significant causal factors.
+* Provide brief overview of statistical models and/or link to more info.
+* Possibly discuss effect of altering bucket span.
+
+* Provide general overview of management of jobs (when/why to start or
+  stop them).
+
+[float]
+[[ml-gs-job2-create]]
+==== Creating a Multi-Metric Job
+
+TBD.
+
+* Walk through creation of a simple multi-metric job.
+* Provide overview of:
+** partition fields,
+** influencers
+*** An influencer is someone or something that has influenced or contributed to the anomaly.
+Results are aggregated for each influencer, for each bucket, across all detectors.
+In this way, a combined anomaly score is calculated for each influencer,
+which determines its relative anomalousness. You can specify one or many influencers.
+Picking an influencer is strongly recommended for the following reasons:
+**** It allow you to blame someone/something for the anomaly
+**** It simplifies and aggregates results
+*** The best influencer is the person or thing that you want to blame for the anomaly.
+In many cases, users or client IP make excellent influencers.
+*** By/over/partition fields are usually good candidates for influencers.
+*** Influencers can be any field in the source data; they do not need to be fields
+specified in detectors, although they often are.
+** by/over fields,
+*** detectors
+**** You can have more than one detector in a job which is more efficient than
+running multiple jobs against the same data stream.
+
+//http://www.prelert.com/docs/behavioral_analytics/latest/concepts/multivariate.html
+
+[float]
+[[ml-gs-job2-analyze]]
+===== Viewing Multi-Metric Job Results
+
+TBD.
+
+* Walk through exploration of job results.
+* Describe how influencer detection accelerates root cause identification.
+
+[[ml-gs-alerts]]
+=== Creating Alerts for Job Results
+
+TBD.
+
+* Walk through creation of simple alert for anomalous data?
+
+////
 To start exploring anomalies in your data:
 
 . Open Kibana in your web browser and log in. If you are running Kibana
 locally, go to `http://localhost:5601/`.
 
 . Click **ML** in the side navigation ...
-
+////
 //image::graph-open.jpg["Accessing Graph"]

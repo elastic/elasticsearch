@@ -51,6 +51,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -186,7 +187,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
-                adminClient().performRequest("DELETE", "*");
+                adminClient().performRequest("DELETE", "*", new HashMap<String, String>() {{
+                    put("allow_no_indices","true");
+                }});
             } catch (ResponseException e) {
                 // 404 here just means we had no indexes
                 if (e.getResponse().getStatusLine().getStatusCode() != 404) {

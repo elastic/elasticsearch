@@ -79,7 +79,6 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
-        assert indexShard.commitStats() == null : "engine should be closed";
         assert indexShard.recoveryState().getStage() == RecoveryState.Stage.INDEX : indexShard.recoveryState().getStage();
     }
 
@@ -102,6 +101,7 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
     @Override
     protected void onResetRecovery() throws IOException {
         indexShard.performRecoveryRestart();
+        indexShard.prepareForIndexRecovery();
     }
 
     @Override

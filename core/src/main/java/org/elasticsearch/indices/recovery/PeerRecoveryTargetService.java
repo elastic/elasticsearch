@@ -140,33 +140,37 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             startLegacyRecovery(indexShard, sourceNode, listener);
             return;
         }
-        // nocommit check cancellation race
-        final RecoveryListener originalListener = listener;
+        final ShardId shardId = indexShard.shardId();
+        // the following code chains the various recovery types that are needed to recover the shard.
+        // Typically this would be either ops based with a fall back to a file based recovery. In the
+        // case of primary relocation they are followed by a primary hand off recovery.
+        // nocommit check cancellation races
+        final RecoveryListener markAsDoneListener =
+            prefixWithRunnable(() -> indexShard.postRecovery("peer recovery done"), "post_recovery", shardId, listener);
         final RecoveryListener primaryHandoffIfNeeded;
         if (indexShard.routingEntry().primary()) {
             assert indexShard.routingEntry().isRelocationTarget() : indexShard.routingEntry();
-            primaryHandoffIfNeeded = wrapWithRecoveryStep(indexShard, sourceNode, originalListener,
+            primaryHandoffIfNeeded = prefixWithRecoveryStep(indexShard, sourceNode, markAsDoneListener,
                 recoverySettings.activityTimeout(), onGoingRecoveries::startPrimaryHandoff);
         } else {
-            primaryHandoffIfNeeded = originalListener;
+            primaryHandoffIfNeeded = markAsDoneListener;
         }
 
         final RecoveryListener fullRecovery;
-        final ShardId shardId = indexShard.shardId();
         {
             RecoveryListener nextListener = primaryHandoffIfNeeded;
 
-            nextListener = wrapWithRecoveryStep(indexShard, sourceNode, nextListener,
+            nextListener = prefixWithRecoveryStep(indexShard, sourceNode, nextListener,
                 recoverySettings.activityTimeout(), onGoingRecoveries::startFileRecovery);
 
-            nextListener = wrapWithRunnable(indexShard::prepareForIndexRecovery,
+            nextListener = prefixWithRunnable(indexShard::prepareForIndexRecovery,
                 "prepare for index recovery", shardId, nextListener);
 
             fullRecovery = nextListener;
         }
         final RecoveryListener startListener;
         if (shouldTryOpsRecovery(indexShard)) {
-            RecoveryListener seqNoListener = wrapWithRecoveryStep(indexShard, sourceNode,
+            RecoveryListener seqNoListener = prefixWithRecoveryStep(indexShard, sourceNode,
                 new RecoveryListener() {
                     @Override
                     public void onRecoveryDone(RecoveryState state) {
@@ -183,15 +187,15 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                             fullRecovery.onRecoveryDone(state);
                         } catch (Exception e1) {
                             e1.addSuppressed(e);
-                            originalListener.onRecoveryFailure(state,
+                            markAsDoneListener.onRecoveryFailure(state,
                                 new RecoveryFailedException(state, "failed to fall back to full file recovery", e1),
                                 true);
                         }
                     }
                 }, recoverySettings.activityTimeout(), onGoingRecoveries::startOpsRecovery);
-            startListener = wrapWithRunnable(() -> {
-                // nocommit: remove auto gen timestamp
+            startListener = prefixWithRunnable(() -> {
                 indexShard.prepareForIndexRecovery();
+                // nocommit: remove auto gen timestamp
                 indexShard.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
             }, "preparing for seq no recovery", shardId, seqNoListener);
         } else {
@@ -215,11 +219,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         void run() throws IOException;
     }
 
-    private RecoveryListener wrapWithRecoveryStep(final IndexShard shard,
-                                                  final DiscoveryNode sourceNode,
-                                                  final RecoveryListener listener,
-                                                  final TimeValue activityTimeOut,
-                                                  final RecoveryTargetSupplier targetSupplier) {
+    private RecoveryListener prefixWithRecoveryStep(final IndexShard shard,
+                                                    final DiscoveryNode sourceNode,
+                                                    final RecoveryListener listener,
+                                                    final TimeValue activityTimeOut,
+                                                    final RecoveryTargetSupplier targetSupplier) {
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
@@ -239,9 +243,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
     }
 
-    private RecoveryListener wrapWithRunnable(IORunnable runnable,
-                                              String name, ShardId shardId,
-                                              RecoveryListener listener) {
+    private RecoveryListener prefixWithRunnable(IORunnable runnable,
+                                                String name, ShardId shardId,
+                                                RecoveryListener listener) {
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {

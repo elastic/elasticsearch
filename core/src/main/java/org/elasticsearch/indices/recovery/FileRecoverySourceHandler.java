@@ -33,7 +33,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -55,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
 /**
@@ -73,8 +71,6 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
 
     // Request containing source and target node information
     private final StartFileRecoveryRequest request;
-    private final Supplier<Long> currentClusterStateVersionSupplier;
-    private final Function<String, Releasable> delayNewRecoveries;
     private final int chunkSizeInBytes;
     private final FileRecoveryTargetHandler recoveryTarget;
 
@@ -83,15 +79,11 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
     public FileRecoverySourceHandler(final IndexShard shard,
                                      final FileRecoveryTargetHandler recoveryTarget,
                                      final StartFileRecoveryRequest request,
-                                     final Supplier<Long> currentClusterStateVersionSupplier,
-                                     Function<String, Releasable> delayNewRecoveries,
                                      final int fileChunkSizeInBytes,
                                      final Settings nodeSettings) {
         super(shard, nodeSettings, request.targetNode());
         this.recoveryTarget = recoveryTarget;
         this.request = request;
-        this.currentClusterStateVersionSupplier = currentClusterStateVersionSupplier;
-        this.delayNewRecoveries = delayNewRecoveries;
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
     }

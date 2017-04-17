@@ -386,18 +386,17 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary) throws IOException {
         boolean opsRecoverySuccessful = false;
-        final boolean attemptOpsRecovery = PeerRecoveryTargetService.shouldTryOpsRecovery(replica);
-        if (attemptOpsRecovery) {
+        markReplicaAsRecovering(replica, primary);
+        if (PeerRecoveryTargetService.shouldTryOpsRecovery(replica)) {
             try {
                 recoverReplica(replica, primary,
-                    (r, sourceNode, targetNode) -> {
-                        r.markAsRecovering("peer_ops", new RecoveryState(r.shardRouting, targetNode, sourceNode));
+                    (r, sourceNode) -> {
                         r.prepareForIndexRecovery();
-                        // nocmmit: think of a cleaner way to deal with these instances of
+                        // nocommit: think of a cleaner way to deal with these instances of
                         replica.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
 
                         return new OpsRecoveryTarget(replica, sourceNode, recoveryListener);
-                    });
+                    }, false);
                 opsRecoverySuccessful = true;
             } catch (RecoveryFailedException e) {
                 logger.debug("ops based recovery failed, falling back to file based recovery", e);
@@ -406,13 +405,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         if (opsRecoverySuccessful == false) {
             recoverReplica(replica, primary,
-                (r, sourceNode, targetNode) -> {
-                    if (attemptOpsRecovery == false) {
-                        r.markAsRecovering("peer_files", new RecoveryState(r.shardRouting, targetNode, sourceNode));
-                    }
+                (r, sourceNode) -> {
                     r.prepareForIndexRecovery();
                     return new FileRecoveryTarget(r, sourceNode, recoveryListener);
-                });
+                }, false);
         }
     }
 
@@ -424,15 +420,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param replica          the recovery target shard
      * @param primary          the recovery source shard
      * @param prepareShardForRecovery  prepares the shard for the relevant recovery and returns an instance of {@link RecoveryTarget}
+     * @param markAsRecovering true if the replica should be marked as recovering as well.
      */
     protected final void recoverReplica(final IndexShard replica,
                                         final IndexShard primary,
-                                        final ReplicaRecoveryPreparer prepareShardForRecovery) throws IOException {
-        final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
-        final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
-        final RecoveryTarget recoveryTarget = prepareShardForRecovery.prepare(replica, pNode , rNode);
-        assertEquals("shard state is [" + replica.state() + "] but should be recovering", replica.state(), IndexShardState.RECOVERING);
+                                        final ReplicaRecoveryPreparer prepareShardForRecovery,
+                                        final boolean markAsRecovering) throws IOException {
+        if (markAsRecovering) {
+            markReplicaAsRecovering(replica, primary);
+        }
         assertNotNull(replica.recoveryState());
+        assertEquals("shard state is [" + replica.state() + "] but should be recovering", replica.state(), IndexShardState.RECOVERING);
+        final DiscoveryNode pNode = replica.recoveryState().getSourceNode();
+        final DiscoveryNode rNode = replica.recoveryState().getTargetNode();
+        final RecoveryTarget recoveryTarget = prepareShardForRecovery.prepare(replica, pNode);
         final StartRecoveryRequest request = recoveryTarget.createStartRecoveryRequest(logger, rNode);
         final Settings nodeSettings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build();
@@ -444,15 +445,21 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } else if (request instanceof StartFileRecoveryRequest) {
             sourceHandler = new FileRecoverySourceHandler(primary,
                 (FileRecoveryTargetHandler) recoveryTarget, (StartFileRecoveryRequest) request,
-                () -> 0L, r -> () -> {
-            }, (int) ByteSizeUnit.MB.toBytes(1), nodeSettings);
+                (int) ByteSizeUnit.MB.toBytes(1), nodeSettings);
         } else {
             throw new UnsupportedOperationException("recovery type [" +
                 recoveryTarget.getClass().getName() + "] is not yet supported");
         }
         sourceHandler.recoverToTarget();
         recoveryTarget.markAsDone();
+        replica.postRecovery("peer recovery done");
         replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
+    }
+
+    private void markReplicaAsRecovering(IndexShard replica, IndexShard primary) {
+        final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        replica.markAsRecovering("peer_ops", new RecoveryState(replica.shardRouting, rNode, pNode));
     }
 
     protected interface ReplicaRecoveryPreparer {
@@ -464,10 +471,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
          *
          * @param replica    replica to be prepared
          * @param sourceNode {@link DiscoveryNode} of the primary
-         * @param targetNode {@link DiscoveryNode} of the replica
          * @return {@link RecoveryTarget} for this shard.
          */
-        RecoveryTarget prepare(IndexShard replica, DiscoveryNode sourceNode, DiscoveryNode targetNode) throws IOException;
+        RecoveryTarget prepare(IndexShard replica, DiscoveryNode sourceNode) throws IOException;
     }
 
     protected Set<Uid> getShardDocUIDs(final IndexShard shard) throws IOException {

@@ -141,11 +141,10 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             assertNotEquals(tempFileName, resetTempFileName);
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
             try (RecoveriesCollection.RecoveryRef newRecoveryRef = collection.getRecovery(resetRecoveryId)) {
-                shards.recoverReplica(shard, (sh, sn, tn) -> {
+                shards.recoverReplica(shard, (sh, sn) -> {
                     assertSame(sh, newRecoveryRef.target().indexShard());
-                    sh.prepareForIndexRecovery();
                     return newRecoveryRef.target();
-                });
+                }, false);
             }
             shards.assertAllEqual(numDocs);
             assertNull("recovery is done", collection.getRecovery(recoveryId));

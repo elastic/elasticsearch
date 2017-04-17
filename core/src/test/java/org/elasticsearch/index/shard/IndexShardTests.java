@@ -1230,8 +1230,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        recoverReplica(replica, primary, (shard, sourceNode, targetNode) -> {
-            shard.markAsRecovering("peer", new RecoveryState(shard.shardRouting, targetNode, sourceNode));
+        recoverReplica(replica, primary, (shard, sourceNode) -> {
             shard.prepareForIndexRecovery();
             if (randomBoolean()) {
                 return new FileRecoveryTarget(shard, sourceNode, recoveryListener) {
@@ -1251,7 +1250,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     }
                 };
             }
-        });
+        }, true);
 
         closeShards(primary, replica);
     }
@@ -1289,8 +1288,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, sourceNode, targetNode) -> {
-            shard.markAsRecovering("for testing", new RecoveryState(shard.shardRouting, targetNode, sourceNode));
+        recoverReplica(replica, primary, (shard, sourceNode) -> {
             shard.prepareForIndexRecovery();
             if (randomBoolean()) {
                 return new FileRecoveryTarget(shard, sourceNode, recoveryListener) {
@@ -1320,7 +1318,7 @@ public class IndexShardTests extends IndexShardTestCase {
                   }
               };
             }
-            });
+        }, true);
 
         closeShards(primary, replica);
     }

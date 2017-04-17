@@ -109,7 +109,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(createTempDir());
         final IndexShard shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
-        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(shard, null, request, () -> 0L, e -> () -> {},
+        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(shard, null, request,
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
@@ -232,7 +232,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         final IndexShard shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
-        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(shard, null, request, () -> 0L, e -> () -> {},
+        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(shard, null, request,
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
             protected void failEngine(IOException cause) {
@@ -301,7 +301,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         final IndexShard shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
-        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(shard, null, request, () -> 0L, e -> () -> {},
+        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(shard, null, request,
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
             protected void failEngine(IOException cause) {
@@ -374,8 +374,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             shard,
             mock(FileRecoveryTargetHandler.class),
             request,
-            () -> 0L,
-            e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(),
             Settings.EMPTY) {
 

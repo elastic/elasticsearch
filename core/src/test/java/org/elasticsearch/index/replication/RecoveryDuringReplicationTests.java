@@ -69,8 +69,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final CountDownLatch releaseRecovery = new CountDownLatch(1);
             final RecoveryState.Stage blockOnStage = randomFrom(BlockingTarget.SUPPORTED_STAGES);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica,
-                (indexShard, sourceNode, targetNode) -> {
-                indexShard.markAsRecovering("test", new RecoveryState(indexShard.routingEntry(), targetNode, sourceNode));
+                (indexShard, sourceNode) -> {
                 indexShard.prepareForIndexRecovery();
                 return new BlockingTarget(blockOnStage, recoveryBlocked, releaseRecovery, indexShard, sourceNode, recoveryListener, logger);
             });
@@ -291,8 +290,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             CountDownLatch recoveryStart = new CountDownLatch(1);
             AtomicBoolean indexedTranslogOps = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica,
-                (indexShard, sourceNode, targetNode) -> {
-                    indexShard.markAsRecovering("test", new RecoveryState(indexShard.routingEntry(), targetNode, sourceNode));
+                (indexShard, sourceNode) -> {
                     indexShard.prepareForIndexRecovery();
                     indexShard.skipTranslogRecovery(-1L);
                     recoveryStart.countDown();

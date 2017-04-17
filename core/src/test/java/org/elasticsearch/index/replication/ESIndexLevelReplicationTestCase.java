@@ -277,7 +277,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void recoverReplica(IndexShard replica, ReplicaRecoveryPreparer replicaRecoveryPreparer) throws IOException {
-            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, replicaRecoveryPreparer);
+            recoverReplica(replica, replicaRecoveryPreparer, true);
+        }
+        public void recoverReplica(IndexShard replica, ReplicaRecoveryPreparer replicaRecoveryPreparer, boolean markAsRecovering)
+            throws IOException {
+            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, replicaRecoveryPreparer, markAsRecovering);
             updateAllocationIDsOnPrimary();
         }
 

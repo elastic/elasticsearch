@@ -145,7 +145,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 }
 
 if (fixtureSupported) {
-  integTest.dependsOn hdfsFixture
+  integTestCluster.dependsOn hdfsFixture
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
 } else {
   logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")

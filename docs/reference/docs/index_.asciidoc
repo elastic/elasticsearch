@@ -31,7 +31,7 @@ The result of the above index operation is:
     "_id" : "1",
     "_version" : 1,
     "created" : true,
-    "result" : created
+    "result" : "created"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]

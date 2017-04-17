@@ -102,10 +102,9 @@ public class OpsRecoverySourceHandler extends RecoverySourceHandler {
      * local checkpoint on the target and the current maximum sequence number on the source.
      *
      * @param translogView a view of the translog on the source
-     * @return {@code true} if the source is ready for a sequence-number-based recovery
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    void checkTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView)
+    private void checkTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView)
         throws IOException {
         final long startingSeqNo = request.getStartingSeqNo();
         assert startingSeqNo >= 0;

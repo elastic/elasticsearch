@@ -1286,42 +1286,43 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryShardFromStore(primary);
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
+        IndexShard replica1 = newShard(primary.shardId(), false, "n2", metaData, null);
         // Shard is still inactive since we haven't started recovering yet
-        assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, sourceNode) -> {
+        assertFalse(replica1.isActive());
+        recoverReplica(replica1, primary, (shard, sourceNode) -> {
             shard.prepareForIndexRecovery();
-            if (randomBoolean()) {
-                return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
-                    @Override
-                    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
-                        super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
-                        // Shard is still inactive since we haven't started recovering yet
-                        assertFalse(replica.isActive());
+            return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                @Override
+                public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+                    super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
+                    // Shard is still inactive since we haven't started recovering yet
+                    assertFalse(shard.isActive());
 
-                    }
+                }
 
-                    @Override
-                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                        super.indexTranslogOperations(operations, totalTranslogOps);
-                        // Shard should now be active since we did recover:
-                        assertTrue(replica.isActive());
-                    }
-                };
-            } else {
-                    replica.skipTranslogRecovery(-1);
-                return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
-                  @Override
-                  public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
-                      super.indexTranslogOperations(operations, totalTranslogOps);
-                      // Shard should now be active since we did recover:
-                      assertTrue(replica.isActive());
-                  }
-              };
-            }
+                @Override
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                    super.indexTranslogOperations(operations, totalTranslogOps);
+                    // Shard should now be active since we did recover:
+                    assertTrue(replica1.isActive());
+                }
+            };
+        }, true);
+        IndexShard replica2 = reinitShard(replica1);
+        recoverReplica(replica2, primary, (shard, sourceNode) -> {
+            shard.prepareForIndexRecovery();
+            shard.skipTranslogRecovery(-1);
+            return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
+                    super.indexTranslogOperations(operations, totalTranslogOps);
+                    // Shard should now be active since we did recover:
+                    assertTrue(replica1.isActive());
+                }
+            };
         }, true);
 
-        closeShards(primary, replica);
+        closeShards(primary, replica2);
     }
 
     public void testRecoverFromLocalShard() throws IOException {

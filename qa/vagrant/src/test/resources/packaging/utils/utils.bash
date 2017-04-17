@@ -297,8 +297,9 @@ purge_elasticsearch() {
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
     local index=$2
+    local commandLineArgs=$3
 
-    run_elasticsearch_service 0
+    run_elasticsearch_service 0 $commandLineArgs
 
     wait_for_elasticsearch_status $desiredStatus $index
 

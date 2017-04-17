@@ -839,7 +839,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testTranslogRecoveryWithMultipleGenerations() throws IOException {
         final int docs = randomIntBetween(1, 4096);
         final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toList());
-        Collections.shuffle(seqNos);
+        Randomness.shuffle(seqNos);
         engine.close();
         Engine initialEngine = null;
         try {

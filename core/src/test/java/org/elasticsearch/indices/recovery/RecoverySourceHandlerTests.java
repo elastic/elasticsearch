@@ -372,7 +372,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final AtomicBoolean sendSnapshotCalled = new AtomicBoolean();
         final FileRecoverySourceHandler handler = new FileRecoverySourceHandler(
             shard,
-            mock(FileRecoveryTargetHandler.class),
+            mock(FileAndOpsRecoveryTargetHandler.class),
             request,
             recoverySettings.getChunkSize().bytesAsInt(),
             Settings.EMPTY) {

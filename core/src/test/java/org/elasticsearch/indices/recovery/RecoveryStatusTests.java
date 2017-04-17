@@ -44,7 +44,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
 
         IndexShard indexShard = service.getShardOrNull(0);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        FileRecoveryTarget target = new FileRecoveryTarget(indexShard, node, new PeerRecoveryTargetService.RecoveryListener() {
+        FileAndOpsRecoveryTarget target = new FileAndOpsRecoveryTarget(indexShard, node, new PeerRecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }

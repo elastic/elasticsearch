@@ -56,8 +56,8 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
     public static class Actions {
         public static final String START_LEGACY_RECOVERY =
             "internal:index/shard/recovery/start_recovery";
-        public static final String START_FILE_RECOVERY =
-            "internal:index/shard/recovery/start_file_recovery";
+        public static final String START_FILE_OPS_RECOVERY =
+            "internal:index/shard/recovery/start_file_ops_recovery";
         public static final String START_OPS_RECOVERY =
             "internal:index/shard/recovery/start_ops_recovery";
         public static final String START_PRIMARY_HANDOFF =
@@ -82,7 +82,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
-        transportService.registerRequestHandler(Actions.START_FILE_RECOVERY,
+        transportService.registerRequestHandler(Actions.START_FILE_OPS_RECOVERY,
             StartFileRecoveryRequest::new, ThreadPool.Names.GENERIC,
             new StartRecoveryTransportRequestHandler());
         transportService.registerRequestHandler(Actions.START_OPS_RECOVERY,
@@ -273,8 +273,8 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
                         recoverySettings.getChunkSize().bytesAsInt(),settings);
                 } else if (request instanceof StartFileRecoveryRequest) {
                     final StartFileRecoveryRequest fullRequest = (StartFileRecoveryRequest) request;
-                    final RemoteFileRecoveryTarget recoveryTarget =
-                        new RemoteFileRecoveryTarget(request.recoveryId(), request.shardId(),
+                    final RemoteFileAndOpsRecoveryTarget recoveryTarget =
+                        new RemoteFileAndOpsRecoveryTarget(request.recoveryId(), request.shardId(),
                             targetRouting.allocationId().getId(), transportService,
                             request.targetNode(),
                             recoverySettings,

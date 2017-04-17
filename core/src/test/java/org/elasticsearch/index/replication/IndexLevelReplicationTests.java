@@ -33,7 +33,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -85,7 +85,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Future<Void> future = shards.asyncRecoverReplica(replica,
                 (indexShard, sourceNode) -> {
                     indexShard.prepareForIndexRecovery();
-                    return new FileRecoveryTarget(indexShard, sourceNode, recoveryListener) {
+                    return new FileAndOpsRecoveryTarget(indexShard, sourceNode, recoveryListener) {
                         @Override
                         public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
                             super.cleanFiles(totalTranslogOps, sourceMetaData);

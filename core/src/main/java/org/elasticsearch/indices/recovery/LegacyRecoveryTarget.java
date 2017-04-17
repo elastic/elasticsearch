@@ -31,10 +31,10 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.List;
 
-public class LegacyRecoveryTarget extends RecoveryTarget implements FileRecoveryTargetHandler,
+public class LegacyRecoveryTarget extends RecoveryTarget implements FileAndOpsRecoveryTargetHandler,
     OpsRecoveryTargetHandler, PrimaryHandoffRecoveryTargetHandler {
 
-    private final FileRecoveryTarget fileRecoveryTarget;
+    private final FileAndOpsRecoveryTarget fileRecoveryTarget;
     private final PrimaryHandoffRecoveryTarget primaryHandoffRecoveryTarget;
 
     /**
@@ -67,12 +67,12 @@ public class LegacyRecoveryTarget extends RecoveryTarget implements FileRecovery
 
                 }
             };
-        fileRecoveryTarget = new FileRecoveryTarget(indexShard, sourceNode, noopListener);
+        fileRecoveryTarget = new FileAndOpsRecoveryTarget(indexShard, sourceNode, noopListener);
         primaryHandoffRecoveryTarget = new PrimaryHandoffRecoveryTarget(indexShard, sourceNode,
             listener, ensureClusterStateVersionCallback);
     }
 
-    private LegacyRecoveryTarget(FileRecoveryTarget fileRecoveryTarget,
+    private LegacyRecoveryTarget(FileAndOpsRecoveryTarget fileRecoveryTarget,
                                  PrimaryHandoffRecoveryTarget primaryHandoffRecoveryTarget,
                                  PeerRecoveryTargetService.RecoveryListener listener) {
         super(fileRecoveryTarget.indexShard(), fileRecoveryTarget.sourceNode(), listener);

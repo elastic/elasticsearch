@@ -25,7 +25,7 @@ import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -120,13 +120,13 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
-            FileRecoveryTarget recoveryTarget = (FileRecoveryTarget) collection.getRecoveryTarget(recoveryId);
+            FileAndOpsRecoveryTarget recoveryTarget = (FileAndOpsRecoveryTarget) collection.getRecoveryTarget(recoveryId);
             final int currentAsTarget = shard.recoveryStats().currentAsTarget();
             final int referencesToStore = recoveryTarget.store().refCount();
             IndexShard indexShard = recoveryTarget.indexShard();
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
-            FileRecoveryTarget resetRecovery = (FileRecoveryTarget) collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            FileAndOpsRecoveryTarget resetRecovery = (FileAndOpsRecoveryTarget) collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
             final long resetRecoveryId = resetRecovery.recoveryId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
@@ -160,7 +160,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        final FileRecoveryTarget target = new FileRecoveryTarget(indexShard, sourceNode, listener);
+        final FileAndOpsRecoveryTarget target = new FileAndOpsRecoveryTarget(indexShard, sourceNode, listener);
         collection.addRecovery(target, timeValue);
         return target.recoveryId();
     }

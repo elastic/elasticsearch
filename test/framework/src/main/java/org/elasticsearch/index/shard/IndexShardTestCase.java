@@ -60,9 +60,9 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTargetHandler;
 import org.elasticsearch.indices.recovery.FileRecoverySourceHandler;
-import org.elasticsearch.indices.recovery.FileRecoveryTarget;
-import org.elasticsearch.indices.recovery.FileRecoveryTargetHandler;
 import org.elasticsearch.indices.recovery.OpsRecoverySourceHandler;
 import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.OpsRecoveryTargetHandler;
@@ -407,7 +407,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             recoverReplica(replica, primary,
                 (r, sourceNode) -> {
                     r.prepareForIndexRecovery();
-                    return new FileRecoveryTarget(r, sourceNode, recoveryListener);
+                    return new FileAndOpsRecoveryTarget(r, sourceNode, recoveryListener);
                 }, false);
         }
     }
@@ -444,7 +444,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 (int) ByteSizeUnit.MB.toBytes(1), nodeSettings);
         } else if (request instanceof StartFileRecoveryRequest) {
             sourceHandler = new FileRecoverySourceHandler(primary,
-                (FileRecoveryTargetHandler) recoveryTarget, (StartFileRecoveryRequest) request,
+                (FileAndOpsRecoveryTargetHandler) recoveryTarget, (StartFileRecoveryRequest) request,
                 (int) ByteSizeUnit.MB.toBytes(1), nodeSettings);
         } else {
             throw new UnsupportedOperationException("recovery type [" +

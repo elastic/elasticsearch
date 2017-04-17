@@ -38,7 +38,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -323,7 +323,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    private static class BlockingTarget extends FileRecoveryTarget {
+    private static class BlockingTarget extends FileAndOpsRecoveryTarget {
 
         private final CountDownLatch recoveryBlocked;
         private final CountDownLatch releaseRecovery;

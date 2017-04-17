@@ -52,7 +52,7 @@ import java.util.concurrent.ConcurrentMap;
  * To track recoveries in a central place, instances of
  * this class are created through {@link RecoveriesCollection}.
  */
-public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecoveryTargetHandler {
+public class FileAndOpsRecoveryTarget extends OpsRecoveryTarget implements FileAndOpsRecoveryTargetHandler {
 
     private final String RECOVERY_PREFIX = "recovery.";
 
@@ -71,9 +71,9 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
      * @param sourceNode                        source node of the recovery where we recover from
      * @param listener                          called when recovery is completed/failed
      */
-    public FileRecoveryTarget(final IndexShard indexShard,
-                              final DiscoveryNode sourceNode,
-                              final PeerRecoveryTargetService.RecoveryListener listener) {
+    public FileAndOpsRecoveryTarget(final IndexShard indexShard,
+                                    final DiscoveryNode sourceNode,
+                                    final PeerRecoveryTargetService.RecoveryListener listener) {
         super(indexShard, sourceNode, listener);
         this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
         this.store = indexShard.store();
@@ -84,8 +84,8 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
 
 
     @Override
-    public FileRecoveryTarget retryCopy() {
-        return new FileRecoveryTarget(indexShard(), sourceNode(), listener());
+    public FileAndOpsRecoveryTarget retryCopy() {
+        return new FileAndOpsRecoveryTarget(indexShard(), sourceNode(), listener());
     }
 
     public Store store() {
@@ -106,7 +106,7 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
 
     @Override
     public String startRecoveryActionName() {
-        return PeerRecoverySourceService.Actions.START_FILE_RECOVERY;
+        return PeerRecoverySourceService.Actions.START_FILE_OPS_RECOVERY;
     }
 
     /**

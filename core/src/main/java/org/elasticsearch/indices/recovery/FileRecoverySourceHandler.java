@@ -72,12 +72,12 @@ public class FileRecoverySourceHandler extends RecoverySourceHandler {
     // Request containing source and target node information
     private final StartFileRecoveryRequest request;
     private final int chunkSizeInBytes;
-    private final FileRecoveryTargetHandler recoveryTarget;
+    private final FileAndOpsRecoveryTargetHandler recoveryTarget;
 
     protected final RecoveryResponse response;
 
     public FileRecoverySourceHandler(final IndexShard shard,
-                                     final FileRecoveryTargetHandler recoveryTarget,
+                                     final FileAndOpsRecoveryTargetHandler recoveryTarget,
                                      final StartFileRecoveryRequest request,
                                      final int fileChunkSizeInBytes,
                                      final Settings nodeSettings) {

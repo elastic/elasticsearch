@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 
-public interface FileRecoveryTargetHandler extends OpsRecoveryTargetHandler {
+public interface FileAndOpsRecoveryTargetHandler extends OpsRecoveryTargetHandler {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied

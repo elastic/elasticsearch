@@ -85,7 +85,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
@@ -1233,7 +1233,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replica, primary, (shard, sourceNode) -> {
             shard.prepareForIndexRecovery();
             if (randomBoolean()) {
-                return new FileRecoveryTarget(shard, sourceNode, recoveryListener) {
+                return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
                     @Override
                     public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
                         super.indexTranslogOperations(operations, totalTranslogOps);
@@ -1291,7 +1291,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replica, primary, (shard, sourceNode) -> {
             shard.prepareForIndexRecovery();
             if (randomBoolean()) {
-                return new FileRecoveryTarget(shard, sourceNode, recoveryListener) {
+                return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
                         super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);

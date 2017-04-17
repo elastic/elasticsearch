@@ -35,28 +35,21 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-public class RemoteFileRecoveryTarget extends RemoteOpsRecoveryTarget
-    implements FileRecoveryTargetHandler {
+public class RemoteFileAndOpsRecoveryTarget extends RemoteOpsRecoveryTarget
+    implements FileAndOpsRecoveryTargetHandler {
 
-    private final TransportRequestOptions translogOpsRequestOptions;
     private final TransportRequestOptions fileChunkRequestOptions;
 
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     private final Consumer<Long> onSourceThrottle;
 
-    public RemoteFileRecoveryTarget(long recoveryId, ShardId shardId, String targetAllocationId,
-                                    TransportService transportService, DiscoveryNode targetNode,
-                                    RecoverySettings recoverySettings,
-                                    Consumer<Long> onSourceThrottle) {
-        super(recoveryId, shardId, targetAllocationId, transportService, targetNode,
-            recoverySettings);
+    public RemoteFileAndOpsRecoveryTarget(long recoveryId, ShardId shardId, String targetAllocationId,
+                                          TransportService transportService, DiscoveryNode targetNode,
+                                          RecoverySettings recoverySettings,
+                                          Consumer<Long> onSourceThrottle) {
+        super(recoveryId, shardId, targetAllocationId, transportService, targetNode, recoverySettings);
         this.onSourceThrottle = onSourceThrottle;
-        this.translogOpsRequestOptions = TransportRequestOptions.builder()
-                .withCompress(true)
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionLongTimeout())
-                .build();
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
             // lucene files are already compressed and therefore compressing this won't really help
             // much so

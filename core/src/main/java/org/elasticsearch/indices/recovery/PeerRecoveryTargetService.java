@@ -159,7 +159,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         {
             RecoveryListener nextListener = primaryHandoffIfNeeded;
 
-            nextListener = prefixWithRecoveryStep(indexShard, sourceNode, nextListener, FileRecoveryTarget::new);
+            nextListener = prefixWithRecoveryStep(indexShard, sourceNode, nextListener, FileAndOpsRecoveryTarget::new);
 
             nextListener = prefixWithRunnable(indexShard::prepareForIndexRecovery,
                 "prepare for index recovery", shardId, nextListener);
@@ -446,7 +446,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                                     TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final FileRecoveryTargetHandler target = recoveryRef.target();
+                final FileAndOpsRecoveryTargetHandler target = recoveryRef.target();
                 target.prepareForTranslogOperations(
                     request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
             }
@@ -613,7 +613,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             throws Exception {
             try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                FileRecoveryTargetHandler target = recoveryRef.target();
+                FileAndOpsRecoveryTargetHandler target = recoveryRef.target();
                 target.receiveFileInfo(request.phase1FileNames, request.phase1FileSizes, request
                         .phase1ExistingFileNames,
                         request.phase1ExistingFileSizes, request.totalTranslogOps);
@@ -629,7 +629,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             throws Exception {
             try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                FileRecoveryTargetHandler target = recoveryRef.target();
+                FileAndOpsRecoveryTargetHandler target = recoveryRef.target();
                 target.cleanFiles(request.totalTranslogOps(), request.sourceMetaSnapshot());
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
@@ -664,7 +664,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     }
                 }
 
-                ((FileRecoveryTargetHandler)target).writeFileChunk(request.metadata(), request
+                ((FileAndOpsRecoveryTargetHandler)target).writeFileChunk(request.metadata(), request
                         .position(), request.content(),
                         request.lastChunk(), request.totalTranslogOps()
                 );

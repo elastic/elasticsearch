@@ -10,6 +10,7 @@ configuration files.
 * <<monitoring-settings, Monitoring Settings>>
 * <<notification-settings, Watcher Settings>>
 * <<reporting-settings, Reporting Settings>>
+* <<ml-settings, Machine Learning Settings>>
 --
 
 include::security-settings.asciidoc[]
@@ -17,4 +18,4 @@ include::monitoring-settings.asciidoc[]
 include::graph-settings.asciidoc[]
 include::notification-settings.asciidoc[]
 include::reporting-settings.asciidoc[]
-
+include::ml-settings.asciidoc[]

@@ -133,7 +133,7 @@ public abstract class RecoveryTarget extends AbstractRefCounted {
     protected void doClose() {}
 
     @Override
-    final protected void closeInternal() {
+    protected final void closeInternal() {
         try {
             doClose();
         } finally {

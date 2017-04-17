@@ -54,14 +54,10 @@ import java.util.function.Supplier;
 public class PeerRecoverySourceService extends AbstractComponent implements IndexEventListener {
 
     public static class Actions {
-        public static final String START_LEGACY_RECOVERY =
-            "internal:index/shard/recovery/start_recovery";
-        public static final String START_FILE_OPS_RECOVERY =
-            "internal:index/shard/recovery/start_file_ops_recovery";
-        public static final String START_OPS_RECOVERY =
-            "internal:index/shard/recovery/start_ops_recovery";
-        public static final String START_PRIMARY_HANDOFF =
-            "internal:index/shard/recovery/start_primary_handoff";
+        public static final String START_LEGACY_RECOVERY = "internal:index/shard/recovery/start_recovery";
+        public static final String START_FILE_OPS_RECOVERY = "internal:index/shard/recovery/start_file_ops_recovery";
+        public static final String START_OPS_RECOVERY = "internal:index/shard/recovery/start_ops_recovery";
+        public static final String START_PRIMARY_HANDOFF = "internal:index/shard/recovery/start_primary_handoff";
     }
 
     private final TransportService transportService;
@@ -82,14 +78,11 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
-        transportService.registerRequestHandler(Actions.START_FILE_OPS_RECOVERY,
-            StartFileRecoveryRequest::new, ThreadPool.Names.GENERIC,
+        transportService.registerRequestHandler(Actions.START_FILE_OPS_RECOVERY, StartFileRecoveryRequest::new, ThreadPool.Names.GENERIC,
             new StartRecoveryTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.START_OPS_RECOVERY,
-            StartOpsRecoveryRequest::new, ThreadPool.Names.GENERIC,
+        transportService.registerRequestHandler(Actions.START_OPS_RECOVERY, StartOpsRecoveryRequest::new, ThreadPool.Names.GENERIC,
             new StartRecoveryTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.START_PRIMARY_HANDOFF,
-            StartPrimaryHandoffRequest::new, ThreadPool.Names.GENERIC,
+        transportService.registerRequestHandler(Actions.START_PRIMARY_HANDOFF, StartPrimaryHandoffRequest::new, ThreadPool.Names.GENERIC,
             new StartRecoveryTransportRequestHandler());
     }
 

@@ -102,6 +102,19 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
     }
 
+    public void testPathDataNotSetInEnvironmentIfNotSet() {
+        final Path defaultPathData = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder()
+                .put("path.home", createTempDir().toAbsolutePath())
+                .put("default.path.data", defaultPathData)
+                .build();
+        assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
+        assertTrue(Environment.DEFAULT_PATH_DATA_SETTING.exists(settings));
+        final Environment environment = new Environment(settings);
+        assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
+        assertTrue(Environment.DEFAULT_PATH_DATA_SETTING.exists(environment.settings()));
+    }
+
     public void testDefaultPathLogs() {
         final Path defaultPathLogs = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder()

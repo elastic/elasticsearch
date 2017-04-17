@@ -17,11 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io;
+package org.elasticsearch.action.admin.cluster.remote;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 
-public interface BytesStream {
+public final class RemoteInfoRequest extends ActionRequest {
 
-    BytesReference bytes();
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
 }

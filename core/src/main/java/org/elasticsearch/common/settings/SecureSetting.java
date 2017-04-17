@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -137,5 +138,26 @@ public abstract class SecureSetting<T> extends Setting<T> {
         };
     }
 
+    /**
+     * A setting which contains a file. Reading the setting opens an input stream to the file.
+     *
+     * This may be any sensitive file, e.g. a set of credentials normally in plaintext.
+     */
+    public static Setting<InputStream> secureFile(String name, Setting<InputStream> fallback,
+                                                  Property... properties) {
+        return new SecureSetting<InputStream>(name, properties) {
+            @Override
+            protected InputStream getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
+                return secureSettings.getFile(getKey());
+            }
+            @Override
+            InputStream getFallback(Settings settings) {
+                if (fallback != null) {
+                    return fallback.get(settings);
+                }
+                return null;
+            }
+        };
+    }
 
 }

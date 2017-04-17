@@ -19,8 +19,13 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -33,25 +38,31 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
-import java.nio.channels.AlreadyConnectedException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -518,5 +529,188 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private static void installNodeStatsHandler(TransportService service, DiscoveryNode...nodes) {
+        service.registerRequestHandler(NodesInfoAction.NAME, NodesInfoRequest::new, ThreadPool.Names.SAME, false, false,
+            (request, channel) -> {
+                List<NodeInfo> nodeInfos = new ArrayList<>();
+                int port = 80;
+                for (DiscoveryNode node : nodes) {
+                    HttpInfo http = new HttpInfo(new BoundTransportAddress(new TransportAddress[]{node.getAddress()},
+                        new TransportAddress(node.getAddress().address().getAddress(), port++)), 100);
+                    nodeInfos.add(new NodeInfo(node.getVersion(), Build.CURRENT, node, null, null, null, null, null, null, http, null,
+                        null, null));
+                }
+                channel.sendResponse(new NodesInfoResponse(ClusterName.DEFAULT, nodeInfos, Collections.emptyList()));
+            });
+
+    }
+
+    public void testGetConnectionInfo() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService transport1 = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService transport2 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
+             MockTransportService transport3 = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode node1 = transport1.getLocalDiscoNode();
+            DiscoveryNode node2 = transport3.getLocalDiscoNode();
+            DiscoveryNode node3 = transport2.getLocalDiscoNode();
+            knownNodes.add(transport1.getLocalDiscoNode());
+            knownNodes.add(transport3.getLocalDiscoNode());
+            knownNodes.add(transport2.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+            List<DiscoveryNode> seedNodes = Arrays.asList(node3, node1, node2);
+            Collections.shuffle(seedNodes, random());
+
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                int maxNumConnections = randomIntBetween(1, 5);
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    seedNodes, service, maxNumConnections, n -> true)) {
+                    // test no nodes connected
+                    RemoteConnectionInfo remoteConnectionInfo = assertSerialization(getRemoteConnectionInfo(connection));
+                    assertNotNull(remoteConnectionInfo);
+                    assertEquals(0, remoteConnectionInfo.numNodesConnected);
+                    assertEquals(0, remoteConnectionInfo.seedNodes.size());
+                    assertEquals(0, remoteConnectionInfo.httpAddresses.size());
+                    assertEquals(maxNumConnections, remoteConnectionInfo.connectionsPerCluster);
+                    assertEquals("test-cluster", remoteConnectionInfo.clusterAlias);
+                    updateSeedNodes(connection, seedNodes);
+                    expectThrows(RemoteTransportException.class, () -> getRemoteConnectionInfo(connection));
+
+                    for (MockTransportService s : Arrays.asList(transport1, transport2, transport3)) {
+                        installNodeStatsHandler(s, node1, node2, node3);
+                    }
+
+                    remoteConnectionInfo = getRemoteConnectionInfo(connection);
+                    remoteConnectionInfo = assertSerialization(remoteConnectionInfo);
+                    assertNotNull(remoteConnectionInfo);
+                    assertEquals(connection.getNumNodesConnected(), remoteConnectionInfo.numNodesConnected);
+                    assertEquals(Math.min(3, maxNumConnections), connection.getNumNodesConnected());
+                    assertEquals(3, remoteConnectionInfo.seedNodes.size());
+                    assertEquals(remoteConnectionInfo.httpAddresses.size(), Math.min(3, maxNumConnections));
+                    assertEquals(maxNumConnections, remoteConnectionInfo.connectionsPerCluster);
+                    assertEquals("test-cluster", remoteConnectionInfo.clusterAlias);
+                    for (TransportAddress address : remoteConnectionInfo.httpAddresses) {
+                        assertTrue("port range mismatch: " + address.getPort(), address.getPort() >= 80 && address.getPort() <= 90);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testRemoteConnectionInfo() throws IOException {
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats);
+
+        RemoteConnectionInfo stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 4, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster_1",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 15)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 87)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            4, 3, TimeValue.timeValueMinutes(325));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
+            5, 3, TimeValue.timeValueMinutes(30));
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+    }
+
+    private RemoteConnectionInfo assertSerialization(RemoteConnectionInfo info) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            info.writeTo(out);
+            StreamInput in = out.bytes().streamInput();
+            in.setVersion(Version.CURRENT);
+            RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(in);
+            assertEquals(info, remoteConnectionInfo);
+            assertEquals(info.hashCode(), remoteConnectionInfo.hashCode());
+            return  randomBoolean() ? info : remoteConnectionInfo;
+        }
+    }
+
+    public void testRenderConnectionInfoXContent() throws IOException {
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,80)),
+            4, 3, TimeValue.timeValueMinutes(30));
+        stats = assertSerialization(stats);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, null);
+        builder.endObject();
+        assertEquals("{\"test_cluster\":{\"seeds\":[\"0.0.0.0:1\"],\"http_addresses\":[\"0.0.0.0:80\"],\"connected\":true," +
+            "\"num_nodes_connected\":3,\"max_connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"}}", builder.string());
+
+        stats = new RemoteConnectionInfo("some_other_cluster",
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1), new TransportAddress(TransportAddress.META_ADDRESS,2)),
+            Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,80), new TransportAddress(TransportAddress.META_ADDRESS,81)),
+            2, 0, TimeValue.timeValueSeconds(30));
+        stats = assertSerialization(stats);
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, null);
+        builder.endObject();
+        assertEquals("{\"some_other_cluster\":{\"seeds\":[\"0.0.0.0:1\",\"0.0.0.0:2\"],\"http_addresses\":[\"0.0.0.0:80\",\"0.0.0.0:81\"],"
+                + "\"connected\":false,\"num_nodes_connected\":0,\"max_connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"}}",
+            builder.string());
+    }
+
+    private RemoteConnectionInfo getRemoteConnectionInfo(RemoteClusterConnection connection) throws Exception {
+        AtomicReference<RemoteConnectionInfo> statsRef = new AtomicReference<>();
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        connection.getConnectionInfo(new ActionListener<RemoteConnectionInfo>() {
+            @Override
+            public void onResponse(RemoteConnectionInfo remoteConnectionInfo) {
+                statsRef.set(remoteConnectionInfo);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionRef.set(e);
+                latch.countDown();
+            }
+        });
+        latch.await();
+        if (exceptionRef.get() != null) {
+            throw exceptionRef.get();
+        }
+        return statsRef.get();
     }
 }

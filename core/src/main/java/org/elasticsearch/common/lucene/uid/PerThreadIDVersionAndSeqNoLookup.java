@@ -29,9 +29,12 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 
@@ -43,7 +46,7 @@ import java.io.IOException;
  *  in more than one document!  It will only return the first one it
  *  finds. */
 
-final class PerThreadIDAndVersionLookup {
+final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
@@ -51,7 +54,10 @@ final class PerThreadIDAndVersionLookup {
     private final TermsEnum termsEnum;
     /** _version data */
     private final NumericDocValues versions;
-
+    /** _seq_no data */
+    private final NumericDocValues seqNos;
+    /** _primary_term data */
+    private final NumericDocValues primaryTerms;
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
 
@@ -61,7 +67,7 @@ final class PerThreadIDAndVersionLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader) throws IOException {
         Fields fields = reader.fields();
         Terms terms = fields.terms(UidFieldMapper.NAME);
         termsEnum = terms.iterator();
@@ -74,6 +80,8 @@ final class PerThreadIDAndVersionLookup {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME +
                 "] field");
         }
+        seqNos = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+        primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         Object readerKey = null;
         assert (readerKey = reader.getCoreCacheKey()) != null;
         this.readerKey = readerKey;
@@ -112,5 +120,26 @@ final class PerThreadIDAndVersionLookup {
         } else {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
+    }
+
+    /** Return null if id is not found. */
+    DocIdAndSeqNo lookupSeqNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+        assert context.reader().getCoreCacheKey().equals(readerKey) :
+            "context's reader is not the same as the reader class was initialized on.";
+        int docID = getDocID(id, liveDocs);
+        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+            return new DocIdAndSeqNo(docID, seqNos == null ? SequenceNumbersService.UNASSIGNED_SEQ_NO : seqNos.get(docID), context);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * returns 0 if the primary term is not found.
+     *
+     * Note that 0 is an illegal primary term. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
+     **/
+    long lookUpPrimaryTerm(int docID) throws IOException {
+            return primaryTerms == null ? 0  : primaryTerms.get(docID);
     }
 }

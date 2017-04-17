@@ -17,16 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io;
+package org.elasticsearch.action.admin.cluster.remote;
 
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- * A bytes stream that requires its bytes to be released once no longer used.
- */
-public interface ReleasableBytesStream extends BytesStream {
+public final class RemoteInfoAction extends Action<RemoteInfoRequest, RemoteInfoResponse, RemoteInfoRequestBuilder> {
+
+    public static final String NAME = "cluster:monitor/remote/info";
+    public static final RemoteInfoAction INSTANCE = new RemoteInfoAction();
+
+    public RemoteInfoAction() {
+        super(NAME);
+    }
 
     @Override
-    ReleasablePagedBytesReference bytes();
+    public RemoteInfoRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RemoteInfoRequestBuilder(client, INSTANCE);
+    }
 
+    @Override
+    public RemoteInfoResponse newResponse() {
+        return new RemoteInfoResponse();
+    }
 }

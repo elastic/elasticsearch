@@ -73,7 +73,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ActionListener<TaskInfo> listener = mock(ActionListener.class);
 
-        TransportRethrottleAction.rethrottle(localNodeId, client, task, newRequestsPerSecond, listener);
+        TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
 
         // Capture the sub request and the listener so we can verify they are sane
         ArgumentCaptor<RethrottleRequest> subRequest = ArgumentCaptor.forClass(RethrottleRequest.class);

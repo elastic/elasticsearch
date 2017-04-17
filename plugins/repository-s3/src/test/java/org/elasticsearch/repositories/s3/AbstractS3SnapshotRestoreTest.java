@@ -197,7 +197,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucket = settings.getByPrefix("repositories.s3.");
         RepositoryMetaData metadata = new RepositoryMetaData("test-repo", "fs", Settings.EMPTY);
-        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(metadata, repositorySettings);
+        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(repositorySettings);
 
         String bucketName = bucket.get("bucket");
         logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
@@ -464,9 +464,8 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
-            assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            RepositoryMetaData metadata = new RepositoryMetaData("test-repo", "fs", Settings.EMPTY);
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(metadata,
+            assertThat("Your settings in elasticsearch.yml are incorrect. Check README file.", bucketName, notNullValue());
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(
                 Settings.builder().put(S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING.getKey(), randomBoolean()).build());
             try {
                 ObjectListing prevListing = null;

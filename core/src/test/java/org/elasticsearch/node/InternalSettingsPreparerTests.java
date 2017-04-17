@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.node.internal;
+package org.elasticsearch.node;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -182,18 +182,11 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertEquals("secret", fakeSetting.get(env.settings()).toString());
     }
 
-    public void testDefaultProperties() throws Exception {
+    public void testDefaultPropertiesDoNothing() throws Exception {
         Map<String, String> props = Collections.singletonMap("default.setting", "foo");
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
-        assertEquals("foo", env.settings().get("setting"));
+        assertEquals("foo", env.settings().get("default.setting"));
+        assertNull(env.settings().get("setting"));
     }
 
-    public void testDefaultPropertiesOverride() throws Exception {
-        Path configDir = homeDir.resolve("config");
-        Files.createDirectories(configDir);
-        Files.write(configDir.resolve("elasticsearch.yml"), Collections.singletonList("setting: bar"), StandardCharsets.UTF_8);
-        Map<String, String> props = Collections.singletonMap("default.setting", "foo");
-        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
-        assertEquals("bar", env.settings().get("setting"));
-    }
 }

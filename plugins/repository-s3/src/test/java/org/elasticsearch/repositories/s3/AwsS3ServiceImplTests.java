@@ -107,14 +107,49 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testRepositoryMaxRetriesBackcompat() {
-        Settings repositorySettings = generateRepositorySettings(20);
+        Settings repositorySettings = Settings.builder()
+            .put(S3Repository.Repository.MAX_RETRIES_SETTING.getKey(), 20).build();
         Settings settings = Settings.builder()
             .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
             null, 20, false, 50000);
         assertSettingDeprecationsAndWarnings(new Setting[]{
-            S3Repository.Repositories.MAX_RETRIES_SETTING
+            S3Repository.Repositories.MAX_RETRIES_SETTING,
+            S3Repository.Repository.MAX_RETRIES_SETTING
+        });
+    }
+
+    public void testGlobalThrottleRetriesBackcompat() {
+        Settings settings = Settings.builder()
+            .put(S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING.getKey(), true)
+            .build();
+        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
+            null, 3, true, 50000);
+        assertSettingDeprecationsAndWarnings(new Setting[]{
+            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING
+        });
+    }
+
+    public void testRepositoryThrottleRetries() {
+        Settings settings = Settings.builder()
+            .put("s3.client.default.use_throttle_retries", true)
+            .build();
+        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
+            null, 3, true, 50000);
+    }
+
+    public void testRepositoryThrottleRetriesBackcompat() {
+        Settings repositorySettings = Settings.builder()
+            .put(S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder()
+            .put(S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING.getKey(), false)
+            .build();
+        launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
+            null, 3, true, 50000);
+        assertSettingDeprecationsAndWarnings(new Setting[]{
+            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
+            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING
         });
     }
 
@@ -141,14 +176,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
         assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
-    }
-
-    private static Settings generateRepositorySettings(Integer maxRetries) {
-        Settings.Builder builder = Settings.builder();
-        if (maxRetries != null) {
-            builder.put(S3Repository.Repository.MAX_RETRIES_SETTING.getKey(), maxRetries);
-        }
-        return builder.build();
     }
 
     public void testEndpointSetting() {

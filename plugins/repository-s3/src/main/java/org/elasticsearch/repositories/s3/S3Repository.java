@@ -161,13 +161,13 @@ class S3Repository extends BlobStoreRepository {
          * max_retries
          * @see  Repositories#MAX_RETRIES_SETTING
          */
-        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, Property.Deprecated);
         /**
          * use_throttle_retries
          * @see  Repositories#USE_THROTTLE_RETRIES_SETTING
          */
         Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("use_throttle_retries",
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES);
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.Deprecated);
         /**
          * chunk_size
          * @see  Repositories#CHUNK_SIZE_SETTING
@@ -199,7 +199,7 @@ class S3Repository extends BlobStoreRepository {
          * path_style_access
          * @see  Repositories#PATH_STYLE_ACCESS_SETTING
          */
-        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false);
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false, Property.Deprecated);
     }
 
     private final S3BlobStore blobStore;

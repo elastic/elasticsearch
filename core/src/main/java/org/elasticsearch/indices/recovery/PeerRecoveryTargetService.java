@@ -205,6 +205,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     private void startLegacyRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                                      RecoveryListener listener) {
         // nocommit check cancellation races
+        indexShard.prepareForIndexRecovery();
         LegacyRecoveryTarget target = new LegacyRecoveryTarget(indexShard, sourceNode, listener, this::waitForClusterState);
         onGoingRecoveries.addRecovery(target, recoverySettings.activityTimeout());
         startRecovery(target.recoveryId());

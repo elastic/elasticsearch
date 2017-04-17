@@ -136,6 +136,8 @@ class ClusterConfiguration {
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
+    List<Object> dependencies = new ArrayList<>()
+
     @Input
     void systemProperty(String property, String value) {
         systemProperties.put(property, value)
@@ -178,5 +180,11 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
+    }
+
+    /** Add dependencies that must be run before the first task setting up the cluster. */
+    @Input
+    void dependsOn(Object... deps) {
+        dependencies.addAll(deps)
     }
 }

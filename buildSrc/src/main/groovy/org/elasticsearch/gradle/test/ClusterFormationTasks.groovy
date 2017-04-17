@@ -57,7 +57,7 @@ class ClusterFormationTasks {
         // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
         // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
         // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: runner.dependsOn.collect()) {
+        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: config.dependencies) {
             delete sharedDir
             doLast {
                 sharedDir.mkdirs()

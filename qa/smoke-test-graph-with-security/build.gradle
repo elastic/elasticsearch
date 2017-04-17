@@ -12,11 +12,8 @@ task copyGraphRestTests(type: Copy) {
   include 'rest-api-spec/test/graph/**'
 }
 
-integTest {
-  dependsOn copyGraphRestTests
-}
-
 integTestCluster {
+  dependsOn copyGraphRestTests
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',

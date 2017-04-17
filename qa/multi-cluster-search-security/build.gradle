@@ -38,11 +38,10 @@ remoteClusterTestRunner {
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
-task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(remoteClusterTestRunner)
-}
+task mixedClusterTest(type: RestIntegTestTask) {}
 
 mixedClusterTestCluster {
+  dependsOn remoteClusterTestRunner
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

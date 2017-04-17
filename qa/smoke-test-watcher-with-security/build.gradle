@@ -12,10 +12,6 @@ task copyWatcherRestTests(type: Copy) {
   include 'rest-api-spec/test/watcher/**'
 }
 
-integTest {
-  dependsOn copyWatcherRestTests
-}
-
 integTestRunner {
   systemProperty 'tests.rest.blacklist',
     ['hijack/10_basic/*',
@@ -23,6 +19,7 @@ integTestRunner {
 }
 
 integTestCluster {
+  dependsOn copyWatcherRestTests
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',

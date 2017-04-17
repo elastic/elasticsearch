@@ -12,10 +12,6 @@ task copyMlRestTests(type: Copy) {
   include 'rest-api-spec/test/ml/**'
 }
 
-integTest {
-  dependsOn copyMlRestTests
-}
-
 integTestRunner {
   systemProperty 'tests.rest.blacklist', [
     // Remove tests that are expected to throw an exception, because we cannot then
@@ -59,6 +55,7 @@ integTestRunner {
 }
 
 integTestCluster {
+  dependsOn copyMlRestTests
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',

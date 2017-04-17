@@ -53,6 +53,7 @@ configTwo.waitCondition = { node, ant ->
 List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', setupClusterTwo, configTwo)
 
 integTestCluster {
+    dependsOn setupClusterOne, setupClusterTwo
     plugin ':x-pack-elasticsearch:plugin'
     setupCommand 'setupDummyUser',
             'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
@@ -81,7 +82,6 @@ integTestCluster {
 }
 
 integTestRunner {
-    dependsOn(setupClusterOne, setupClusterTwo)
     systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
     systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
     systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"

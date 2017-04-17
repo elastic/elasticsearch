@@ -41,6 +41,7 @@ cluster2Config.setting('xpack.ml.enabled', false)
 List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', setupClusterTwo, cluster2Config)
 
 integTestCluster {
+  dependsOn setupClusterOne, setupClusterTwo
   setting 'node.name', 'tribe-node'
   setting 'tribe.on_conflict', 'prefer_cluster1'
   setting 'tribe.cluster1.cluster.name', 'cluster1'
@@ -72,7 +73,6 @@ integTestCluster {
 }
 
 integTestRunner {
-  dependsOn(setupClusterOne, setupClusterTwo)
   systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
   systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
   systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"

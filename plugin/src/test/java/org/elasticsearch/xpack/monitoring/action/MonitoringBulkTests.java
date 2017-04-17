@@ -17,6 +17,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.util.List;
@@ -186,7 +186,7 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
         RestClient restClient = getRestClient();
         final Header authorization = new BasicHeader(HttpHeaders.AUTHORIZATION,
                     UsernamePasswordToken.basicAuthHeaderValue(SecuritySettings.TEST_USERNAME,
-                            new SecuredString(SecuritySettings.TEST_PASSWORD.toCharArray())));
+                            new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray())));
         Response response = restClient.performRequest("POST", "/_xpack/monitoring/_bulk",
                 MapBuilder.<String, String>newMapBuilder().put("system_id", MonitoredSystem.KIBANA.getSystem())
                         .put("system_api_version", MonitoringTemplateUtils.TEMPLATE_VERSION)

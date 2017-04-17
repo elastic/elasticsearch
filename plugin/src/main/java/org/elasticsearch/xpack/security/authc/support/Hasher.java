@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.SecureString;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -18,13 +19,13 @@ public enum Hasher {
 
     BCRYPT() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt();
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -35,13 +36,13 @@ public enum Hasher {
 
     BCRYPT4() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt(4);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -52,13 +53,13 @@ public enum Hasher {
 
     BCRYPT5() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt(5);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -69,13 +70,13 @@ public enum Hasher {
 
     BCRYPT6() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt(6);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -86,13 +87,13 @@ public enum Hasher {
 
     BCRYPT7() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt(7);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -103,13 +104,13 @@ public enum Hasher {
 
     BCRYPT8() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt(8);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -120,13 +121,13 @@ public enum Hasher {
 
     BCRYPT9() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             String salt = org.elasticsearch.xpack.security.authc.support.BCrypt.gensalt(9);
             return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
@@ -137,8 +138,8 @@ public enum Hasher {
 
     SHA1() {
         @Override
-        public char[] hash(SecuredString text) {
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+        public char[] hash(SecureString text) {
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
             MessageDigest md = MessageDigests.sha1();
             md.update(textBytes);
             String hash = Base64.getEncoder().encodeToString(md.digest());
@@ -146,48 +147,48 @@ public enum Hasher {
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(SHA1_PREFIX)) {
                 return false;
             }
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
             MessageDigest md = MessageDigests.sha1();
             md.update(textBytes);
             String passwd64 = Base64.getEncoder().encodeToString(md.digest());
             String hashNoPrefix = hashStr.substring(SHA1_PREFIX.length());
-            return SecuredString.constantTimeEquals(hashNoPrefix, passwd64);
+            return CharArrays.constantTimeEquals(hashNoPrefix, passwd64);
         }
     },
 
     MD5() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.md5();
-            md.update(CharArrays.toUtf8Bytes(text.internalChars()));
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
             String hash = Base64.getEncoder().encodeToString(md.digest());
             return (MD5_PREFIX + hash).toCharArray();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(MD5_PREFIX)) {
                 return false;
             }
             hashStr = hashStr.substring(MD5_PREFIX.length());
             MessageDigest md = MessageDigests.md5();
-            md.update(CharArrays.toUtf8Bytes(text.internalChars()));
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
             String computedHashStr = Base64.getEncoder().encodeToString(md.digest());
-            return SecuredString.constantTimeEquals(hashStr, computedHashStr);
+            return CharArrays.constantTimeEquals(hashStr, computedHashStr);
         }
     },
 
     SSHA256() {
         @Override
-        public char[] hash(SecuredString text) {
+        public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.sha256();
-            md.update(CharArrays.toUtf8Bytes(text.internalChars()));
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
             char[] salt = SaltProvider.salt(8);
             md.update(CharArrays.toUtf8Bytes(salt));
             String hash = Base64.getEncoder().encodeToString(md.digest());
@@ -199,7 +200,7 @@ public enum Hasher {
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(SSHA256_PREFIX)) {
                 return false;
@@ -207,22 +208,22 @@ public enum Hasher {
             hashStr = hashStr.substring(SSHA256_PREFIX.length());
             char[] saltAndHash = hashStr.toCharArray();
             MessageDigest md = MessageDigests.sha256();
-            md.update(CharArrays.toUtf8Bytes(text.internalChars()));
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
             md.update(new String(saltAndHash, 0, 8).getBytes(StandardCharsets.UTF_8));
             String computedHash = Base64.getEncoder().encodeToString(md.digest());
-            return SecuredString.constantTimeEquals(computedHash, new String(saltAndHash, 8, saltAndHash.length - 8));
+            return CharArrays.constantTimeEquals(computedHash, new String(saltAndHash, 8, saltAndHash.length - 8));
         }
     },
 
     NOOP() {
         @Override
-        public char[] hash(SecuredString text) {
-            return text.copyChars();
+        public char[] hash(SecureString text) {
+            return text.clone().getChars();
         }
 
         @Override
-        public boolean verify(SecuredString text, char[] hash) {
-            return SecuredString.constantTimeEquals(text.internalChars(), hash);
+        public boolean verify(SecureString text, char[] hash) {
+            return CharArrays.constantTimeEquals(text.getChars(), hash);
         }
     };
 
@@ -272,9 +273,9 @@ public enum Hasher {
         return hasher;
     }
 
-    public abstract char[] hash(SecuredString data);
+    public abstract char[] hash(SecureString data);
 
-    public abstract boolean verify(SecuredString data, char[] hash);
+    public abstract boolean verify(SecureString data, char[] hash);
 
     static final class SaltProvider {
 

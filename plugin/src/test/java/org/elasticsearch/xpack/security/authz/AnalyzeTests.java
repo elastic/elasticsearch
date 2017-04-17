@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import java.util.Collections;
 
@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class AnalyzeTests extends SecurityIntegTestCase {
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("test123".toCharArray())));
 
     @Override
     protected String configUsers() {
@@ -54,7 +54,7 @@ public class AnalyzeTests extends SecurityIntegTestCase {
         ensureGreen();
 
         //ok: user has permissions for analyze on test_*
-        SecuredString passwd = new SecuredString("test123".toCharArray());
+        SecureString passwd = new SecureString("test123".toCharArray());
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
                 .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
 
@@ -74,7 +74,7 @@ public class AnalyzeTests extends SecurityIntegTestCase {
     public void testAnalyzeWithoutIndices() {
         //this test tries to execute different analyze api variants from a user that has analyze privileges only at cluster level
 
-        SecuredString passwd = new SecuredString("test123".toCharArray());
+        SecureString passwd = new SecureString("test123".toCharArray());
         //fails: user doesn't have permissions for analyze on index test_1
         assertThrowsAuthorizationException(client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", passwd)))

@@ -17,6 +17,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.Arrays;
@@ -155,7 +155,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     @Override
-    public void session(String user, SecuredString password, ActionListener<LdapSession> listener) {
+    public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
         if (useConnectionPool) {
             getSessionWithPool(user, password, listener);
         } else {
@@ -166,13 +166,13 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     /**
      * Sets up a LDAPSession using the connection pool that potentially holds existing connections to the server
      */
-    private void getSessionWithPool(String user, SecuredString password, ActionListener<LdapSession> listener) {
+    private void getSessionWithPool(String user, SecureString password, ActionListener<LdapSession> listener) {
         findUser(user, connectionPool, ActionListener.wrap((entry) -> {
             if (entry == null) {
                 listener.onResponse(null);
             } else {
                 final String dn = entry.getDN();
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
+                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                 try {
                     LdapUtils.privilegedConnect(() -> connectionPool.bindAndRevertAuthentication(new SimpleBindRequest(dn, passwordBytes)));
                     listener.onResponse(new LdapSession(logger, connectionPool, dn, groupResolver, timeout, entry.getAttributes()));
@@ -197,7 +197,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
      *     <li>Creates a new LDAPSession with the bound connection</li>
      * </ol>
      */
-    private void getSessionWithoutPool(String user, SecuredString password, ActionListener<LdapSession> listener) {
+    private void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
         boolean success = false;
         LDAPConnection connection = null;
         try {
@@ -214,7 +214,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                             final String dn = entry.getDN();
                             boolean sessionCreated = false;
                             LDAPConnection userConnection = null;
-                            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
+                            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                             try {
                                 userConnection = LdapUtils.privilegedConnect(serverSet::getConnection);
                                 userConnection.bind(new SimpleBindRequest(dn, passwordBytes));

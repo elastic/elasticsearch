@@ -11,9 +11,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 
@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
-    protected static final SecuredString PASSWD = new SecuredString("passwd".toCharArray());
+    protected static final SecureString PASSWD = new SecureString("passwd".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(PASSWD));
 
     @Override

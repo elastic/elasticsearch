@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.hamcrest.Matcher;
@@ -164,7 +164,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             return Function.identity();
         }
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecuredString(SecuritySettings.TEST_PASSWORD.toCharArray())));
+                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray())));
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
@@ -417,7 +417,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
-        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecuredString(TEST_PASSWORD.toCharArray())));
+        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
         static byte[] systemKey = generateKey(); // must be the same for all nodes

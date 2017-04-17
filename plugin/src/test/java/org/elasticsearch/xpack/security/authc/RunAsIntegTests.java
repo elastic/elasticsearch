@@ -14,11 +14,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -29,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD_SECURE_STRING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -100,7 +100,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
             Map<String, String> headers = new HashMap<>();
             headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                    new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
             headers.put(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME);
             // lets set the user
             ClusterHealthResponse response = client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
@@ -114,7 +114,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
-                                    SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                                    DEFAULT_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME));
             fail("request should have failed");
         } catch(ResponseException e) {
@@ -126,7 +126,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                    SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))));
+                                    DEFAULT_PASSWORD_SECURE_STRING)));
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -136,7 +136,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         Response response = getRestClient().performRequest("GET", "/_nodes",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                                DEFAULT_PASSWORD_SECURE_STRING)),
                 new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
@@ -152,7 +152,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             try {
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                        new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
                 headers.put(AuthenticationService.RUN_AS_USER_HEADER, "");
 
                 client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
@@ -168,7 +168,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                            SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                            DEFAULT_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, ""));
             fail("request should have failed");
         } catch(ResponseException e) {
@@ -187,7 +187,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             try {
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                        new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
                 headers.put(AuthenticationService.RUN_AS_USER_HEADER, "idontexist");
 
                 client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
@@ -203,7 +203,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                            SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                            DEFAULT_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, "idontexist"));
             fail("request should have failed");
         } catch (ResponseException e) {

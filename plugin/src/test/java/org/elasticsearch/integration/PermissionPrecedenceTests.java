@@ -11,10 +11,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.util.Collections;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
  * index template actions.
  */
 public class PermissionPrecedenceTests extends SecurityIntegTestCase {
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("test123".toCharArray())));
 
     @Override
     protected String configRoles() {
@@ -70,8 +69,8 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected SecuredString nodeClientPassword() {
-        return new SecuredString("test123".toCharArray());
+    protected SecureString nodeClientPassword() {
+        return new SecureString("test123".toCharArray());
     }
 
     @Override
@@ -80,8 +79,8 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected SecuredString transportClientPassword() {
-        return new SecuredString("test123".toCharArray());
+    protected SecureString transportClientPassword() {
+        return new SecureString("test123".toCharArray());
     }
 
     public void testDifferentCombinationsOfIndices() throws Exception {
@@ -110,7 +109,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
                 .setTemplate("test_*")::get, PutIndexTemplateAction.NAME, "user");
 
         Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                SecuredStringTests.build("test123")));
+                new SecureString("test123")));
         assertThrowsAuthorizationException(client.filterWithHeader(headers).admin().indices().prepareGetTemplates("template1")::get,
                 GetIndexTemplatesAction.NAME, "user");
     }

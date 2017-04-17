@@ -6,12 +6,12 @@
 package org.elasticsearch.example.realm;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,7 +23,7 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticate() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)));
-        SecuredString password = new SecuredString(CustomRealm.KNOWN_PW.toCharArray());
+        SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, password);
         PlainActionFuture<User> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture);
@@ -36,7 +36,7 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticateBadUser() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)));
-        SecuredString password = new SecuredString(CustomRealm.KNOWN_PW.toCharArray());
+        SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", password);
         PlainActionFuture<User> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture);

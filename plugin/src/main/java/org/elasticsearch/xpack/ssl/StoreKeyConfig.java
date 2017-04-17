@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -62,8 +62,8 @@ class StoreKeyConfig extends KeyConfig {
         try {
             KeyStore ks = getKeyStore(environment);
             checkKeyStore(ks);
-            try (SecuredString keyPasswordSecuredString = new SecuredString(keyPassword.toCharArray())) {
-                return CertUtils.keyManager(ks, keyPasswordSecuredString.internalChars(), keyStoreAlgorithm);
+            try (SecureString keyPasswordSecureString = new SecureString(keyPassword.toCharArray())) {
+                return CertUtils.keyManager(ks, keyPasswordSecureString.getChars(), keyStoreAlgorithm);
             }
         } catch (IOException | CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
@@ -88,12 +88,12 @@ class StoreKeyConfig extends KeyConfig {
     List<PrivateKey> privateKeys(@Nullable Environment environment) {
         try {
             KeyStore keyStore = getKeyStore(environment);
-            try (SecuredString keyPasswordSecuredString = new SecuredString(keyPassword.toCharArray())) {
+            try (SecureString keyPasswordSecureString = new SecureString(keyPassword.toCharArray())) {
                 List<PrivateKey> privateKeys = new ArrayList<>();
                 for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
                     final String alias = e.nextElement();
                     if (keyStore.isKeyEntry(alias)) {
-                        Key key = keyStore.getKey(alias, keyPasswordSecuredString.internalChars());
+                        Key key = keyStore.getKey(alias, keyPasswordSecureString.getChars());
                         if (key instanceof PrivateKey) {
                             privateKeys.add((PrivateKey) key);
                         }
@@ -114,8 +114,8 @@ class StoreKeyConfig extends KeyConfig {
             if (keyStorePassword == null) {
                 throw new IllegalArgumentException("keystore password may not be null");
             }
-            try (SecuredString keyStorePasswordSecuredString  = new SecuredString(keyStorePassword.toCharArray())) {
-                ks.load(in, keyStorePasswordSecuredString.internalChars());
+            try (SecureString keyStorePasswordSecureString  = new SecureString(keyStorePassword.toCharArray())) {
+                ks.load(in, keyStorePasswordSecureString.getChars());
             }
             return ks;
         }

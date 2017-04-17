@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
@@ -54,7 +54,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(anonymousUser.principal());
-        request.passwordHash(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray())));
+        request.passwordHash(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray())));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
@@ -85,7 +85,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
-        request.passwordHash(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray())));
+        request.passwordHash(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray())));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
@@ -112,7 +112,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
-        request.passwordHash(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray())));
+        request.passwordHash(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray())));
         doAnswer(new Answer() {
             public Void answer(InvocationOnMock invocation) {
                 Object[] args = invocation.getArguments();
@@ -152,7 +152,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
-        request.passwordHash(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray())));
+        request.passwordHash(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray())));
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException(), new RuntimeException());
         doAnswer(new Answer() {
             public Void answer(InvocationOnMock invocation) {

@@ -14,12 +14,11 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.user.ElasticUser;
@@ -66,9 +65,9 @@ public class UsersToolTests extends CommandTestCase {
         confDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(confDir);
         Files.write(confDir.resolve("users"), Arrays.asList(
-            "existing_user:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()))),
-            "existing_user2:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme2".toCharArray()))),
-            "existing_user3:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme3".toCharArray())))
+            "existing_user:" + new String(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray()))),
+            "existing_user2:" + new String(Hasher.BCRYPT.hash(new SecureString("changeme2".toCharArray()))),
+            "existing_user3:" + new String(Hasher.BCRYPT.hash(new SecureString("changeme3".toCharArray())))
         ), StandardCharsets.UTF_8);
         Files.write(confDir.resolve("users_roles"), Arrays.asList(
             "test_admin:existing_user,existing_user2",
@@ -116,7 +115,7 @@ public class UsersToolTests extends CommandTestCase {
                 continue;
             }
             String gotHash = usernameHash[1];
-            SecuredString expectedHash = SecuredStringTests.build(password);
+            SecureString expectedHash = new SecureString(password);
             assertTrue("Expected hash " + expectedHash + " for password " + password + " but got " + gotHash,
                        Hasher.BCRYPT.verify(expectedHash, gotHash.toCharArray()));
             return;

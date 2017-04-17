@@ -29,6 +29,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -100,7 +101,6 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
@@ -571,7 +571,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         if (settings.get(authHeaderSettingName) != null) {
             return;
         }
-        Optional<String> userOptional = USER_SETTING.get(settings);
+        Optional<String> userOptional = USER_SETTING.get(settings); // TODO migrate to securesetting!
         userOptional.ifPresent(userSetting -> {
             final int i = userSetting.indexOf(":");
             if (i < 0 || i == userSetting.length() - 1) {
@@ -580,8 +580,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             }
             String username = userSetting.substring(0, i);
             String password = userSetting.substring(i + 1);
-            settingsBuilder.put(authHeaderSettingName, UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password
-                    .toCharArray())));
+            settingsBuilder.put(authHeaderSettingName, UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password)));
         });
     }
 

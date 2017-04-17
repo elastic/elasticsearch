@@ -11,10 +11,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -177,7 +177,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
     }
 
     protected static String userHeader(String username, String password) {
-        return UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password.toCharArray()));
+        return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
     }
 
     private Settings sslSettingsForStore(Path store, String password) {

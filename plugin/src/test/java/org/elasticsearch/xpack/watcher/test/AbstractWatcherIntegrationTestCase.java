@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -58,7 +59,6 @@ import org.elasticsearch.xpack.notification.email.Profile;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.template.TemplateUtils;
@@ -183,7 +183,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             return Function.identity();
         }
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecuredString(SecuritySettings.TEST_PASSWORD.toCharArray())));
+                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray())));
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
@@ -687,7 +687,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
-        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecuredString(TEST_PASSWORD.toCharArray())));
+        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
         static byte[] systemKey = generateKey(); // must be the same for all nodes

@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 
 import static org.elasticsearch.xpack.security.Security.setting;
-import static org.elasticsearch.xpack.security.authc.support.SecuredString.constantTimeEquals;
+import static org.elasticsearch.xpack.security.authc.support.CharArrays.constantTimeEquals;
 
 /**
  * Service that provides cryptographic methods based on a shared system key

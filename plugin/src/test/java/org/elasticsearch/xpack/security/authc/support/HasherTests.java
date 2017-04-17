@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -60,7 +61,7 @@ public class HasherTests extends ESTestCase {
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) throws Exception {
-        SecuredString passwd = SecuredStringTests.build(randomAlphaOfLength(10));
+        SecureString passwd = new SecureString(randomAlphaOfLength(10));
         char[] hash = hasher.hash(passwd);
         assertTrue(hasher.verify(passwd, hash));
     }

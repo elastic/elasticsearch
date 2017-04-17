@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -17,8 +18,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -86,7 +85,7 @@ public class LdapRealmTests extends LdapTestCase {
                 threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
@@ -109,7 +108,7 @@ public class LdapRealmTests extends LdapTestCase {
                 new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat("For roles " + Arrays.toString(user.roles()), user.roles(), arrayContaining("HMS Victory"));
@@ -132,14 +131,14 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap =
                 new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
@@ -155,23 +154,23 @@ public class LdapRealmTests extends LdapTestCase {
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory, roleMapper, threadPool);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
 
         roleMapper.notifyRefresh();
 
         future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
 
         //we need to session again
-        verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
     }
 
     public void testAuthenticateNoncaching() throws Exception {
@@ -188,14 +187,14 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap =
                 new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
     }
 
     public void testLdapRealmSelectsLdapSessionFactory() throws Exception {
@@ -282,7 +281,7 @@ public class LdapRealmTests extends LdapTestCase {
                 new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService), threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("avenger"));
@@ -306,7 +305,7 @@ public class LdapRealmTests extends LdapTestCase {
                 threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         User user = future.actionGet();
         assertThat(user, nullValue());
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -15,7 +16,6 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -193,13 +193,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         char[] hash;
         Hasher hasher;
 
-        UserWithHash(User user, SecuredString password, Hasher hasher) {
+        UserWithHash(User user, SecureString password, Hasher hasher) {
             this.user = user;
             this.hash = password == null ? null : hasher.hash(password);
             this.hasher = hasher;
         }
 
-        boolean verify(SecuredString password) {
+        boolean verify(SecureString password) {
             return hash != null && hasher.verify(password, hash);
         }
 

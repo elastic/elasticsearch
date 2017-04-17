@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class ReservedRealmNoDefaultPasswordIntegTests extends NativeRealmIntegTestCase {
 
-    private static final SecuredString DEFAULT_PASSWORD = new SecuredString("changeme".toCharArray());
+    private static final SecureString DEFAULT_PASSWORD = new SecureString("changeme".toCharArray());
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -49,8 +49,8 @@ public class ReservedRealmNoDefaultPasswordIntegTests extends NativeRealmIntegTe
                 .get());
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
-        final SecuredString newPassword = new SecuredString("not-the-default-password".toCharArray());
-        c.prepareChangePassword(KibanaUser.NAME, newPassword.copyChars()).get();
+        final SecureString newPassword = new SecureString("not-the-default-password".toCharArray());
+        c.prepareChangePassword(KibanaUser.NAME, newPassword.clone().getChars()).get();
 
         ClusterHealthResponse response = client()
                 .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(KibanaUser.NAME, newPassword)))

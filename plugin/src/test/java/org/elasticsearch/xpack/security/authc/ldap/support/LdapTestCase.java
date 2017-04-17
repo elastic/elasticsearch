@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
@@ -139,7 +139,7 @@ public abstract class LdapTestCase extends ESTestCase {
         return new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService);
     }
 
-    protected LdapSession session(SessionFactory factory, String username, SecuredString password) {
+    protected LdapSession session(SessionFactory factory, String username, SecureString password) {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.session(username, password, future);
         return future.actionGet();

@@ -33,6 +33,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
@@ -202,7 +202,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
         final String basicAuthValue = UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()));
+                new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()));
         response = getRestClient().performRequest("GET", "/", new BasicHeader("Authorization", basicAuthValue));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         response = getRestClient()

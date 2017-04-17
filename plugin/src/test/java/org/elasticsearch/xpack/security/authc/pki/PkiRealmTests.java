@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.pki;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +59,7 @@ public class PkiRealmTests extends ESTestCase {
         PkiRealm realm = new PkiRealm(config, mock(DnRoleMapper.class), sslService);
 
         assertThat(realm.supports(null), is(false));
-        assertThat(realm.supports(new UsernamePasswordToken("", new SecuredString(new char[0]))), is(false));
+        assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
         assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], "", "")), is(true));
     }
 

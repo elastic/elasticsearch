@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.ArrayList;
@@ -179,7 +179,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
 
         @Override
-        public void session(String user, SecuredString password, ActionListener<LdapSession> listener) {
+        public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
             listener.onResponse(null);
         }
     }

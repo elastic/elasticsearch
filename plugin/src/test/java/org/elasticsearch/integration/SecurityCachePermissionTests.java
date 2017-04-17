@@ -7,11 +7,11 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.Before;
 
 import static java.util.Collections.singletonMap;
@@ -61,7 +61,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
         // Repeat with unauthorized user!!!!
         try {
             response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
-                    new SecuredString("changeme".toCharArray()))))
+                    new SecureString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                     QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                     .execute().actionGet();

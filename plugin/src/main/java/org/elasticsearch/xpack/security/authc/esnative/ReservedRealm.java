@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
@@ -44,7 +44,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
 
-    public static final SecuredString DEFAULT_PASSWORD_TEXT = new SecuredString("changeme".toCharArray());
+    public static final SecureString DEFAULT_PASSWORD_TEXT = new SecureString("changeme".toCharArray());
     static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(DEFAULT_PASSWORD_TEXT);
 
     private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true, true);

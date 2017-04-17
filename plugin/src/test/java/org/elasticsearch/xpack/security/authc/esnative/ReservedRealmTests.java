@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.BeatsSystemUser;
@@ -58,7 +58,7 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedRealmTests extends ESTestCase {
 
-    private static final SecuredString DEFAULT_PASSWORD = new SecuredString("changeme".toCharArray());
+    private static final SecureString DEFAULT_PASSWORD = new SecureString("changeme".toCharArray());
     public static final String ACCEPT_DEFAULT_PASSWORDS = ReservedRealm.ACCEPT_DEFAULT_PASSWORD_SETTING.getKey();
     private NativeUsersStore usersStore;
     private SecurityLifecycleService securityLifecycleService;
@@ -171,7 +171,7 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expectedUser = randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled));
         final String principal = expectedUser.principal();
-        final SecuredString newPassword = new SecuredString("foobar".toCharArray());
+        final SecureString newPassword = new SecureString("foobar".toCharArray());
         when(securityLifecycleService.securityIndexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
@@ -327,13 +327,13 @@ public class ReservedRealmTests extends ESTestCase {
         // maybe cache a successful auth
         if (randomBoolean()) {
             PlainActionFuture<User> future = new PlainActionFuture<>();
-            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("changeme".toCharArray())), future);
+            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecureString("changeme".toCharArray())), future);
             User user = future.actionGet();
             assertEquals(new ElasticUser(true), user);
         }
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("foobar".toCharArray())), future);
+        reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecureString("foobar".toCharArray())), future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("failed to authenticate"));
     }

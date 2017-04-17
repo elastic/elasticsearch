@@ -19,7 +19,7 @@ public class ChangePasswordAction extends Action<ChangePasswordRequest, ChangePa
 
     @Override
     public ChangePasswordRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ChangePasswordRequestBuilder(client, this);
+        return new ChangePasswordRequestBuilder(client);
     }
 
     @Override

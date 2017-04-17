@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.HashSet;
@@ -90,7 +90,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
      * @param username name of the windows user without the domain
      */
     @Override
-    public void session(String username, SecuredString password, ActionListener<LdapSession> listener) {
+    public void session(String username, SecureString password, ActionListener<LdapSession> listener) {
         // the runnable action here allows us make the control/flow logic simpler to understand. If we got a connection then lets
         // authenticate. If there was a failure pass it back using the listener
         Runnable runnable;
@@ -156,11 +156,11 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             userSearchScope = LdapSearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), LdapSearchScope.SUB_TREE);
         }
 
-        final void authenticate(LDAPConnection connection, String username, SecuredString password,
+        final void authenticate(LDAPConnection connection, String username, SecureString password,
                           ActionListener<LdapSession> listener) {
             boolean success = false;
             try {
-                connection.bind(bindUsername(username), new String(password.internalChars()));
+                connection.bind(bindUsername(username), new String(password.getChars()));
                 searchForDN(connection, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
                     if (entry == null) {
                         IOUtils.close(connection);
@@ -189,7 +189,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             return username;
         }
 
-        abstract void searchForDN(LDAPConnection connection, String username, SecuredString password, int timeLimitSeconds,
+        abstract void searchForDN(LDAPConnection connection, String username, SecureString password, int timeLimitSeconds,
                                   ActionListener<SearchResultEntry> listener);
     }
 
@@ -212,7 +212,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         }
 
         @Override
-        void searchForDN(LDAPConnection connection, String username, SecuredString password,
+        void searchForDN(LDAPConnection connection, String username, SecureString password,
                          int timeLimitSeconds, ActionListener<SearchResultEntry> listener) {
             try {
                 searchForEntry(connection, userSearchDN, userSearchScope.scope(),
@@ -255,7 +255,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         }
 
         @Override
-        void searchForDN(LDAPConnection connection, String username, SecuredString password, int timeLimitSeconds,
+        void searchForDN(LDAPConnection connection, String username, SecureString password, int timeLimitSeconds,
                          ActionListener<SearchResultEntry> listener) {
             String[] parts = username.split("\\\\");
             assert parts.length == 2;
@@ -283,7 +283,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             }));
         }
 
-        void netBiosDomainNameToDn(LDAPConnection connection, String netBiosDomainName, String username, SecuredString password,
+        void netBiosDomainNameToDn(LDAPConnection connection, String netBiosDomainName, String username, SecureString password,
                                    int timeLimitSeconds, ActionListener<String> listener) {
             final String cachedName = domainNameCache.get(netBiosDomainName);
             if (cachedName != null) {
@@ -306,7 +306,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                         searchConnection = LdapUtils.privilegedConnect(() ->
                                 new LDAPConnection(options, connection.getConnectedAddress(), 389));
                     }
-                    searchConnection.bind(username, new String(password.internalChars()));
+                    searchConnection.bind(username, new String(password.getChars()));
                     final LDAPConnection finalConnection = searchConnection;
                     search(finalConnection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
                             timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(
@@ -382,7 +382,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN);
         }
 
-        void searchForDN(LDAPConnection connection, String username, SecuredString password, int timeLimitSeconds,
+        void searchForDN(LDAPConnection connection, String username, SecureString password, int timeLimitSeconds,
                          ActionListener<SearchResultEntry> listener) {
             String[] parts = username.split("@");
             assert parts.length == 2;

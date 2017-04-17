@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ public class BCryptTests extends ESTestCase {
     @AwaitsFix(bugUrl = "need a better way to test this")
     public void testUnderLoad() throws Exception {
         final String password = randomAlphaOfLengthBetween(10, 32);
-        final String bcrypt = BCrypt.hashpw(SecuredStringTests.build(password), BCrypt.gensalt());
+        final String bcrypt = BCrypt.hashpw(new SecureString(password), BCrypt.gensalt());
 
         ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(100);
         try {
@@ -44,7 +45,7 @@ public class BCryptTests extends ESTestCase {
                     @Override
                     public Boolean call() throws Exception {
                         for (int i = 0; i < 10000 && !failed.get(); i++) {
-                            if (BCrypt.checkpw(SecuredStringTests.build(password), bcrypt) == false) {
+                            if (BCrypt.checkpw(new SecureString(password), bcrypt) == false) {
                                 failed.set(true);
                                 return false;
                             }

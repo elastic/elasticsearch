@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
@@ -110,7 +110,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -120,7 +120,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("password".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("password".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -131,7 +131,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("password".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("password".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }

@@ -10,9 +10,9 @@ import org.elasticsearch.common.Randomness;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 @SuppressForbidden(reason = "benchmark")
 public class HasherBenchmark {
@@ -35,7 +35,7 @@ public class HasherBenchmark {
         System.out.print("warming up [" + hasher.name() + "]...");
 
         for (int i = 0; i < WARMING_ITERS; i++) {
-            SecuredString str = new SecuredString(RandomStrings.randomAsciiOfLength(Randomness.get(), 8).toCharArray());
+            SecureString str = new SecureString(RandomStrings.randomAsciiOfLength(Randomness.get(), 8).toCharArray());
             char[] hash = hasher.hash(str);
             hasher.verify(str, hash);
         }
@@ -46,7 +46,7 @@ public class HasherBenchmark {
         long start;
 
         for (int i = 0; i < BENCH_ITERS; i++) {
-            SecuredString str = new SecuredString(RandomStrings.randomAsciiOfLength(Randomness.get(), 8).toCharArray());
+            SecureString str = new SecureString(RandomStrings.randomAsciiOfLength(Randomness.get(), 8).toCharArray());
 
             start = System.nanoTime();
             char[] hash = hasher.hash(str);

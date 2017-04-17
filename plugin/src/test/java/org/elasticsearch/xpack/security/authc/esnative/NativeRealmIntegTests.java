@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -240,7 +240,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // Index a document with the default test user
         client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
-        String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
@@ -261,7 +261,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen("idx");
         // Index a document with the default test user
         client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
-        String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
@@ -276,7 +276,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         }
 
-        token = basicAuthHeaderValue("joe", new SecuredString("s3krit2".toCharArray()));
+        token = basicAuthHeaderValue("joe", new SecureString("s3krit2".toCharArray()));
         searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
     }
@@ -296,7 +296,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen("idx");
         // Index a document with the default test user
         client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
-        String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
@@ -327,7 +327,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
 
         if (authenticate) {
-            final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+            final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
             ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
                     .prepareHealth().get();
             assertFalse(response.isTimedOut());
@@ -375,7 +375,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> waiting for .security index");
         ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
 
-        final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
                 .prepareHealth().get();
         assertFalse(response.isTimedOut());
@@ -416,7 +416,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // create joe with a password and verify the user works
         client.preparePutUser("joe", "changeme".toCharArray(), "admin_role").get();
         assertThat(client.prepareGetUsers("joe").get().hasUsers(), is(true));
-        final String token = basicAuthHeaderValue("joe", new SecuredString("changeme".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("changeme".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
                 .prepareHealth().get();
         assertFalse(response.isTimedOut());
@@ -462,7 +462,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         response = client()
                 .filterWithHeader(
                         Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue("joe", new SecuredString("changeme2".toCharArray()))))
+                                basicAuthHeaderValue("joe", new SecureString("changeme2".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertFalse(response.isTimedOut());
     }
@@ -549,7 +549,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // authenticate should work
         AuthenticateResponse authenticateResponse = client()
                 .filterWithHeader(Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue(username, new SecuredString("changeme".toCharArray()))))
+                                basicAuthHeaderValue(username, new SecureString("changeme".toCharArray()))))
                 .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username))
                 .get();
         assertThat(authenticateResponse.user().principal(), is(username));
@@ -573,7 +573,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testCreateAndChangePassword() throws Exception {
         securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
-        final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
@@ -592,7 +592,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         response = client()
                 .filterWithHeader(
                         Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue("joe", new SecuredString("changeme".toCharArray()))))
+                                basicAuthHeaderValue("joe", new SecureString("changeme".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
     }
@@ -657,7 +657,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testSetEnabled() throws Exception {
         securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
-        final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
@@ -687,13 +687,13 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             if (anonymousEnabled && roleExists) {
                 ClusterHealthResponse response = client()
                         .filterWithHeader(Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
+                                basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()))))
                         .admin().cluster().prepareHealth().get();
                 assertNoTimeout(response);
             } else {
                 ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> client()
                         .filterWithHeader(Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
+                                basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()))))
                         .admin().cluster().prepareHealth().get());
                 assertThat(e.status(), is(RestStatus.FORBIDDEN));
             }
@@ -702,7 +702,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         securityClient.preparePutRole("unknown_role").cluster("all").get();
         ClusterHealthResponse response = client()
                 .filterWithHeader(Collections.singletonMap("Authorization",
-                        basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
+                        basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -718,7 +718,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testConcurrentRunAs() throws Exception {
         securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
         securityClient().preparePutUser("executor", "s3krit".toCharArray(), "superuser").get();
-        final String token = basicAuthHeaderValue("executor", new SecuredString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("executor", new SecureString("s3krit".toCharArray()));
         final Client client = client().filterWithHeader(MapBuilder.<String, String>newMapBuilder()
                 .put("Authorization", token)
                 .put("es-security-runas-user", "joe")

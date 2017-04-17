@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.security;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         Response response = getRestClient().performRequest("GET", "/_xpack",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+                                new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
         assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
     }
 }

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -25,7 +25,6 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -60,8 +59,8 @@ class PEMKeyConfig extends KeyConfig {
             }
             Certificate[] certificateChain = CertUtils.readCertificates(Collections.singletonList(certPath), environment);
             // password must be non-null for keystore...
-            try (SecuredString securedKeyPasswordChars = new SecuredString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
-                return CertUtils.keyManager(certificateChain, privateKey, securedKeyPasswordChars.internalChars());
+            try (SecureString securedKeyPasswordChars = new SecureString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
+                return CertUtils.keyManager(certificateChain, privateKey, securedKeyPasswordChars.getChars());
             }
         } catch (IOException | UnrecoverableKeyException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
@@ -79,12 +78,12 @@ class PEMKeyConfig extends KeyConfig {
 
     private PrivateKey readPrivateKey(Path keyPath) throws IOException {
         try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8);
-             SecuredString securedString = new SecuredString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
+             SecureString secureString = new SecureString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
             return CertUtils.readPrivateKey(reader, () -> {
                 if (keyPassword == null) {
                     return null;
                 } else {
-                    return securedString.internalChars();
+                    return secureString.getChars();
                 }
             });
         }

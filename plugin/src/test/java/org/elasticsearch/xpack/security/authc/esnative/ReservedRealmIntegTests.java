@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 
 import java.util.Arrays;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
-    private static final SecuredString DEFAULT_PASSWORD = new SecuredString("changeme".toCharArray());
+    private static final SecureString DEFAULT_PASSWORD = new SecureString("changeme".toCharArray());
 
     public void testAuthenticate() {
         for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME)) {
@@ -89,7 +89,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
         ClusterHealthResponse healthResponse = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, new SecuredString(newPassword))))
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, new SecureString(newPassword))))
                 .admin()
                 .cluster()
                 .prepareHealth()

@@ -9,11 +9,11 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.junit.BeforeClass;
@@ -51,7 +51,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     public void testAuthenticateApi() throws Exception {
         Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
                 new BasicHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+                        new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.DEFAULT_USER_NAME));

@@ -14,12 +14,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -41,7 +41,7 @@ public class IndexAuditIT extends ESIntegTestCase {
     public void testShieldIndexAuditTrailWorking() throws Exception {
         Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))));
+                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()))));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final AtomicBoolean indexExists = new AtomicBoolean(false);

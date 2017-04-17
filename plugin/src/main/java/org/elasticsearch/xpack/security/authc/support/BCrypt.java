@@ -14,6 +14,8 @@ package org.elasticsearch.xpack.security.authc.support;
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+import org.elasticsearch.common.settings.SecureString;
+
 import java.security.SecureRandom;
 
 /**
@@ -642,14 +644,14 @@ public class BCrypt {
     /**
      * Hash a password using the OpenBSD bcrypt scheme.
      *
-     * Modified from the original to take a SecuredString instead of the original
+     * Modified from the original to take a SecureString instead of the original
      *
      * @param password  the password to hash
      * @param salt      the salt to hash with (perhaps generated
      *                  using BCrypt.gensalt)
      * @return          the hashed password
      */
-    public static String hashpw(SecuredString password, String salt) {
+    public static String hashpw(SecureString password, String salt) {
         BCrypt B;
         String real_salt;
         byte passwordb[], saltb[], hashed[];
@@ -676,7 +678,7 @@ public class BCrypt {
         real_salt = salt.substring(off + 3, off + 25);
 
         /*************************** ES CHANGE START *************************/
-        /* original code before introducing SecuredString
+        /* original code before introducing SecureString
         try {
           passwordb = (password + (minor >= 'a' ? "\000" : "")).getBytes("UTF-8");
         } catch (UnsupportedEncodingException uee) {
@@ -685,14 +687,13 @@ public class BCrypt {
 
          */
 
-        // the next lines are the SecuredString replacement for the above commented-out section
+        // the next lines are the SecureString replacement for the above commented-out section
         if (minor >= 'a') {
-            SecuredString securedString = password.concat("\000");
-            passwordb = securedString.utf8Bytes();
-            // clear here since this is a new object and we don't need to reuse it
-            securedString.clear();
+            try (SecureString secureString = new SecureString(CharArrays.concat(password.getChars(), "\000".toCharArray()))) {
+                passwordb = CharArrays.toUtf8Bytes(secureString.getChars());
+            }
         } else {
-            passwordb = password.utf8Bytes();
+            passwordb = CharArrays.toUtf8Bytes(password.getChars());
         }
         /*************************** ES CHANGE END *************************/
 
@@ -772,15 +773,15 @@ public class BCrypt {
      * Check that a plaintext password matches a previously hashed
      * one.
      *
-     * Modified from the original to take a SecuredString plaintext and use a constant time comparison
+     * Modified from the original to take a SecureString plaintext and use a constant time comparison
      * @param plaintext  the plaintext password to verify
      * @param hashed     the previously-hashed password
      * @return           true if the passwords match, false otherwise
      */
-    public static boolean checkpw(SecuredString plaintext, String hashed) {
+    public static boolean checkpw(SecureString plaintext, String hashed) {
         /*************************** ES CHANGE START *************************/
         // this method previously took a string and did its own constant time comparison
-        return SecuredString.constantTimeEquals(hashed, hashpw(plaintext, hashed));
+        return CharArrays.constantTimeEquals(hashed, hashpw(plaintext, hashed));
         /*************************** ES CHANGE END *************************/
     }
 }

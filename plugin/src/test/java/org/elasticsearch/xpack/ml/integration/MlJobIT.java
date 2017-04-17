@@ -9,12 +9,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 
 import java.io.BufferedReader;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
 
 public class MlJobIT extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()));
 
     @Override
     protected Settings restClientSettings() {

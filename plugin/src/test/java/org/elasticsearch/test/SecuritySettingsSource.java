@@ -8,6 +8,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 
@@ -51,7 +51,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     public static final String DEFAULT_USER_NAME = "test_user";
     public static final String DEFAULT_PASSWORD = "changeme";
-    public static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString(DEFAULT_PASSWORD.toCharArray())));
+    public static final SecureString DEFAULT_PASSWORD_SECURE_STRING = new SecureString("changeme".toCharArray());
+    public static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString(DEFAULT_PASSWORD.toCharArray())));
     public static final String DEFAULT_ROLE = "user";
 
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
@@ -142,7 +143,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put(getClientSSLSettings());
         if (randomBoolean()) {
             builder.put(Security.USER_SETTING.getKey(),
-                    transportClientUsername() + ":" + new String(transportClientPassword().internalChars()));
+                    transportClientUsername() + ":" + new String(transportClientPassword().getChars()));
         } else {
             builder.put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(transportClientUsername(),
                     transportClientPassword()));
@@ -177,16 +178,16 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         return DEFAULT_USER_NAME;
     }
 
-    protected SecuredString nodeClientPassword() {
-        return new SecuredString(DEFAULT_PASSWORD.toCharArray());
+    protected SecureString nodeClientPassword() {
+        return new SecureString(DEFAULT_PASSWORD.toCharArray());
     }
 
     protected String transportClientUsername() {
         return DEFAULT_TRANSPORT_CLIENT_USER_NAME;
     }
 
-    protected SecuredString transportClientPassword() {
-        return new SecuredString(DEFAULT_PASSWORD.toCharArray());
+    protected SecureString transportClientPassword() {
+        return new SecureString(DEFAULT_PASSWORD.toCharArray());
     }
 
     protected byte[] systemKey() {

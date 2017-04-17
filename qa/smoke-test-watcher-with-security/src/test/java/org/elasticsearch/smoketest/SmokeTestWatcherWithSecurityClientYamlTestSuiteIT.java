@@ -8,11 +8,11 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,7 +49,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("watcher_manager", new SecuredString("changeme".toCharArray()));
+        String token = basicAuthHeaderValue("watcher_manager", new SecureString("changeme".toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
@@ -57,7 +57,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
+        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 
@@ -21,9 +22,9 @@ public class UsernamePasswordToken implements AuthenticationToken {
     private static final String BASIC_AUTH_PREFIX = "Basic ";
 
     private final String username;
-    private final SecuredString password;
+    private final SecureString password;
 
-    public UsernamePasswordToken(String username, SecuredString password) {
+    public UsernamePasswordToken(String username, SecureString password) {
         this.username = username;
         this.password = password;
     }
@@ -34,13 +35,13 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
     @Override
-    public SecuredString credentials() {
+    public SecureString credentials() {
         return password;
     }
 
     @Override
     public void clearCredentials() {
-        password.clear();
+        password.close();
     }
 
     @Override
@@ -93,19 +94,28 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         return new UsernamePasswordToken(
                 new String(Arrays.copyOfRange(userpasswd, 0, i)),
-                new SecuredString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
+                new SecureString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
     }
 
     public static void putTokenHeader(ThreadContext context, UsernamePasswordToken token) {
         context.putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue(token.username, token.password));
     }
 
-    public static String basicAuthHeaderValue(String username, SecuredString passwd) {
+    public static String basicAuthHeaderValue(String username, SecureString passwd) {
         CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
-        chars.put(username).put(':').put(passwd.internalChars());
+        byte[] charBytes = null;
+        try {
+            chars.put(username).put(':').put(passwd.getChars());
+            charBytes = CharArrays.toUtf8Bytes(chars.array());
 
-        //TODO we still have passwords in Strings in headers
-        String basicToken = Base64.getEncoder().encodeToString(CharArrays.toUtf8Bytes(chars.array()));
-        return "Basic " + basicToken;
+            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
+            String basicToken = Base64.getEncoder().encodeToString(charBytes);
+            return "Basic " + basicToken;
+        } finally {
+            Arrays.fill(chars.array(), (char) 0);
+            if (charBytes != null) {
+                Arrays.fill(charBytes, (byte) 0);
+            }
+        }
     }
 }

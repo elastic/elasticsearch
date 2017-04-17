@@ -10,11 +10,11 @@ import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
@@ -95,7 +95,7 @@ public class SessionFactoryTests extends ESTestCase {
         return new SessionFactory(realmConfig, null) {
 
             @Override
-            public void session(String user, SecuredString password, ActionListener<LdapSession> listener) {
+            public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
                 listener.onResponse(null);
             }
         };

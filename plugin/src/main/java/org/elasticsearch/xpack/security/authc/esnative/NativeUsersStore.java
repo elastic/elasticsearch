@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -457,7 +457,7 @@ public class NativeUsersStore extends AbstractComponent {
      * @param username username to lookup the user by
      * @param password the plaintext password to verify
      */
-    void verifyPassword(String username, final SecuredString password, ActionListener<User> listener) {
+    void verifyPassword(String username, final SecureString password, ActionListener<User> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
                 listener.onResponse(null);

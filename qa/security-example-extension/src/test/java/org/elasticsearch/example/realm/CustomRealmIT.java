@@ -63,7 +63,7 @@ public class CustomRealmIT extends ESIntegTestCase {
     public void testHttpAuthentication() throws Exception {
         Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
-                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW));
+                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString()));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 

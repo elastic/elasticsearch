@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +28,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
 
     public void testPutToken() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
+        UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", new SecureString("test123")));
         String header = threadContext.getHeader(UsernamePasswordToken.BASIC_AUTH_HEADER);
         assertThat(header, notNullValue());
         assertTrue(header.startsWith("Basic "));
@@ -48,7 +49,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
         UsernamePasswordToken token = UsernamePasswordToken.extractToken(threadContext);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
-        assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
+        assertThat(new String(token.credentials().getChars()), equalTo("test123"));
     }
 
     public void testExtractTokenInvalid() throws Exception {
@@ -80,24 +81,24 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     }
 
     public void testEqualsWithDifferentPasswords() {
-        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
-        UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecuredString("new password".toCharArray()));
+        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecureString("password".toCharArray()));
+        UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecureString("new password".toCharArray()));
         assertThat(token1, not(equalTo(token2)));
     }
 
     public void testEqualsWithDifferentUsernames() {
-        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
-        UsernamePasswordToken token2 = new UsernamePasswordToken("username1", new SecuredString("password".toCharArray()));
+        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecureString("password".toCharArray()));
+        UsernamePasswordToken token2 = new UsernamePasswordToken("username1", new SecureString("password".toCharArray()));
         assertThat(token1, not(equalTo(token2)));
     }
 
     public void testEquals() {
-        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
-        UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecuredString("password".toCharArray()));
+        UsernamePasswordToken token1 = new UsernamePasswordToken("username", new SecureString("password".toCharArray()));
+        UsernamePasswordToken token2 = new UsernamePasswordToken("username", new SecureString("password".toCharArray()));
         assertThat(token1, equalTo(token2));
     }
 
     public static String basicAuthHeaderValue(String username, String passwd) {
-        return UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(passwd.toCharArray()));
+        return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(passwd.toCharArray()));
     }
 }

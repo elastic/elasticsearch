@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ResultCode;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -17,8 +18,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 
@@ -35,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 @Network
 public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryIntegTests {
 
-    private final SecuredString SECURED_PASSWORD = SecuredStringTests.build(PASSWORD);
+    private final SecureString SECURED_PASSWORD = new SecureString(PASSWORD);
 
     @Override
     public boolean enableWarningsCheck() {
@@ -382,7 +381,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         return builder.build();
     }
 
-    private LdapSession session(SessionFactory factory, String username, SecuredString password) {
+    private LdapSession session(SessionFactory factory, String username, SecureString password) {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.session(username, password, future);
         return future.actionGet();

@@ -15,12 +15,12 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         final String path = "/index1/type/1";
         final Header basicAuthHeader = new BasicHeader("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                        new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
 
         StringEntity body = new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON);
         Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader);

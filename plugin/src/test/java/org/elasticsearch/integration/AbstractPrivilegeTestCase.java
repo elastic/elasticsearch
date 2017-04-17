@@ -13,9 +13,9 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
@@ -33,13 +33,13 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
 
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("passwd".toCharArray())));
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body,
                                          Map<String, String> params) throws IOException {
         Response response = getRestClient().performRequest(method, uri, params, entityOrNull(body),
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))));
+                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray()))));
         StatusLine statusLine = response.getStatusLine();
         String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri,
                 statusLine.getStatusCode(), statusLine.getReasonPhrase(), EntityUtils.toString(response.getEntity()));
@@ -67,7 +67,7 @@ public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
         ResponseException responseException = expectThrows(ResponseException.class,
                 () -> getRestClient().performRequest(method, uri, params, entityOrNull(body),
                         new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray())))));
+                                UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())))));
         StatusLine statusLine = responseException.getResponse().getStatusLine();
         String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body,
                 statusLine.getStatusCode(), statusLine.getReasonPhrase(),
@@ -88,7 +88,7 @@ public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
                                                Map<String, String> params) throws IOException {
         Response resp = getRestClient().performRequest(method, uri, params, entityOrNull(body),
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))));
+                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray()))));
         StatusLine statusLine = resp.getStatusLine();
         assertThat(statusLine.getStatusCode(), is(200));
         HttpEntity bodyEntity = resp.getEntity();

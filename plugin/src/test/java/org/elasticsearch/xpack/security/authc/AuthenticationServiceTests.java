@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.Realm.Factory;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -197,7 +197,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateNonExistentRestRequestUserThrowsAuthenticationException() throws Exception {
         when(firstRealm.token(threadContext)).thenReturn(new UsernamePasswordToken("idonotexist",
-                new SecuredString("passwd".toCharArray())));
+                new SecureString("passwd".toCharArray())));
         try {
             authenticateBlocking(restRequest);
             fail("Authentication was successful but should not");

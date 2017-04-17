@@ -8,11 +8,11 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.ArrayList;
@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
-    protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("change_me".toCharArray())));
+    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("change_me".toCharArray())));
 
     // can't add a second test method, because each test run creates a new instance of this class and that will will result
     // in a new random value:

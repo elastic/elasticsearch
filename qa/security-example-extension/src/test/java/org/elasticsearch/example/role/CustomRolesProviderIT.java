@@ -9,13 +9,13 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
@@ -90,6 +90,6 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
 
     private BasicHeader authHeader() {
         return new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                               basicAuthHeaderValue(TEST_USER, new SecuredString(TEST_PWD.toCharArray())));
+                               basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
     }
 }

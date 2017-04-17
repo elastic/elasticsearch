@@ -18,6 +18,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,7 +35,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import java.util.Collections;
 
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 
 public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
-    protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
 
     @Override

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -16,8 +17,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -38,6 +37,7 @@ public class OpenLdapTests extends ESTestCase {
 
     public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";
     public static final String PASSWORD = "NickFuryHeartsES";
+    public static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
 
     private boolean useGlobalSSL;
     private SSLService sslService;
@@ -85,7 +85,7 @@ public class OpenLdapTests extends ESTestCase {
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
-            try (LdapSession ldap = session(sessionFactory, user, SecuredStringTests.build(PASSWORD))) {
+            try (LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING)) {
                 assertThat(groups(ldap), hasItem(containsString("Avengers")));
             }
         }
@@ -102,7 +102,7 @@ public class OpenLdapTests extends ESTestCase {
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
-            LdapSession ldap = session(sessionFactory, user, SecuredStringTests.build(PASSWORD));
+            LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING);
             assertThat(groups(ldap), hasItem(containsString("Avengers")));
             ldap.close();
         }
@@ -119,7 +119,7 @@ public class OpenLdapTests extends ESTestCase {
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
 
-        try (LdapSession ldap = session(sessionFactory, "selvig", SecuredStringTests.build(PASSWORD))){
+        try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)){
             assertThat(groups(ldap), hasItem(containsString("Geniuses")));
         }
     }
@@ -138,7 +138,7 @@ public class OpenLdapTests extends ESTestCase {
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
 
         LDAPException expected = expectThrows(LDAPException.class,
-                () -> session(sessionFactory, "thor", SecuredStringTests.build(PASSWORD)).groups(new PlainActionFuture<>()));
+                () -> session(sessionFactory, "thor", PASSWORD_SECURE_STRING).groups(new PlainActionFuture<>()));
         assertThat(expected.getMessage(), containsString("A client-side timeout was encountered while waiting"));
     }
 
@@ -156,7 +156,7 @@ public class OpenLdapTests extends ESTestCase {
 
         String user = "blackwidow";
         UncategorizedExecutionException e = expectThrows(UncategorizedExecutionException.class,
-                () -> session(sessionFactory, user, SecuredStringTests.build(PASSWORD)));
+                () -> session(sessionFactory, user, PASSWORD_SECURE_STRING));
         assertThat(e.getCause(), instanceOf(ExecutionException.class));
         assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
         assertThat(e.getCause().getCause().getMessage(),
@@ -175,7 +175,7 @@ public class OpenLdapTests extends ESTestCase {
                 .build();
     }
 
-    protected LdapSession session(SessionFactory factory, String username, SecuredString password) {
+    protected LdapSession session(SessionFactory factory, String username, SecureString password) {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.session(username, password, future);
         return future.actionGet();

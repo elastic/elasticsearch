@@ -95,7 +95,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
                 .put("xpack.ssl.keystore.password", "testclient-client-profile")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(Security.USER_SETTING.getKey(),
-                        transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
+                        transportClientUsername() + ":" + new String(transportClientPassword().getChars()))
                 .build();
         try (TransportClient client = new TestXPackTransportClient(settings)) {
             Transport transport = internalCluster().getDataNodeInstance(Transport.class);

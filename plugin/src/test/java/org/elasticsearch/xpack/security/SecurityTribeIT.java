@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -28,7 +29,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
@@ -202,7 +202,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
         setupTribeNode(Settings.EMPTY);
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -214,7 +214,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("password".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("password".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -226,7 +226,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("password".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("password".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -263,7 +263,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         assertTribeNodeHasAllIndices();
         for (String username : shouldBeSuccessfulUsers) {
             ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                    UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString("password".toCharArray()))))
                     .admin().cluster().prepareHealth().get();
             assertNoTimeout(response);
         }
@@ -271,7 +271,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         for (String username : shouldFailUsers) {
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
                     tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                            UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                            UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString("password".toCharArray()))))
                             .admin().cluster().prepareHealth().get());
             assertThat(e.getMessage(), containsString("authenticate"));
         }
@@ -298,7 +298,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         assertTribeNodeHasAllIndices();
         for (String username : shouldBeSuccessfulUsers) {
             ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                    UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString("password".toCharArray()))))
                     .admin().cluster().prepareHealth().get();
             assertNoTimeout(response);
         }

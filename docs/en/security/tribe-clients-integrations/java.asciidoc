@@ -125,9 +125,9 @@ request:
 +
 [source,java]
 --------------------------------------------------------------------------------------------------
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -142,7 +142,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
     .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300))
     .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9301))
 
-String token = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
+String token = basicAuthHeaderValue("test_user", new SecureString("changeme".toCharArray()));
 
 client.filterWithHeader(Collections.singletonMap("Authorization", token))
     .prepareSearch().get();

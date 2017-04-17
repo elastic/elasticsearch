@@ -20,9 +20,9 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
-    protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("change_me".toCharArray())));
+    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("change_me".toCharArray())));
 
     @Override
     public String configRoles() {

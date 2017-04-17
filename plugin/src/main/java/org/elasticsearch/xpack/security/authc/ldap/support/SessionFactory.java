@@ -14,12 +14,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
@@ -99,7 +99,7 @@ public abstract class SessionFactory {
      * @param password The password of the user
      * @param listener the listener to call on a failure or result
      */
-    public abstract void session(String user, SecuredString password,
+    public abstract void session(String user, SecureString password,
                                  ActionListener<LdapSession> listener);
 
     /**

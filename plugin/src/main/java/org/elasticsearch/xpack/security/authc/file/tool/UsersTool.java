@@ -13,6 +13,7 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
@@ -104,7 +104,7 @@ public class UsersTool extends MultiCommand {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
             Hasher hasher = Hasher.BCRYPT;
-            users.put(username, hasher.hash(new SecuredString(password)));
+            users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, passwordFile);
 
             if (roles.length > 0) {
@@ -202,7 +202,7 @@ public class UsersTool extends MultiCommand {
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
-            users.put(username, Hasher.BCRYPT.hash(new SecuredString(password)));
+            users.put(username, Hasher.BCRYPT.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, file);
 
             attributesChecker.check(terminal);

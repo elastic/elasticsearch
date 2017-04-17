@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -20,8 +21,6 @@ import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.User;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ClearRealmsCacheTests extends SecurityIntegTestCase {
-    private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
+    private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("passwd".toCharArray())));
 
     private static String[] usernames;
 
@@ -166,7 +165,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
             Response response = getRestClient().performRequest("POST", path, params,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+                                    new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
             assertNotNull(response.getEntity());
             assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
         }
@@ -221,7 +220,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     private void testScenario(Scenario scenario) throws Exception {
         Map<String, UsernamePasswordToken> tokens = new HashMap<>();
         for (String user : usernames) {
-            tokens.put(user, new UsernamePasswordToken(user, SecuredStringTests.build("passwd")));
+            tokens.put(user, new UsernamePasswordToken(user, new SecureString("passwd")));
         }
 
         List<Realm> realms = new ArrayList<>();

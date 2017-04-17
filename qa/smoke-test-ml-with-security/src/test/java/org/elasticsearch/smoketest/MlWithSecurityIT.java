@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 import org.junit.Before;
 
@@ -55,7 +55,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
         Map<String, String> securityParams = Collections.singletonMap("name", SecurityLifecycleService.SECURITY_TEMPLATE_NAME);
         Map<String, String> anomaliesParams = Collections.singletonMap("name", AnomalyDetectorsIndex.jobResultsIndexPrefix());
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray())));
+                basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray())));
 
         for (Map<String, String> params : Arrays.asList(securityParams, anomaliesParams)) {
             AtomicReference<IOException> exceptionHolder = new AtomicReference<>();
@@ -92,7 +92,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
     @Override
     protected Settings restClientSettings() {
         String[] creds = getCredentials();
-        String token = basicAuthHeaderValue(creds[0], new SecuredString(creds[1].toCharArray()));
+        String token = basicAuthHeaderValue(creds[0], new SecureString(creds[1].toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
@@ -100,7 +100,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
+        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

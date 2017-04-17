@@ -15,6 +15,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
@@ -22,7 +23,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.user.BeatsSystemUser;
@@ -193,6 +193,7 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
      * Determines whether the supplied source as a {@link Map} has its password explicitly set to be the default password
      */
     private boolean hasOldStyleDefaultPassword(Map<String, Object> userSource) {
+        // TODO we should store the hash as something other than a string... bytes?
         final String passwordHash = (String) userSource.get(User.Fields.PASSWORD.getPreferredName());
         if (passwordHash == null) {
             throw new IllegalStateException("passwordHash should never be null");
@@ -201,8 +202,8 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
             return false;
         }
 
-        try (SecuredString securedString = new SecuredString(passwordHash.toCharArray())) {
-            return Hasher.BCRYPT.verify(ReservedRealm.DEFAULT_PASSWORD_TEXT, securedString.internalChars());
+        try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
+            return Hasher.BCRYPT.verify(ReservedRealm.DEFAULT_PASSWORD_TEXT, secureString.getChars());
         }
     }
 }

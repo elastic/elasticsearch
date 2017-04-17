@@ -10,12 +10,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -62,7 +62,7 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()));
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)

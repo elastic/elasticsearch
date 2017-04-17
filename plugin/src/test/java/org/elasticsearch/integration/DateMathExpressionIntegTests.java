@@ -17,11 +17,11 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import java.util.Collections;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 
 public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
-    protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
 
     @Override

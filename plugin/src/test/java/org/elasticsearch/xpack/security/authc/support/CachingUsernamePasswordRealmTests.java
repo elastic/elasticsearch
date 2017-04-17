@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -66,7 +67,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     public void testAuthCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
-        SecuredString pass = SecuredStringTests.build("pass");
+        SecureString pass = new SecureString("pass");
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("a", pass), future);
         future.actionGet();
@@ -132,7 +133,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
         // now authenticate
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("a", SecuredStringTests.build("pass")), future);
+        realm.authenticate(new UsernamePasswordToken("a", new SecureString("pass")), future);
         User user = future.actionGet();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(1));
@@ -141,7 +142,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
         // authenticate a different user first
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("b", SecuredStringTests.build("pass")), future);
+        realm.authenticate(new UsernamePasswordToken("b", new SecureString("pass")), future);
         user = future.actionGet();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(2));
@@ -159,8 +160,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
 
         String user = "testUser";
-        SecuredString pass1 = SecuredStringTests.build("pass");
-        SecuredString pass2 = SecuredStringTests.build("password");
+        SecureString pass1 = new SecureString("pass");
+        SecureString pass2 = new SecureString("password");
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken(user, pass1), future);
@@ -184,13 +185,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testAuthenticateContract() throws Exception {
         Realm realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")), future);
+        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
         User user = future.actionGet();
         assertThat(user , nullValue());
 
         realm = new ThrowingAuthenticationRealm(Settings.EMPTY, globalSettings);
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")), future);
+        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
         RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
         assertThat(e.getMessage() , containsString("whatever exception"));
     }
@@ -211,8 +212,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     public void testCacheConcurrency() throws Exception {
         final String username = "username";
-        final SecuredString password = new SecuredString("changeme".toCharArray());
-        final SecuredString randomPassword = new SecuredString(randomAlphaOfLength(password.length()).toCharArray());
+        final SecureString password = new SecureString("changeme".toCharArray());
+        final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
 
         final String passwordHash = new String(Hasher.BCRYPT.hash(password));
         RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY));

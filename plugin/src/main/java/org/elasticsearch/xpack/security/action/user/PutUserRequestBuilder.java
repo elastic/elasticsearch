@@ -13,12 +13,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
@@ -59,7 +59,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 validationException.addValidationError(error.toString());
                 throw validationException;
             }
-            request.passwordHash(hasher.hash(new SecuredString(password)));
+            request.passwordHash(hasher.hash(new SecureString(password)));
         } else {
             request.passwordHash(null);
         }

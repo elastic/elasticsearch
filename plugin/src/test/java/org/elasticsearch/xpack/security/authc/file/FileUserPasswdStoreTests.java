@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.file;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -92,13 +92,13 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
 
         assertThat(store.userExists("bcrypt"), is(true));
-        assertThat(store.verifyPassword("bcrypt", SecuredStringTests.build("test123")), is(true));
+        assertThat(store.verifyPassword("bcrypt", new SecureString("test123")), is(true));
 
         watcherService.start();
 
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
-            writer.append("foobar:").append(new String(Hasher.BCRYPT.hash(SecuredStringTests.build("barfoo"))));
+            writer.append("foobar:").append(new String(Hasher.BCRYPT.hash(new SecureString("barfoo"))));
         }
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
@@ -106,7 +106,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         }
 
         assertThat(store.userExists("foobar"), is(true));
-        assertThat(store.verifyPassword("foobar", SecuredStringTests.build("barfoo")), is(true));
+        assertThat(store.verifyPassword("foobar", new SecureString("barfoo")), is(true));
     }
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
@@ -126,7 +126,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
 
-        assertTrue(store.verifyPassword("bcrypt", SecuredStringTests.build("test123")));
+        assertTrue(store.verifyPassword("bcrypt", new SecureString("test123")));
 
         watcherService.start();
 

@@ -8,11 +8,11 @@ package org.elasticsearch.integration;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
 
@@ -418,7 +418,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         try {
             getRestClient().performRequest("GET", "/",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecuredString("passwd".toCharArray()))));
+                            UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecureString("passwd".toCharArray()))));
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));

@@ -18,14 +18,10 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -39,17 +35,17 @@ public class StartOpsRecoveryRequest extends StartRecoveryRequest {
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId           the shard ID to recover
-     * @param sourceNode        the source node to remover from
-     * @param targetNode        the target node to recover to
-     * @param recoveryId        the recovery ID
-     * @param startingSeqNo     the starting sequence number
+     * @param shardId       the shard ID to recover
+     * @param sourceNode    the source node to remover from
+     * @param targetNode    the target node to recover to
+     * @param recoveryId    the recovery ID
+     * @param startingSeqNo the starting sequence number
      */
     public StartOpsRecoveryRequest(final ShardId shardId,
-                                final DiscoveryNode sourceNode,
-                                final DiscoveryNode targetNode,
-                                final long recoveryId,
-                                final long startingSeqNo) {
+                                   final DiscoveryNode sourceNode,
+                                   final DiscoveryNode targetNode,
+                                   final long recoveryId,
+                                   final long startingSeqNo) {
         super(shardId, sourceNode, targetNode, recoveryId);
         this.startingSeqNo = startingSeqNo;
     }

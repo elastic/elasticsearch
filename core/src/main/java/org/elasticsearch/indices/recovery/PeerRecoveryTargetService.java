@@ -144,7 +144,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         final RecoveryListener originalListener = listener;
         final RecoveryListener primaryHandoffIfNeeded;
         if (indexShard.routingEntry().primary()) {
-            assert indexShard.routingEntry().relocating() : indexShard.routingEntry();
+            assert indexShard.routingEntry().isRelocationTarget() : indexShard.routingEntry();
             primaryHandoffIfNeeded = wrapWithRecoveryStep(indexShard, sourceNode, originalListener,
                 recoverySettings.activityTimeout(), onGoingRecoveries::startPrimaryHandoff);
         } else {
@@ -176,6 +176,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     @Override
                     public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e,
                                                   boolean sendShardFailure) {
+                        // nocommit: should we look at specific failures only?
                         try {
                             logger.debug(shardId + " falling back to full file recovery", e);
                             indexShard.performRecoveryRestart();
@@ -183,8 +184,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                         } catch (Exception e1) {
                             e1.addSuppressed(e);
                             originalListener.onRecoveryFailure(state,
-                                new RecoveryFailedException(state,
-                                    "failed to fall back to full file recovery", e1),
+                                new RecoveryFailedException(state, "failed to fall back to full file recovery", e1),
                                 true);
                         }
                     }
@@ -223,8 +223,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
-                long recoveryId =
-                    targetSupplier.startRecovery(shard, sourceNode, listener, activityTimeOut);
+                long recoveryId = targetSupplier.startRecovery(shard, sourceNode, listener, activityTimeOut);
                 startRecovery(recoveryId);
             }
 
@@ -294,6 +293,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         final RecoveryState.Timer timer;
         final String startRecoveryAction;
         final Supplier<RecoveryResponse> responseSupplier;
+        final String recoveryType;
 
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
             if (recoveryRef == null) {
@@ -309,6 +309,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 request = recoveryTarget.createStartRecoveryRequest(logger,
                     clusterService.localNode());
                 startRecoveryAction = recoveryTarget.startRecoveryActionName();
+                recoveryType = recoveryTarget.getRecoveryType();
                 responseSupplier = recoveryTarget::createRecoveryResponse;
             } catch (final Exception e) {
                 // this will be logged as warning later on...
@@ -337,7 +338,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             if (logger.isTraceEnabled()) {
                 recoveryResponse.logTraceSummary(logger, request, recoveryTime);
             } else {
-                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), request.sourceNode(), recoveryTime);
+                logger.debug("{} [{}] recovery done from [{}], took [{}]", request.shardId(), recoveryType,
+                    request.sourceNode(), recoveryTime);
             }
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
@@ -353,8 +355,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
-                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,
-                    "source has canceled the recovery", cause), false);
+                onGoingRecoveries.failRecovery(recoveryId,
+                    new RecoveryFailedException(request, "source has canceled the recovery", cause), false);
                 return;
             }
             if (cause instanceof RecoveryEngineException) {
@@ -394,8 +396,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             }
 
             if (cause instanceof AlreadyClosedException) {
-                onGoingRecoveries.failRecovery(recoveryId,
-                    new RecoveryFailedException(request, "source shard is closed", cause), false);
+                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, "source shard is closed", cause), false);
                 return;
             }
 

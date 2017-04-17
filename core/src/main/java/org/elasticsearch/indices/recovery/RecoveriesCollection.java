@@ -82,8 +82,7 @@ public class RecoveriesCollection {
     public long startFileRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                                  PeerRecoveryTargetService.RecoveryListener listener,
                                  TimeValue activityTimeout) {
-        return startRecoveryInternal(
-            new FileRecoveryTarget(indexShard, sourceNode, listener), activityTimeout);
+        return startRecoveryInternal(new FileRecoveryTarget(indexShard, sourceNode, listener), activityTimeout);
     }
 
     /**
@@ -285,27 +284,27 @@ public class RecoveriesCollection {
      */
     public static class RecoveryRef implements AutoCloseable {
 
-        private final RecoveryTarget status;
+        private final RecoveryTarget target;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
         /**
          * Important: {@link RecoveryTarget#tryIncRef()} should
          * be *successfully* called on status before
          */
-        public RecoveryRef(RecoveryTarget status) {
-            this.status = status;
-            this.status.setLastAccessTime();
+        public RecoveryRef(RecoveryTarget target) {
+            this.target = target;
+            this.target.setLastAccessTime();
         }
 
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
-                status.decRef();
+                target.decRef();
             }
         }
 
         public <T extends RecoveryTarget> T target() {
-            return (T) status;
+            return (T) target;
         }
     }
 

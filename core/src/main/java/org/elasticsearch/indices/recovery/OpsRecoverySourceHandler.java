@@ -145,7 +145,9 @@ public class OpsRecoverySourceHandler extends RecoverySourceHandler {
             failure = "starting sequence is higher than max seq no seen by shard [" + endingSeqNo
                 + "]";
         }
-        throw new RecoveryFailedException(request, failure, null);
+        if (failure != null) {
+            throw new RecoveryFailedException(request, failure, null);
+        }
     }
 
     /**

@@ -25,11 +25,11 @@ import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.FileRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
-    static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
+    private final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 
@@ -47,7 +47,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-
+            logger.info("recovery failed", e);
         }
     };
 
@@ -120,14 +120,13 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
-            FullRecoveryTarget recoveryTarget = collection.getRecoveryTarget(recoveryId);
+            FileRecoveryTarget recoveryTarget = (FileRecoveryTarget) collection.getRecoveryTarget(recoveryId);
             final int currentAsTarget = shard.recoveryStats().currentAsTarget();
             final int referencesToStore = recoveryTarget.store().refCount();
             IndexShard indexShard = recoveryTarget.indexShard();
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
-            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId,
-                TimeValue.timeValueMinutes(60));
+            FileRecoveryTarget resetRecovery = (FileRecoveryTarget) collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
             final long resetRecoveryId = resetRecovery.recoveryId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
@@ -142,10 +141,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             assertNotEquals(tempFileName, resetTempFileName);
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
             try (RecoveriesCollection.RecoveryRef newRecoveryRef = collection.getRecovery(resetRecoveryId)) {
-                shards.recoverReplica(shard, (s, n) -> {
-                    assertSame(s, newRecoveryRef.target().indexShard());
+                shards.recoverReplica(shard, (sh, sn, tn) -> {
+                    assertSame(sh, newRecoveryRef.target().indexShard());
+                    sh.prepareForIndexRecovery();
                     return newRecoveryRef.target();
-                }, false);
+                });
             }
             shards.assertAllEqual(numDocs);
             assertNull("recovery is done", collection.getRecovery(recoveryId));
@@ -161,6 +161,6 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
+        return collection.startFileRecovery(indexShard, sourceNode, listener, timeValue);
     }
 }

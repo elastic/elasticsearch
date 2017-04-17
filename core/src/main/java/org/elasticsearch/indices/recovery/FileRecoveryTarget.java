@@ -80,15 +80,13 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
         // make sure the store is not released until we are done.
         store.incRef();
         assert indexShard.commitStats() == null : "engine should be closed";
-        assert indexShard.recoveryState().getStage() == RecoveryState.Stage.INDEX :
-            indexShard.recoveryState().getStage();
+        assert indexShard.recoveryState().getStage() == RecoveryState.Stage.INDEX : indexShard.recoveryState().getStage();
     }
 
 
     @Override
     public FileRecoveryTarget retryCopy() {
-        return new FileRecoveryTarget(indexShard(), sourceNode(), listener()
-        );
+        return new FileRecoveryTarget(indexShard(), sourceNode(), listener());
     }
 
     public Store store() {
@@ -103,7 +101,7 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
 
     @Override
     protected void onResetRecovery() throws IOException {
-        indexShard().performRecoveryRestart();
+        indexShard.performRecoveryRestart();
     }
 
     @Override
@@ -130,8 +128,7 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
         final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(logger);
         logger.trace("{} local file count [{}]", shardId(), metadataSnapshot.size());
 
-        return new StartFileRecoveryRequest(shardId(), sourceNode(), localNode, metadataSnapshot,
-            recoveryId());
+        return new StartFileRecoveryRequest(shardId(), sourceNode(), localNode, metadataSnapshot, recoveryId());
     }
 
     /**
@@ -217,6 +214,11 @@ public class FileRecoveryTarget extends OpsRecoveryTarget implements FileRecover
             // free store. increment happens in constructor
             store.decRef();
         }
+    }
+
+    @Override
+    public String getRecoveryType() {
+        return "file_recovery";
     }
 
     /**

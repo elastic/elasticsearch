@@ -59,7 +59,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,7 +71,6 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -278,18 +276,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             updateAllocationIDsOnPrimary();
         }
 
-        public void recoverReplica(IndexShard replica,
-                                   BiFunction<IndexShard, DiscoveryNode, RecoveryTarget>
-                                       targetSupplier) throws IOException {
-            recoverReplica(replica, targetSupplier, true);
-        }
-
-        public void recoverReplica(
-            IndexShard replica,
-            BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
-            boolean markAsRecovering) throws IOException {
-            ESIndexLevelReplicationTestCase.this
-                .recoverReplica(replica, primary, targetSupplier, markAsRecovering);
+        public void recoverReplica(IndexShard replica, ReplicaRecoveryPreparer replicaRecoveryPreparer) throws IOException {
+            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, replicaRecoveryPreparer);
             updateAllocationIDsOnPrimary();
         }
 
@@ -297,11 +285,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return getDiscoveryNode(primary.routingEntry().currentNodeId());
         }
 
-        public Future<Void> asyncRecoverReplica(IndexShard replica, BiFunction<IndexShard,
-            DiscoveryNode, RecoveryTarget> targetSupplier)
+        public Future<Void> asyncRecoverReplica(IndexShard replica, ReplicaRecoveryPreparer replicaRecoveryPreparer)
             throws IOException {
             FutureTask<Void> task = new FutureTask<>(() -> {
-                recoverReplica(replica, targetSupplier);
+                recoverReplica(replica, replicaRecoveryPreparer);
                 return null;
             });
             threadPool.generic().execute(task);

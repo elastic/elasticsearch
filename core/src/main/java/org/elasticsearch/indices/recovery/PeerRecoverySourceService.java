@@ -57,7 +57,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         public static final String START_LEGACY_RECOVERY =
             "internal:index/shard/recovery/start_recovery";
         public static final String START_FILE_RECOVERY =
-            "internal:index/shard/recovery/start_recovery";
+            "internal:index/shard/recovery/start_file_recovery";
         public static final String START_OPS_RECOVERY =
             "internal:index/shard/recovery/start_ops_recovery";
         public static final String START_PRIMARY_HANDOFF =
@@ -89,7 +89,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
             StartOpsRecoveryRequest::new, ThreadPool.Names.GENERIC,
             new StartRecoveryTransportRequestHandler());
         transportService.registerRequestHandler(Actions.START_PRIMARY_HANDOFF,
-            StartOpsRecoveryRequest::new, ThreadPool.Names.GENERIC,
+            StartPrimaryHandoffRequest::new, ThreadPool.Names.GENERIC,
             new StartRecoveryTransportRequestHandler());
     }
 
@@ -108,13 +108,10 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
 
         // starting recovery from that our (the source) shard state is marking the shard to be in
         // recovery mode as well, otherwise the index operations will not be routed to it properly
-        RoutingNode node = clusterService.state()
-            .getRoutingNodes().node(request.targetNode().getId());
+        RoutingNode node = clusterService.state().getRoutingNodes().node(request.targetNode().getId());
         if (node == null) {
-            logger.debug("delaying recovery of {} as source node {} is unknown",
-                request.shardId(), request.targetNode());
-            throw new DelayRecoveryException("source node does not have the node [" +
-                request.targetNode() + "] in its state yet..");
+            logger.debug("delaying recovery of {} as source node {} is unknown", request.shardId(), request.targetNode());
+            throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");
         }
 
         ShardRouting targetShardRouting = node.getByShardId(request.shardId());
@@ -136,8 +133,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         if (targetShardRouting.primary()) {
             ShardRouting routingEntry = shard.routingEntry();
             if (routingEntry.relocating() == false ||
-                routingEntry.relocatingNodeId()
-                    .equals(targetShardRouting.currentNodeId()) == false) {
+                routingEntry.relocatingNodeId().equals(targetShardRouting.currentNodeId()) == false) {
                 assert false :
                     "primary relocation but shard is not yet marked as relocated: " + routingEntry +
                         " target: " + targetShardRouting;

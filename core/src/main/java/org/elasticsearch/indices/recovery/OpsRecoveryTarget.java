@@ -47,7 +47,9 @@ public class OpsRecoveryTarget extends RecoveryTarget implements OpsRecoveryTarg
                              final DiscoveryNode sourceNode,
                              final PeerRecoveryTargetService.RecoveryListener listener) {
         super(indexShard, sourceNode, listener);
-        assert indexShard.commitStats() != null : "engine should be open";
+        if (getClass() == OpsRecoveryTarget.class) {
+            assert indexShard.commitStats() != null : "engine should be open";
+        }
     }
 
     @Override
@@ -100,5 +102,10 @@ public class OpsRecoveryTarget extends RecoveryTarget implements OpsRecoveryTarg
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         indexShard().performBatchRecovery(operations);
+    }
+
+    @Override
+    public String getRecoveryType() {
+        return "ops_recovery";
     }
 }

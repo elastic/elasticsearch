@@ -42,8 +42,8 @@ public abstract class RecoveryTarget extends AbstractRefCounted {
 
     private final ShardId shardId;
     private final long recoveryId;
-    private final IndexShard indexShard;
-    private final DiscoveryNode sourceNode;
+    protected final IndexShard indexShard;
+    protected final DiscoveryNode sourceNode;
     private final PeerRecoveryTargetService.RecoveryListener listener;
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -103,7 +103,7 @@ public abstract class RecoveryTarget extends AbstractRefCounted {
     }
 
     protected PeerRecoveryTargetService.RecoveryListener listener() {
-        return null;
+        return listener;
     }
 
     /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
@@ -144,8 +144,10 @@ public abstract class RecoveryTarget extends AbstractRefCounted {
 
     @Override
     public String toString() {
-        return shardId + " [" + recoveryId + "][" + getClass().getName() + "]";
+        return shardId + " [" + recoveryId + "][" + getRecoveryType() + "]";
     }
+
+    public abstract String getRecoveryType();
 
     public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
         listener.onRecoveryFailure(state(), e, sendShardFailure);
@@ -234,6 +236,7 @@ public abstract class RecoveryTarget extends AbstractRefCounted {
         return false;
     }
 
+    /* called when the recovery is reset. Note the recovery is already closed and it's refcount is 0 */
     protected void onResetRecovery() throws IOException {
 
     }

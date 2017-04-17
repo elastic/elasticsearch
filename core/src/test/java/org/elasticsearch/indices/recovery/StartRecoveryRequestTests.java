@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
@@ -45,9 +44,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 Store.MetadataSnapshot.EMPTY,
-                randomBoolean(),
-                randomNonNegativeLong(),
-                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+                randomNonNegativeLong());
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -64,13 +61,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.sourceNode(), equalTo(inRequest.sourceNode()));
         assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
-        assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
-        } else {
-            assertThat(SequenceNumbersService.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
-        }
     }
 
 }

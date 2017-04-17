@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -82,19 +83,23 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 }
             };
             thread.start();
-            Future<Void> future = shards.asyncRecoverReplica(replica, (indexShard, node)
-                -> new FileRecoveryTarget(indexShard, node, recoveryListener) {
-                @Override
-                public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                    super.cleanFiles(totalTranslogOps, sourceMetaData);
-                    latch.countDown();
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-            });
+            Future<Void> future = shards.asyncRecoverReplica(replica,
+                (indexShard, sourceNode, targetNode) -> {
+                    indexShard.markAsRecovering("test", new RecoveryState(indexShard.routingEntry(), targetNode, sourceNode));
+                    indexShard.prepareForIndexRecovery();
+                    return new FileRecoveryTarget(indexShard, sourceNode, recoveryListener) {
+                        @Override
+                        public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+                            super.cleanFiles(totalTranslogOps, sourceMetaData);
+                            latch.countDown();
+                            try {
+                                latch.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                        }
+                    };
+                });
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);

@@ -187,9 +187,13 @@ public class LegacyRecoveryTarget extends RecoveryTarget implements FileRecovery
         }
     }
 
-
     @Override
     public RecoveryResponse createRecoveryResponse() {
         return new LegacyRecoveryResponse();
+    }
+
+    @Override
+    public String getRecoveryType() {
+        return "legacy_recovery";
     }
 }

@@ -85,8 +85,9 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.FullRecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -1229,15 +1230,28 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new FullRecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
-                @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                    super.indexTranslogOperations(operations, totalTranslogOps);
-                    assertFalse(replica.getTranslog().syncNeeded());
-                }
-            }, true);
+        recoverReplica(replica, primary, (shard, sourceNode, targetNode) -> {
+            shard.markAsRecovering("peer", new RecoveryState(shard.shardRouting, targetNode, sourceNode));
+            shard.prepareForIndexRecovery();
+            if (randomBoolean()) {
+                return new FileRecoveryTarget(shard, sourceNode, recoveryListener) {
+                    @Override
+                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                        super.indexTranslogOperations(operations, totalTranslogOps);
+                        assertFalse(replica.getTranslog().syncNeeded());
+                    }
+                };
+            } else {
+                shard.skipTranslogRecovery(-1);
+                return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                    @Override
+                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                        super.indexTranslogOperations(operations, totalTranslogOps);
+                        assertFalse(replica.getTranslog().syncNeeded());
+                    }
+                };
+            }
+        });
 
         closeShards(primary, replica);
     }
@@ -1273,28 +1287,40 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new FullRecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
-                @Override
-                public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
-                    // Shard is still inactive since we haven't started recovering yet
-                    assertFalse(replica.isActive());
+        recoverReplica(replica, primary, (shard, sourceNode, targetNode) -> {
+            shard.markAsRecovering("for testing", new RecoveryState(shard.shardRouting, targetNode, sourceNode));
+            shard.prepareForIndexRecovery();
+            if (randomBoolean()) {
+                return new FileRecoveryTarget(shard, sourceNode, recoveryListener) {
+                    @Override
+                    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+                        super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
+                        // Shard is still inactive since we haven't started recovering yet
+                        assertFalse(replica.isActive());
 
-                }
+                    }
 
-                @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                    super.indexTranslogOperations(operations, totalTranslogOps);
-                    // Shard should now be active since we did recover:
-                    assertTrue(replica.isActive());
-                }
-            }, false);
+                    @Override
+                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                        super.indexTranslogOperations(operations, totalTranslogOps);
+                        // Shard should now be active since we did recover:
+                        assertTrue(replica.isActive());
+                    }
+                };
+            } else {
+                    replica.skipTranslogRecovery(-1);
+                return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                  @Override
+                  public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
+                      super.indexTranslogOperations(operations, totalTranslogOps);
+                      // Shard should now be active since we did recover:
+                      assertTrue(replica.isActive());
+                  }
+              };
+            }
+            });
 
         closeShards(primary, replica);
     }

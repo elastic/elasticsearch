@@ -98,4 +98,9 @@ public class PrimaryHandoffRecoveryTarget extends RecoveryTarget
     public void ensureClusterStateVersion(long clusterStateVersion) {
         ensureClusterStateVersionCallback.handle(clusterStateVersion);
     }
+
+    @Override
+    public String getRecoveryType() {
+        return "primary_handoff";
+    }
 }

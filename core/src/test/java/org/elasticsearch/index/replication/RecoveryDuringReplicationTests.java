@@ -35,9 +35,11 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.FileRecoveryTarget;
+import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -66,8 +68,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final CountDownLatch recoveryBlocked = new CountDownLatch(1);
             final CountDownLatch releaseRecovery = new CountDownLatch(1);
             final RecoveryState.Stage blockOnStage = randomFrom(BlockingTarget.SUPPORTED_STAGES);
-            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica, (indexShard, node) ->
-                new BlockingTarget(blockOnStage, recoveryBlocked, releaseRecovery, indexShard, node, recoveryListener, logger));
+            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica,
+                (indexShard, sourceNode, targetNode) -> {
+                indexShard.markAsRecovering("test", new RecoveryState(indexShard.routingEntry(), targetNode, sourceNode));
+                indexShard.prepareForIndexRecovery();
+                return new BlockingTarget(blockOnStage, recoveryBlocked, releaseRecovery, indexShard, sourceNode, recoveryListener, logger);
+            });
 
             recoveryBlocked.await();
             docs += shards.indexDocs(randomInt(20));
@@ -283,25 +289,27 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean preparedForTranslog = new AtomicBoolean(false);
+            AtomicBoolean indexedTranslogOps = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica,
-                (indexShard, node) -> {
-                recoveryStart.countDown();
-                return new FileRecoveryTarget(indexShard, node, recoveryListener) {
-                    @Override
-                    public void prepareForTranslogOperations(int totalTranslogOps,
-                                                             long maxUnsafeAutoIdTimestamp)
-                        throws IOException {
-                        preparedForTranslog.set(true);
-                        super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
-                    }
-                };
-            });
+                (indexShard, sourceNode, targetNode) -> {
+                    indexShard.markAsRecovering("test", new RecoveryState(indexShard.routingEntry(), targetNode, sourceNode));
+                    indexShard.prepareForIndexRecovery();
+                    indexShard.skipTranslogRecovery(-1L);
+                    recoveryStart.countDown();
+                    return new OpsRecoveryTarget(indexShard, sourceNode, recoveryListener) {
+                        @Override
+                        public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps)
+                            throws TranslogRecoveryPerformer.BatchOperationException {
+                            indexedTranslogOps.set(true);
+                            super.indexTranslogOperations(operations, totalTranslogOps);
+                        }
+                    };
+                });
 
             recoveryStart.await();
 
             for (int i = 0; i < pendingDocs; i++) {
-                assertFalse((pendingDocs - i) + " pending operations, recovery should wait", preparedForTranslog.get());
+                assertFalse((pendingDocs - i) + " pending operations, recovery should wait", indexedTranslogOps.get());
                 pendingDocsSemaphore.release();
             }
 

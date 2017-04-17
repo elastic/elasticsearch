@@ -53,7 +53,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
     public void testLastAccessTimeUpdate() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
                 final long lastSeenTime = status.target().lastAccessTime();
@@ -70,7 +70,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
     public void testRecoveryTimeout() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(),
@@ -98,7 +98,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
     public void testRecoveryCancellation() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
@@ -117,7 +117,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             shards.startAll();
             int numDocs = randomIntBetween(1, 15);
             shards.indexDocs(numDocs);
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
             FileRecoveryTarget recoveryTarget = (FileRecoveryTarget) collection.getRecoveryTarget(recoveryId);
@@ -160,6 +160,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        return collection.startFileRecovery(indexShard, sourceNode, listener, timeValue);
+        final FileRecoveryTarget target = new FileRecoveryTarget(indexShard, sourceNode, listener);
+        collection.addRecovery(target, timeValue);
+        return target.recoveryId();
     }
 }

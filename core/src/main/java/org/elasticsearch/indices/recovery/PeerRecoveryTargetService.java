@@ -98,7 +98,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
-        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool, this::waitForClusterState);
+        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
         transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new
                 FilesInfoRequestHandler());
@@ -144,14 +144,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         // the following code chains the various recovery types that are needed to recover the shard.
         // Typically this would be either ops based with a fall back to a file based recovery. In the
         // case of primary relocation they are followed by a primary hand off recovery.
-        // nocommit check cancellation races
         final RecoveryListener markAsDoneListener =
             prefixWithRunnable(() -> indexShard.postRecovery("peer recovery done"), "post_recovery", shardId, listener);
         final RecoveryListener primaryHandoffIfNeeded;
         if (indexShard.routingEntry().primary()) {
             assert indexShard.routingEntry().isRelocationTarget() : indexShard.routingEntry();
             primaryHandoffIfNeeded = prefixWithRecoveryStep(indexShard, sourceNode, markAsDoneListener,
-                recoverySettings.activityTimeout(), onGoingRecoveries::startPrimaryHandoff);
+                (s, sn, l) -> new PrimaryHandoffRecoveryTarget(s, sn, l, this::waitForClusterState));
         } else {
             primaryHandoffIfNeeded = markAsDoneListener;
         }
@@ -160,8 +159,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         {
             RecoveryListener nextListener = primaryHandoffIfNeeded;
 
-            nextListener = prefixWithRecoveryStep(indexShard, sourceNode, nextListener,
-                recoverySettings.activityTimeout(), onGoingRecoveries::startFileRecovery);
+            nextListener = prefixWithRecoveryStep(indexShard, sourceNode, nextListener, FileRecoveryTarget::new);
 
             nextListener = prefixWithRunnable(indexShard::prepareForIndexRecovery,
                 "prepare for index recovery", shardId, nextListener);
@@ -192,7 +190,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                                 true);
                         }
                     }
-                }, recoverySettings.activityTimeout(), onGoingRecoveries::startOpsRecovery);
+                }, OpsRecoveryTarget::new);
             startListener = prefixWithRunnable(() -> {
                 indexShard.prepareForIndexRecovery();
                 // nocommit: remove auto gen timestamp
@@ -206,13 +204,14 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private void startLegacyRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                                      RecoveryListener listener) {
-        startRecovery(onGoingRecoveries.startLegacyRecovery(indexShard, sourceNode, listener,
-            recoverySettings.activityTimeout()));
+        // nocommit check cancellation races
+        LegacyRecoveryTarget target = new LegacyRecoveryTarget(indexShard, sourceNode, listener, this::waitForClusterState);
+        onGoingRecoveries.addRecovery(target, recoverySettings.activityTimeout());
+        startRecovery(target.recoveryId());
     }
 
     private interface RecoveryTargetSupplier {
-        long startRecovery(IndexShard shard, DiscoveryNode sourceNode, RecoveryListener listener,
-                           TimeValue activityTimeOut);
+        RecoveryTarget create(IndexShard shard, DiscoveryNode sourceNode, RecoveryListener listener);
     }
 
     private interface IORunnable {
@@ -222,13 +221,14 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     private RecoveryListener prefixWithRecoveryStep(final IndexShard shard,
                                                     final DiscoveryNode sourceNode,
                                                     final RecoveryListener listener,
-                                                    final TimeValue activityTimeOut,
                                                     final RecoveryTargetSupplier targetSupplier) {
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
-                long recoveryId = targetSupplier.startRecovery(shard, sourceNode, listener, activityTimeOut);
-                startRecovery(recoveryId);
+                RecoveryTarget target = targetSupplier.create(shard, sourceNode, listener);
+                // nocommit check cancellation races
+                onGoingRecoveries.addRecovery(target, recoverySettings.activityTimeout());
+                startRecovery(target.recoveryId());
             }
 
             @Override

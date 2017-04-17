@@ -23,9 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -53,75 +51,23 @@ public class RecoveriesCollection {
 
     private final Logger logger;
     private final ThreadPool threadPool;
-    private final Callback<Long> ensureClusterStateVersionCallback;
 
-    public RecoveriesCollection(Logger logger, ThreadPool threadPool,
-                                Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveriesCollection(Logger logger, ThreadPool threadPool) {
         this.logger = logger;
         this.threadPool = threadPool;
-        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
     }
+
 
     /**
-     * Starts are new recovery for the given shard, source node
-     *
-     * @return the id of the new recovery.
+     * Adds a recovery to the collection
      */
-    public long startOpsRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
-                              PeerRecoveryTargetService.RecoveryListener listener,
-                              TimeValue activityTimeout) {
-        return startRecoveryInternal(
-            new OpsRecoveryTarget(indexShard, sourceNode, listener), activityTimeout);
-    }
-
-    /**
-     * Starts are new recovery for the given shard, source node
-     *
-     * @return the id of the new recovery.
-     */
-    public long startFileRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
-                                 PeerRecoveryTargetService.RecoveryListener listener,
-                                 TimeValue activityTimeout) {
-        return startRecoveryInternal(new FileRecoveryTarget(indexShard, sourceNode, listener), activityTimeout);
-    }
-
-    /**
-     * Starts are new recovery for the given shard, source node
-     *
-     * @return the id of the new recovery.
-     */
-    public long startPrimaryHandoff(IndexShard indexShard, DiscoveryNode sourceNode,
-                                 PeerRecoveryTargetService.RecoveryListener listener,
-                                 TimeValue activityTimeout) {
-        return startRecoveryInternal(
-            new PrimaryHandoffRecoveryTarget(indexShard, sourceNode, listener,
-                ensureClusterStateVersionCallback), activityTimeout);
-    }
-
-    /**
-     * Starts are new recovery for the given shard, source node
-     *
-     * @return the id of the new recovery.
-     */
-    public long startLegacyRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
-                                    PeerRecoveryTargetService.RecoveryListener listener,
-                                    TimeValue activityTimeout) {
-        return startRecoveryInternal(
-            new LegacyRecoveryTarget(indexShard, sourceNode, listener,
-                ensureClusterStateVersionCallback), activityTimeout);
-    }
-
-
-    private long startRecoveryInternal(RecoveryTarget recoveryTarget, TimeValue activityTimeout) {
-        RecoveryTarget existingTarget =
-            onGoingRecoveries.putIfAbsent(recoveryTarget.recoveryId(), recoveryTarget);
+    public void addRecovery(RecoveryTarget recoveryTarget, TimeValue activityTimeout) {
+        RecoveryTarget existingTarget = onGoingRecoveries.putIfAbsent(recoveryTarget.recoveryId(), recoveryTarget);
         assert existingTarget == null : "found two RecoveryStatus instances with the same id";
-        logger.trace("{} started recovery from {}, id [{}]", recoveryTarget.shardId(),
-            recoveryTarget.sourceNode(), recoveryTarget.recoveryId());
+        logger.trace("{} started recovery from {}, id [{}]",
+            recoveryTarget.shardId(), recoveryTarget.sourceNode(), recoveryTarget.recoveryId());
         threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
-                new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(),
-                    activityTimeout));
-        return recoveryTarget.recoveryId();
+                new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout));
     }
 
     /**
@@ -144,7 +90,7 @@ public class RecoveriesCollection {
                 }
 
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
-                startRecoveryInternal(newRecoveryTarget, activityTimeout);
+                addRecovery(newRecoveryTarget, activityTimeout);
             }
 
             // Closes the current recovery target

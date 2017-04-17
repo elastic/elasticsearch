@@ -299,7 +299,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
             }
             if (generation.translogUUID == null) {
-                throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
         final Translog translog = new Translog(translogConfig, generation, globalCheckpointSupplier);
@@ -1233,12 +1233,12 @@ public class InternalEngine extends Engine {
                     try {
                         translog.prepareCommit();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translog, null);
+                        final long committedGeneration = commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
                         // after refresh documents can be retrieved from the index so we can now commit the translog
-                        translog.commit();
+                        translog.commit(committedGeneration);
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -1734,55 +1734,65 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+    /**
+     * Commits the specified index writer.
+     *
+     * @param writer   the index writer to commit
+     * @param translog the translog
+     * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
+     * @return the minimum translog generation for the local checkpoint committed with the specified index writer
+     * @throws IOException if an I/O exception occurs committing the specfied writer
+     */
+    private long commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
-            Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-
-            final String translogFileGen = Long.toString(translogGeneration.translogFileGeneration);
+            final long localCheckpoint = seqNoService().getLocalCheckpoint();
+            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
+            final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
-            final String localCheckpoint = Long.toString(seqNoService().getLocalCheckpoint());
+            final String localCheckpointValue = Long.toString(localCheckpoint);
 
             writer.setLiveCommitData(() -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
-                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different - we never want
+                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different, we never want
                  * the maximum sequence number to be less than the last sequence number to go into a Lucene commit, otherwise we run the
                  * risk of re-using a sequence number for two different documents when restoring from this commit point and subsequently
-                 * writing new documents to the index.  Since we only know which Lucene documents made it into the final commit after the
-                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the max_seq_no to the time of invocation
-                 * of the commit data iterator (which occurs after all documents have been flushed to Lucene).
+                 * writing new documents to the index. Since we only know which Lucene documents made it into the final commit after the
+                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
+                 * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(6);
-                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
+                final Map<String, String> commitData = new HashMap<>(5);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
                 if (syncId != null) {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
-                if (logger.isTraceEnabled()) {
-                    logger.trace("committing writer with commit data [{}]", commitData);
-                }
+                logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
 
             writer.commit();
-        } catch (Exception ex) {
+            return translogGeneration.translogFileGeneration;
+        } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 ex.addSuppressed(inner);
             }
             throw ex;
-        } catch (AssertionError e) {
-            // IndexWriter throws AssertionError on commit, if asserts are enabled, if any files don't exist, but tests that
-            // randomly throw FNFE/NSFE can also hit this:
+        } catch (final AssertionError e) {
+            /*
+             * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
+             * throw FileNotFoundException or NoSuchFileException can also hit this.
+             */
             if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
-                EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
+                final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
                 try {
                     failEngine("lucene commit failed", engineException);
-                } catch (Exception inner) {
+                } catch (final Exception inner) {
                     engineException.addSuppressed(inner);
                 }
                 throw engineException;
@@ -1866,7 +1876,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        Map<String, String> commitData = new HashMap<>(6);
+        Map<String, String> commitData = new HashMap<>(5);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }

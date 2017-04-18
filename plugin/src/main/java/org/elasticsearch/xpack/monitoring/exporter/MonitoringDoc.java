@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,13 +42,15 @@ public class MonitoringDoc {
     private final BytesReference source;
     private final XContentType sourceXContentType;
 
-    protected MonitoringDoc(String monitoringId, String monitoringVersion, String type, String id,
+    protected MonitoringDoc(String monitoringId, String monitoringVersion,
+                            String type, @Nullable String id,
                             String clusterUUID, long timestamp, Node node,
                             BytesReference source, XContentType sourceXContentType) {
         this.monitoringId = monitoringId;
         this.monitoringVersion = monitoringVersion;
         this.type = type;
-        this.id = id;
+        // We allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
+        this.id = Strings.isNullOrEmpty(id) ? null : id;
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         this.sourceNode = node;
@@ -62,8 +65,7 @@ public class MonitoringDoc {
 
     public MonitoringDoc(String monitoringId, String monitoringVersion, String type, String id,
                          String clusterUUID, long timestamp, DiscoveryNode discoveryNode) {
-        this(monitoringId, monitoringVersion, type, id, clusterUUID, timestamp,
-                fromDiscoveryNode(discoveryNode));
+        this(monitoringId, monitoringVersion, type, id, clusterUUID, timestamp, fromDiscoveryNode(discoveryNode));
     }
 
     public String getType() {

@@ -21,26 +21,25 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesRanksTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalTDigestPercentilesRanksTests extends InternalAggregationTestCase<InternalTDigestPercentileRanks> {
+public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
     @Override
-    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        double[] cdfValues = new double[] { 0.5 };
+    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators,
+                                                                Map<String, Object> metadata,
+                                                                double[] cdfValues, boolean keyed, DocValueFormat format) {
         TDigestState state = new TDigestState(100);
         int numValues = randomInt(100);
         for (int i = 0; i < numValues; ++i) {
             state.add(randomDouble());
         }
-        boolean keyed = false;
-        DocValueFormat format = DocValueFormat.RAW;
-        return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, pipelineAggregators, metaData);
+        return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, aggregators, metadata);
     }
 
     @Override
@@ -71,4 +70,8 @@ public class InternalTDigestPercentilesRanksTests extends InternalAggregationTes
         return InternalTDigestPercentileRanks::new;
     }
 
+    @Override
+    protected Class<? extends ParsedPercentileRanks> parsedParsedPercentileRanksClass() {
+        return ParsedTDigestPercentileRanks.class;
+    }
 }

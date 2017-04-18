@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -51,6 +52,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, TokenCountFieldMapper> {
         private NamedAnalyzer analyzer;
+        private boolean isNumber;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -70,7 +72,11 @@ public class TokenCountFieldMapper extends FieldMapper {
         public TokenCountFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new TokenCountFieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), analyzer, multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), analyzer, isNumber, multiFieldsBuilder.build(this, context), copyTo);
+        }
+
+        public void isNumber(boolean isNumber) {
+            this.isNumber = isNumber;
         }
     }
 
@@ -93,6 +99,9 @@ public class TokenCountFieldMapper extends FieldMapper {
                     }
                     builder.analyzer(analyzer);
                     iterator.remove();
+                } else if (propName.equals("is_number")) {
+                    builder.isNumber(TypeParsers.nodeBooleanValue("is_number", propNode, parserContext));
+                    iterator.remove();
                 }
             }
             parseField(builder, name, node, parserContext);
@@ -104,11 +113,13 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     private NamedAnalyzer analyzer;
-
+    private final boolean isNumber;
     protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
+                                    Settings indexSettings, NamedAnalyzer analyzer, boolean isNumber,
+                                    MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
+        this.isNumber = isNumber;
     }
 
     @Override
@@ -121,8 +132,11 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         final int tokenCount;
+
         if (value == null) {
             tokenCount = (Integer) fieldType().nullValue();
+        } else if (isNumber) {
+            tokenCount = countSum(analyzer, name(), value);
         } else {
             tokenCount = countPositions(analyzer, name(), value);
         }
@@ -156,6 +170,29 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     /**
+     * Count sum from integer token stream.
+     * @param analyzer analyzer to create token stream
+     * @param fieldName field name to pass to analyzer
+     * @param fieldValue field value to pass to analyzer
+     * @return integer sum of token stream, or -1 if format error
+     * @throws IOException if tokenStream throws it
+     */
+    static int countSum(Analyzer analyzer, String fieldName, String fieldValue) throws IOException {
+        try (TokenStream tokenStream = analyzer.tokenStream(fieldName, fieldValue)) {
+            int count = 0;
+            CharTermAttribute terms = tokenStream.getAttribute(CharTermAttribute.class);
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
+                count += Integer.parseInt(terms.toString());
+            }
+            tokenStream.end();
+            return count;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
      * Name of analyzer.
      * @return name of analyzer
      */
@@ -178,6 +215,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("analyzer", analyzer());
+        builder.field("is_number", isNumber);
     }
 
 }

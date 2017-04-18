@@ -102,6 +102,39 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", ""), equalTo(7));
     }
 
+
+    public void testCountSum() throws IOException {
+        Token t1 = new Token("100", 0, 3);
+        Token t2 = new Token("200", 0, 3);
+        Token t3 = new Token("300", 0, 3);
+        Token[] tokens = new Token[] {t1, t2, t3};
+        Collections.shuffle(Arrays.asList(tokens), random());
+        final TokenStream tokenStream = new CannedTokenStream(0, 0, tokens);
+        Analyzer analyzer = new Analyzer() {
+            @Override
+            public TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(new MockTokenizer(), tokenStream);
+            }
+        };
+        assertThat(TokenCountFieldMapper.countSum(analyzer, "", ""), equalTo(600));
+    }
+
+    public void testCountSumWithNotANumber() throws IOException {
+        Token t1 = new Token("100", 0, 3);
+        Token t2 = new Token("NaN", 0, 3);
+        Token t3 = new Token("300", 0, 3);
+        Token[] tokens = new Token[] {t1, t2, t3};
+        Collections.shuffle(Arrays.asList(tokens), random());
+        final TokenStream tokenStream = new CannedTokenStream(0, 0, tokens);
+        Analyzer analyzer = new Analyzer() {
+            @Override
+            public TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(new MockTokenizer(), tokenStream);
+            }
+        };
+        assertThat(TokenCountFieldMapper.countSum(analyzer, "", ""), equalTo(-1));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);

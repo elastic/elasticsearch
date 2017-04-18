@@ -2171,7 +2171,10 @@ public class InternalEngineTests extends ESTestCase {
             final Bits bits = leaf.getLiveDocs();
             for (int docID = 0; docID < leaf.maxDoc(); docID++) {
                 if (bits == null || bits.get(docID)) {
-                    final long seqNo = values.get(docID);
+                    if (values.advanceExact(docID) == false) {
+                        throw new AssertionError("Document does not have a seq number: " + docID);
+                    }
+                    final long seqNo = values.longValue();
                     assertFalse("should not have more than one document with the same seq_no[" + seqNo + "]", bitSet.get((int) seqNo));
                     bitSet.set((int) seqNo);
                 }

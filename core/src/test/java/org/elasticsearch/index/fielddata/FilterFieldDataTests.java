@@ -22,11 +22,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
 import java.util.List;
 import java.util.Random;
@@ -71,7 +71,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(2L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
@@ -86,7 +86,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(1L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
             }
@@ -101,7 +101,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(2L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
@@ -117,7 +117,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(2L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));

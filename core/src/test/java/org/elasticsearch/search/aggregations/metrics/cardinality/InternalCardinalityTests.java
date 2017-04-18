@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.After;
 import org.junit.Before;
@@ -71,6 +72,15 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             }
             assertEquals(result.cardinality(0), reduced.value(), 0);
         }
+    }
+
+    @Override
+    protected void assertFromXContent(InternalCardinality aggregation, ParsedAggregation parsedAggregation) {
+        assertTrue(parsedAggregation instanceof ParsedCardinality);
+        ParsedCardinality parsed = (ParsedCardinality) parsedAggregation;
+
+        assertEquals(aggregation.getValue(), parsed.getValue(), Double.MIN_VALUE);
+        assertEquals(aggregation.getValueAsString(), parsed.getValueAsString());
     }
 
     @After

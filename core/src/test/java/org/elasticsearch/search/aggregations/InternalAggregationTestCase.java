@@ -33,6 +33,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.ParsedCardinality;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.ParsedHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
@@ -63,6 +65,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     static List<NamedXContentRegistry.Entry> getNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> namedXContents = new HashMap<>();
+        namedXContents.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
         namedXContents.put(InternalHDRPercentileRanks.NAME, (p, c) -> ParsedHDRPercentileRanks.fromXContent(p, (String) c));
         namedXContents.put(InternalTDigestPercentileRanks.NAME, (p, c) -> ParsedTDigestPercentileRanks.fromXContent(p, (String) c));
 

@@ -470,15 +470,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
             final int shardId = shardRouting.id();
 
-            if (!indexService.hasShard(shardId) && shardRouting.started()) {
+            if (!indexService.hasShard(shardId) && shardRouting.active()) {
                 if (failedShards.containsKey(shardRouting.shardId())) {
                     if (nodes.masterNode() != null) {
                         shardStateAction.resendShardFailed(shardRouting, indexMetaData.getIndexUUID(), nodes.masterNode(),
-                                "master " + nodes.masterNode() + " marked shard as started, but shard has previous failed. resending shard failure.", null);
+                                "master " + nodes.masterNode() + " marked shard as active, but shard has previous failed. resending shard failure.", null);
                     }
                 } else {
-                    // the master thinks we are started, but we don't have this shard at all, mark it as failed
-                    sendFailShard(shardRouting, indexMetaData.getIndexUUID(), "master [" + nodes.masterNode() + "] marked shard as started, but shard has not been created, mark shard as failed", null);
+                    // the master thinks we are active, but we don't have this shard at all, mark it as failed
+                    sendFailShard(shardRouting, indexMetaData.getIndexUUID(), "master [" + nodes.masterNode() + "] marked shard as active, but shard has not been created, mark shard as failed", null);
                 }
                 continue;
             }

@@ -27,8 +27,6 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.io.IOException;
-
 // TODO: remove timeout after address slow test issue
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class Netty3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -38,8 +36,8 @@ public class Netty3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
-        return ESClientYamlSuiteTestCase.createParameters();
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters();
     }
 
 }

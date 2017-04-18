@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.user.User;
@@ -69,5 +71,37 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, MetaData.EMPTY_META_DATA);
         List<String> list = authorizedIndices.get();
         assertTrue(list.isEmpty());
+    }
+
+    public void testSecurityIndicesAreRemovedFromRegularUser() {
+        User user = new User("test user", "user_role");
+        Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build();
+        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        MetaData metaData = MetaData.builder()
+                .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(indexSettings)
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build();
+
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
+        List<String> list = authorizedIndices.get();
+        assertThat(list, containsInAnyOrder("an-index", "another-index"));
+    }
+
+    public void testSecurityIndicesAreNotRemovedFromSuperUsers() {
+        User user = new User("admin", "kibana_user", "superuser");
+        Role role = Role.builder("kibana_user+superuser").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build();
+        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        MetaData metaData = MetaData.builder()
+                .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(indexSettings)
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build();
+
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
+        List<String> list = authorizedIndices.get();
+        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityLifecycleService.SECURITY_INDEX_NAME));
     }
 }

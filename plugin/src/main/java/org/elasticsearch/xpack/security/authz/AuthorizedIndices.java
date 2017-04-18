@@ -60,8 +60,8 @@ class AuthorizedIndices {
         }
 
         if (isSuperuser(user) == false) {
-            // we should filter out the .security index from wildcards
-            indicesAndAliases.remove(SecurityLifecycleService.SECURITY_INDEX_NAME);
+            // we should filter out all of the security indices from wildcards
+            indicesAndAliases.removeAll(SecurityLifecycleService.indexNames());
         }
         return Collections.unmodifiableList(indicesAndAliases);
     }

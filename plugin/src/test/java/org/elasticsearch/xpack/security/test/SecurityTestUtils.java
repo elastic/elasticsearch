@@ -93,7 +93,11 @@ public class SecurityTestUtils {
     }
 
     public static RoutingTable buildSecurityIndexRoutingTable() {
-        Index index = new Index(SecurityLifecycleService.SECURITY_INDEX_NAME, UUID.randomUUID().toString());
+        return buildIndexRoutingTable(SecurityLifecycleService.SECURITY_INDEX_NAME);
+    }
+
+    public static RoutingTable buildIndexRoutingTable(String indexName) {
+        Index index = new Index(indexName, UUID.randomUUID().toString());
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
         String nodeId = ESTestCase.randomAlphaOfLength(8);
@@ -101,10 +105,7 @@ public class SecurityTestUtils {
                 .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
                 .build();
         return RoutingTable.builder()
-                .add(IndexRoutingTable
-                        .builder(index)
-                        .addIndexShard(table)
-                        .build())
+                .add(IndexRoutingTable.builder(index).addIndexShard(table).build())
                 .build();
     }
 }

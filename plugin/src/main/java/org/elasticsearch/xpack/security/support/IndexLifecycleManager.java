@@ -158,7 +158,7 @@ public class IndexLifecycleManager extends AbstractComponent {
         if (routingTable != null && routingTable.allPrimaryShardsActive()) {
             return true;
         }
-        logger.debug("Security index is not yet active");
+        logger.debug("Security index [{}] is not yet active", indexName);
         return false;
     }
 

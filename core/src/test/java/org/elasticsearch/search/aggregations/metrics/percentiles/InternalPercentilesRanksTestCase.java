@@ -19,14 +19,25 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public abstract class InternalPercentilesRanksTestCase<T extends InternalAggregation> extends InternalAggregationTestCase<T> {
 
@@ -62,6 +73,37 @@ public abstract class InternalPercentilesRanksTestCase<T extends InternalAggrega
         Class<? extends ParsedPercentileRanks> parsedClass = parsedParsedPercentileRanksClass();
         assertNotNull(parsedClass);
         assertTrue(parsedClass.isInstance(parsedAggregation));
+    }
+
+    public void testPercentilesRanksIterators() throws IOException {
+        final T aggregation = createTestInstance();
+
+        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference originalBytes = toXContent(aggregation, xContentType, params, randomBoolean());
+
+        Aggregation parsedAggregation;
+        try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+
+            String currentName = parser.currentName();
+            int i = currentName.indexOf(InternalAggregation.TYPED_KEYS_DELIMITER);
+            String aggType = currentName.substring(0, i);
+            String aggName = currentName.substring(i + 1);
+
+            parsedAggregation = parser.namedObject(Aggregation.class, aggType, aggName);
+
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        final Iterator<Percentile> it = ((PercentileRanks) aggregation).iterator();
+        final Iterator<Percentile> parsedIt = ((PercentileRanks) parsedAggregation).iterator();
+        while (it.hasNext()) {
+            assertEquals(it.next(), parsedIt.next());
+        }
     }
 
     protected abstract Class<? extends ParsedPercentileRanks> parsedParsedPercentileRanksClass();

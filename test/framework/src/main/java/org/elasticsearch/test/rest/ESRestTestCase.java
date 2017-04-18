@@ -265,7 +265,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 List<Object> tasks = (List<Object>) entityAsMap(response).get("tasks");
                 assertTrue(tasks.isEmpty());
             } catch (IOException e) {
-                fail("cannot get cluster health: " + e.getMessage());
+                fail("cannot get cluster's pending tasks: " + e.getMessage());
             }
         });
     }

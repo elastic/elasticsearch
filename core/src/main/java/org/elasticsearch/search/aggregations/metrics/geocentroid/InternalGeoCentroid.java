@@ -38,7 +38,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     protected final GeoPoint centroid;
     protected final long count;
 
-    public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
+    InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         assert (centroid == null) == (count == 0);
@@ -132,7 +132,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     static class Fields {
-        public static final String CENTROID = "location";
+        static final String CENTROID = "location";
     }
 
     @Override

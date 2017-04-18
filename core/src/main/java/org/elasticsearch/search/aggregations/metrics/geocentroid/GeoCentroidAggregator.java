@@ -42,12 +42,12 @@ import java.util.Map;
 /**
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_point} type field
  */
-public final class GeoCentroidAggregator extends MetricsAggregator {
+final class GeoCentroidAggregator extends MetricsAggregator {
     private final ValuesSource.GeoPoint valuesSource;
-    LongArray centroids;
-    LongArray counts;
+    private LongArray centroids;
+    private LongArray counts;
 
-    protected GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
+    GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
                                     ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

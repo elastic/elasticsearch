@@ -28,7 +28,6 @@ import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {

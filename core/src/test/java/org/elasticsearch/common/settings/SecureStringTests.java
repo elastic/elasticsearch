@@ -19,8 +19,11 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
@@ -81,6 +84,21 @@ public class SecureStringTests extends ESTestCase {
         }
         IllegalStateException e = expectThrows(IllegalStateException.class, secureString::clone);
         assertThat(e.getMessage(), containsString("already been closed"));
+    }
+
+    public void testSerialization() throws IOException {
+        final char[] password = randomAlphaOfLengthBetween(1, 256).toCharArray();
+        SecureString secureString = new SecureString(password);
+        assertSecureStringEqualToChars(password, secureString);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            secureString.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
+                SecureString serialized = new SecureString(in);
+                assertSecureStringEqualToChars(password, serialized);
+                assertEquals(secureString, serialized);
+            }
+        }
     }
 
     private void assertSecureStringEqualToChars(char[] expected, SecureString secureString) {

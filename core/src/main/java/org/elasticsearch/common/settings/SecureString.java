@@ -19,14 +19,22 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
 import java.io.Closeable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * A String implementations which allows clearing the underlying char array.
  */
-public final class SecureString implements CharSequence, Closeable {
+public final class SecureString implements CharSequence, Closeable, Writeable {
 
     private char[] chars;
 
@@ -37,6 +45,29 @@ public final class SecureString implements CharSequence, Closeable {
      */
     public SecureString(char[] chars) {
         this.chars = Objects.requireNonNull(chars);
+    }
+
+    /**
+     * Constructs a new SecureString from a StreamInput.
+     */
+    public SecureString(StreamInput in) throws IOException {
+        ByteBuffer bytes = null;
+        CharBuffer charBuffer = null;
+        try {
+            final int length = in.readVInt();
+            final byte[] byteArray = new byte[length];
+            in.readBytes(byteArray, 0, length);
+            bytes = ByteBuffer.wrap(byteArray);
+            charBuffer = StandardCharsets.UTF_8.decode(bytes);
+            this.chars = Arrays.copyOfRange(charBuffer.array(), charBuffer.arrayOffset(), charBuffer.limit());
+        } finally {
+            if (bytes != null) {
+                Arrays.fill(bytes.array(), (byte) 0);
+            }
+            if (charBuffer != null) {
+                Arrays.fill(charBuffer.array(), (char) 0);
+            }
+        }
     }
 
     /**
@@ -145,6 +176,21 @@ public final class SecureString implements CharSequence, Closeable {
     private void ensureNotClosed() {
         if (chars == null) {
             throw new IllegalStateException("SecureString has already been closed");
+        }
+    }
+
+    @Override
+    public synchronized void writeTo(StreamOutput out) throws IOException {
+        ensureNotClosed();
+        ByteBuffer byteBuffer = null;
+        try {
+            byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
+            out.writeVInt(byteBuffer.limit());
+            out.writeBytes(byteBuffer.array(), byteBuffer.arrayOffset(), byteBuffer.limit());
+        } finally {
+            if (byteBuffer != null) {
+                Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
+            }
         }
     }
 }

@@ -15,8 +15,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
@@ -28,7 +26,7 @@ public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends Security
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 

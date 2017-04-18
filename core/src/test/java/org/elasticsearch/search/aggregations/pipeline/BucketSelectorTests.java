@@ -32,11 +32,11 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
 
     @Override
     protected BucketSelectorPipelineAggregationBuilder createTestAggregatorFactory() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
         Map<String, String> bucketsPaths = new HashMap<>();
         int numBucketPaths = randomIntBetween(1, 10);
         for (int i = 0; i < numBucketPaths; i++) {
-            bucketsPaths.put(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 40));
+            bucketsPaths.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 40));
         }
         Script script;
         if (randomBoolean()) {
@@ -46,7 +46,9 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
             if (randomBoolean()) {
                 params.put("foo", "bar");
             }
-            script = new Script(randomFrom(ScriptType.values()), randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
+            ScriptType type = randomFrom(ScriptType.values());
+            script =
+                new Script(type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
         }
         BucketSelectorPipelineAggregationBuilder factory = new BucketSelectorPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {

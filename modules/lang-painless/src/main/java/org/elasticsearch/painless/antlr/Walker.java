@@ -31,6 +31,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
@@ -58,6 +59,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EachContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ElvisContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EmptyContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExprContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExpressionContext;
@@ -117,6 +119,7 @@ import org.elasticsearch.painless.node.ECapturingFunctionRef;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
+import org.elasticsearch.painless.node.EElvis;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
 import org.elasticsearch.painless.node.EInstanceof;
@@ -170,10 +173,12 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
-        return new Walker(sourceName, sourceText, settings, debugStream).source;
+    public static SSource buildPainlessTree(ScriptInterface mainMethod, String sourceName, String sourceText, CompilerSettings settings,
+            Printer debugStream) {
+        return new Walker(mainMethod, sourceName, sourceText, settings, debugStream).source;
     }
 
+    private final ScriptInterface scriptInterface;
     private final SSource source;
     private final CompilerSettings settings;
     private final Printer debugStream;
@@ -184,7 +189,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Globals globals;
     private int syntheticCounter = 0;
 
-    private Walker(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+    private Walker(ScriptInterface scriptInterface, String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+        this.scriptInterface = scriptInterface;
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
@@ -254,7 +260,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        return new SSource(scriptInterface, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 
@@ -617,6 +623,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
+    public ANode visitElvis(ElvisContext ctx) {
+        AExpression left = (AExpression)visit(ctx.expression(0));
+        AExpression right = (AExpression)visit(ctx.expression(1));
+
+        return new EElvis(location(ctx), left, right);
+    }
+
+    @Override
     public ANode visitAssignment(AssignmentContext ctx) {
         AExpression lhs = (AExpression)visit(ctx.expression(0));
         AExpression rhs = (AExpression)visit(ctx.expression(1));
@@ -789,9 +803,27 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitString(StringContext ctx) {
-        String string = ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1);
+        StringBuilder string = new StringBuilder(ctx.STRING().getText());
 
-        return new EString(location(ctx), string);
+        // Strip the leading and trailing quotes and replace the escape sequences with their literal equivalents
+        int src = 1;
+        int dest = 0;
+        int end = string.length() - 1;
+        assert string.charAt(0) == '"' || string.charAt(0) == '\'' : "expected string to start with a quote but was [" + string + "]";
+        assert string.charAt(end) == '"' || string.charAt(end) == '\'' : "expected string to end with a quote was [" + string + "]";
+        while (src < end) {
+            char current = string.charAt(src);
+            if (current == '\\') {
+                src++;
+                current = string.charAt(src);
+            }
+            string.setCharAt(dest, current);
+            src++;
+            dest++;
+        }
+        string.setLength(dest);
+
+        return new EString(location(ctx), string.toString());
     }
 
     @Override
@@ -822,7 +854,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitVariable(VariableContext ctx) {
         String name = ctx.ID().getText();
-        reserved.peek().markReserved(name);
+        reserved.peek().markUsedVariable(name);
 
         return new EVariable(location(ctx), name);
     }
@@ -898,7 +930,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.DOTID().getText();
         List<AExpression> arguments = collectArguments(ctx.arguments());
 
-        return new PCallInvoke(location(ctx), prefix, name, ctx.COND() != null, arguments);
+        return new PCallInvoke(location(ctx), prefix, name, ctx.NSDOT() != null, arguments);
     }
 
     @Override
@@ -917,7 +949,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new PField(location(ctx), prefix, ctx.COND() != null, value);
+        return new PField(location(ctx), prefix, ctx.NSDOT() != null, value);
     }
 
     @Override

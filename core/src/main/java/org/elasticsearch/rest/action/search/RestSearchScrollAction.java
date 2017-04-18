@@ -21,18 +21,12 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 
@@ -43,8 +37,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchScrollAction extends BaseRestHandler {
-
-    @Inject
     public RestSearchScrollAction(Settings settings, RestController controller) {
         super(settings);
 
@@ -64,43 +56,36 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        if (RestActions.hasBodyContent(request)) {
-            XContentType type = XContentFactory.xContentType(RestActions.getRestContent(request));
-            if (type == null) {
-                if (scrollId == null) {
-                    scrollId = RestActions.getRestContent(request).utf8ToString();
-                    searchScrollRequest.scrollId(scrollId);
-                }
-            } else {
+        request.withContentOrSourceParamParserOrNull(xContentParser -> {
+            if (xContentParser != null) {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
-                buildFromContent(RestActions.getRestContent(request), searchScrollRequest);
-            }
-        }
+                try {
+                    buildFromContent(xContentParser, searchScrollRequest);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Failed to parse request body", e);
+                }
+            }});
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
-        try (XContentParser parser = XContentHelper.createParser(content)) {
-            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("Malformed content, must start with an object");
-            } else {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
-                        searchScrollRequest.scrollId(parser.text());
-                    } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
-                        searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll")));
-                    } else {
-                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
-                                + "] in request body or parameter is of the wrong type[" + token + "] ");
-                    }
+    public static void buildFromContent(XContentParser parser, SearchScrollRequest searchScrollRequest) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Malformed content, must start with an object");
+        } else {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                    searchScrollRequest.scrollId(parser.text());
+                } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                    searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll")));
+                } else {
+                    throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
+                            + "] in request body or parameter is of the wrong type[" + token + "] ");
                 }
             }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
 }

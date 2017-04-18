@@ -37,7 +37,7 @@ final class PSubField extends AStoreable {
 
     private final Field field;
 
-    public PSubField(Location location, Field field) {
+    PSubField(Location location, Field field) {
         super(location);
 
         this.field = Objects.requireNonNull(field);
@@ -109,5 +109,10 @@ final class PSubField extends AStoreable {
         } else {
             writer.putField(field.owner.type, field.javaName, field.type.type);
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, field.name);
     }
 }

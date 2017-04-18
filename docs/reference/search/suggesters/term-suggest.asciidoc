@@ -45,7 +45,7 @@ doesn't take the query into account that is part of request.
 +
      ** `missing`:  Only provide suggestions for suggest text terms that are
                     not in the index. This is the default.
-     ** `popular`:  Only suggest suggestions that occur in more docs then
+     ** `popular`:  Only suggest suggestions that occur in more docs than
                     the original suggest text term.
      ** `always`:   Suggest any matching suggestions based on terms in the
                     suggest text.

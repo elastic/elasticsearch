@@ -61,8 +61,8 @@
 ---
 "Test cat nodes output with full_id set":
   - skip:
-    version: " - 5.0.0"
-    reason:  The full_id setting was rejected in 5.0.0 see #21266
+      version: " - 5.0.0"
+      reason:  The full_id setting was rejected in 5.0.0 see #21266
 
 
   - do:

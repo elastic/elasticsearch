@@ -23,7 +23,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -55,25 +55,25 @@ public class RepositoryDataTests extends ESTestCase {
     public void testXContent() throws IOException {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
-        repositoryData.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
-        assertEquals(repositoryData, RepositoryData.fromXContent(parser));
+        repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        long gen = (long) randomIntBetween(0, 500);
+        RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
+        assertEquals(repositoryData, fromXContent);
+        assertEquals(gen, fromXContent.getGenId());
     }
 
     public void testAddSnapshots() {
         RepositoryData repositoryData = generateRandomRepoData();
         // test that adding the same snapshot id to the repository data throws an exception
-        final SnapshotId snapshotId = repositoryData.getSnapshotIds().get(0);
         Map<String, IndexId> indexIdMap = repositoryData.getIndices();
-        expectThrows(IllegalArgumentException.class,
-            () -> repositoryData.addSnapshot(new SnapshotId(snapshotId.getName(), snapshotId.getUUID()), Collections.emptyList()));
         // test that adding a snapshot and its indices works
-        SnapshotId newSnapshot = new SnapshotId(randomAsciiOfLength(7), UUIDs.randomBase64UUID());
+        SnapshotId newSnapshot = new SnapshotId(randomAlphaOfLength(7), UUIDs.randomBase64UUID());
         List<IndexId> indices = new ArrayList<>();
         Set<IndexId> newIndices = new HashSet<>();
         int numNew = randomIntBetween(1, 10);
         for (int i = 0; i < numNew; i++) {
-            IndexId indexId = new IndexId(randomAsciiOfLength(7), UUIDs.randomBase64UUID());
+            IndexId indexId = new IndexId(randomAlphaOfLength(7), UUIDs.randomBase64UUID());
             newIndices.add(indexId);
             indices.add(indexId);
         }
@@ -92,15 +92,16 @@ public class RepositoryDataTests extends ESTestCase {
                 assertEquals(snapshotIds.size(), 1); // if it was a new index, only the new snapshot should be in its set
             }
         }
+        assertEquals(repositoryData.getGenId(), newRepoData.getGenId());
     }
 
     public void testInitIndices() {
         final int numSnapshots = randomIntBetween(1, 30);
         final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+            snapshotIds.add(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
         }
-        RepositoryData repositoryData = new RepositoryData(snapshotIds, Collections.emptyMap());
+        RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds, Collections.emptyMap(), Collections.emptyList());
         // test that initializing indices works
         Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
         RepositoryData newRepoData = repositoryData.initIndices(indices);
@@ -130,7 +131,7 @@ public class RepositoryDataTests extends ESTestCase {
         String indexName = indexNames.iterator().next();
         IndexId indexId = indices.get(indexName);
         assertEquals(indexId, repositoryData.resolveIndexId(indexName));
-        String notInRepoData = randomAsciiOfLength(5);
+        String notInRepoData = randomAlphaOfLength(5);
         assertFalse(indexName.contains(notInRepoData));
         assertEquals(new IndexId(notInRepoData, notInRepoData), repositoryData.resolveIndexId(notInRepoData));
     }
@@ -141,14 +142,14 @@ public class RepositoryDataTests extends ESTestCase {
 
     public static RepositoryData generateRandomRepoData(final List<SnapshotId> origSnapshotIds) {
         List<SnapshotId> snapshotIds = randomSnapshots(origSnapshotIds);
-        return new RepositoryData(snapshotIds, randomIndices(snapshotIds));
+        return new RepositoryData(EMPTY_REPO_GEN, snapshotIds, randomIndices(snapshotIds), Collections.emptyList());
     }
 
     private static List<SnapshotId> randomSnapshots(final List<SnapshotId> origSnapshotIds) {
         final int numSnapshots = randomIntBetween(1, 30);
         final List<SnapshotId> snapshotIds = new ArrayList<>(origSnapshotIds);
         for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+            snapshotIds.add(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
         }
         return snapshotIds;
     }
@@ -158,7 +159,7 @@ public class RepositoryDataTests extends ESTestCase {
         final int numIndices = randomIntBetween(1, 30);
         final Map<IndexId, Set<SnapshotId>> indices = new HashMap<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
-            final IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+            final IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             final Set<SnapshotId> indexSnapshots = new LinkedHashSet<>();
             final int numIndicesForSnapshot = randomIntBetween(1, numIndices);
             for (int j = 0; j < numIndicesForSnapshot; j++) {

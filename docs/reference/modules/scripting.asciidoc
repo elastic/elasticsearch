@@ -26,18 +26,6 @@ and give the most flexibility.
     |yes
     |built-in
 
-|<<modules-scripting-groovy, `groovy`>>
-    |<<modules-scripting-security, no>>
-    |built-in
-
-|{plugins}/lang-javascript.html[`javascript`]
-    |<<modules-scripting-security, no>>
-    |{plugins}/lang-javascript.html[`lang-javascript`]
-
-|{plugins}/lang-python.html[`python`]
-    |<<modules-scripting-security, no>>
-    |{plugins}/lang-python.html[`lang-python`]
-
 |=======================================================================
 
 [float]
@@ -87,15 +75,14 @@ include::scripting/fields.asciidoc[]
 
 include::scripting/security.asciidoc[]
 
-include::scripting/groovy.asciidoc[]
-
 include::scripting/painless.asciidoc[]
 
 include::scripting/painless-syntax.asciidoc[]
+
+include::scripting/painless-debugging.asciidoc[]
 
 include::scripting/expression.asciidoc[]
 
 include::scripting/native.asciidoc[]
 
 include::scripting/advanced-scripting.asciidoc[]
-

@@ -20,8 +20,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -70,8 +68,7 @@ public final class NodeMetaData {
         return "node_id [" + nodeId + "]";
     }
 
-    private static ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("node_meta_data",
-        Builder::new);
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("node_meta_data", Builder::new);
 
     static {
         PARSER.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
@@ -110,7 +107,7 @@ public final class NodeMetaData {
 
         @Override
         public NodeMetaData fromXContent(XContentParser parser) throws IOException {
-            return PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
+            return PARSER.apply(parser, null).build();
         }
     };
 }

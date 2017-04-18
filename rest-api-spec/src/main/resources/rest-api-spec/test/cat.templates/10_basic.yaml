@@ -1,8 +1,8 @@
 ---
 "Help":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         cat.templates:
           help: true
@@ -30,9 +30,11 @@
 
 ---
 "Normal templates":
+
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+
     - do:
         indices.put_template:
           name: test
@@ -59,7 +61,8 @@
         cat.templates: {}
 
     - match:
-        $body: /
+        $body: >
+               /
                  (^|\n)test     \s+
                  \[test-\*\]    \s+
                  0              \s+
@@ -68,7 +71,8 @@
                /
 
     - match:
-        $body: /
+        $body: >
+               /
                 (^|\n)test_2    \s+
                 \[test-2\*\]    \s+
                 1               \s+
@@ -78,9 +82,11 @@
 
 ---
 "Filtered templates":
+
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+
     - do:
         indices.put_template:
           name: test
@@ -120,8 +126,8 @@
 ---
 "Column headers":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
@@ -156,8 +162,8 @@
 ---
 "Select columns":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
@@ -189,8 +195,8 @@
 ---
 "Sort templates":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
@@ -239,6 +245,9 @@
 
 ---
 "Multiple template":
+    - skip:
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test_1

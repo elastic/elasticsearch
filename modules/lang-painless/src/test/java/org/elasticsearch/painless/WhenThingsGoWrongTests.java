@@ -148,10 +148,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testLoopLimits() {
         // right below limit: ok
-        exec("for (int x = 0; x < 9999; ++x) {}");
+        exec("for (int x = 0; x < 999999; ++x) {}");
 
         PainlessError expected = expectScriptThrows(PainlessError.class, () -> {
-            exec("for (int x = 0; x < 10000; ++x) {}");
+            exec("for (int x = 0; x < 1000000; ++x) {}");
         });
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
@@ -245,4 +245,42 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
         assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
     }
+
+    public void testInvalidIntConstantSuggestsLong() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 864000000000"));
+        assertEquals("Invalid int constant [864000000000]. If you want a long constant then change it to [864000000000L].", e.getMessage());
+        assertEquals(864000000000L, exec("return 864000000000L"));
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -864000000000"));
+        assertEquals("Invalid int constant [-864000000000]. If you want a long constant then change it to [-864000000000L].",
+                e.getMessage());
+        assertEquals(-864000000000L, exec("return -864000000000L"));
+
+        // If it isn't a valid long we don't give any suggestions
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 92233720368547758070"));
+        assertEquals("Invalid int constant [92233720368547758070].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -92233720368547758070"));
+        assertEquals("Invalid int constant [-92233720368547758070].", e.getMessage());
+    }
+
+    public void testQuestionSpaceDotIsNotNullSafeDereference() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a? .b", false));
+        assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
+    }
+
+    public void testBadStringEscape() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\a'", false));
+        assertEquals("unexpected character ['\\a]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+                e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\a\"", false));
+        assertEquals("unexpected character [\"\\a]. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+                e.getMessage());
+    }
+
+    public void testRegularUnexpectedCharacter() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'", false));
+        assertEquals("unexpected character ['].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'cat", false));
+        assertEquals("unexpected character ['cat].", e.getMessage());
+    }
+
 }

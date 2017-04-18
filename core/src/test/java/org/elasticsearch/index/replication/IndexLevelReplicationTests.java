@@ -18,21 +18,33 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -67,7 +79,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     try {
                         latch.countDown();
                         latch.await();
-                        shards.appendDocs(numDocs-1);
+                        shards.appendDocs(numDocs - 1);
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
@@ -90,20 +102,16 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);
-            Engine engine = IndexShardTests.getEngineFromShard(replica);
-            assertEquals("expected at no version lookups ", InternalEngineTests.getNumVersionLookups((InternalEngine) engine), 0);
-            for (IndexShard shard : shards) {
-                engine = IndexShardTests.getEngineFromShard(shard);
-                assertEquals(0, InternalEngineTests.getNumIndexVersionsLookups((InternalEngine) engine));
-                assertEquals(0, InternalEngineTests.getNumVersionLookups((InternalEngine) engine));
-            }
+            Engine engine = IndexShardTests.getEngineFromShard(shards.getPrimary());
+            assertEquals(0, InternalEngineTests.getNumIndexVersionsLookups((InternalEngine) engine));
+            assertEquals(0, InternalEngineTests.getNumVersionLookups((InternalEngine) engine));
         }
     }
 
     public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}");
+            final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
             indexRequest.onRetry(); // force an update of the timestamp
             final IndexResponse response = shards.index(indexRequest);
             assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
@@ -121,4 +129,55 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    public void testCheckpointsAdvance() throws Exception {
+        try (ReplicationGroup shards = createGroup(randomInt(3))) {
+            shards.startPrimary();
+            int numDocs = 0;
+            int startedShards;
+            do {
+                numDocs += shards.indexDocs(randomInt(20));
+                startedShards = shards.startReplicas(randomIntBetween(1, 2));
+            } while (startedShards > 0);
+
+            if (numDocs == 0 || randomBoolean()) {
+                // in the case we have no indexing, we simulate the background global checkpoint sync
+                shards.getPrimary().updateGlobalCheckpointOnPrimary();
+            }
+            for (IndexShard shard : shards) {
+                final SeqNoStats shardStats = shard.seqNoStats();
+                final ShardRouting shardRouting = shard.routingEntry();
+                logger.debug("seq_no stats for {}: {}", shardRouting, XContentHelper.toString(shardStats,
+                    new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
+                assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
+
+                assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), equalTo(numDocs - 1L));
+                assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
+            }
+        }
+    }
+
+    public void testConflictingOpsOnReplica() throws Exception {
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+            shards.startAll();
+            IndexShard replica1 = shards.getReplicas().get(0);
+            logger.info("--> isolated replica " + replica1.routingEntry());
+            shards.removeReplica(replica1);
+            IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            shards.index(indexRequest);
+            shards.addReplica(replica1);
+            logger.info("--> promoting replica to primary " + replica1.routingEntry());
+            shards.promoteReplicaToPrimary(replica1);
+            indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"2\"}", XContentType.JSON);
+            shards.index(indexRequest);
+            shards.refresh("test");
+            for (IndexShard shard : shards) {
+                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                    TopDocs search = searcher.searcher().search(new TermQuery(new Term("f", "2")), 10);
+                    assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits);
+                }
+            }
+        }
+    }
 }

@@ -81,6 +81,6 @@ public class DateFormatTests extends ESTestCase {
         assertThat(DateFormat.fromString("iso8601"), equalTo(DateFormat.Joda));
         assertThat(DateFormat.fromString("TAI64N"), equalTo(DateFormat.Tai64n));
         assertThat(DateFormat.fromString("tai64n"), equalTo(DateFormat.Joda));
-        assertThat(DateFormat.fromString("prefix-" + randomAsciiOfLengthBetween(1, 10)), equalTo(DateFormat.Joda));
+        assertThat(DateFormat.fromString("prefix-" + randomAlphaOfLengthBetween(1, 10)), equalTo(DateFormat.Joda));
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.ingest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -32,8 +31,6 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import java.io.IOException;
 
 public class RestGetPipelineAction extends BaseRestHandler {
-
-    @Inject
     public RestGetPipelineAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline", this);

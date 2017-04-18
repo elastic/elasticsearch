@@ -26,43 +26,59 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder> {
     public static final String NAME = "geohash_grid";
-    private static final Type TYPE = new Type(NAME);
+    public static final int DEFAULT_PRECISION = 5;
+    public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
-    private int precision = GeoHashGridParser.DEFAULT_PRECISION;
-    private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
+    private static final ObjectParser<GeoGridAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(GeoGridAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
+        PARSER.declareInt(GeoGridAggregationBuilder::precision, GeoHashGridParams.FIELD_PRECISION);
+        PARSER.declareInt(GeoGridAggregationBuilder::size, GeoHashGridParams.FIELD_SIZE);
+        PARSER.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
+    }
+
+    public static GeoGridAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new GeoGridAggregationBuilder(aggregationName), context);
+    }
+
+    private int precision = DEFAULT_PRECISION;
+    private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
 
     public GeoGridAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
     /**
      * Read from a stream.
      */
     public GeoGridAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
@@ -111,7 +127,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(AggregationContext context,
+    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(SearchContext context,
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
@@ -121,7 +137,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize < 0) {
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting
-            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.searchContext().numberOfShards());
+            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
         }
 
         if (requiredSize <= 0 || shardSize <= 0) {
@@ -132,7 +148,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return new GeoHashGridAggregatorFactory(name, type, config, precision, requiredSize, shardSize, context, parent,
+        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -167,7 +183,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 
@@ -196,7 +212,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         private final ValuesSource.GeoPoint valuesSource;
         private final int precision;
 
-        public CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
+        CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
             this.valuesSource = valuesSource;
             //different GeoPoints could map to the same or different geohash cells.
             this.precision = precision;

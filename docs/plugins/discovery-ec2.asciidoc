@@ -111,17 +111,20 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 The available values are:
 
 * `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
-* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
 * `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
 * `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[discovery-ec2-usage-signer]]
 ===== EC2 Signer API
@@ -129,6 +132,17 @@ The available values are:
 If you are using a compatible EC2 service, they might be using an older API to sign the requests.
 You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
 with the right signer to use.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[discovery-ec2-discovery]]
 ==== EC2 Discovery
@@ -158,9 +172,20 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
 `host_type`::
 
-    The type of host type to use to communicate with other instances. Can be
-    one of `private_ip`, `public_ip`, `private_dns`, `public_dns`. Defaults to
-    `private_ip`.
++
+--
+The type of host type to use to communicate with other instances. Can be
+one of `private_ip`, `public_ip`, `private_dns`, `public_dns` or `tag:TAGNAME` where
+`TAGNAME` refers to a name of a tag configured for all EC2 instances. Instances which don't
+have this tag set will be ignored by the discovery process.
+
+For example if you defined a tag `my-elasticsearch-host` in ec2 and set it to `myhostname1.mydomain.com`, then
+setting `host_type: tag:my-elasticsearch-host` will tell Discovery Ec2 plugin to read the host name from the
+`my-elasticsearch-host` tag. In this case, it will be resolved to `myhostname1.mydomain.com`.
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more about EC2 Tags].
+
+Defaults to `private_ip`.
+--
 
 `availability_zones`::
 
@@ -177,7 +202,6 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
     How long the list of hosts is cached to prevent further requests to the AWS API.
     Defaults to `10s`.
-
 
 [IMPORTANT]
 .Binding the network host
@@ -250,9 +274,20 @@ name - highly undesirable). Tagging elasticsearch ec2 nodes and then filtering b
 [[discovery-ec2-attributes]]
 ===== Automatic Node Attributes
 
-Though not dependent on actually using `ec2` as discovery (but still requires the cloud aws plugin installed), the
-plugin can automatically add node attributes relating to ec2 (for example, availability zone, that can be used with
-the awareness allocation feature). In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings.
+Though not dependent on actually using `ec2` as discovery (but still requires the `discovery-ec2` plugin installed), the
+plugin can automatically add node attributes relating to ec2. In the future this may support other attributes, but this will
+currently only add an `aws_availability_zone` node attribute, which is the availability zone of the current node. Attributes
+can be used to isolate primary and replica shards across availability zones by using the
+{ref}/allocation-awareness.html[Allocation Awareness] feature.
+
+In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings. For example:
+
+[source,yaml]
+----
+cloud.node.auto_attributes: true
+
+cluster.routing.allocation.awareness.attributes: aws_availability_zone
+----
 
 [[discovery-ec2-endpoint]]
 ===== Using other EC2 endpoint
@@ -278,7 +313,7 @@ Prefer https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as since Elas
 ===== Networking
 * Networking throttling takes place on smaller instance types in both the form of https://lab.getbase.com/how-we-discovered-limitations-on-the-aws-tcp-stack/[bandwidth and number of connections]. Therefore if large number of connections are needed and networking is becoming a bottleneck, avoid https://aws.amazon.com/ec2/instance-types/[instance types] with networking labeled as `Moderate` or `Low`.
 * Multicast is not supported, even when in an VPC; the aws cloud plugin which joins by performing a security group lookup.
-* When running in multiple http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability zones] be sure to leverage https://www.elastic.co/guide/en/elasticsearch/reference/master/allocation-awareness.html[shard allocation awareness] so that not all copies of shard data reside in the same availability zone.
+* When running in multiple http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability zones] be sure to leverage {ref}/allocation-awareness.html[shard allocation awareness] so that not all copies of shard data reside in the same availability zone.
 * Do not span a cluster across regions.  If necessary, use a tribe node.
 
 ===== Misc

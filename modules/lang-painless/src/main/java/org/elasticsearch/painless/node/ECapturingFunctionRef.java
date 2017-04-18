@@ -136,4 +136,9 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     public Type[] getCaptures() {
         return new Type[] { captured.type.type };
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(variable, call);
+    }
 }

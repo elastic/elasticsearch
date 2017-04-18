@@ -135,7 +135,7 @@ what happened:
 // TESTRESPONSE
 
 `acknowledged` indicates whether the index was successfully created in the cluster, while 
-`shards_acknowledged` indices whether the requisite number of shard copies were started for
+`shards_acknowledged` indicates whether the requisite number of shard copies were started for
 each shard in the index before timing out. Note that it is still possible for either 
 `acknowledged` or `shards_acknowledged` to be `false`, but the index creation was successful. 
 These values simply indicate whether the operation completed before the timeout. If 

@@ -47,6 +47,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.junit.Before;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,7 +61,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     private final String grandChildType = "grand-child";
 
     @Before
-    public void before() throws Exception {
+    public void setupData() throws Exception {
         mapperService.merge(
                 childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), MapperService.MergeReason.MAPPING_UPDATE, false
         );
@@ -124,52 +125,55 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testGetBytesValues() throws Exception {
+        writer.forceMerge(1); // force merge to 1 segment so we can iterate through documents
         IndexFieldData indexFieldData = getForField(childType);
-        AtomicFieldData fieldData = indexFieldData.load(refreshReader());
+        List<LeafReaderContext> readerContexts = refreshReader();
+        for (LeafReaderContext readerContext : readerContexts) {
+            AtomicFieldData fieldData = indexFieldData.load(readerContext);
 
-        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
-        bytesValues.setDocument(0);
-        assertThat(bytesValues.count(), equalTo(1));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            bytesValues.setDocument(0);
+            assertThat(bytesValues.count(), equalTo(1));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
 
-        bytesValues.setDocument(1);
-        assertThat(bytesValues.count(), equalTo(2));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("2"));
+            bytesValues.setDocument(1);
+            assertThat(bytesValues.count(), equalTo(2));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("2"));
 
-        bytesValues.setDocument(2);
-        assertThat(bytesValues.count(), equalTo(2));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("3"));
+            bytesValues.setDocument(2);
+            assertThat(bytesValues.count(), equalTo(2));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("3"));
 
-        bytesValues.setDocument(3);
-        assertThat(bytesValues.count(), equalTo(1));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+            bytesValues.setDocument(3);
+            assertThat(bytesValues.count(), equalTo(1));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
 
-        bytesValues.setDocument(4);
-        assertThat(bytesValues.count(), equalTo(2));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
-        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("4"));
+            bytesValues.setDocument(4);
+            assertThat(bytesValues.count(), equalTo(2));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("4"));
 
-        bytesValues.setDocument(5);
-        assertThat(bytesValues.count(), equalTo(2));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("5"));
+            bytesValues.setDocument(5);
+            assertThat(bytesValues.count(), equalTo(2));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("5"));
 
-        bytesValues.setDocument(6);
-        assertThat(bytesValues.count(), equalTo(1));
-        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+            bytesValues.setDocument(6);
+            assertThat(bytesValues.count(), equalTo(1));
+            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
 
-        bytesValues.setDocument(7);
-        assertThat(bytesValues.count(), equalTo(0));
+            bytesValues.setDocument(7);
+            assertThat(bytesValues.count(), equalTo(0));
+        }
     }
 
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(parentType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
-
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, false)));
+        SortField sortField = indexFieldData.sortField("_last", MultiValueMode.MIN, null, false);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -189,7 +193,8 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(null));
 
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, true)));
+        sortField = indexFieldData.sortField("_last", MultiValueMode.MIN, null, true);
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));

@@ -20,22 +20,44 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
+
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("normalizer", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((KeywordFieldType) ft).setNormalizer(Lucene.KEYWORD_ANALYZER);
+            }
+        });
+    }
+
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new KeywordFieldMapper.KeywordFieldType();
@@ -62,11 +84,39 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
+    public void testTermQueryWithNormalizer() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        Analyzer normalizer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                TokenFilter out = new LowerCaseFilter(in);
+                return new TokenStreamComponents(in, out);
+            }
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return new LowerCaseFilter(in);
+            }
+        };
+        ft.setSearchAnalyzer(new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
+        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.termQuery("bar", null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
     public void testTermsQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(new TermsQuery(new Term("field", "foo"), new Term("field", "bar")),
+        List<BytesRef> terms = new ArrayList<>();
+        terms.add(new BytesRef("foo"));
+        terms.add(new BytesRef("bar"));
+        assertEquals(new TermInSetQuery("field", terms),
                 ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
         ft.setIndexOptions(IndexOptions.NONE);

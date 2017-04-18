@@ -28,5 +28,5 @@
             id: 1
             stored_fields: "_size"
 
-    - match: { _size: 13 }
+    - gt: { _size: 0 }
 

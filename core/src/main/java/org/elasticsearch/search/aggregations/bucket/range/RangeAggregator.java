@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,7 +37,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -123,7 +121,7 @@ public class RangeAggregator extends BucketsAggregator {
             return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
-        public static Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        public static Range fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             double from = Double.NEGATIVE_INFINITY;
@@ -135,17 +133,17 @@ public class RangeAggregator extends BucketsAggregator {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         from = parser.doubleValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         to = parser.doubleValue();
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         fromAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         toAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, KEY_FIELD)) {
+                    } else if (KEY_FIELD.match(currentFieldName)) {
                         key = parser.text();
                     }
                 }
@@ -206,10 +204,10 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, AggregationContext aggregationContext,
+            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
@@ -338,7 +336,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         @SuppressWarnings("unchecked")
         public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format,
-                AggregationContext context,
+                SearchContext context,
                 Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 

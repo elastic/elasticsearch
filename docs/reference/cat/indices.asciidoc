@@ -10,12 +10,7 @@ GET /_cat/indices/twi*?v&s=index
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:huge_twitter]
-// TEST[s/^/POST _flush\n/]
 // TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
-// We flush very early here because the index's size is cached and we sort on
-// size below. So to get a realistic sort on size we need to flush here or else
-// the size is just whatever portion of the index is pushed out of memory
-// during test setup which isn't deterministic.
 
 Might respond with:
 
@@ -29,9 +24,16 @@ green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0   
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
 
 We can tell quickly how many shards make up an index, the number of
-docs at the Lucene level, including hidden docs (e.g., from nested types),
-deleted docs, primary store size, and total store size (all shards including replicas).
+docs, deleted docs, primary store size, and total store size (all shards including replicas).
 All these exposed metrics come directly from Lucene APIs.
+
+*Notes:*
+
+1. As the number of documents and deleted documents shown in this are at the lucene level,
+it includes all the hidden documents (e.g. from nested documents) as well.
+
+2. To get actual count of documents at the elasticsearch level, the recommended way
+is to use either the <<cat-count>> or the <<search-count>>
 
 [float]
 [[pri-flag]]
@@ -64,11 +66,11 @@ yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0   
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ/.+/ _cat]
 
-What's my largest index by disk usage not including replicas?
+Which index has the largest number of documents?
 
 [source,js]
 --------------------------------------------------
-GET /_cat/indices?v&s=store.size:desc
+GET /_cat/indices?v&s=docs.count:desc
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

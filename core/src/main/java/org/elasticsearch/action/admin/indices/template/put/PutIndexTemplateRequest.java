@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,11 +45,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -63,8 +66,6 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PutIndexTemplateRequest.class));
-
-    public static final Version V_5_1_0 = Version.fromId(5010099);
 
     private String name;
 
@@ -152,7 +153,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
-     * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
+     * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequest create(boolean create) {
         this.create = create;
@@ -180,21 +181,21 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * The settings to create the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json/yaml format).
      */
-    public PutIndexTemplateRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public PutIndexTemplateRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -210,10 +211,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @param xContentType The type of content contained within the source
      */
-    public PutIndexTemplateRequest mapping(String type, String source) {
-        mappings.put(type, source);
-        return this;
+    public PutIndexTemplateRequest mapping(String type, String source, XContentType xContentType) {
+        return mapping(type, new BytesArray(source), xContentType);
     }
 
     /**
@@ -235,12 +236,24 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
+        return mapping(type, source.bytes(), source.contentType());
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType the source content type
+     */
+    public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
         try {
-            mappings.put(type, source.string());
+            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
+            return this;
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
+            throw new UncheckedIOException("failed to convert source to json", e);
         }
-        return this;
     }
 
     /**
@@ -257,7 +270,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(type, builder.string());
+            return mapping(type, builder);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -281,7 +294,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(templateBuilder.bytes());
+            return source(templateBuilder.bytes(), templateBuilder.contentType());
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to build json for template request", e);
         }
@@ -352,41 +365,29 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(String templateSource) {
-        try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
-            return source(parser.mapOrdered());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
-        }
+    public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(byte[] source) {
-        return source(source, 0, source.length);
+    public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
-        try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-            return source(parser.mapOrdered());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template source", e);
-        }
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+        return source(new BytesArray(source, offset, length), xContentType);
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(BytesReference source) {
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            return source(parser.mapOrdered());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template source", e);
-        }
+    public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
@@ -434,7 +435,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
-        try (XContentParser parser = XContentHelper.createParser(source)) {
+        // EMPTY is safe here because we never call namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -473,7 +475,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         cause = in.readString();
         name = in.readString();
 
-        if (in.getVersion().onOrAfter(V_5_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             indexPatterns = in.readList(StreamInput::readString);
         } else {
             indexPatterns = Collections.singletonList(in.readString());
@@ -483,7 +485,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         settings = readSettingsFromStream(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            mappings.put(in.readString(), in.readString());
+            final String type = in.readString();
+            String mappingSource = in.readString();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3_0 once backported
+                // we do not know the incoming type so convert it if needed
+                mappingSource =
+                    XContentHelper.convertToJson(new BytesArray(mappingSource), false, false, XContentFactory.xContentType(mappingSource));
+            }
+            mappings.put(type, mappingSource);
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
@@ -503,7 +512,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(name);
-        if (out.getVersion().onOrAfter(V_5_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             out.writeStringList(indexPatterns);
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");

@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ import static java.util.Collections.emptyMap;
 /**
  * Computes distribution statistics over multiple fields
  */
-public class InternalMatrixStats extends InternalMetricsAggregation implements MatrixStats {
+public class InternalMatrixStats extends InternalAggregation implements MatrixStats {
     /** per shard stats needed to compute stats */
     private final RunningStats stats;
     /** final result */

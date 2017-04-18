@@ -27,16 +27,14 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -54,9 +52,7 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
+        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
 
     private String type;
     private String id;
@@ -430,7 +426,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Explicitely set the fetch source context for this request
+     * Explicitly set the fetch source context for this request
      */
     public UpdateRequest fetchSource(FetchSourceContext context) {
         this.fetchSourceContext = context;
@@ -563,24 +559,24 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(String source) {
-        safeDoc().source(source);
+    public UpdateRequest doc(String source, XContentType xContentType) {
+        safeDoc().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source) {
-        safeDoc().source(source);
+    public UpdateRequest doc(byte[] source, XContentType xContentType) {
+        safeDoc().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source, int offset, int length) {
-        safeDoc().source(source, offset, length);
+    public UpdateRequest doc(byte[] source, int offset, int length, XContentType xContentType) {
+        safeDoc().source(source, offset, length, xContentType);
         return this;
     }
 
@@ -594,10 +590,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Sets the doc to use for updates when a script is not specified.
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
      */
-    public UpdateRequest doc(String field, Object value) {
-        safeDoc().source(field, value);
+    public UpdateRequest doc(XContentType xContentType, Object... source) {
+        safeDoc().source(xContentType, source);
         return this;
     }
 
@@ -648,24 +645,24 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(String source) {
-        safeUpsertRequest().source(source);
+    public UpdateRequest upsert(String source, XContentType xContentType) {
+        safeUpsertRequest().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source) {
-        safeUpsertRequest().source(source);
+    public UpdateRequest upsert(byte[] source, XContentType xContentType) {
+        safeUpsertRequest().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source, int offset, int length) {
-        safeUpsertRequest().source(source, offset, length);
+    public UpdateRequest upsert(byte[] source, int offset, int length, XContentType xContentType) {
+        safeUpsertRequest().source(source, offset, length, xContentType);
         return this;
     }
 
@@ -678,6 +675,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequest upsert(XContentType xContentType, Object... source) {
+        safeUpsertRequest().source(xContentType, source);
+        return this;
+    }
+
     public IndexRequest upsertRequest() {
         return this.upsertRequest;
     }
@@ -687,18 +693,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest = new IndexRequest();
         }
         return upsertRequest;
-    }
-
-    public UpdateRequest fromXContent(XContentBuilder source) throws Exception {
-        return fromXContent(source.bytes());
-    }
-
-    public UpdateRequest fromXContent(byte[] source) throws Exception {
-        return fromXContent(source, 0, source.length);
-    }
-
-    public UpdateRequest fromXContent(byte[] source, int offset, int length) throws Exception {
-        return fromXContent(new BytesArray(source, offset, length));
     }
 
     /**
@@ -717,52 +711,48 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return detectNoop;
     }
 
-    public UpdateRequest fromXContent(BytesReference source) throws IOException {
+    public UpdateRequest fromXContent(XContentParser parser) throws IOException {
         Script script = null;
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                return this;
-            }
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ("script".equals(currentFieldName)) {
-                    script = Script.parse(parser, ParseFieldMatcher.EMPTY);
-                } else if ("scripted_upsert".equals(currentFieldName)) {
-                    scriptedUpsert = parser.booleanValue();
-                } else if ("upsert".equals(currentFieldName)) {
-                    XContentType xContentType = XContentFactory.xContentType(source);
-                    XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-                    builder.copyCurrentStructure(parser);
-                    safeUpsertRequest().source(builder);
-                } else if ("doc".equals(currentFieldName)) {
-                    XContentType xContentType = XContentFactory.xContentType(source);
-                    XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
-                    docBuilder.copyCurrentStructure(parser);
-                    safeDoc().source(docBuilder);
-                } else if ("doc_as_upsert".equals(currentFieldName)) {
-                    docAsUpsert(parser.booleanValue());
-                } else if ("detect_noop".equals(currentFieldName)) {
-                    detectNoop(parser.booleanValue());
-                } else if ("fields".equals(currentFieldName)) {
-                    List<Object> fields = null;
-                    if (token == XContentParser.Token.START_ARRAY) {
-                        fields = (List) parser.list();
-                    } else if (token.isValue()) {
-                        fields = Collections.singletonList(parser.text());
-                    }
-                    if (fields != null) {
-                        fields(fields.toArray(new String[fields.size()]));
-                    }
-                } else if ("_source".equals(currentFieldName)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser);
+        XContentParser.Token token = parser.nextToken();
+        if (token == null) {
+            return this;
+        }
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if ("script".equals(currentFieldName)) {
+                script = Script.parse(parser);
+            } else if ("scripted_upsert".equals(currentFieldName)) {
+                scriptedUpsert = parser.booleanValue();
+            } else if ("upsert".equals(currentFieldName)) {
+                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                builder.copyCurrentStructure(parser);
+                safeUpsertRequest().source(builder);
+            } else if ("doc".equals(currentFieldName)) {
+                XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
+                docBuilder.copyCurrentStructure(parser);
+                safeDoc().source(docBuilder);
+            } else if ("doc_as_upsert".equals(currentFieldName)) {
+                docAsUpsert(parser.booleanValue());
+            } else if ("detect_noop".equals(currentFieldName)) {
+                detectNoop(parser.booleanValue());
+            } else if ("fields".equals(currentFieldName)) {
+                List<Object> fields = null;
+                if (token == XContentParser.Token.START_ARRAY) {
+                    fields = (List) parser.list();
+                } else if (token.isValue()) {
+                    fields = Collections.singletonList(parser.text());
                 }
+                if (fields != null) {
+                    fields(fields.toArray(new String[fields.size()]));
+                }
+            } else if ("_source".equals(currentFieldName)) {
+                fetchSourceContext = FetchSourceContext.fromXContent(parser);
             }
-            if (script != null) {
-                this.script = script;
-            }
+        }
+        if (script != null) {
+            this.script = script;
         }
         return this;
     }
@@ -859,4 +849,42 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(scriptedUpsert);
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (docAsUpsert) {
+            builder.field("doc_as_upsert", docAsUpsert);
+        }
+        if (doc != null) {
+            XContentType xContentType = doc.getContentType();
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, doc.source(), xContentType)) {
+                builder.field("doc");
+                builder.copyCurrentStructure(parser);
+            }
+        }
+        if (script != null) {
+            builder.field("script", script);
+        }
+        if (upsertRequest != null) {
+            XContentType xContentType = upsertRequest.getContentType();
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, upsertRequest.source(), xContentType)) {
+                builder.field("upsert");
+                builder.copyCurrentStructure(parser);
+            }
+        }
+        if (scriptedUpsert) {
+            builder.field("scripted_upsert", scriptedUpsert);
+        }
+        if (detectNoop == false) {
+            builder.field("detect_noop", detectNoop);
+        }
+        if (fields != null) {
+            builder.array("fields", fields);
+        }
+        if (fetchSourceContext != null) {
+            builder.field("_source", fetchSourceContext);
+        }
+        builder.endObject();
+        return builder;
+    }
 }

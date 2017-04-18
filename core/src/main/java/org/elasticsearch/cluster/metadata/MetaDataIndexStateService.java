@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
@@ -160,12 +161,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
+                final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
+                    .minimumIndexCompatibilityVersion();
                 for (IndexMetaData closedMetaData : indicesToOpen) {
                     final String indexName = closedMetaData.getIndex().getName();
                     IndexMetaData indexMetaData = IndexMetaData.builder(closedMetaData).state(IndexMetaData.State.OPEN).build();
                     // The index might be closed because we couldn't import it due to old incompatible version
                     // We need to check that this index can be upgraded to the current version
-                    indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+                    indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData, minIndexCompatibilityVersion);
                     try {
                         indicesService.verifyIndexMetadata(indexMetaData, indexMetaData);
                     } catch (Exception e) {

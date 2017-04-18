@@ -26,6 +26,7 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.TransportSettings;
@@ -136,7 +137,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
             for (int i = 0; i < unicastHostPorts.length; i++) {
                 boolean foundPortInRange = false;
                 while (tries < InternalTestCluster.PORTS_PER_JVM && !foundPortInRange) {
-                    try (ServerSocket serverSocket = new ServerSocket()) {
+                    try (ServerSocket serverSocket = new MockServerSocket()) {
                         // Set SO_REUSEADDR as we may bind here and not be able to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
                         serverSocket.bind(new InetSocketAddress(IP_ADDR, nextPort));

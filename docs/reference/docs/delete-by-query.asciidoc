@@ -1,8 +1,6 @@
 [[docs-delete-by-query]]
 == Delete By Query API
 
-experimental[The delete-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
-
 The simplest usage of `_delete_by_query` just performs a deletion on every
 document that match a query. Here is the API:
 
@@ -66,9 +64,9 @@ these documents. In case a search or bulk request got rejected, `_delete_by_quer
  exponential back off). Reaching the maximum retries limit causes the `_delete_by_query`
  to abort and all failures are returned in the `failures` of the response.
  The deletions that have been performed still stick. In other words, the process
- is not rolled back, only aborted. While the first failure causes the abort all
+ is not rolled back, only aborted. While the first failure causes the abort, all
  failures that are returned by the failing bulk request are returned in the `failures`
- element so it's possible for there to be quite a few.
+ element; therefore it's possible for there to be quite a few failed entities.
 
 If you'd like to count version conflicts rather than cause them to abort then
 set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.
@@ -294,7 +292,7 @@ GET /_tasks/taskId:1
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
 to transparently return the status of completed tasks. If the task is completed
-and `wait_for_completion=false` was set on it them it'll come back with a
+and `wait_for_completion=false` was set on it then it'll come back with
 `results` or an `error` field. The cost of this feature is the document that
 `wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
 you to delete that document.
@@ -467,6 +465,7 @@ Which results in a sensible `total` like this one:
 
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
+
 * You can see these requests in the
 <<docs-delete-by-query-task-api,Tasks APIs>>. These sub-requests are "child"
 tasks of the task for the request with `slices`.

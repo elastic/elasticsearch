@@ -32,6 +32,7 @@ dependencies {
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "org.elasticsearch:securemock:${versions.securemock}"
+  compile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'

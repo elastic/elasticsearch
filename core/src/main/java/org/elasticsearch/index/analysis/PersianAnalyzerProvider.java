@@ -30,7 +30,8 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Persi
 
     public PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new PersianAnalyzer(Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet()));
+        analyzer = new PersianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, PersianAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 

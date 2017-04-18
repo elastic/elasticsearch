@@ -30,15 +30,18 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @TestMethodProviders({
         JUnit3MethodProvider.class
@@ -53,70 +56,56 @@ import java.util.Set;
 public abstract class RestClientTestCase extends RandomizedTest {
 
     /**
-     * Create the specified number of {@link Header}s.
-     * <p>
-     * Generated header names will be the {@code baseName} plus its index or, rarely, the {@code arrayName} if it's supplied.
+     * Assert that the actual headers are the expected ones given the original default and request headers. Some headers can be ignored,
+     * for instance in case the http client is adding its own automatically.
      *
-     * @param baseName The base name to use for all headers.
-     * @param arrayName The optional ({@code null}able) array name to use randomly.
-     * @param headers The number of headers to create.
-     * @return Never {@code null}.
+     * @param defaultHeaders the default headers set to the REST client instance
+     * @param requestHeaders the request headers sent with a particular request
+     * @param actualHeaders the actual headers as a result of the provided default and request headers
+     * @param ignoreHeaders header keys to be ignored as they are not part of default nor request headers, yet they
+     *                      will be part of the actual ones
      */
-    protected static Header[] generateHeaders(final String baseName, final String arrayName, final int headers) {
-        final Header[] generated = new Header[headers];
-        for (int i = 0; i < headers; i++) {
-            String headerName = baseName + i;
-            if (arrayName != null && rarely()) {
-                headerName = arrayName;
-            }
-
-            generated[i] = new BasicHeader(headerName, randomAsciiOfLengthBetween(3, 10));
+    protected static void assertHeaders(final Header[] defaultHeaders, final Header[] requestHeaders,
+                                        final Header[] actualHeaders, final Set<String> ignoreHeaders) {
+        final Map<String, List<String>> expectedHeaders = new HashMap<>();
+        final Set<String> requestHeaderKeys = new HashSet<>();
+        for (final Header header : requestHeaders) {
+            final String name = header.getName();
+            addValueToListEntry(expectedHeaders, name, header.getValue());
+            requestHeaderKeys.add(name);
         }
-        return generated;
+        for (final Header defaultHeader : defaultHeaders) {
+            final String name = defaultHeader.getName();
+            if (requestHeaderKeys.contains(name) == false) {
+                addValueToListEntry(expectedHeaders, name, defaultHeader.getValue());
+            }
+        }
+        Set<String> actualIgnoredHeaders = new HashSet<>();
+        for (Header responseHeader : actualHeaders) {
+            final String name = responseHeader.getName();
+            if (ignoreHeaders.contains(name)) {
+                expectedHeaders.remove(name);
+                actualIgnoredHeaders.add(name);
+                continue;
+            }
+            final String value = responseHeader.getValue();
+            final List<String> values = expectedHeaders.get(name);
+            assertNotNull("found response header [" + name + "] that wasn't originally sent: " + value, values);
+            assertTrue("found incorrect response header [" + name + "]: " + value, values.remove(value));
+            if (values.isEmpty()) {
+                expectedHeaders.remove(name);
+            }
+        }
+        assertEquals("some headers meant to be ignored were not part of the actual headers", ignoreHeaders, actualIgnoredHeaders);
+        assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
     }
 
-    /**
-     * Create a new {@link List} within the {@code map} if none exists for {@code name} or append to the existing list.
-     *
-     * @param map The map to manipulate.
-     * @param name The name to create/append the list for.
-     * @param value The value to add.
-     */
-    private static void createOrAppendList(final Map<String, List<String>> map, final String name, final String value) {
+    private static void addValueToListEntry(final Map<String, List<String>> map, final String name, final String value) {
         List<String> values = map.get(name);
-
         if (values == null) {
             values = new ArrayList<>();
             map.put(name, values);
         }
-
         values.add(value);
     }
-
-    /**
-     * Add the {@code headers} to the {@code map} so that related tests can more easily assert that they exist.
-     * <p>
-     * If both the {@code defaultHeaders} and {@code headers} contain the same {@link Header}, based on its
-     * {@linkplain Header#getName() name}, then this will only use the {@code Header}(s) from {@code headers}.
-     *
-     * @param map The map to build with name/value(s) pairs.
-     * @param defaultHeaders The headers to add to the map representing default headers.
-     * @param headers The headers to add to the map representing request-level headers.
-     * @see #createOrAppendList(Map, String, String)
-     */
-    protected static void addHeaders(final Map<String, List<String>> map, final Header[] defaultHeaders, final Header[] headers) {
-        final Set<String> uniqueHeaders = new HashSet<>();
-        for (final Header header : headers) {
-            final String name = header.getName();
-            createOrAppendList(map, name, header.getValue());
-            uniqueHeaders.add(name);
-        }
-        for (final Header defaultHeader : defaultHeaders) {
-            final String name = defaultHeader.getName();
-            if (uniqueHeaders.contains(name) == false) {
-                createOrAppendList(map, name, defaultHeader.getValue());
-            }
-        }
-    }
-
 }

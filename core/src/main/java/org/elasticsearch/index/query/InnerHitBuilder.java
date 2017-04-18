@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -45,9 +46,9 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -59,6 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 public final class InnerHitBuilder extends ToXContentToBytes implements Writeable {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
 
@@ -66,6 +68,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
+        PARSER.declareBoolean((innerHitBuilder, value) -> innerHitBuilder.ignoreUnmapped = value, IGNORE_UNMAPPED);
         PARSER.declareInt(InnerHitBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);
         PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
@@ -94,7 +97,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField((p, i, c) -> {
             try {
-                i.setFetchSourceContext(FetchSourceContext.parse(c.parser()));
+                i.setFetchSourceContext(FetchSourceContext.fromXContent(c.parser()));
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
@@ -130,6 +133,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private String name;
     private String nestedPath;
     private String parentChildType;
+    private boolean ignoreUnmapped;
 
     private int from;
     private int size = 3;
@@ -151,6 +155,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     private InnerHitBuilder(InnerHitBuilder other) {
         name = other.name;
+        this.ignoreUnmapped = other.ignoreUnmapped;
         from = other.from;
         size = other.size;
         explain = other.explain;
@@ -180,19 +185,21 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     }
 
 
-    InnerHitBuilder(InnerHitBuilder other, String nestedPath, QueryBuilder query) {
+    InnerHitBuilder(InnerHitBuilder other, String nestedPath, QueryBuilder query, boolean ignoreUnmapped) {
         this(other);
         this.query = query;
         this.nestedPath = nestedPath;
+        this.ignoreUnmapped = ignoreUnmapped;
         if (name == null) {
             this.name = nestedPath;
         }
     }
 
-    InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType) {
+    InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType, boolean ignoreUnmapped) {
         this(other);
         this.query = query;
         this.parentChildType = parentChildType;
+        this.ignoreUnmapped = ignoreUnmapped;
         if (name == null) {
             this.name = parentChildType;
         }
@@ -205,6 +212,9 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         name = in.readOptionalString();
         nestedPath = in.readOptionalString();
         parentChildType = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            ignoreUnmapped = in.readBoolean();
+        }
         from = in.readVInt();
         size = in.readVInt();
         explain = in.readBoolean();
@@ -243,6 +253,9 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeOptionalString(name);
         out.writeOptionalString(nestedPath);
         out.writeOptionalString(parentChildType);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeBoolean(ignoreUnmapped);
+        }
         out.writeVInt(from);
         out.writeVInt(size);
         out.writeBoolean(explain);
@@ -254,8 +267,10 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
             out.writeVInt(scriptFields.size());
-            for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);
+            Iterator<ScriptField> iterator = scriptFields.stream()
+                    .sorted((a, b) -> a.fieldName().compareTo(b.fieldName())).iterator();
+            while (iterator.hasNext()) {
+                iterator.next().writeTo(out);
             }
         }
         out.writeOptionalWriteable(fetchSourceContext);
@@ -273,7 +288,10 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(hasChildInnerHits);
         if (hasChildInnerHits) {
             out.writeVInt(childInnerHits.size());
-            for (Map.Entry<String, InnerHitBuilder> entry : childInnerHits.entrySet()) {
+            Iterator<Map.Entry<String, InnerHitBuilder>> iterator = childInnerHits.entrySet().stream()
+                    .sorted((a, b) -> a.getKey().compareTo(b.getKey())).iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, InnerHitBuilder> entry = iterator.next();
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
@@ -287,6 +305,13 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     public InnerHitBuilder setName(String name) {
         this.name = Objects.requireNonNull(name);
         return this;
+    }
+
+    /**
+     * Whether to include inner hits in the search response hits if required mappings is missing
+     */
+    public boolean isIgnoreUnmapped() {
+        return ignoreUnmapped;
     }
 
     public int getFrom() {
@@ -523,6 +548,14 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
         if (nestedPath != null) {
             ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(nestedPath);
+            if (nestedObjectMapper == null) {
+                if (ignoreUnmapped == false) {
+                    throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + nestedPath + "]");
+                } else {
+                    return null;
+                }
+            }
+
             ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
             InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(
                     name, parentSearchContext, parentObjectMapper, nestedObjectMapper
@@ -535,7 +568,15 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             innerHitsContext.addInnerHitDefinition(nestedInnerHits);
             return nestedInnerHits;
         } else if (parentChildType != null) {
-            DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(parentChildType);
+            DocumentMapper documentMapper = queryShardContext.documentMapper(parentChildType);
+            if (documentMapper == null) {
+                if (ignoreUnmapped == false) {
+                    throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + parentChildType + "]");
+                } else {
+                    return null;
+                }
+            }
+
             InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(
                     name, parentSearchContext, queryShardContext.getMapperService(), documentMapper
             );
@@ -556,7 +597,9 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             InnerHitsContext.BaseInnerHits childInnerHit = entry.getValue().build(
                     parentSearchContext, new InnerHitsContext()
             );
-            childInnerHits.put(entry.getKey(), childInnerHit);
+            if (childInnerHit != null) {
+                childInnerHits.put(entry.getKey(), childInnerHit);
+            }
         }
         innerHits.setChildInnerHits(childInnerHits);
     }
@@ -617,6 +660,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         if (name != null) {
             builder.field(NAME_FIELD.getPreferredName(), name);
         }
+        builder.field(IGNORE_UNMAPPED.getPreferredName(), ignoreUnmapped);
         builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
         builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);
@@ -672,6 +716,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return Objects.equals(name, that.name) &&
                 Objects.equals(nestedPath, that.nestedPath) &&
                 Objects.equals(parentChildType, that.parentChildType) &&
+                Objects.equals(ignoreUnmapped, that.ignoreUnmapped) &&
                 Objects.equals(from, that.from) &&
                 Objects.equals(size, that.size) &&
                 Objects.equals(explain, that.explain) &&
@@ -689,8 +734,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, nestedPath, parentChildType, from, size, explain, version, trackScores, storedFieldsContext,
-            docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, childInnerHits);
+        return Objects.hash(name, nestedPath, parentChildType, ignoreUnmapped, from, size, explain, version, trackScores,
+                storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, childInnerHits);
     }
 
     public static InnerHitBuilder fromXContent(QueryParseContext context) throws IOException {

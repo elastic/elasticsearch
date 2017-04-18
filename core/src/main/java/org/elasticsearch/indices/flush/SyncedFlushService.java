@@ -658,10 +658,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
         int opCount;
 
-        public InFlightOpsResponse() {
+        InFlightOpsResponse() {
         }
 
-        public InFlightOpsResponse(int opCount) {
+        InFlightOpsResponse(int opCount) {
             this.opCount = opCount;
         }
 

@@ -101,4 +101,9 @@ public final class EListInit extends AExpression {
             writer.pop();
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(values);
+    }
 }

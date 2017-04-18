@@ -1,0 +1,249 @@
+setup:
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { numeric_group: 1, sort: 10 }
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     2
+          body:   { numeric_group: 1, sort: 6 }
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     3
+          body:   { numeric_group: 1, sort: 24 }
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     4
+          body:   { numeric_group: 25, sort: 10 }
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     5
+          body:   { numeric_group: 25, sort: 5 }
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     6
+          body:   { numeric_group: 3, sort: 36 }
+  - do:
+      indices.refresh:
+        index: test
+
+---
+"field collapsing":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ sort: desc }]
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 3 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0.fields.numeric_group: [3] }
+  - match: {hits.hits.0.sort: [36] }
+  - match: {hits.hits.0._id: "6" }
+  - is_false: hits.hits.0.inner_hits
+  - match: {hits.hits.1._index: test }
+  - match: {hits.hits.1._type: test }
+  - match: {hits.hits.1.fields.numeric_group: [1] }
+  - match: {hits.hits.1.sort: [24] }
+  - match: {hits.hits.1._id: "3" }
+  - is_false: hits.hits.1.inner_hits
+  - match: {hits.hits.2._index: test }
+  - match: {hits.hits.2._type: test }
+  - match: {hits.hits.2.fields.numeric_group: [25] }
+  - match: {hits.hits.2.sort: [10] }
+  - match: {hits.hits.2._id: "4" }
+  - is_false: hits.hits.2.inner_hits
+
+---
+"field collapsing and from":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          from: 2
+          collapse: { field: numeric_group }
+          sort: [{ sort: desc }]
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0.fields.numeric_group: [25]}
+  - match: {hits.hits.0.sort: [10] }
+  - match: {hits.hits.0._id: "4" }
+  - is_false: hits.hits.0.inner_hits
+
+---
+"field collapsing and inner_hits":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
+          sort: [{ sort: desc }]
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._type: test }
+  - match: { hits.hits.0.fields.numeric_group: [3] }
+  - match: { hits.hits.0.sort: [36] }
+  - match: { hits.hits.0._id: "6" }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1 }
+  - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._type: test }
+  - match: { hits.hits.1.fields.numeric_group: [1] }
+  - match: { hits.hits.1.sort: [24] }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3 }
+  - length: { hits.hits.1.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2.fields.numeric_group: [25] }
+  - match: { hits.hits.2.sort: [10] }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2 }
+  - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
+
+
+---
+"field collapsing, inner_hits and maxConcurrentGroupRequests":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          collapse: { field: numeric_group, max_concurrent_group_searches: 10, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
+          sort: [{ sort: desc }]
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._type: test }
+  - match: { hits.hits.0.fields.numeric_group: [3] }
+  - match: { hits.hits.0.sort: [36] }
+  - match: { hits.hits.0._id: "6" }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1 }
+  - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._type: test }
+  - match: { hits.hits.1.fields.numeric_group: [1] }
+  - match: { hits.hits.1.sort: [24] }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3 }
+  - length: { hits.hits.1.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2.fields.numeric_group: [25] }
+  - match: { hits.hits.2.sort: [10] }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2 }
+  - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
+
+
+---
+"field collapsing and scroll":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      catch:      /cannot use \`collapse\` in a scroll context/
+      search:
+        index: test
+        type:  test
+        scroll: 1s
+        body:
+          collapse: { field: numeric_group }
+
+---
+"field collapsing and search_after":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
+      search:
+        index: test
+        type:  test
+        body:
+          collapse: { field: numeric_group }
+          search_after: [6]
+          sort: [{ sort: desc }]
+
+---
+"field collapsing and rescore":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
+      search:
+        index: test
+        type:  test
+        body:
+          collapse: { field: numeric_group }
+          rescore:
+            window_size: 20
+            query:
+              rescore_query:
+                match_all: {}
+              query_weight: 1
+              rescore_query_weight: 2

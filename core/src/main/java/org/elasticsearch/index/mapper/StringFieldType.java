@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import java.util.List;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -53,7 +53,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new TermsQuery(name(), bytesRefs);
+        return new TermInSetQuery(name(), bytesRefs);
     }
 
     @Override

@@ -25,10 +25,12 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Function;
 
 /**
  * An {@link AtomicFieldData} implementation that uses Lucene {@link org.apache.lucene.index.SortedSetDocValues}.
@@ -38,7 +40,9 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
     private final LeafReader reader;
     private final String field;
 
-    SortedSetDVBytesAtomicFieldData(LeafReader reader, String field) {
+    SortedSetDVBytesAtomicFieldData(LeafReader reader, String field, Function<RandomAccessOrds,
+            ScriptDocValues<?>> scriptFunction) {
+        super(scriptFunction);
         this.reader = reader;
         this.field = field;
     }

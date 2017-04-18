@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
@@ -55,7 +54,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         List<String> indexNames = new ArrayList<>();
         final int numIndices = scaledRandomIntBetween(2, 4);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             indexNames.add(indexName);
 
             int randomInt = randomInt(PreBuiltAnalyzers.values().length-1);
@@ -92,7 +91,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             String randomId = randomInt() + "";
 
             Map<String, Object> data = new HashMap<>();
-            data.put("foo", randomAsciiOfLength(scaledRandomIntBetween(5, 50)));
+            data.put("foo", randomAlphaOfLength(scaledRandomIntBetween(5, 50)));
 
             index(randomIndex, "type", randomId, data);
         }

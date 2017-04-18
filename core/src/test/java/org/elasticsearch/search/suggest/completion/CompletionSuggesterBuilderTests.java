@@ -54,20 +54,20 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     private static BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
         final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
-        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
             case 0:
-                testBuilder.prefix(randomAsciiOfLength(10));
+                testBuilder.prefix(randomAlphaOfLength(10));
                 break;
             case 1:
-                testBuilder.prefix(randomAsciiOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+                testBuilder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
                 break;
             case 2:
-                testBuilder.prefix(randomAsciiOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+                testBuilder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
                 break;
             case 3:
-                testBuilder.regex(randomAsciiOfLength(10), RegexOptionsTests.randomRegexOptions());
+                testBuilder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
                 break;
         }
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
@@ -77,7 +77,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             for (int i = 0; i < numContext; i++) {
                 contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
             }
-            String name = randomAsciiOfLength(10);
+            String name = randomAlphaOfLength(10);
             contextMap.put(name, contexts);
             builderAndInfo.catContexts.add(name);
         }
@@ -87,7 +87,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             for (int i = 0; i < numContext; i++) {
                 contexts.add(GeoQueryContextTests.randomGeoQueryContext());
             }
-            String name = randomAsciiOfLength(10);
+            String name = randomAlphaOfLength(10);
             contextMap.put(name, contexts);
             builderAndInfo.geoContexts.add(name);
         }
@@ -114,7 +114,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 for (int i = 0; i < nCatContext; i++) {
                     contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
                 }
-                builder.contexts(Collections.singletonMap(randomAsciiOfLength(10), contexts));
+                builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), contexts));
                 break;
             case 1:
                 int nGeoContext = randomIntBetween(1, 5);
@@ -122,16 +122,16 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 for (int i = 0; i < nGeoContext; i++) {
                     geoContexts.add(GeoQueryContextTests.randomGeoQueryContext());
                 }
-                builder.contexts(Collections.singletonMap(randomAsciiOfLength(10), geoContexts));
+                builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), geoContexts));
                 break;
             case 2:
-                builder.prefix(randomAsciiOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+                builder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
                 break;
             case 3:
-                builder.prefix(randomAsciiOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+                builder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
                 break;
             case 4:
-                builder.regex(randomAsciiOfLength(10), RegexOptionsTests.randomRegexOptions());
+                builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
                 break;
             default:
                 throw new IllegalStateException("should not through");

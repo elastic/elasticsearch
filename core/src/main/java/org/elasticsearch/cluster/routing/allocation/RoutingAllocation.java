@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 
 import java.util.HashMap;
@@ -61,8 +60,6 @@ public class RoutingAllocation {
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
-    private final AllocationExplanation explanation = new AllocationExplanation();
-
     private final ClusterInfo clusterInfo;
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
@@ -71,7 +68,7 @@ public class RoutingAllocation {
 
     private final boolean retryFailed;
 
-    private boolean debugDecision = false;
+    private DebugMode debugDecision = DebugMode.OFF;
 
     private boolean hasPendingAsyncFetch = false;
 
@@ -162,14 +159,6 @@ public class RoutingAllocation {
         return customs;
     }
 
-    /**
-     * Get explanations of current routing
-     * @return explanation of routing
-     */
-    public AllocationExplanation explanation() {
-        return explanation;
-    }
-
     public void ignoreDisable(boolean ignoreDisable) {
         this.ignoreDisable = ignoreDisable;
     }
@@ -178,11 +167,19 @@ public class RoutingAllocation {
         return this.ignoreDisable;
     }
 
-    public void debugDecision(boolean debug) {
+    public void setDebugMode(DebugMode debug) {
         this.debugDecision = debug;
     }
 
+    public void debugDecision(boolean debug) {
+        this.debugDecision = debug ? DebugMode.ON : DebugMode.OFF;
+    }
+
     public boolean debugDecision() {
+        return this.debugDecision != DebugMode.OFF;
+    }
+
+    public DebugMode getDebugMode() {
         return this.debugDecision;
     }
 
@@ -290,5 +287,21 @@ public class RoutingAllocation {
 
     public boolean isRetryFailed() {
         return retryFailed;
+    }
+
+    public enum DebugMode {
+        /**
+         * debug mode is off
+         */
+        OFF,
+        /**
+         * debug mode is on
+         */
+        ON,
+        /**
+         * debug mode is on, but YES decisions from a {@link org.elasticsearch.cluster.routing.allocation.decider.Decision.Multi}
+         * are not included.
+         */
+        EXCLUDE_YES_DECISIONS
     }
 }

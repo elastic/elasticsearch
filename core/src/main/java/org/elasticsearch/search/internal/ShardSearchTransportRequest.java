@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,9 +53,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                                       AliasFilter aliasFilter, long nowInMillis) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, aliasFilter, nowInMillis);
+    public ShardSearchTransportRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
+            nowInMillis);
         this.originalIndices = new OriginalIndices(searchRequest);
     }
 
@@ -113,6 +113,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
+    public float indexBoost() {
+        return shardSearchLocalRequest.indexBoost();
+    }
+
+    @Override
     public long nowInMillis() {
         return shardSearchLocalRequest.nowInMillis();
     }
@@ -165,5 +170,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new SearchTask(id, type, action, getDescription(), parentTaskId);
+    }
+
+    @Override
+    public String getDescription() {
+        // Shard id is enough here, the request itself can be found by looking at the parent task description
+        return "shardId[" + shardSearchLocalRequest.shardId() + "]";
     }
 }

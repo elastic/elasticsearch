@@ -36,8 +36,8 @@ setup:
 ---
 "Filter aggs with terms lookup ensure not cached":
   - skip:
-    version: " - 5.0.0"
-    reason:  This using filter aggs that needs rewriting, this was fixed in 5.0.1
+      version: " - 5.0.0"
+      reason:  This using filter aggs that needs rewriting, this was fixed in 5.0.1
 
   - do:
       search:

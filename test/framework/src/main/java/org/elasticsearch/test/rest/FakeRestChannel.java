@@ -19,9 +19,9 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -53,8 +53,8 @@ public final class FakeRestChannel extends AbstractRestChannel {
     }
 
     @Override
-    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        return super.newBuilder(autoDetectSource, useFiltering);
+    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+        return super.newBuilder(requestContentType, useFiltering);
     }
 
     @Override

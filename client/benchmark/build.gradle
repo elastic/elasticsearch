@@ -55,7 +55,6 @@ dependencies {
   // for transport client
   compile("org.elasticsearch:elasticsearch:${version}")
   compile("org.elasticsearch.client:transport:${version}")
-  compile project(path: ':modules:transport-netty3', configuration: 'runtime')
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile project(path: ':modules:reindex', configuration: 'runtime')
   compile project(path: ':modules:lang-mustache', configuration: 'runtime')

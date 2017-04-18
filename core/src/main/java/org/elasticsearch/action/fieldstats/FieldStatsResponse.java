@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldstats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Nullable;
@@ -91,10 +92,21 @@ public class FieldStatsResponse extends BroadcastResponse {
         out.writeVInt(indicesMergedFieldStats.size());
         for (Map.Entry<String, Map<String, FieldStats>> entry1 : indicesMergedFieldStats.entrySet()) {
             out.writeString(entry1.getKey());
-            out.writeVInt(entry1.getValue().size());
+            int size = entry1.getValue().size();
+            if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+                // filter fieldstats without min/max information
+                for (FieldStats stats : entry1.getValue().values()) {
+                    if (stats.hasMinMax() == false) {
+                        size--;
+                    }
+                }
+            }
+            out.writeVInt(size);
             for (Map.Entry<String, FieldStats> entry2 : entry1.getValue().entrySet()) {
-                out.writeString(entry2.getKey());
-                entry2.getValue().writeTo(out);
+                if (entry2.getValue().hasMinMax() || out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                    out.writeString(entry2.getKey());
+                    entry2.getValue().writeTo(out);
+                }
             }
         }
         out.writeVInt(conflicts.size());

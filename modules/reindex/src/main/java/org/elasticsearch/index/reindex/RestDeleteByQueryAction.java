@@ -20,14 +20,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,26 +35,23 @@ import java.util.function.Consumer;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
-
-    @Inject
-    public RestDeleteByQueryAction(Settings settings, RestController controller,
-                                   SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
-        super(settings, searchRequestParsers, clusterService, DeleteByQueryAction.INSTANCE);
+    public RestDeleteByQueryAction(Settings settings, RestController controller) {
+        super(settings, DeleteByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_delete_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_delete_by_query", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (false == request.hasContent()) {
-            throw new ElasticsearchException("_delete_by_query requires a request body");
-        }
         return doPrepareRequest(request, client, false, false);
     }
 
     @Override
     protected DeleteByQueryRequest buildRequest(RestRequest request) throws IOException {
-         /*
+        if (false == request.hasContent()) {
+            throw new ElasticsearchException("_delete_by_query requires a request body");
+        }
+        /*
          * Passing the search request through DeleteByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's
          * defaults. Then the parseInternalRequest can override them.

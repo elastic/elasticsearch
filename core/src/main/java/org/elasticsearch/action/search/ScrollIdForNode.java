@@ -23,7 +23,7 @@ class ScrollIdForNode {
     private final String node;
     private final long scrollId;
 
-    public ScrollIdForNode(String node, long scrollId) {
+    ScrollIdForNode(String node, long scrollId) {
         this.node = node;
         this.scrollId = scrollId;
     }

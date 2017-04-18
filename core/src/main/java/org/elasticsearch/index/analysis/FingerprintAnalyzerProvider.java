@@ -45,7 +45,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
 
         char separator = FingerprintTokenFilterFactory.parseSeparator(settings);
         int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),DEFAULT_MAX_OUTPUT_SIZE);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
+        CharArraySet stopWords = Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
     }

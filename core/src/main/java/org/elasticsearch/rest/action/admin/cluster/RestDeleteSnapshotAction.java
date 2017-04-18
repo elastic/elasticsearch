@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,8 +36,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Deletes a snapshot
  */
 public class RestDeleteSnapshotAction extends BaseRestHandler {
-
-    @Inject
     public RestDeleteSnapshotAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(DELETE, "/_snapshot/{repository}/{snapshot}", this);

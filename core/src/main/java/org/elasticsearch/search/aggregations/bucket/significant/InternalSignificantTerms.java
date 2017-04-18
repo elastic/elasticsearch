@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -127,6 +128,27 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         public double getSignificanceScore() {
             return score;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Bucket<?> that = (Bucket<?>) o;
+            return bucketOrd == that.bucketOrd &&
+                    Double.compare(that.score, score) == 0 &&
+                    Objects.equals(aggregations, that.aggregations) &&
+                    Objects.equals(format, that.format);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), bucketOrd, aggregations, score, format);
+        }
     }
 
     protected final int requiredSize;
@@ -196,15 +218,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                         bucket.aggregations));
             }
         }
-
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
-        final int size = Math.min(requiredSize, buckets.size());
+        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
-            if ((b.score > 0) && (b.subsetDf >= minDocCount)) {
+            if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
                 ordered.insertWithOverflow(b);
             }
         }
@@ -227,4 +248,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract long getSupersetSize();
 
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(minDocCount, requiredSize);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
+        return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(requiredSize, that.requiredSize);
+    }
 }

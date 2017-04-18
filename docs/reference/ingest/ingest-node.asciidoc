@@ -143,7 +143,7 @@ This should give a small response that makes it both easy and inexpensive to par
 [[delete-pipeline-api]]
 === Delete Pipeline API
 
-The delete pipeline API deletes pipelines by ID.
+The delete pipeline API deletes pipelines by ID or wildcard match (`my-*`, `*`).
 
 [source,js]
 --------------------------------------------------
@@ -151,6 +151,36 @@ DELETE _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+////
+Hidden setup for wildcard test:
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/wild-one
+{
+  "description" : "first pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+PUT _ingest/pipeline/wild-two
+{
+  "description" : "second pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+DELETE _ingest/pipeline/*
+--------------------------------------------------
+// CONSOLE
+
+Hidden expected response:
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
 
 [[simulate-pipeline-api]]
 === Simulate Pipeline API
@@ -767,7 +797,7 @@ such a case, `target_field` will still be updated with the unconverted field val
 --------------------------------------------------
 {
   "convert": {
-    "field" : "foo"
+    "field" : "foo",
     "type": "integer"
   }
 }
@@ -875,7 +905,8 @@ PUT /myindex/type/1?pipeline=monthlyindex
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true
+  "created" : true,
+  "_seq_no" : 0
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -931,14 +962,14 @@ and the result:
           "date1" : "2016-04-25T12:02:01.789Z"
         },
         "_ingest" : {
-          "timestamp" : "2016-08-11T12:00:01.222Z"
+          "timestamp" : "2016-11-08T19:43:03.850+0000"
         }
       }
     }
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/2016-08-11T12:00:01.222Z/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
 The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
 understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
@@ -1135,6 +1166,10 @@ In this example, if the `remove` processor does fail, then
 the array elements that have been processed thus far will
 be updated.
 
+Another advanced example can be found in the {plugins}/ingest-attachment-with-arrays.html[attachment processor documentation].
+
+
+
 [[grok-processor]]
 === Grok Processor
 
@@ -1278,6 +1313,139 @@ Here is an example of a pipeline specifying custom pattern definitions:
 }
 --------------------------------------------------
 
+[[trace-match]]
+==== Providing Multiple Match Patterns
+
+Sometimes one pattern is not enough to capture the potential structure of a field. Let's assume we
+want to match all messages that contain your favorite pet breeds of either cats or dogs. One way to accomplish
+this is to provide two distinct patterns that can be matched, instead of one really complicated expression capturing
+the same `or` behavior.
+
+Here is an example of such a configuration executed against the simulate API:
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+  "description" : "parse multiple patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{FAVORITE_DOG:pet}", "%{FAVORITE_CAT:pet}"],
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "FAVORITE_CAT" : "burmese"
+        }
+      }
+    }
+  ]
+},
+"docs":[
+  {
+    "_source": {
+      "message": "I love burmese cats!"
+    }
+  }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+response:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_type": "_type",
+        "_index": "_index",
+        "_id": "_id",
+        "_source": {
+          "message": "I love burmese cats!",
+          "pet": "burmese"
+        },
+        "_ingest": {
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+Both patterns will set the field `pet` with the appropriate match, but what if we want to trace which of our
+patterns matched and populated our fields? We can do this with the `trace_match` parameter. Here is the output of
+that same pipeline, but with `"trace_match": true` configured:
+
+////
+Hidden setup for example:
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+  "description" : "parse multiple patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{FAVORITE_DOG:pet}", "%{FAVORITE_CAT:pet}"],
+        "trace_match": true,
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "FAVORITE_CAT" : "burmese"
+        }
+      }
+    }
+  ]
+},
+"docs":[
+  {
+    "_source": {
+      "message": "I love burmese cats!"
+    }
+  }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+////
+
+[source,js]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_type": "_type",
+        "_index": "_index",
+        "_id": "_id",
+        "_source": {
+          "message": "I love burmese cats!",
+          "pet": "burmese"
+        },
+        "_ingest": {
+          "_grok_match_index": "1",
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the
+second (index starts at zero) pattern in `patterns` to match.
+
+This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest
+metadata and will not be indexed.
+
 [[gsub-processor]]
 === Gsub Processor
 Converts a string field by applying a regular expression and a replacement.
@@ -1339,6 +1507,7 @@ Converts a JSON string into a structured JSON object.
 | Name           | Required  | Default  | Description
 | `field`        | yes       | -        | The field to be parsed
 | `target_field` | no        | `field`  | The field to insert the converted structured object into
+| `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
 |======
 
 [source,js]
@@ -1349,6 +1518,38 @@ Converts a JSON string into a structured JSON object.
   }
 }
 --------------------------------------------------
+
+[[kv-processor]]
+=== KV Processor
+This processor helps automatically parse messages (or specific event fields) which are of the foo=bar variety.
+
+For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those automatically by configuring:
+
+
+[source,js]
+--------------------------------------------------
+{
+  "kv": {
+    "field": "message",
+    "field_split": " ",
+    "value_split": "="
+  }
+}
+--------------------------------------------------
+
+[[kv-options]]
+.Kv Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to be parsed
+| `field_split`    | yes       | -        | Regex pattern to use for splitting key-value pairs
+| `value_split`    | yes       | -        | Regex pattern to use for splitting the key from the value within a key-value pair
+| `target_field`   | no        | `null`   | The field to insert the extracted keys into. Defaults to the root of the document
+| `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
 
 [[lowercase-processor]]
 === Lowercase Processor
@@ -1494,9 +1695,10 @@ Splits a field into an array using a separator character. Only works on string f
 .Split Options
 [options="header"]
 |======
-| Name        | Required  | Default  | Description
-| `field`     | yes       | -        | The field to split
-| `separator` | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to split
+| `separator`       | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1586,7 +1788,7 @@ Converts a string to its uppercase equivalent.
 
 Expands a field with dots into an object field. This processor allows fields
 with dots in the name to be accessible by other processors in the pipeline.
-Otherwise these <<accessing-data-in-pipelines,fields> can't be accessed by any processor.
+Otherwise these <<accessing-data-in-pipelines,fields>> can't be accessed by any processor.
 
 [[dot-expender-options]]
 .Dot Expand Options

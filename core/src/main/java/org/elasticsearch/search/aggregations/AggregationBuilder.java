@@ -23,8 +23,8 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,27 +34,21 @@ import java.util.Map;
  */
 public abstract class AggregationBuilder
     extends ToXContentToBytes
-    implements NamedWriteable, ToXContent {
+    implements NamedWriteable, ToXContent, BaseAggregationBuilder {
 
     protected final String name;
-    protected final Type type;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
     /**
      * Constructs a new aggregation builder.
      *
      * @param name  The aggregation name
-     * @param type  The aggregation type
      */
-    protected AggregationBuilder(String name, Type type) {
+    protected AggregationBuilder(String name) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
-        if (type == null) {
-            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
-        }
         this.name = name;
-        this.type = type;
     }
 
     /** Return this aggregation's name. */
@@ -63,9 +57,10 @@ public abstract class AggregationBuilder
     }
 
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
-    protected abstract AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException;
+    protected abstract AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException;
 
     /** Associate metadata with this {@link AggregationBuilder}. */
+    @Override
     public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
 
     /** Add a sub aggregation to this builder. */
@@ -77,13 +72,14 @@ public abstract class AggregationBuilder
     /**
      * Internal: Registers sub-factories with this factory. The sub-factory will be
      * responsible for the creation of sub-aggregators under the aggregator
-     * created by this factory. This is only for use by {@link AggregatorParsers}.
+     * created by this factory. This is only for use by {@link AggregatorFactories#parseAggregators(QueryParseContext)}.
      *
      * @param subFactories
      *            The sub-factories
      * @return this factory (fluent interface)
      */
-    protected abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
+    @Override
+    public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
 
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {

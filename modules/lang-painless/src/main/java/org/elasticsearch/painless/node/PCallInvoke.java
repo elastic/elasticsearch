@@ -106,4 +106,9 @@ public final class PCallInvoke extends AExpression {
         prefix.write(writer, globals);
         sub.write(writer, globals);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
+    }
 }

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +37,7 @@ public class GatewayServiceTests extends ESTestCase {
     private GatewayService createService(Settings.Builder settings) {
         ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null);
+                null, () -> new DiscoveryNode(UUIDs.randomBase64UUID(), buildNewFakeTransportAddress(), Version.CURRENT));
         return new GatewayService(settings.build(),
                 null, clusterService, null, null, null, new NoopDiscovery(), null);
     }

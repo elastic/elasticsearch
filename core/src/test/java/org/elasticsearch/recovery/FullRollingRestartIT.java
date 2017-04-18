@@ -72,16 +72,15 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
 
         logger.info("--> now start adding nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        internalCluster().startNode(settings);
+        internalCluster().startNode(settings);
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
 
         logger.info("--> add two more nodes");
-        internalCluster().startNodesAsync(2, settings).get();
-
-        // We now have 5 nodes
-        setMinimumMasterNodes(3);
+        internalCluster().startNode(settings);
+        internalCluster().startNode(settings);
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("5"));
@@ -97,9 +96,6 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("4"));
 
-        // going down to 3 nodes. note that the min_master_node may not be in effect when we shutdown the 4th
-        // node, but that's OK as it is set to 3 before.
-        setMinimumMasterNodes(2);
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
@@ -115,8 +111,6 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("2"));
 
-        // closing the 2nd node
-        setMinimumMasterNodes(1);
         internalCluster().stopRandomDataNode();
 
         // make sure the cluster state is yellow, and all has been recovered
@@ -132,7 +126,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
     public void testNoRebalanceOnRollingRestart() throws Exception {
         // see https://github.com/elastic/elasticsearch/issues/14387
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNodesAsync(3).get();
+        internalCluster().startDataOnlyNodes(3);
         /**
          * We start 3 nodes and a dedicated master. Restart on of the data-nodes and ensure that we got no relocations.
          * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject

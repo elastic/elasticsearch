@@ -1,41 +1,41 @@
 ---
 "Empty Bucket Aggregation":
   - do:
-    indices.create:
-      index: empty_bucket_idx
-      body:
-        settings:
-          number_of_shards: "3"
-        mappings:
-          test:
-            "properties":
-              "value":
-                "type": "integer"
-              "val1":
-                "type": "double"
+      indices.create:
+        index: empty_bucket_idx
+        body:
+          settings:
+            number_of_shards: "3"
+          mappings:
+            test:
+              "properties":
+                "value":
+                  "type": "integer"
+                "val1":
+                  "type": "double"
 
   - do:
-    index:
-      index:  empty_bucket_idx
-      type:   test
-      id:     1
-      body:   { "value": 0, "val1": 3.1 }
+      index:
+        index:  empty_bucket_idx
+        type:   test
+        id:     1
+        body:   { "value": 0, "val1": 3.1 }
 
   - do:
-    index:
-      index:  empty_bucket_idx
-      type:   test
-      id:     2
-      body:   { "value": 2, "val1": -3.1 }
+      index:
+        index:  empty_bucket_idx
+        type:   test
+        id:     2
+        body:   { "value": 2, "val1": -3.1 }
 
   - do:
-    indices.refresh:
-      index: [empty_bucket_idx]
+      indices.refresh:
+        index: [empty_bucket_idx]
 
   - do:
-    search:
-      index: empty_bucket_idx
-      type: test
+      search:
+        index: empty_bucket_idx
+        type: test
 
   - match: {hits.total: 2}
 

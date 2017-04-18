@@ -71,7 +71,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     @Override
-    UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+    protected UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
         UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask);
         request.setPipeline(pipeline);
         return request;

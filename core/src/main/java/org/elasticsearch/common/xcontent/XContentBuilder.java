@@ -22,7 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A utility to build XContent (ie json).
  */
-public final class XContentBuilder implements BytesStream, Releasable, Flushable {
+public final class XContentBuilder implements Releasable, Flushable {
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
@@ -964,18 +964,57 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
     // Raw fields
     //////////////////////////////////
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     * @deprecated use {@link #rawField(String, InputStream, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public XContentBuilder rawField(String name, InputStream value) throws IOException {
         generator.writeRawField(name, value);
         return this;
     }
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     */
+    public XContentBuilder rawField(String name, InputStream value, XContentType contentType) throws IOException {
+        generator.writeRawField(name, value, contentType);
+        return this;
+    }
+
+    /**
+     * Writes a raw field with the given bytes as the value
+     * @deprecated use {@link #rawField(String name, BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public XContentBuilder rawField(String name, BytesReference value) throws IOException {
         generator.writeRawField(name, value);
         return this;
     }
 
+    /**
+     * Writes a raw field with the given bytes as the value
+     */
+    public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
+        generator.writeRawField(name, value, contentType);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from the bytes
+     * @deprecated use {@link #rawValue(BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public XContentBuilder rawValue(BytesReference value) throws IOException {
         generator.writeRawValue(value);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from the bytes
+     */
+    public XContentBuilder rawValue(BytesReference value, XContentType contentType) throws IOException {
+        generator.writeRawValue(value, contentType);
         return this;
     }
 
@@ -1002,7 +1041,6 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         return this.generator;
     }
 
-    @Override
     public BytesReference bytes() {
         close();
         return ((BytesStream) bos).bytes();

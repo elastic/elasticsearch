@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -54,8 +53,7 @@ public class PSubNullSafeCallInvoke extends AExpression {
         guarded.analyze(locals);
         actual = guarded.actual;
         if (actual.sort.primitive) {
-            // Result must be nullable. We emit boxing instructions if needed.
-            actual = Definition.getType(actual.sort.boxed.getSimpleName());
+            throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
     }
 
@@ -67,10 +65,11 @@ public class PSubNullSafeCallInvoke extends AExpression {
         writer.dup();
         writer.ifNull(end);
         guarded.write(writer, globals);
-        if (guarded.actual.sort.primitive) {
-            // Box primitives so they are nullable
-            writer.box(guarded.actual.type);
-        }
         writer.mark(end);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(guarded);
     }
 }

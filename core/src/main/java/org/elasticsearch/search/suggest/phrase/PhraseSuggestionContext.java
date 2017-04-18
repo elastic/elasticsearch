@@ -60,7 +60,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
     private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 
-    public PhraseSuggestionContext(QueryShardContext shardContext) {
+    PhraseSuggestionContext(QueryShardContext shardContext) {
         super(PhraseSuggester.INSTANCE, shardContext);
     }
 

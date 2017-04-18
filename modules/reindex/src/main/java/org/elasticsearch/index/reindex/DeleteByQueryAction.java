@@ -20,9 +20,11 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteByQueryAction extends Action<DeleteByQueryRequest, BulkIndexByScrollResponse, DeleteByQueryRequestBuilder> {
+public class DeleteByQueryAction extends Action<DeleteByQueryRequest, BulkByScrollResponse, DeleteByQueryRequestBuilder> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();
     public static final String NAME = "indices:data/write/delete/byquery";
@@ -37,7 +39,7 @@ public class DeleteByQueryAction extends Action<DeleteByQueryRequest, BulkIndexB
     }
 
     @Override
-    public BulkIndexByScrollResponse newResponse() {
-        return new BulkIndexByScrollResponse();
+    public BulkByScrollResponse newResponse() {
+        return new BulkByScrollResponse();
     }
 }

@@ -74,7 +74,7 @@ the <<indices-stats,indices stats>> API:
 
 [source,sh]
 --------------------------------------------------
-GET twitter/_stats/commit?level=shards
+GET twitter/_stats?level=shards
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\n/]

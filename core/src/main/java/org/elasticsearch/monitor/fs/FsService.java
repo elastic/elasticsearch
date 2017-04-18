@@ -20,6 +20,8 @@
 package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.cluster.ClusterInfoService;
 
 import java.io.IOException;
 
@@ -35,6 +38,7 @@ public class FsService extends AbstractComponent {
     private final FsProbe probe;
     private final TimeValue refreshInterval;
     private final SingleObjectCache<FsInfo> cache;
+    private final ClusterInfoService clusterInfoService;
 
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting(
@@ -43,21 +47,22 @@ public class FsService extends AbstractComponent {
             TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 
-    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment) {
+    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment, ClusterInfoService clusterInfoService) {
         super(settings);
         this.probe = new FsProbe(settings, nodeEnvironment);
+        this.clusterInfoService = clusterInfoService;
         refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         logger.debug("using refresh_interval [{}]", refreshInterval);
-        cache = new FsInfoCache(refreshInterval, stats(probe, null, logger));
+        cache = new FsInfoCache(refreshInterval, stats(probe, null, logger, null));
     }
 
     public FsInfo stats() {
         return cache.getOrRefresh();
     }
 
-    private static FsInfo stats(FsProbe probe, FsInfo initialValue, Logger logger) {
+    private static FsInfo stats(FsProbe probe, FsInfo initialValue, Logger logger, @Nullable ClusterInfo clusterInfo) {
         try {
-            return probe.stats(initialValue);
+            return probe.stats(initialValue, clusterInfo);
         } catch (IOException e) {
             logger.debug("unexpected exception reading filesystem info", e);
             return null;
@@ -68,14 +73,14 @@ public class FsService extends AbstractComponent {
 
         private final FsInfo initialValue;
 
-        public FsInfoCache(TimeValue interval, FsInfo initialValue) {
+        FsInfoCache(TimeValue interval, FsInfo initialValue) {
             super(interval, initialValue);
             this.initialValue = initialValue;
         }
 
         @Override
         protected FsInfo refresh() {
-            return stats(probe, initialValue, logger);
+            return stats(probe, initialValue, logger, clusterInfoService.getClusterInfo());
         }
 
     }

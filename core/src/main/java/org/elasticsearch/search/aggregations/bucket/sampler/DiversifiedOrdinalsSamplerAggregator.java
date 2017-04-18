@@ -29,11 +29,10 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,10 +43,10 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     private ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
     private int maxDocsPerValue;
 
-    public DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+    DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
+            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }
@@ -65,7 +64,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        public DiverseDocsDeferringCollector() {
+        DiverseDocsDeferringCollector() {
             super(shardSize, context.bigArrays());
         }
 
@@ -79,7 +78,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
 
-            public ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
+            ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
             }
 

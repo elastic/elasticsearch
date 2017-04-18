@@ -24,7 +24,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -244,7 +246,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
         assertThat(nested.getDocCount(), equalTo(docCount));
-        assertThat(nested.getProperty("_count"), equalTo(docCount));
+        assertThat(((InternalAggregation)nested).getProperty("_count"), equalTo(docCount));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         LongTerms values = nested.getAggregations().get("values");
@@ -262,7 +264,7 @@ public class NestedIT extends ESIntegTestCase {
                 assertEquals(counts[i], bucket.getDocCount());
             }
         }
-        assertThat(nested.getProperty("values"), sameInstance(values));
+        assertThat(((InternalAggregation)nested).getProperty("values"), sameInstance(values));
     }
 
     public void testNestedAsSubAggregation() throws Exception {
@@ -397,8 +399,8 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}"));
-        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}"));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2").setTypes("provider")

@@ -50,16 +50,16 @@ h3. Indexing
 Let's try and index some twitter like information. First, let's create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
 
 <pre>
-curl -XPUT 'http://localhost:9200/twitter/user/kimchy?pretty' -d '{ "name" : "Shay Banon" }'
+curl -XPUT 'http://localhost:9200/twitter/user/kimchy?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
 
-curl -XPUT 'http://localhost:9200/twitter/tweet/1?pretty' -d '
+curl -XPUT 'http://localhost:9200/twitter/tweet/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/tweet/2?pretty' -d '
+curl -XPUT 'http://localhost:9200/twitter/tweet/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
@@ -87,7 +87,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=tru
 We can also use the JSON query language Elasticsearch provides instead of a query string:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -d '
+curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "match" : { "user": "kimchy" }
@@ -98,7 +98,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -d '
 Just for kicks, let's get all the documents stored (we should see the user as well):
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
+curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "match_all" : {}
@@ -109,7 +109,7 @@ curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
 We can also do range search (the @postDate@ was automatically identified as date)
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
+curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "range" : {
@@ -130,16 +130,16 @@ Elasticsearch supports multiple indices, as well as multiple types per index. In
 Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
-curl -XPUT 'http://localhost:9200/kimchy/info/1?pretty' -d '{ "name" : "Shay Banon" }'
+curl -XPUT 'http://localhost:9200/kimchy/info/1?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
 
-curl -XPUT 'http://localhost:9200/kimchy/tweet/1?pretty' -d '
+curl -XPUT 'http://localhost:9200/kimchy/tweet/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/kimchy/tweet/2?pretty' -d '
+curl -XPUT 'http://localhost:9200/kimchy/tweet/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
@@ -152,7 +152,7 @@ The above will index information into the @kimchy@ index, with two types, @info@
 Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 replica per index, to only 1 shard with 1 replica per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
 
 <pre>
-curl -XPUT http://localhost:9200/another_user?pretty -d '
+curl -XPUT http://localhost:9200/another_user?pretty -H 'Content-Type: application/json' -d '
 {
     "index" : {
         "number_of_shards" : 1,
@@ -165,7 +165,7 @@ Search (and similar operations) are multi index aware. This means that we can ea
 index (twitter user), for example:
 
 <pre>
-curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -d '
+curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "match_all" : {}
@@ -176,7 +176,7 @@ curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -d '
 Or on all the indices:
 
 <pre>
-curl -XGET 'http://localhost:9200/_search?pretty=true' -d '
+curl -XGET 'http://localhost:9200/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "match_all" : {}
@@ -200,7 +200,7 @@ We have just covered a very small portion of what Elasticsearch is all about. Fo
 
 h3. Building from Source
 
-Elasticsearch uses "Gradle":https://gradle.org for its build system. You'll need to have version 2.13 of Gradle installed.
+Elasticsearch uses "Gradle":https://gradle.org for its build system. You'll need to have at least version 3.3 of Gradle installed.
 
 In order to create a distribution, simply run the @gradle assemble@ command in the cloned directory.
 

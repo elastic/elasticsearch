@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -33,26 +32,34 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
-    @Inject
     public RestDeleteStoredScriptAction(Settings settings, RestController controller) {
-        this(settings, controller, true);
-    }
-
-    protected RestDeleteStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
-        if (registerDefaultHandlers) {
-            controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
-        }
-    }
 
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
+        // Note {lang} is actually {id} in the first handler.  It appears
+        // parameters as part of the path must be of the same ordering relative
+        // to name or they will not work as expected.
+        controller.registerHandler(DELETE, "/_scripts/{lang}", this);
+        controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(getScriptLang(request), request.param("id"));
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        String id = request.param("id");
+        String lang = request.param("lang");
+
+        // In the case where only {lang} is not null, we make it {id} because of
+        // name ordering issues in the handlers' paths.
+        if (id == null) {
+            id = lang;
+            lang = null;
+        }
+
+        if (lang != null) {
+            deprecationLogger.deprecated(
+                "specifying lang [" + lang + "] as part of the url path is deprecated");
+        }
+
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id, lang);
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
-
 }

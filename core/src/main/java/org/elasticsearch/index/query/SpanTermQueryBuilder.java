@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * A Span Query that matches documents containing a term.
@@ -92,7 +91,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         return new SpanTermQuery(term);
     }
 
-    public static Optional<SpanTermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
         String fieldName = null;
         Object value = null;
@@ -110,13 +109,13 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                        if (TERM_FIELD.match(currentFieldName)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BaseTermQueryBuilder.VALUE_FIELD)) {
+                        } else if (BaseTermQueryBuilder.VALUE_FIELD.match(currentFieldName)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -133,7 +132,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);
         result.boost(boost).queryName(queryName);
-        return Optional.of(result);
+        return result;
     }
 
     @Override

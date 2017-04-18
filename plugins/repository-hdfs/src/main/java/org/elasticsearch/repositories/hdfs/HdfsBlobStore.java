@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
 import java.lang.reflect.ReflectPermission;
+import java.net.SocketPermission;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -46,12 +47,7 @@ final class HdfsBlobStore implements BlobStore {
     HdfsBlobStore(FileContext fileContext, String path, int bufferSize) throws IOException {
         this.fileContext = fileContext;
         this.bufferSize = bufferSize;
-        this.root = execute(new Operation<Path>() {
-          @Override
-          public Path run(FileContext fileContext) throws IOException {
-              return fileContext.makeQualified(new Path(path));
-          }
-        });
+        this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
         try {
             mkdirs(root);
         } catch (FileAlreadyExistsException ok) {
@@ -60,23 +56,17 @@ final class HdfsBlobStore implements BlobStore {
     }
 
     private void mkdirs(Path path) throws IOException {
-        execute(new Operation<Void>() {
-            @Override
-            public Void run(FileContext fileContext) throws IOException {
-                fileContext.mkdir(path, null, true);
-                return null;
-            }
+        execute((Operation<Void>) fileContext -> {
+            fileContext.mkdir(path, null, true);
+            return null;
         });
     }
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        execute(new Operation<Void>() {
-            @Override
-            public Void run(FileContext fc) throws IOException {
-                fc.delete(translateToHdfsPath(path), true);
-                return null;
-            }
+        execute((Operation<Void>) fc -> {
+            fc.delete(translateToHdfsPath(path), true);
+            return null;
         });
     }
 
@@ -109,7 +99,7 @@ final class HdfsBlobStore implements BlobStore {
         }
         return path;
     }
-    
+
     interface Operation<V> {
         V run(FileContext fileContext) throws IOException;
     }
@@ -121,22 +111,14 @@ final class HdfsBlobStore implements BlobStore {
     // 1) hadoop dynamic proxy is messy with access rules
     // 2) allow hadoop to add credentials to our Subject
     <V> V execute(Operation<V> operation) throws IOException {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            // unprivileged code such as scripts do not have SpecialPermission
-            sm.checkPermission(new SpecialPermission());
-        }
+        SpecialPermission.check();
         if (closed) {
             throw new AlreadyClosedException("HdfsBlobStore is closed: " + this);
         }
         try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<V>() {
-                @Override
-                public V run() throws IOException {
-                    return operation.run(fileContext);
-                }
-            }, null, new ReflectPermission("suppressAccessChecks"),
-                     new AuthPermission("modifyPrivateCredentials"));
+            return AccessController.doPrivileged((PrivilegedExceptionAction<V>)
+                    () -> operation.run(fileContext), null, new ReflectPermission("suppressAccessChecks"),
+                     new AuthPermission("modifyPrivateCredentials"), new SocketPermission("*", "connect"));
         } catch (PrivilegedActionException pae) {
             throw (IOException) pae.getException();
         }

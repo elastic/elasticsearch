@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless;
 
-import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
-
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 
 public class StringTests extends ScriptTestCase {
 
@@ -237,5 +238,15 @@ public class StringTests extends ScriptTestCase {
 
     public void testAppendStringIntoMap() {
         assertEquals("nullcat", exec("def a = new HashMap(); a.cat += 'cat'"));
+    }
+
+    public void testBase64Augmentations() {
+        assertEquals("Y2F0", exec("'cat'.encodeBase64()"));
+        assertEquals("cat", exec("'Y2F0'.decodeBase64()"));
+        assertEquals("6KiA6Kqe", exec("'\u8A00\u8A9E'.encodeBase64()"));
+        assertEquals("\u8A00\u8A9E", exec("'6KiA6Kqe'.decodeBase64()"));
+
+        String rando = randomRealisticUnicodeOfLength(between(5, 1000));
+        assertEquals(rando, exec("params.rando.encodeBase64().decodeBase64()", singletonMap("rando", rando), true));
     }
 }

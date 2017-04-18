@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -29,12 +30,13 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -80,6 +82,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private final TransportService transportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final NewPendingClusterStateListener newPendingClusterStatelistener;
     private final DiscoverySettings discoverySettings;
@@ -89,12 +92,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     public PublishClusterStateAction(
             Settings settings,
             TransportService transportService,
+            NamedWriteableRegistry namedWriteableRegistry,
             Supplier<ClusterState> clusterStateSupplier,
             NewPendingClusterStateListener listener,
             DiscoverySettings discoverySettings,
             ClusterName clusterName) {
         super(settings);
         this.transportService = transportService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterStateSupplier = clusterStateSupplier;
         this.newPendingClusterStatelistener = listener;
         this.discoverySettings = discoverySettings;
@@ -371,33 +376,37 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     protected void handleIncomingClusterStateRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {
         Compressor compressor = CompressorFactory.compressor(request.bytes());
-        StreamInput in;
-        if (compressor != null) {
-            in = compressor.streamInput(request.bytes().streamInput());
-        } else {
-            in = request.bytes().streamInput();
-        }
-        in.setVersion(request.version());
-        synchronized (lastSeenClusterStateMutex) {
-            final ClusterState incomingState;
-            // If true we received full cluster state - otherwise diffs
-            if (in.readBoolean()) {
-                incomingState = ClusterState.Builder.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
-                logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-            } else if (lastSeenClusterState != null) {
-                Diff<ClusterState> diff = lastSeenClusterState.readDiffFrom(in);
-                incomingState = diff.apply(lastSeenClusterState);
-                logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
-                    incomingState.version(), incomingState.stateUUID(), request.bytes().length());
-            } else {
-                logger.debug("received diff for but don't have any local cluster state - requesting full state");
-                throw new IncompatibleClusterStateVersionException("have no local cluster state");
+        StreamInput in = request.bytes().streamInput();
+        try {
+            if (compressor != null) {
+                in = compressor.streamInput(in);
             }
-            // sanity check incoming state
-            validateIncomingState(incomingState, lastSeenClusterState);
+            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+            in.setVersion(request.version());
+            synchronized (lastSeenClusterStateMutex) {
+                final ClusterState incomingState;
+                // If true we received full cluster state - otherwise diffs
+                if (in.readBoolean()) {
+                    incomingState = ClusterState.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
+                    logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
+                        request.bytes().length());
+                } else if (lastSeenClusterState != null) {
+                    Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
+                    incomingState = diff.apply(lastSeenClusterState);
+                    logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
+                        incomingState.version(), incomingState.stateUUID(), request.bytes().length());
+                } else {
+                    logger.debug("received diff for but don't have any local cluster state - requesting full state");
+                    throw new IncompatibleClusterStateVersionException("have no local cluster state");
+                }
+                // sanity check incoming state
+                validateIncomingState(incomingState, lastSeenClusterState);
 
-            pendingStatesQueue.addPending(incomingState);
-            lastSeenClusterState = incomingState;
+                pendingStatesQueue.addPending(incomingState);
+                lastSeenClusterState = incomingState;
+            }
+        } finally {
+            IOUtils.close(in);
         }
         channel.sendResponse(TransportResponse.Empty.INSTANCE);
     }

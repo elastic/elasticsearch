@@ -36,11 +36,10 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAc
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -106,7 +105,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareSearch().execute().addListener(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute().addListener(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
         client.admin().cluster().prepareDeleteStoredScript("lang", "id").execute().addListener(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx", "type", "id").setSource("source").execute().addListener(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
+        client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON).execute().addListener(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute().addListener(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
@@ -121,7 +120,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     }
 
     public void testOverrideHeader() throws Exception {
-        String key1Val = randomAsciiOfLength(5);
+        String key1Val = randomAlphaOfLength(5);
         Map<String, String> expected = new HashMap<>();
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");

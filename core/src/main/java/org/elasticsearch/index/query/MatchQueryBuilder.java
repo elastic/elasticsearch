@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -38,7 +36,6 @@ import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a query as the
@@ -61,8 +58,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /** The name for the match query */
     public static final String NAME = "match";
-
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "match_fuzzy", "fuzzy_match");
 
     /** The default mode terms are combined in a match query */
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
@@ -456,25 +451,13 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.setFuzzyPrefixLength(prefixLength);
         matchQuery.setMaxExpansions(maxExpansions);
         matchQuery.setTranspositions(fuzzyTranspositions);
-        matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), fuzzyRewrite, null));
+        matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null));
         matchQuery.setLenient(lenient);
         matchQuery.setCommonTermsCutoff(cutoffFrequency);
         matchQuery.setZeroTermsQuery(zeroTermsQuery);
 
         Query query = matchQuery.parse(type, fieldName, value);
-        if (query == null) {
-            return null;
-        }
-
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
-        }
-        return query;
+        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
     @Override
@@ -508,7 +491,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return NAME;
     }
 
-    public static Optional<MatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static MatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String fieldName = null;
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
@@ -541,9 +524,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                        if (QUERY_FIELD.match(currentFieldName)) {
                             value = parser.objectText();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                        } else if (TYPE_FIELD.match(currentFieldName)) {
                             String tStr = parser.text();
                             if ("boolean".equals(tStr)) {
                                 type = MatchQuery.Type.BOOLEAN;
@@ -554,31 +537,31 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support type " + tStr);
                             }
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
+                        } else if (ANALYZER_FIELD.match(currentFieldName)) {
                             analyzer = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
+                        } else if (SLOP_FIELD.match(currentFieldName)) {
                             slop = parser.intValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
+                        } else if (Fuzziness.FIELD.match(currentFieldName)) {
                             fuzziness = Fuzziness.parse(parser);
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
+                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
                             prefixLength = parser.intValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
+                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
                             maxExpansion = parser.intValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, OPERATOR_FIELD)) {
+                        } else if (OPERATOR_FIELD.match(currentFieldName)) {
                             operator = Operator.fromString(parser.text());
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
+                        } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
                             minimumShouldMatch = parser.textOrNull();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FUZZY_REWRITE_FIELD)) {
+                        } else if (FUZZY_REWRITE_FIELD.match(currentFieldName)) {
                             fuzzyRewrite = parser.textOrNull();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FUZZY_TRANSPOSITIONS_FIELD)) {
+                        } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
                             fuzzyTranspositions = parser.booleanValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
+                        } else if (LENIENT_FIELD.match(currentFieldName)) {
                             lenient = parser.booleanValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, CUTOFF_FREQUENCY_FIELD)) {
+                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName)) {
                             cutOffFrequency = parser.floatValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ZERO_TERMS_QUERY_FIELD)) {
+                        } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName)) {
                             String zeroTermsDocs = parser.text();
                             if ("none".equalsIgnoreCase(zeroTermsDocs)) {
                                 zeroTermsQuery = MatchQuery.ZeroTermsQuery.NONE;
@@ -588,7 +571,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                             }
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -630,7 +613,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return Optional.of(matchQuery);
+        return matchQuery;
     }
 
 }

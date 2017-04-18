@@ -25,7 +25,7 @@
       mget:
           index:    test_1
           type:     test
-          realtime: 0
+          realtime: false
           body:
             ids:    [1]
 
@@ -35,7 +35,7 @@
       mget:
           index:    test_1
           type:     test
-          realtime: 1
+          realtime: true
           body:
             ids:    [1]
 
@@ -45,8 +45,8 @@
       mget:
           index:    test_1
           type:     test
-          realtime: 0
-          refresh:  1
+          realtime: false
+          refresh:  true
           body:
             ids:    [1]
 

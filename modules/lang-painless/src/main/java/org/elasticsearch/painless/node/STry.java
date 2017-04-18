@@ -29,6 +29,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
+
 /**
  * Represents the try block as part of a try-catch block.
  */
@@ -123,5 +125,10 @@ public final class STry extends AStatement {
         if (!block.allEscape || catches.size() > 1) {
             writer.mark(exception);
         }
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(singleton(block), catches);
     }
 }

@@ -12,7 +12,7 @@ Here is an example on how to create the aggregation request:
 
 [source,java]
 --------------------------------------------------
-MetricsAggregationBuilder aggregation =
+ValueCountAggregationBuilder aggregation =
         AggregationBuilders
                 .count("agg")
                 .field("height");

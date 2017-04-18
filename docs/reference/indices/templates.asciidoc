@@ -41,11 +41,11 @@ PUT _template/template_1
 // TESTSETUP
 
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
-everywhere in the JSON document except before to the initial opening curly bracket. 
+everywhere in the JSON document except before the initial opening curly bracket. 
 
-Defines a template named template_1, with a template pattern of `te*`.
+Defines a template named `template_1`, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches
-the `te*` template.
+the `te*` pattern.
 
 It is also possible to include aliases in an index template as follows:
 
@@ -72,8 +72,8 @@ PUT _template/template_1
 // CONSOLE
 // TEST[s/^/DELETE _template\/template_1\n/]
 
-<1> the `{index}` placeholder within the alias name will be replaced with the
-actual index name that the template gets applied to during index creation.
+<1> the `{index}` placeholder in the alias name will be replaced with the
+actual index name that the template gets applied to, during index creation.
 
 [float]
 [[delete]]
@@ -120,7 +120,7 @@ GET /_template
 
 [float]
 [[indices-templates-exists]]
-=== Templates exists
+=== Template exists
 
 Used to check if the template exists or not. For example:
 
@@ -131,11 +131,12 @@ HEAD _template/template_1
 // CONSOLE
 
 The HTTP status code indicates if the template with the given name
-exists or not. A status code `200` means it exists, a `404` it does not.
+exists or not. Status code `200` means it exists and `404` means
+it does not.
 
 [float]
 [[multiple-templates]]
-=== Multiple Template Matching
+=== Multiple Templates Matching
 
 Multiple index templates can potentially match an index, in this case,
 both the settings and mappings are merged into the final configuration
@@ -177,7 +178,7 @@ PUT /_template/template_2
 // TEST[s/^/DELETE _template\/template_1\n/]
 
 The above will disable storing the `_source` on all `type1` types, but
-for indices of that start with `te*`, source will still be enabled.
+for indices that start with `te*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
@@ -206,7 +207,7 @@ PUT /_template/template_1
 --------------------------------------------------
 // CONSOLE
 
-To check for the `version`, you can
+To check the `version`, you can
 <<common-options-response-filtering, filter responses>>
 using `filter_path` to limit the response to just the `version`:
 

@@ -277,26 +277,6 @@ public class Strings {
     }
 
     /**
-     * Count the occurrences of the substring in string s.
-     *
-     * @param str string to search in. Return 0 if this is null.
-     * @param sub string to search for. Return 0 if this is null.
-     */
-    public static int countOccurrencesOf(String str, String sub) {
-        if (str == null || sub == null || str.length() == 0 || sub.length() == 0) {
-            return 0;
-        }
-        int count = 0;
-        int pos = 0;
-        int idx;
-        while ((idx = str.indexOf(sub, pos)) != -1) {
-            ++count;
-            pos = idx + sub.length();
-        }
-        return count;
-    }
-
-    /**
      * Replace all occurrences of a substring within a string with
      * another string.
      *
@@ -731,10 +711,12 @@ public class Strings {
      * @return the delimited String
      */
     public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
-        return collectionToDelimitedString(coll, delim, prefix, suffix, new StringBuilder());
+        StringBuilder sb = new StringBuilder();
+        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        return sb.toString();
     }
 
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);
@@ -742,7 +724,6 @@ public class Strings {
                 sb.append(delim);
             }
         }
-        return sb.toString();
     }
 
     /**
@@ -777,12 +758,14 @@ public class Strings {
      * @return the delimited String
      */
     public static String arrayToDelimitedString(Object[] arr, String delim) {
-        return arrayToDelimitedString(arr, delim, new StringBuilder());
+        StringBuilder sb = new StringBuilder();
+        arrayToDelimitedString(arr, delim, sb);
+        return sb.toString();
     }
 
-    public static String arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
+    public static void arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
         if (isEmpty(arr)) {
-            return "";
+            return;
         }
         for (int i = 0; i < arr.length; i++) {
             if (i > 0) {
@@ -790,7 +773,6 @@ public class Strings {
             }
             sb.append(arr[i]);
         }
-        return sb.toString();
     }
 
     /**
@@ -877,26 +859,17 @@ public class Strings {
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object.
      */
     public static String toString(ToXContent toXContent) {
-        return toString(toXContent, false);
-    }
-
-    /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
-     * @param wrapInObject set this to true if the ToXContent instance expects to be inside an object
-     */
-    public static String toString(ToXContent toXContent, boolean wrapInObject) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.startObject();
             }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.endObject();
             }
             return builder.string();

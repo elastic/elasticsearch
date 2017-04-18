@@ -36,7 +36,7 @@ setup:
         ignore_unavailable: true
         index: test-index, non-existing
         body:
-          number_of_replicas: 1
+          index.number_of_replicas: 1
 
   - do:
       indices.get_settings: {}
@@ -81,7 +81,6 @@ setup:
       indices.get_settings:
         flat_settings: false
 
-
   - match:
       test-index.settings.index.number_of_replicas: "0"
   - match:
@@ -96,8 +95,9 @@ setup:
         preserve_existing: true
         index: test-index
         body:
-          index.translog.durability: "request"
-          index.query_string.lenient: "true"
+          settings:
+            index.translog.durability: "request"
+            index.query_string.lenient: "true"
 
   - do:
       indices.get_settings:

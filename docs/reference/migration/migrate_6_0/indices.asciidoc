@@ -27,3 +27,13 @@ PUT _template/template_2
 }
 --------------------------------------------------
 // CONSOLE
+
+
+=== Shadow Replicas have been removed
+
+Shadow replicas don't see enough usage, and have been removed. This includes the
+following settings:
+
+- `index.shared_filesystem`
+- `index.shadow_replicas`
+- `node.add_lock_id_to_custom_path`

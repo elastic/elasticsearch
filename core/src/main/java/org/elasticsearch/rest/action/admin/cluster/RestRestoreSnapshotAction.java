@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,8 +36,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Restores a snapshot
  */
 public class RestRestoreSnapshotAction extends BaseRestHandler {
-
-    @Inject
     public RestRestoreSnapshotAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}/_restore", this);
@@ -49,7 +46,7 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
-        restoreSnapshotRequest.source(request.content().utf8ToString());
+        request.applyContentParser(p -> restoreSnapshotRequest.source(p.mapOrdered()));
         return channel -> client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }

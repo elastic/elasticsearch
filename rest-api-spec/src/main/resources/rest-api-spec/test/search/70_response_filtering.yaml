@@ -43,7 +43,7 @@
         filter_path: "took"
         body: "{ \"query\": { \"match_all\": {} } }"
 
-  - is_true:  took
+  - gte: { took: 0 }
   - is_false: _shards.total
   - is_false: hits.total
   - is_false: hits.hits.0._index

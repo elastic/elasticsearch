@@ -20,6 +20,7 @@ The following snippet "buckets" the products based on their `price` by interval 
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -31,29 +32,36 @@ The following snippet "buckets" the products based on their `price` by interval 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 And the following may be the response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
         "prices" : {
             "buckets": [
                 {
-                    "key": 0,
-                    "doc_count": 2
+                    "key": 0.0,
+                    "doc_count": 1
                 },
                 {
-                    "key": 50,
-                    "doc_count": 4
+                    "key": 50.0,
+                    "doc_count": 1
                 },
                 {
-                    "key": 100,
+                    "key": 100.0,
                     "doc_count": 0
                 },
                 {
-                    "key": 150,
+                    "key": 150.0,
+                    "doc_count": 2
+                },
+                {
+                    "key": 200.0,
                     "doc_count": 3
                 }
             ]
@@ -61,6 +69,7 @@ And the following may be the response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Minimum document count
 
@@ -70,6 +79,7 @@ a higher minimum count thanks to the `min_doc_count` setting:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -82,25 +92,32 @@ a higher minimum count thanks to the `min_doc_count` setting:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
         "prices" : {
             "buckets": [
                 {
-                    "key": 0,
+                    "key": 0.0,
+                    "doc_count": 1
+                },
+                {
+                    "key": 50.0,
+                    "doc_count": 1
+                },
+                {
+                    "key": 150.0,
                     "doc_count": 2
                 },
                 {
-                    "key": 50,
-                    "doc_count": 4
-                },
-                {
-                    "key": 150,
+                    "key": 200.0,
                     "doc_count": 3
                 }
             ]
@@ -108,6 +125,7 @@ Response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 [[search-aggregations-bucket-histogram-aggregation-extended-bounds]]
 By default the `histogram` returns all the buckets within the range of the data itself, that is, the documents with
@@ -137,6 +155,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "query" : {
         "constant_score" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
@@ -155,6 +174,8 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 ==== Order
 
@@ -165,6 +186,7 @@ Ordering the buckets by their key - descending:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -177,11 +199,14 @@ Ordering the buckets by their key - descending:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Ordering the buckets by their `doc_count` - ascending:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -194,11 +219,14 @@ Ordering the buckets by their `doc_count` - ascending:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 If the histogram aggregation has a direct metrics sub-aggregation, the latter can determine the order of the buckets:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -208,16 +236,16 @@ If the histogram aggregation has a direct metrics sub-aggregation, the latter ca
                 "order" : { "price_stats.min" : "asc" } <1>
             },
             "aggs" : {
-                "price_stats" : { "stats" : {} } <2>
+                "price_stats" : { "stats" : {"field" : "price"} }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 <1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their `price_stats` sub-aggregation.
-
-<2> There is no need to configure the `price` field for the `price_stats` aggregation as it will inherit it by default from its parent histogram aggregation.
 
 It is also possible to order the buckets based on a "deeper" aggregation in the hierarchy. This is supported as long
 as the aggregations path are of a single-bucket type, where the last aggregation in the path may either by a single-bucket
@@ -239,6 +267,7 @@ PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEP
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -259,6 +288,8 @@ PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEP
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 The above will sort the buckets based on the avg rating among the promoted products
 
@@ -279,6 +310,7 @@ instead keyed by the buckets keys:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -291,25 +323,36 @@ instead keyed by the buckets keys:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
         "prices": {
             "buckets": {
-                "0": {
-                    "key": 0,
+                "0.0": {
+                    "key": 0.0,
+                    "doc_count": 1
+                },
+                "50.0": {
+                    "key": 50.0,
+                    "doc_count": 1
+                },
+                "100.0": {
+                    "key": 100.0,
+                    "doc_count": 0
+                },
+                "150.0": {
+                    "key": 150.0,
                     "doc_count": 2
                 },
-                "50": {
-                    "key": 50,
-                    "doc_count": 4
-                },
-                "150": {
-                    "key": 150,
+                "200.0": {
+                    "key": 200.0,
                     "doc_count": 3
                 }
             }
@@ -317,6 +360,7 @@ Response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Missing value
 
@@ -326,6 +370,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "quantity" : {
@@ -338,5 +383,7 @@ had a value.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 <1> Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`.

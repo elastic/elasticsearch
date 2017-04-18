@@ -171,13 +171,6 @@ The following parameters are accepted by `nested` fields:
     Whether or not new `properties` should be added dynamically to an existing
     nested object.  Accepts `true` (default), `false` and `strict`.
 
-<<include-in-all,`include_in_all`>>::
-
-    Sets the default `include_in_all` value for all the `properties` within
-    the nested object. Nested documents do not have their own `_all` field.
-    Instead, values are added to the `_all` field of the main ``root''
-    document.
-
 <<properties,`properties`>>::
 
     The fields within the nested object, which can be of any

@@ -60,6 +60,7 @@ import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintTokenFilterFactory;
 import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
 import org.elasticsearch.index.analysis.FrenchStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
@@ -139,6 +140,7 @@ import org.elasticsearch.index.analysis.UniqueTokenFilterFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
+import org.elasticsearch.index.analysis.WordDelimiterGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
@@ -152,13 +154,12 @@ import java.util.List;
  */
 public final class AnalysisModule {
     static {
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .build();
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetaData
+            .SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
         IndexMetaData metaData = IndexMetaData.builder("_na_").settings(build).build();
         NA_INDEX_SETTINGS = new IndexSettings(metaData, Settings.EMPTY);
     }
+
     private static final IndexSettings NA_INDEX_SETTINGS;
 
     private final HunspellService hunspellService;
@@ -171,8 +172,9 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
-        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(),
-                tokenizers.getRegistry(), analyzers.getRegistry());
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
+        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry());
     }
 
     HunspellService getHunspellService() {
@@ -198,8 +200,8 @@ public final class AnalysisModule {
         return hunspellDictionaries;
     }
 
-    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(List<AnalysisPlugin> plugins,
-            HunspellService hunspellService) {
+    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(List<AnalysisPlugin> plugins, HunspellService
+        hunspellService) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         tokenFilters.register("reverse", ReverseTokenFilterFactory::new);
@@ -224,8 +226,10 @@ public final class AnalysisModule {
         tokenFilters.register("snowball", SnowballTokenFilterFactory::new);
         tokenFilters.register("stemmer", StemmerTokenFilterFactory::new);
         tokenFilters.register("word_delimiter", WordDelimiterTokenFilterFactory::new);
+        tokenFilters.register("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
+        tokenFilters.register("flatten_graph", FlattenGraphTokenFilterFactory::new);
         tokenFilters.register("keep", requriesAnalysisSettings(KeepWordFilterFactory::new));
         tokenFilters.register("keep_types", requriesAnalysisSettings(KeepTypesFilterFactory::new));
         tokenFilters.register("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
@@ -251,8 +255,8 @@ public final class AnalysisModule {
         tokenFilters.register("scandinavian_folding", ScandinavianFoldingFilterFactory::new);
         tokenFilters.register("serbian_normalization", SerbianNormalizationFilterFactory::new);
 
-        tokenFilters.register("hunspell", requriesAnalysisSettings(
-                (indexSettings, env, name, settings) -> new HunspellTokenFilterFactory(indexSettings, name, settings, hunspellService)));
+        tokenFilters.register("hunspell", requriesAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
+            (indexSettings, name, settings, hunspellService)));
         tokenFilters.register("cjk_bigram", CJKBigramFilterFactory::new);
         tokenFilters.register("cjk_width", CJKWidthFilterFactory::new);
 
@@ -335,12 +339,20 @@ public final class AnalysisModule {
         return analyzers;
     }
 
+    private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = new NamedRegistry<>("normalizer");
+        // TODO: provide built-in normalizer providers?
+        // TODO: pluggability?
+        return normalizers;
+    }
+
     private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
         return new AnalysisModule.AnalysisProvider<T>() {
             @Override
             public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
                 return provider.get(indexSettings, environment, name, settings);
             }
+
             @Override
             public boolean requiresAnalysisSettings() {
                 return true;
@@ -355,10 +367,11 @@ public final class AnalysisModule {
 
         /**
          * Creates a new analysis provider.
+         *
          * @param indexSettings the index settings for the index this provider is created for
-         * @param environment the nodes environment to load resources from persistent storage
-         * @param name the name of the analysis component
-         * @param settings the component specific settings without context prefixes
+         * @param environment   the nodes environment to load resources from persistent storage
+         * @param name          the name of the analysis component
+         * @param settings      the component specific settings without context prefixes
          * @return a new provider instance
          * @throws IOException if an {@link IOException} occurs
          */
@@ -369,11 +382,11 @@ public final class AnalysisModule {
          * This can be used to get a default instance of an analysis factory without binding to an index.
          *
          * @param environment the nodes environment to load resources from persistent storage
-         * @param name the name of the analysis component
+         * @param name        the name of the analysis component
          * @return a new provider instance
-         * @throws IOException if an {@link IOException} occurs
+         * @throws IOException              if an {@link IOException} occurs
          * @throws IllegalArgumentException if the provider requires analysis settings ie. if {@link #requiresAnalysisSettings()} returns
-         *  <code>true</code>
+         *                                  <code>true</code>
          */
         default T get(Environment environment, String name) throws IOException {
             if (requiresAnalysisSettings()) {

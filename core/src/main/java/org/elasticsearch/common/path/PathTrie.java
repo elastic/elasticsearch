@@ -111,7 +111,10 @@ public class PathTrie<T> {
                 // in case the target(last) node already exist but without a value
                 // than the value should be updated.
                 if (index == (path.length - 1)) {
-                    assert (node.value == null || node.value == value);
+                    if (node.value != null) {
+                        throw new IllegalArgumentException("Path [" + String.join("/", path)+ "] already has a value ["
+                                + node.value + "]");
+                    }
                     if (node.value == null) {
                         node.value = value;
                     }
@@ -190,6 +193,9 @@ public class PathTrie<T> {
     public void insert(String path, T value) {
         String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
+            if (rootValue != null) {
+                throw new IllegalArgumentException("Path [/] already has a value [" + rootValue + "]");
+            }
             rootValue = value;
             return;
         }

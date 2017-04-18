@@ -31,11 +31,19 @@ import java.util.Map;
 import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.http.HttpHost;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParser;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
@@ -44,7 +52,6 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
@@ -58,13 +65,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
      * Property that allows to blacklist some of the REST tests based on a comma separated list of globs
-     * e.g. -Dtests.rest.blacklist=get/10_basic/*
+     * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
     /**
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
-    public static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
+    private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
     private static final String TESTS_PATH = "/rest-api-spec/test";
     private static final String SPEC_PATH = "/rest-api-spec/api";
@@ -80,24 +87,84 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
-    private final List<BlacklistedPathPatternMatcher> blacklistPathMatchers = new ArrayList<>();
+    private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
 
     private final ClientYamlTestCandidate testCandidate;
 
-    public ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
+    protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
-        String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-        for (String entry : blacklist) {
-            this.blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+    }
+
+    @Before
+    public void initAndResetContext() throws Exception {
+        if (restTestExecutionContext == null) {
+            assert adminExecutionContext == null;
+            assert blacklistPathMatchers == null;
+            ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
+            validateSpec(restSpec);
+            List<HttpHost> hosts = getClusterHosts();
+            RestClient restClient = client();
+            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
+            Version esVersion;
+            try {
+                Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
+                esVersion = versionVersionTuple.v1();
+                Version masterVersion = versionVersionTuple.v2();
+                logger.info("initializing yaml client, minimum es version: [{}] master version: [{}] hosts: {}",
+                        esVersion, masterVersion, hosts);
+            } catch (ResponseException ex) {
+                if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
+                    logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
+                    esVersion = infoVersion;
+                    logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
+                } else {
+                    throw ex;
+                }
+            }
+            ClientYamlTestClient clientYamlTestClient =
+                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
+            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            blacklistPathMatchers = new ArrayList<>();
+            for (String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
+        }
+        assert restTestExecutionContext != null;
+        assert adminExecutionContext != null;
+        assert blacklistPathMatchers != null;
+
+        // admin context must be available for @After always, regardless of whether the test was blacklisted
+        adminExecutionContext.clear();
+
+        //skip test if it matches one of the blacklist globs
+        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
+                    .isSuffixMatch(testPath));
         }
 
+        restTestExecutionContext.clear();
+
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+                testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if test section is disabled
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
     }
 
     @Override
     protected void afterIfFailed(List<Throwable> errors) {
-        logger.info("Stash dump on failure [{}]", XContentHelper.toString(restTestExecutionContext.stash()));
+        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+        logger.info("Stash dump on failure [{}]",
+                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 
@@ -105,12 +172,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         List<Object[]> tests = new ArrayList<>();
         Map<String, Set<Path>> yamlSuites = loadYamlSuites(paths);
-        ClientYamlTestSuiteParser restTestSuiteParser = new ClientYamlTestSuiteParser();
-        //yaml suites are grouped by directory (effectively by api)
+        // yaml suites are grouped by directory (effectively by api)
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
                 for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                     tests.add(new Object[]{ new ClientYamlTestCandidate(restTestSuite, testSection) });
                 }
@@ -123,7 +189,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return tests;
     }
 
-    /** Find all yaml suites that math the given list of paths from the root test path. */
+    /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
     static Map<String, Set<Path>> loadYamlSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
@@ -165,14 +231,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    @BeforeClass
-    public static void initExecutionContext() throws Exception {
-        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
-        validateSpec(restSpec);
-        restTestExecutionContext = new ClientYamlTestExecutionContext(restSpec);
-        adminExecutionContext = new ClientYamlTestExecutionContext(restSpec);
-    }
-
     protected ClientYamlTestExecutionContext getAdminExecutionContext() {
         return adminExecutionContext;
     }
@@ -196,35 +254,55 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     @AfterClass
     public static void clearStatic() {
+        blacklistPathMatchers = null;
         restTestExecutionContext = null;
         adminExecutionContext = null;
     }
 
-    @Before
-    public void reset() throws IOException {
-        // admin context must be available for @After always, regardless of whether the test was blacklisted
-        adminExecutionContext.initClient(adminClient(), getClusterHosts());
-        adminExecutionContext.clear();
-
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
-            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                    .isSuffixMatch(testPath));
+    private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
+        // we simply go to the _cat/nodes API and parse all versions in the cluster
+        Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+        String nodesCatResponse = restTestResponse.getBodyAsString();
+        String[] split = nodesCatResponse.split("\n");
+        Version version = null;
+        Version masterVersion = null;
+        for (String perNode : split) {
+            final String[] versionAndMaster = perNode.split("\\s+");
+            assert versionAndMaster.length == 2 : "invalid line: " + perNode + " length: " + versionAndMaster.length;
+            final Version currentVersion = Version.fromString(versionAndMaster[0]);
+            final boolean master = versionAndMaster[1].trim().equals("*");
+            if (master) {
+                assert masterVersion == null;
+                masterVersion = currentVersion;
+            }
+            if (version == null) {
+                version = currentVersion;
+            } else if (version.onOrAfter(currentVersion)) {
+                version = currentVersion;
+            }
         }
-        //The client needs non static info to get initialized, therefore it can't be initialized in the before class
-        restTestExecutionContext.initClient(client(), getClusterHosts());
-        restTestExecutionContext.clear();
+        return new Tuple<>(version, masterVersion);
+    }
 
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+    private static Version readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
+        Version version = null;
+        for (int i = 0; i < numHosts; i++) {
+            //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
+            Response response = restClient.performRequest("GET", "/");
+            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+            Object latestVersion = restTestResponse.evaluate("version.number");
+            if (latestVersion == null) {
+                throw new RuntimeException("elasticsearch version not found in the response");
+            }
+            final Version currentVersion = Version.fromString(latestVersion.toString());
+            if (version == null) {
+                version = currentVersion;
+            } else if (version.onOrAfter(currentVersion)) {
+                version = currentVersion;
+            }
+        }
+        return version;
     }
 
     public void test() throws IOException {
@@ -271,5 +349,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private String errorMessage(ExecutableSection executableSection, Throwable t) {
         return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber + "]: " + t.getMessage();
+    }
+
+    protected boolean randomizeContentType() {
+        return true;
     }
 }

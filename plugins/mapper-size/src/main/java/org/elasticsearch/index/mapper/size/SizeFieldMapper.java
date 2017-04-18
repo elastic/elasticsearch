@@ -19,27 +19,25 @@
 
 package org.elasticsearch.index.mapper.size;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.EnabledAttributeMapper;
-import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TypeParsers;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
@@ -49,40 +47,20 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         public static final MappedFieldType SIZE_FIELD_TYPE =
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        public static final MappedFieldType LEGACY_SIZE_FIELD_TYPE =
-            LegacyIntegerFieldMapper.Defaults.FIELD_TYPE.clone();
 
         static {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setName(NAME);
             SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            SIZE_FIELD_TYPE.setHasDocValues(true);
             SIZE_FIELD_TYPE.freeze();
-
-            LEGACY_SIZE_FIELD_TYPE.setStored(true);
-            LEGACY_SIZE_FIELD_TYPE.setNumericPrecisionStep(LegacyIntegerFieldMapper.Defaults.PRECISION_STEP_32_BIT);
-            LEGACY_SIZE_FIELD_TYPE.setName(NAME);
-            LEGACY_SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            LEGACY_SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            LEGACY_SIZE_FIELD_TYPE.freeze();
         }
     }
 
     private static MappedFieldType defaultFieldType(Version indexCreated) {
-        MappedFieldType defaultFieldType;
-        if (indexCreated.before(Version.V_5_0_0_alpha2)) {
-            defaultFieldType = Defaults.LEGACY_SIZE_FIELD_TYPE.clone();
-            // doc_values are disabled for bwc with indices created before V_5_0_0_alpha4
-            defaultFieldType.setHasDocValues(false);
-        } else {
-            defaultFieldType = Defaults.SIZE_FIELD_TYPE.clone();
-            if (indexCreated.onOrBefore(Version.V_5_0_0_alpha4)) {
-                // doc_values are disabled for bwc with indices created before V_5_0_0_alpha4
-                defaultFieldType.setHasDocValues(false);
-            } else {
-                defaultFieldType.setHasDocValues(true);
-            }
-        }
+        MappedFieldType defaultFieldType = Defaults.SIZE_FIELD_TYPE.clone();
+        defaultFieldType.setHasDocValues(true);
         return defaultFieldType;
     }
 
@@ -123,8 +101,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(lenientNodeBooleanValue(fieldNode) ?
-                        EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
+                    boolean enabled = TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext);
+                    builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 }
             }
@@ -132,7 +110,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new SizeFieldMapper(indexSettings, fieldType);
         }
     }
@@ -176,19 +155,15 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (!enabledState.enabled) {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        if (Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha2)) {
-            fields.add(new LegacyIntegerFieldMapper.CustomIntegerNumericField(value, fieldType()));
-        } else {
-            boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
-            boolean docValued = fieldType().hasDocValues();
-            boolean stored = fieldType().stored();
-            fields.addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));
-        }
+        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
+        boolean docValued = fieldType().hasDocValues();
+        boolean stored = fieldType().stored();
+        fields.addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));
     }
 
     @Override

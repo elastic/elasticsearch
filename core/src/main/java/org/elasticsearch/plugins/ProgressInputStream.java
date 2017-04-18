@@ -37,7 +37,7 @@ abstract class ProgressInputStream extends FilterInputStream {
     private int currentPercent;
     private int count = 0;
 
-    public ProgressInputStream(InputStream is, int expectedTotalSize) {
+    ProgressInputStream(InputStream is, int expectedTotalSize) {
         super(is);
         this.expectedTotalSize = expectedTotalSize;
         this.currentPercent = 0;

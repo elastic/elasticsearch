@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -57,10 +58,11 @@ public interface DiscoveryPlugin {
      * @param threadPool Use to schedule ping actions
      * @param transportService Use to communicate with other nodes
      * @param clusterService Use to find current nodes in the cluster
-     * @param zenPing Use to ping other nodes with zen unicast host list
+     * @param hostsProvider Use to find configured hosts which should be pinged for initial discovery
      */
     default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                               ClusterService clusterService, ZenPing zenPing) {
+                                                               NamedWriteableRegistry namedWriteableRegistry,
+                                                               ClusterService clusterService, UnicastHostsProvider hostsProvider) {
         return Collections.emptyMap();
     }
 

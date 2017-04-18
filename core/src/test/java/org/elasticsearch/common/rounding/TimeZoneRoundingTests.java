@@ -515,6 +515,44 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
+     * tests for dst transition with overlaps and day roundings.
+     */
+    public void testDST_END_Edgecases() {
+        // First case, dst happens at 1am local time, switching back one hour.
+        // We want the overlapping hour to count for the next day, making it a 25h interval
+
+        DateTimeUnit timeUnit = DateTimeUnit.DAY_OF_MONTH;
+        DateTimeZone tz = DateTimeZone.forID("Atlantic/Azores");
+        Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
+
+        // Sunday, 29 October 2000, 01:00:00 clocks were turned backward 1 hour
+        // to Sunday, 29 October 2000, 00:00:00 local standard time instead
+
+        long midnightBeforeTransition = time("2000-10-29T00:00:00", tz);
+        long nextMidnight = time("2000-10-30T00:00:00", tz);
+
+        assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
+
+        // Second case, dst happens at 0am local time, switching back one hour to 23pm local time.
+        // We want the overlapping hour to count for the previous day here
+
+        tz = DateTimeZone.forID("America/Lima");
+        rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
+
+        // Sunday, 1 April 1990, 00:00:00 clocks were turned backward 1 hour to
+        // Saturday, 31 March 1990, 23:00:00 local standard time instead
+
+        midnightBeforeTransition = time("1990-03-31T00:00:00.000-04:00");
+        nextMidnight = time("1990-04-01T00:00:00.000-05:00");
+        assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
+
+        // make sure the next interval is 24h long again
+        long midnightAfterTransition = time("1990-04-01T00:00:00.000-05:00");
+        nextMidnight = time("1990-04-02T00:00:00.000-05:00");
+        assertInterval(midnightAfterTransition, nextMidnight, rounding, 24 * 60, tz);
+    }
+
+    /**
      * Test that time zones are correctly parsed. There is a bug with
      * Joda 2.9.4 (see https://github.com/JodaOrg/joda-time/issues/373)
      */

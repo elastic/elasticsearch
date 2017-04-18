@@ -29,13 +29,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,17 +51,18 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
     private final ScriptService scriptService;
     private final TransportSearchAction searchAction;
-    private final SearchRequestParsers searchRequestParsers;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                          ScriptService scriptService,
-                                         TransportSearchAction searchAction, SearchRequestParsers searchRequestParsers) {
+                                         TransportSearchAction searchAction,
+                                         NamedXContentRegistry xContentRegistry) {
         super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.searchAction = searchAction;
-        this.searchRequestParsers = searchRequestParsers;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -81,11 +83,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
             // Executes the search
             SearchRequest searchRequest = request.getRequest();
-
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            //we can assume the template is always json as we convert it before compiling it
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
                 SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-                builder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                builder.parseXContent(new QueryParseContext(parser));
                 builder.explain(request.isExplain());
                 builder.profile(request.isProfile());
                 searchRequest.source(builder);

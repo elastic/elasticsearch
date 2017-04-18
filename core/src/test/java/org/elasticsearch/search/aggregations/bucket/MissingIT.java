@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -142,7 +143,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(missing, notNullValue());
         assertThat(missing.getName(), equalTo("missing_tag"));
         assertThat(missing.getDocCount(), equalTo((long) numDocsMissing + numDocsUnmapped));
-        assertThat((long) missing.getProperty("_count"), equalTo((long) numDocsMissing + numDocsUnmapped));
+        assertThat((long) ((InternalAggregation)missing).getProperty("_count"), equalTo((long) numDocsMissing + numDocsUnmapped));
         assertThat(missing.getAggregations().asList().isEmpty(), is(false));
 
         long sum = 0;
@@ -156,7 +157,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
-        assertThat((double) missing.getProperty("avg_value.value"), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
+        assertThat((double) ((InternalAggregation)missing).getProperty("avg_value.value"), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
     }
 
     public void testEmptyAggregation() throws Exception {

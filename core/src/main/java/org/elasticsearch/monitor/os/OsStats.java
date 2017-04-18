@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public class OsStats implements Writeable, ToXContent {
-    public static final Version V_5_1_0 = Version.fromId(5010099);
+
     private final long timestamp;
     private final Cpu cpu;
     private final Mem mem;
@@ -52,7 +52,7 @@ public class OsStats implements Writeable, ToXContent {
         this.cpu = new Cpu(in);
         this.mem = new Mem(in);
         this.swap = new Swap(in);
-        if (in.getVersion().onOrAfter(V_5_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             this.cgroup = in.readOptionalWriteable(Cgroup::new);
         } else {
             this.cgroup = null;
@@ -65,7 +65,7 @@ public class OsStats implements Writeable, ToXContent {
         cpu.writeTo(out);
         mem.writeTo(out);
         swap.writeTo(out);
-        if (out.getVersion().onOrAfter(V_5_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             out.writeOptionalWriteable(cgroup);
         }
     }

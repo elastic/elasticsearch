@@ -58,7 +58,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
 
         try (StreamInput in = bytes.streamInput()) {
             in.setVersion(Version.V_5_0_0);
-            IndexTemplateMetaData readMetaData = IndexTemplateMetaData.Builder.readFrom(in);
+            IndexTemplateMetaData readMetaData = IndexTemplateMetaData.readFrom(in);
             assertEquals(0, in.available());
             assertEquals(metaData.getName(), readMetaData.getName());
             assertEquals(metaData.getPatterns(), readMetaData.getPatterns());

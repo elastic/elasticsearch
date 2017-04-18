@@ -20,10 +20,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -45,11 +44,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -78,18 +77,12 @@ import java.util.Map;
  * when they are so dangerous that general code should not be granted the
  * permission, but there are extenuating circumstances.
  * <p>
- * Scripts (groovy, javascript, python) are assigned minimal permissions. This does not provide adequate
+ * Scripts (groovy) are assigned minimal permissions. This does not provide adequate
  * sandboxing, as these scripts still have access to ES classes, and could
  * modify members, etc that would cause bad things to happen later on their
  * behalf (no package protections are yet in place, this would need some
  * cleanups to the scripting apis). But still it can provide some defense for users
  * that enable dynamic scripting without being fully aware of the consequences.
- * <br>
- * <h1>Disabling Security</h1>
- * SecurityManager can be disabled completely with this setting:
- * <pre>
- * es.security.manager.enabled = false
- * </pre>
  * <br>
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
@@ -133,19 +126,23 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
-        // collect up lists of plugins and modules
-        List<Path> pluginsAndModules = new ArrayList<>();
+        // collect up set of plugins and modules by listing directories.
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                    if (pluginsAndModules.add(plugin) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
                 }
             }
         }
         if (Files.exists(environment.modulesFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
-                for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                for (Path module : stream) {
+                    if (pluginsAndModules.add(module) == false) {
+                        throw new IllegalStateException("duplicate module: " + module);
+                    }
                 }
             }
         }
@@ -155,15 +152,18 @@ final class Security {
             if (Files.exists(policyFile)) {
                 // first get a list of URLs for the plugins' jars:
                 // we resolve symlinks so map is keyed on the normalize codebase name
-                List<URL> codebases = new ArrayList<>();
+                Set<URL> codebases = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                     for (Path jar : jarStream) {
-                        codebases.add(jar.toRealPath().toUri().toURL());
+                        URL url = jar.toRealPath().toUri().toURL();
+                        if (codebases.add(url) == false) {
+                            throw new IllegalStateException("duplicate module/plugin: " + url);
+                        }
                     }
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -181,24 +181,33 @@ final class Security {
     /**
      * Reads and returns the specified {@code policyFile}.
      * <p>
-     * Resources (e.g. jar files and directories) listed in {@code codebases} location
-     * will be provided to the policy file via a system property of the short name:
-     * e.g. <code>${codebase.joda-convert-1.2.jar}</code> would map to full URL.
+     * Jar files listed in {@code codebases} location will be provided to the policy file via
+     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
+     * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, URL codebases[]) {
+    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
             try {
                 // set codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    System.setProperty("codebase." + shortName, url.toString());
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
+                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    if (previous != null) {
+                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                    }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
                     System.clearProperty("codebase." + shortName);
                 }
             }
@@ -257,6 +266,26 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
+        /*
+         * If path.data and default.path.data are set, we need read access to the paths in default.path.data to check for the existence of
+         * index directories there that could have arisen from a bug in the handling of simultaneous configuration of path.data and
+         * default.path.data that was introduced in Elasticsearch 5.3.0.
+         *
+         * If path.data is not set then default.path.data would take precedence in setting the data paths for the environment and
+         * permissions would have been granted above.
+         *
+         * If path.data is not set and default.path.data is not set, then we would fallback to the default data directory under
+         * Elasticsearch home and again permissions would have been granted above.
+         *
+         * If path.data is set and default.path.data is not set, there is nothing to do here.
+         */
+        if (Environment.PATH_DATA_SETTING.exists(environment.settings())
+                && Environment.DEFAULT_PATH_DATA_SETTING.exists(environment.settings())) {
+            for (final String path : Environment.DEFAULT_PATH_DATA_SETTING.get(environment.settings())) {
+                // write permissions are not needed here, we are not going to be writing to any paths here
+                addPath(policy, Environment.DEFAULT_PATH_DATA_SETTING.getKey(), getPath(path), "read,readlink");
+            }
+        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
@@ -266,34 +295,101 @@ final class Security {
         }
     }
 
-    static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
+    @SuppressForbidden(reason = "read path that is not configured in environment")
+    private static Path getPath(final String path) {
+        return PathUtils.get(path);
+    }
+
+    /**
+     * Add dynamic {@link SocketPermission}s based on HTTP and transport settings.
+     *
+     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
+     * @param settings the {@link Settings} instance to read the HTTP and transport settings from
+     */
+    private static void addBindPermissions(Permissions policy, Settings settings) {
+        addSocketPermissionForHttp(policy, settings);
+        addSocketPermissionForTransportProfiles(policy, settings);
+        addSocketPermissionForTribeNodes(policy, settings);
+    }
+
+    /**
+     * Add dynamic {@link SocketPermission} based on HTTP settings.
+     *
+     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
+     * @param settings the {@link Settings} instance to read the HTTP settings from
+     */
+    private static void addSocketPermissionForHttp(final Permissions policy, final Settings settings) {
         // http is simple
-        String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
-        // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
-        // see SocketPermission implies() code
-        policy.add(new SocketPermission("*:" + httpRange, "listen,resolve"));
-        // transport is waaaay overengineered
-        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups();
-        if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
-            profiles = new HashMap<>(profiles);
-            profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
-        }
+        final String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
+        addSocketPermissionForPortRange(policy, httpRange);
+    }
 
-        // loop through all profiles and add permissions for each one, if its valid.
-        // (otherwise Netty transports are lenient and ignores it)
-        for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            Settings profileSettings = entry.getValue();
-            String name = entry.getKey();
-            String transportRange = profileSettings.get("port", TransportSettings.PORT.get(settings));
+    /**
+     * Add dynamic {@link SocketPermission} based on transport settings. This method will first check if there is a port range specified in
+     * the transport profile specified by {@code profileSettings} and will fall back to {@code settings}.
+     *
+     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
+     * @param settings        the {@link Settings} instance to read the transport settings from
+     */
+    private static void addSocketPermissionForTransportProfiles(
+        final Permissions policy,
+        final Settings settings) {
+        // transport is way over-engineered
+        final Map<String, Settings> profiles = new HashMap<>(TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups());
+        profiles.putIfAbsent(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
 
-            // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
-            boolean valid = TransportSettings.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
+        // loop through all profiles and add permissions for each one, if it's valid; otherwise Netty transports are lenient and ignores it
+        for (final Map.Entry<String, Settings> entry : profiles.entrySet()) {
+            final Settings profileSettings = entry.getValue();
+            final String name = entry.getKey();
+
+            // a profile is only valid if it's the default profile, or if it has an actual name and specifies a port
+            // TODO: can this leniency be removed?
+            final boolean valid =
+                TransportSettings.DEFAULT_PROFILE.equals(name) ||
+                    (name != null && name.length() > 0 && profileSettings.get("port") != null);
             if (valid) {
-                // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
-                // see SocketPermission implies() code
-                policy.add(new SocketPermission("*:" + transportRange, "listen,resolve"));
+                final String transportRange = profileSettings.get("port");
+                if (transportRange != null) {
+                    addSocketPermissionForPortRange(policy, transportRange);
+                } else {
+                    addSocketPermissionForTransport(policy, settings);
+                }
             }
         }
+    }
+
+    /**
+     * Add dynamic {@link SocketPermission} based on transport settings.
+     *
+     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
+     * @param settings        the {@link Settings} instance to read the transport settings from
+     */
+    private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
+        final String transportRange = TransportSettings.PORT.get(settings);
+        addSocketPermissionForPortRange(policy, transportRange);
+    }
+
+    private static void addSocketPermissionForTribeNodes(final Permissions policy, final Settings settings) {
+        for (final Settings tribeNodeSettings : settings.getGroups("tribe", true).values()) {
+            // tribe nodes have HTTP disabled by default, so we check if HTTP is enabled before granting
+            if (NetworkModule.HTTP_ENABLED.exists(tribeNodeSettings) && NetworkModule.HTTP_ENABLED.get(tribeNodeSettings)) {
+                addSocketPermissionForHttp(policy, tribeNodeSettings);
+            }
+            addSocketPermissionForTransport(policy, tribeNodeSettings);
+        }
+    }
+
+    /**
+     * Add dynamic {@link SocketPermission} for the specified port range.
+     *
+     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission} to.
+     * @param portRange the port range
+     */
+    private static void addSocketPermissionForPortRange(final Permissions policy, final String portRange) {
+        // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
+        // see SocketPermission implies() code
+        policy.add(new SocketPermission("*:" + portRange, "listen,resolve"));
     }
 
     /**
@@ -301,7 +397,7 @@ final class Security {
      * @param policy current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param permissions set of file permissions to grant to the path
      */
     static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
         // paths may not exist yet, this also checks accessibility
@@ -321,7 +417,7 @@ final class Security {
      * @param policy current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param permissions set of file permissions to grant to the path
      */
     static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
         if (Files.isDirectory(path)) {

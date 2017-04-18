@@ -19,27 +19,21 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestClearScrollAction;
-import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -60,13 +54,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for scrolling.
@@ -94,9 +85,9 @@ public class SearchScrollIT extends ESIntegTestCase {
             long counter = 0;
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, equalTo(35));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
 
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
@@ -104,9 +95,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                     .execute().actionGet();
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, equalTo(35));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
 
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
@@ -114,9 +105,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                     .execute().actionGet();
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, equalTo(30));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(30));
             for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
         } finally {
             clearScroll(searchResponse.getScrollId());
@@ -152,9 +143,9 @@ public class SearchScrollIT extends ESIntegTestCase {
             long counter = 0;
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, equalTo(3));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(3));
             for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
 
             for (int i = 0; i < 32; i++) {
@@ -163,9 +154,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                         .execute().actionGet();
 
                 assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-                assertThat(searchResponse.getHits().hits().length, equalTo(3));
+                assertThat(searchResponse.getHits().getHits().length, equalTo(3));
                 for (SearchHit hit : searchResponse.getHits()) {
-                    assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                    assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
                 }
             }
 
@@ -175,9 +166,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                     .execute().actionGet();
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, equalTo(1));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
 
             // a the last is zero
@@ -186,9 +177,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                     .execute().actionGet();
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, equalTo(0));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(0));
             for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
 
         } finally {
@@ -207,11 +198,11 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(500L));
-        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(500L));
-        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(500L));
-        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(0L));
-        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(0L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(500L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().getTotalHits(), equalTo(500L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().getTotalHits(), equalTo(500L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().getTotalHits(), equalTo(0L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().getTotalHits(), equalTo(0L));
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(queryStringQuery("user:kimchy"))
@@ -221,20 +212,20 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .execute().actionGet();
         try {
             do {
-                for (SearchHit searchHit : searchResponse.getHits().hits()) {
-                    Map<String, Object> map = searchHit.sourceAsMap();
+                for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+                    Map<String, Object> map = searchHit.getSourceAsMap();
                     map.put("message", "update");
-                    client().prepareIndex("test", "tweet", searchHit.id()).setSource(map).execute().actionGet();
+                    client().prepareIndex("test", "tweet", searchHit.getId()).setSource(map).execute().actionGet();
                 }
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-            } while (searchResponse.getHits().hits().length > 0);
+            } while (searchResponse.getHits().getHits().length > 0);
 
             client().admin().indices().prepareRefresh().execute().actionGet();
-            assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(500L));
-            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(0L));
-            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(0L));
-            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(500L));
-            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(500L));
+            assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(500L));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().getTotalHits(), equalTo(0L));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().getTotalHits(), equalTo(0L));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().getTotalHits(), equalTo(500L));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().getTotalHits(), equalTo(500L));
         } finally {
             clearScroll(searchResponse.getScrollId());
         }
@@ -272,15 +263,15 @@ public class SearchScrollIT extends ESIntegTestCase {
         long counter2 = 0;
 
         assertThat(searchResponse1.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse1.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter1++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse2.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter2++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
         }
 
         searchResponse1 = client().prepareSearchScroll(searchResponse1.getScrollId())
@@ -292,15 +283,15 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertThat(searchResponse1.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse1.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter1++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse2.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter2++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
         }
 
         ClearScrollResponse clearResponse = client().prepareClearScroll()
@@ -378,15 +369,15 @@ public class SearchScrollIT extends ESIntegTestCase {
         long counter2 = 0;
 
         assertThat(searchResponse1.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse1.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter1++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse2.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter2++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
         }
 
         searchResponse1 = client().prepareSearchScroll(searchResponse1.getScrollId())
@@ -398,15 +389,15 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertThat(searchResponse1.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse1.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter1++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse2.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter2++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
         }
 
         ClearScrollResponse clearResponse = client().prepareClearScroll().addScrollId("_all")
@@ -500,84 +491,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
 
-    public void testParseSearchScrollRequest() throws Exception {
-        BytesReference content = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("scroll_id", "SCROLL_ID")
-            .field("scroll", "1m")
-            .endObject().bytes();
-
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        RestSearchScrollAction.buildFromContent(content, searchScrollRequest);
-
-        assertThat(searchScrollRequest.scrollId(), equalTo("SCROLL_ID"));
-        assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null, "scroll")));
-    }
-
-    public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        try {
-            RestSearchScrollAction.buildFromContent(new BytesArray("{invalid_json}"), searchScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseSearchScrollRequestWithUnknownParamThrowsException() throws Exception {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .field("scroll_id", "value_2")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-
-        try {
-            RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
-    public void testParseClearScrollRequest() throws Exception {
-        BytesReference content = XContentFactory.jsonBuilder().startObject()
-            .array("scroll_id", "value_1", "value_2")
-            .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        RestClearScrollAction.buildFromContent(content, clearScrollRequest);
-        assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
-    }
-
-    public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
-        try {
-            RestClearScrollAction.buildFromContent(new BytesArray("{invalid_json}"), clearScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .array("scroll_id", "value_1", "value_2")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
-        try {
-            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
     public void testCloseAndReopenOrDeleteWithActiveScroll() throws IOException {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
@@ -592,9 +505,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .execute().actionGet();
         long counter = 0;
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(35));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
         }
         if (randomBoolean()) {
             client().admin().indices().prepareClose("test").get();
@@ -607,16 +520,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        BytesReference bytesReference = builder.bytes();
-        Map<String, Object> map;
-        try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
-            map = parser.map();
-        }
-
+        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
         assertThat(map.get("succeeded"), is(succeed));
         assertThat(map.get("num_freed"), equalTo(numFreed));
     }

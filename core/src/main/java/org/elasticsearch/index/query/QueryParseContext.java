@@ -20,41 +20,23 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
-public class QueryParseContext implements ParseFieldMatcherSupplier {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(QueryParseContext.class));
+public class QueryParseContext {
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
     private final XContentParser parser;
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-    private final ParseFieldMatcher parseFieldMatcher;
-    private final String defaultScriptLanguage;
 
-    public QueryParseContext(IndicesQueriesRegistry registry, XContentParser parser, ParseFieldMatcher parseFieldMatcher) {
-        this(Script.DEFAULT_SCRIPT_LANG, registry, parser, parseFieldMatcher);
-    }
-
-    public QueryParseContext(String defaultScriptLanguage, IndicesQueriesRegistry registry, XContentParser parser,
-                             ParseFieldMatcher parseFieldMatcher) {
-        this.indicesQueriesRegistry = Objects.requireNonNull(registry, "indices queries registry cannot be null");
+    public QueryParseContext(XContentParser parser) {
         this.parser = Objects.requireNonNull(parser, "parser cannot be null");
-        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher, "parse field matcher cannot be null");
-        this.defaultScriptLanguage = defaultScriptLanguage;
     }
 
     public XContentParser parser() {
@@ -62,7 +44,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     }
 
     public boolean isDeprecatedSetting(String setting) {
-        return this.parseFieldMatcher.match(setting, CACHE) || this.parseFieldMatcher.match(setting, CACHE_KEY);
+        return CACHE.match(setting) || CACHE_KEY.match(setting);
     }
 
     /**
@@ -75,7 +57,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
                     if ("query".equals(fieldName)) {
-                        queryBuilder = parseInnerQueryBuilder().orElse(null);
+                        queryBuilder = parseInnerQueryBuilder();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
@@ -92,20 +74,15 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     /**
      * Parses a query excluding the query element that wraps it
      */
-    public Optional<QueryBuilder> parseInnerQueryBuilder() throws IOException {
+    public QueryBuilder parseInnerQueryBuilder() throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
             }
         }
         if (parser.nextToken() == XContentParser.Token.END_OBJECT) {
-            // we encountered '{}' for a query clause
-            String msg = "query malformed, empty clause found at [" + parser.getTokenLocation() +"]";
-            DEPRECATION_LOGGER.deprecated(msg);
-            if (parseFieldMatcher.isStrict()) {
-                throw new IllegalArgumentException(msg);
-            }
-            return Optional.empty();
+            // we encountered '{}' for a query clause, it used to be supported, deprecated in 5.0 and removed in 6.0
+            throw new IllegalArgumentException("query malformed, empty clause found at [" + parser.getTokenLocation() +"]");
         }
         if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
@@ -115,9 +92,15 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[" + queryName + "] query malformed, no start_object after query name");
         }
-        @SuppressWarnings("unchecked")
-        Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,
-                parser.getTokenLocation()).fromXContent(this);
+        QueryBuilder result;
+        try {
+            result = parser.namedObject(QueryBuilder.class, queryName, this);
+        } catch (UnknownNamedObjectException e) {
+            // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
+            // This intentionally doesn't include the causing exception because that'd change the "root_cause" of any unknown query errors
+            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
+                    "no [query] registered for [" + e.getName() + "]");
+        }
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(),
@@ -129,18 +112,5 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                     "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
         return result;
-    }
-
-    @Override
-    public ParseFieldMatcher getParseFieldMatcher() {
-        return parseFieldMatcher;
-    }
-
-    /**
-     * Returns the default scripting language, that should be used if scripts don't specify the script language
-     * explicitly.
-     */
-    public String getDefaultScriptLanguage() {
-        return defaultScriptLanguage;
     }
 }

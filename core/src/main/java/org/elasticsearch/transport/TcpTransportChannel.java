@@ -105,5 +105,9 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
         return channel;
     }
 
+    @Override
+    public Version getVersion() {
+        return version;
+    }
 }
 

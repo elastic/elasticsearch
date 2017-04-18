@@ -133,7 +133,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        clusterService.addFirst(this);
+        clusterService.addListener(this);
     }
 
     @Override
@@ -146,7 +146,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     protected void doClose() {
-        clusterService.remove(this);
+        clusterService.removeListener(this);
         removeTaskAndCancel();
     }
 

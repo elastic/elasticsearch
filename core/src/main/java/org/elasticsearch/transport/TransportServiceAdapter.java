@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-public interface TransportServiceAdapter {
+public interface TransportServiceAdapter extends TransportConnectionListener {
 
     void addBytesReceived(long size);
 
@@ -50,9 +50,4 @@ public interface TransportServiceAdapter {
     void onRequestReceived(long requestId, String action);
 
     RequestHandlerRegistry getRequestHandler(String action);
-
-    void raiseNodeConnected(DiscoveryNode node);
-
-    void raiseNodeDisconnected(DiscoveryNode node);
-
 }

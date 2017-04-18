@@ -27,8 +27,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.junit.After;
-import org.junit.internal.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,20 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuilder> {
-
-    private boolean testSkipped = false;
-
-    /**
-     * All tests create deprecation warnings when an new FuzzyQueryBuilder is created. Instead of having to check them once
-     * in every single test, this is done here after each test is run
-     */
-    @After
-    void checkWarningHeaders() throws IOException {
-        // only check that warning headers got created for tests that satisfied certain assumptions and were thus not skipped
-        if (testSkipped == false) {
-            checkWarningHeaders("fuzzy query is deprecated. Instead use the [match] query with fuzziness parameter");
-        }
-    }
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
@@ -78,7 +62,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     @Override
     protected Map<String, FuzzyQueryBuilder> getAlternateVersions() {
         Map<String, FuzzyQueryBuilder> alternateVersions = new HashMap<>();
-        FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"fuzzy\" : {\n" +
                 "        \"" + fuzzyQuery.fieldName() + "\" : \"" + fuzzyQuery.value() + "\"\n" +
@@ -114,13 +98,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringField() throws IOException {
-        try {
-            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        } catch (AssumptionViolatedException e) {
-            // we need to know that this test was skipped in @After checkWarningHeaders(), because no warnings will be generated
-            testSkipped = true;
-            throw e;
-        }
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"fuzzy\":{\n" +
                 "        \"" + STRING_FIELD_NAME + "\":{\n" +
@@ -143,13 +121,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithNumericField() throws IOException {
-        try {
-            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        } catch (AssumptionViolatedException e) {
-            // we need to know that this test was skipped in @After checkWarningHeaders(), because no warnings will be generated
-            testSkipped = true;
-            throw e;
-        }
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"fuzzy\":{\n" +
                 "        \"" + INT_FIELD_NAME + "\":{\n" +
@@ -217,5 +189,18 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithValueArray() {
+        String query = "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : [ \"one\", \"two\", \"three\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertEquals("[fuzzy] unexpected token [START_ARRAY] after [value]", e.getMessage());
     }
 }

@@ -55,7 +55,7 @@ final class SSubEachIterable extends AStatement {
     private Variable iterator = null;
     private Method method = null;
 
-    public SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
+    SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
@@ -128,5 +128,10 @@ final class SSubEachIterable extends AStatement {
 
         writer.goTo(begin);
         writer.mark(end);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(variable.type.name, variable.name, expression, block);
     }
 }

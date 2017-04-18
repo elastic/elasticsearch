@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -42,9 +43,11 @@ public class Build {
         final String date;
         final boolean isSnapshot;
 
+        final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodebase();
-        if (url.toString().endsWith(".jar")) {
-            try (JarInputStream jar = new JarInputStream(url.openStream())) {
+        final String urlStr = url.toString();
+        if (urlStr.startsWith("file:/") && (urlStr.endsWith(esPrefix + ".jar") || urlStr.endsWith(esPrefix + "-SNAPSHOT.jar"))) {
+            try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
@@ -53,7 +56,7 @@ public class Build {
                 throw new RuntimeException(e);
             }
         } else {
-            // not running from a jar (unit tests, IDE)
+            // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
             shortHash = "Unknown";
             date = "Unknown";
             isSnapshot = true;
@@ -79,10 +82,10 @@ public class Build {
         return Build.class.getProtectionDomain().getCodeSource().getLocation();
     }
 
-    private String shortHash;
-    private String date;
+    private final String shortHash;
+    private final String date;
 
-    Build(String shortHash, String date, boolean isSnapshot) {
+    public Build(String shortHash, String date, boolean isSnapshot) {
         this.shortHash = shortHash;
         this.date = date;
         this.isSnapshot = isSnapshot;

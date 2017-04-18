@@ -279,6 +279,10 @@ The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 Failing to escape these special characters correctly could lead to a syntax
 error which prevents your query from running.
 
+NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
+attempting to create a range query is to remove them from the query string
+entirely.
+
 .Watch this space
 ****
 A space may also be a reserved character.  For instance, if you have a

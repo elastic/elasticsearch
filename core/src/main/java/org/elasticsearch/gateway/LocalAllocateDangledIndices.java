@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -126,10 +128,18 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-
+                    final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
+                        .minimumIndexCompatibilityVersion();
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetaData indexMetaData : request.indices) {
+                        if (indexMetaData.getCreationVersion().before(minIndexCompatibilityVersion)) {
+                            logger.warn("ignoring dangled index [{}] on node [{}]" +
+                                " since it's created version [{}] is not supported by at least one node in the cluster minVersion [{}]",
+                                indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
+                                minIndexCompatibilityVersion);
+                            continue;
+                        }
                         if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
                             continue;
                         }
@@ -144,7 +154,8 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                         try {
                             // The dangled index might be from an older version, we need to make sure it's compatible
                             // with the current version and upgrade it if needed.
-                            upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+                            upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,
+                                minIndexCompatibilityVersion);
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn((Supplier<?>) () -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be upgraded to the latest version, adding as closed", indexMetaData.getIndex(), request.fromNode), ex);
@@ -212,7 +223,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
-                indices[i] = IndexMetaData.Builder.readFrom(in);
+                indices[i] = IndexMetaData.readFrom(in);
             }
         }
 

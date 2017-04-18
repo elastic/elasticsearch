@@ -19,6 +19,20 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.single.SingleNodeDiscovery;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -27,20 +41,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 /**
  * A module for loading classes for node discovery.
@@ -53,10 +53,9 @@ public class DiscoveryModule {
         new Setting<>("discovery.zen.hosts_provider", (String)null, Optional::ofNullable, Property.NodeScope);
 
     private final Discovery discovery;
-    private final ZenPing zenPing;
 
-    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService, NetworkService networkService,
-                           ClusterService clusterService, Function<UnicastHostsProvider, ZenPing> createZenPing,
+    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
+                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, ClusterService clusterService,
                            List<DiscoveryPlugin> plugins) {
         final UnicastHostsProvider hostsProvider;
 
@@ -79,14 +78,14 @@ public class DiscoveryModule {
             hostsProvider = Collections::emptyList;
         }
 
-        zenPing = createZenPing.apply(hostsProvider);
-
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put("zen",
-            () -> new ZenDiscovery(settings, threadPool, transportService, clusterService, clusterService.getClusterSettings(), zenPing));
+            () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
         discoveryTypes.put("none", () -> new NoneDiscovery(settings, clusterService, clusterService.getClusterSettings()));
+        discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, clusterService));
         for (DiscoveryPlugin plugin : plugins) {
-            plugin.getDiscoveryTypes(threadPool, transportService, clusterService, zenPing).entrySet().forEach(entry -> {
+            plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry,
+                clusterService, hostsProvider).entrySet().forEach(entry -> {
                 if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
                 }
@@ -97,6 +96,7 @@ public class DiscoveryModule {
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
+        Loggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 
@@ -104,8 +104,4 @@ public class DiscoveryModule {
         return discovery;
     }
 
-    // TODO: remove this, it should be completely local to discovery, but service disruption tests want to mess with it
-    public ZenPing getZenPing() {
-        return zenPing;
-    }
 }

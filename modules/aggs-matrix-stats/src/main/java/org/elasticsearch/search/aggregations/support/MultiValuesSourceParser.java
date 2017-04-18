@@ -20,13 +20,12 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;
+import org.elasticsearch.search.aggregations.Aggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,47 +84,45 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
         String format = null;
         Map<String, Object> missingMap = null;
         Map<ParseField, Object> otherOptions = new HashMap<>();
-        final ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
-
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (parseFieldMatcher.match(currentFieldName, CommonFields.FIELDS)) {
+                if (CommonFields.FIELDS.match(currentFieldName)) {
                     fields = Collections.singletonList(parser.text());
-                } else if (formattable && parseFieldMatcher.match(currentFieldName, CommonFields.FORMAT)) {
+                } else if (formattable && CommonFields.FORMAT.match(currentFieldName)) {
                     format = parser.text();
-                } else if (parseFieldMatcher.match(currentFieldName, CommonFields.VALUE_TYPE)) {
+                } else if (CommonFields.VALUE_TYPE.match(currentFieldName)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
-                } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
+                } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseFieldMatcher.match(currentFieldName, CommonFields.MISSING)) {
+                if (CommonFields.MISSING.match(currentFieldName)) {
                     missingMap = new HashMap<>();
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         parseMissingAndAdd(aggregationName, currentFieldName, parser, missingMap);
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
+                } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
 
-                } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
+                } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
-                } else if (parseFieldMatcher.match(currentFieldName, CommonFields.FIELDS)) {
+                } else if (CommonFields.FIELDS.match(currentFieldName)) {
                     fields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -135,11 +132,11 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                                     "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                         }
                     }
-                } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
+                } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
-            } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
+            } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                 throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
             }
@@ -198,8 +195,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
      *            the target type of the final value output by the aggregation
      * @param otherOptions
      *            a {@link Map} containing the extra options parsed by the
-     *            {@link #token(String, String, org.elasticsearch.common.xcontent.XContentParser.Token,
-     *             XContentParser, ParseFieldMatcher, Map)}
+     *            {@link #token(String, String, XContentParser.Token, XContentParser, Map)}
      *            method
      * @return the created factory
      */
@@ -219,8 +215,6 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
      *            the current token for the parser
      * @param parser
      *            the parser
-     * @param parseFieldMatcher
-     *            the {@link ParseFieldMatcher} to use to match field names
      * @param otherOptions
      *            a {@link Map} of options to be populated by successive calls
      *            to this method which will then be passed to the
@@ -232,5 +226,5 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
      *             if an error occurs whilst parsing
      */
     protected abstract boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-        ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException;
+                                     Map<ParseField, Object> otherOptions) throws IOException;
 }

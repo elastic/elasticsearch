@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -182,6 +183,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      */
     public List<ShardRouting> activeShards() {
         return this.activeShards;
+    }
+
+    /**
+     * Returns a {@link List} of all initializing shards, including target shards of relocations
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> getAllInitializingShards() {
+        return this.allInitializingShards;
     }
 
     /**
@@ -572,14 +582,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public Builder addShard(ShardRouting shardEntry) {
-            for (ShardRouting shard : shards) {
-                // don't add two that map to the same node id
-                // we rely on the fact that a node does not have primary and backup of the same shard
-                if (shard.assignedToNode() && shardEntry.assignedToNode()
-                        && shard.currentNodeId().equals(shardEntry.currentNodeId())) {
-                    return this;
-                }
-            }
             shards.add(shardEntry);
             return this;
         }
@@ -590,7 +592,26 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public IndexShardRoutingTable build() {
+            // don't allow more than one shard copy with same id to be allocated to same node
+            assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList<>(shards)));
+        }
+
+        static boolean distinctNodes(List<ShardRouting> shards) {
+            Set<String> nodes = new HashSet<>();
+            for (ShardRouting shard : shards) {
+                if (shard.assignedToNode()) {
+                    if (nodes.add(shard.currentNodeId()) == false) {
+                        return false;
+                    }
+                    if (shard.relocating()) {
+                        if (nodes.add(shard.relocatingNodeId()) == false) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
         }
 
         public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {

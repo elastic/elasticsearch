@@ -19,18 +19,22 @@
 
 package org.elasticsearch.plugins;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.AbstractModule;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
@@ -45,20 +49,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public static class FailOnModule extends Plugin {
-        public void onModule(BrokenModule brokenModule) {
-            throw new IllegalStateException("boom");
-        }
-    }
-
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
-
-    public static class BrokenModule extends AbstractModule {
-
-        @Override
-        protected void configure() {
-        }
-    }
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
         return new PluginsService(settings, null, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
@@ -91,19 +82,6 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public void testOnModuleExceptionsArePropagated() {
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, FailOnModule.class);
-        try {
-            service.processModule(new BrokenModule());
-            fail("boom");
-        } catch (ElasticsearchException ex) {
-            assertEquals("failed to invoke onModule", ex.getMessage());
-            assertEquals("boom", ex.getCause().getCause().getMessage());
-        }
-    }
-
     public void testExistingPluginMissingDescriptor() throws Exception {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
@@ -111,7 +89,7 @@ public class PluginsServiceTests extends ESTestCase {
             PluginsService.getPluginBundles(pluginsDir);
             fail();
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin"));
+            assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin [plugin-missing-descriptor]"));
         }
     }
 
@@ -125,4 +103,22 @@ public class PluginsServiceTests extends ESTestCase {
         assertEquals(1, scriptPlugins.size());
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
     }
+
+    public void testHiddenFiles() throws IOException {
+        final Path home = createTempDir();
+        final Settings settings =
+                Settings.builder()
+                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
+                        .build();
+        final Path hidden = home.resolve("plugins").resolve(".hidden");
+        Files.createDirectories(hidden);
+        @SuppressWarnings("unchecked")
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> newPluginsService(settings));
+
+        final String expected = "Could not load plugin descriptor for existing plugin [.hidden]";
+        assertThat(e, hasToString(containsString(expected)));
+    }
+
 }

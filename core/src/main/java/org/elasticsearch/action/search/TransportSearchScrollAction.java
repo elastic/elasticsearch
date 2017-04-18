@@ -26,8 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,14 +41,15 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportSearchScrollAction(Settings settings, BigArrays bigArrays, ThreadPool threadPool, ScriptService scriptService,
-                                       TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                       ClusterService clusterService, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver,
+                                       SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 SearchScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchTransportService = new SearchTransportService(settings, transportService);
-        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService);
+        this.searchTransportService = searchTransportService;
+        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
@@ -67,7 +66,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
                         searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
-                case QUERY_AND_FETCH_TYPE:
+                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
                     action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
                         searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;

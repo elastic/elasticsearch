@@ -113,7 +113,7 @@ public class Matchers {
     private static class AnnotatedWithType extends AbstractMatcher<AnnotatedElement> {
         private final Class<? extends Annotation> annotationType;
 
-        public AnnotatedWithType(Class<? extends Annotation> annotationType) {
+        AnnotatedWithType(Class<? extends Annotation> annotationType) {
             this.annotationType = Objects.requireNonNull(annotationType, "annotation type");
             checkForRuntimeRetention(annotationType);
         }
@@ -152,7 +152,7 @@ public class Matchers {
     private static class AnnotatedWith extends AbstractMatcher<AnnotatedElement> {
         private final Annotation annotation;
 
-        public AnnotatedWith(Annotation annotation) {
+        AnnotatedWith(Annotation annotation) {
             this.annotation = Objects.requireNonNull(annotation, "annotation");
             checkForRuntimeRetention(annotation.annotationType());
         }
@@ -191,7 +191,7 @@ public class Matchers {
     private static class SubclassesOf extends AbstractMatcher<Class> {
         private final Class<?> superclass;
 
-        public SubclassesOf(Class<?> superclass) {
+        SubclassesOf(Class<?> superclass) {
             this.superclass = Objects.requireNonNull(superclass, "superclass");
         }
 
@@ -227,7 +227,7 @@ public class Matchers {
     private static class Only extends AbstractMatcher<Object> {
         private final Object value;
 
-        public Only(Object value) {
+        Only(Object value) {
             this.value = Objects.requireNonNull(value, "value");
         }
 
@@ -263,7 +263,7 @@ public class Matchers {
     private static class IdenticalTo extends AbstractMatcher<Object> {
         private final Object value;
 
-        public IdenticalTo(Object value) {
+        IdenticalTo(Object value) {
             this.value = Objects.requireNonNull(value, "value");
         }
 
@@ -301,7 +301,7 @@ public class Matchers {
         private final transient Package targetPackage;
         private final String packageName;
 
-        public InPackage(Package targetPackage) {
+        InPackage(Package targetPackage) {
             this.targetPackage = Objects.requireNonNull(targetPackage, "package");
             this.packageName = targetPackage.getName();
         }
@@ -345,7 +345,7 @@ public class Matchers {
     private static class InSubpackage extends AbstractMatcher<Class>  {
         private final String targetPackageName;
 
-        public InSubpackage(String targetPackageName) {
+        InSubpackage(String targetPackageName) {
             this.targetPackageName = targetPackageName;
         }
 
@@ -384,7 +384,7 @@ public class Matchers {
     private static class Returns extends AbstractMatcher<Method> {
         private final Matcher<? super Class<?>> returnType;
 
-        public Returns(Matcher<? super Class<?>> returnType) {
+        Returns(Matcher<? super Class<?>> returnType) {
             this.returnType = Objects.requireNonNull(returnType, "return type matcher");
         }
 

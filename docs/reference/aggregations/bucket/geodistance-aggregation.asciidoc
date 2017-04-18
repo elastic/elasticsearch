@@ -149,17 +149,17 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
+POST /museums/_search?size=0
 {
-    "aggs": {
-        "accidents_near_empire_state": {
-            "geo_distance": {
-                "field": "coords",
-                "unit": "km",
-                "origin" : { "lat" : 40.7484, "lon" : -73.9857 },
-                "ranges": [
-                    { "to": 3 },
-                    { "from" : 3, "to" : 8 },
-                    { "from" : 8 }
+    "aggs" : {
+        "rings_around_amsterdam" : {
+            "geo_distance" : {
+                "field" : "location",
+                "origin" : "52.3760, 4.894",
+                "ranges" : [
+                    { "to" : 100000 },
+                    { "from" : 100000, "to" : 300000 },
+                    { "from" : 300000 }
                 ],
                 "keyed": true
             }
@@ -167,6 +167,8 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Response:
 
@@ -174,45 +176,45 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
-        "accidents_near_empire_state": {
+        "rings_around_amsterdam" : {
             "buckets": {
-                "*-3.0": {
-                    "from": 0,
-                    "to": 3,
-                    "doc_count": 102090
+                "*-100000.0": {
+                    "from": 0.0,
+                    "to": 100000.0,
+                    "doc_count": 3
                 },
-                "3.0-8.0": {
-                    "from": 3,
-                    "to": 8,
-                    "doc_count": 170287
+                "100000.0-300000.0": {
+                    "from": 100000.0,
+                    "to": 300000.0,
+                    "doc_count": 1
                 },
-                "8.0-*": {
-                    "from": 8,
-                    "doc_count": 526590
+                "300000.0-*": {
+                    "from": 300000.0,
+                    "doc_count": 2
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 It is also possible to customize the key for each range:
 
 [source,js]
 --------------------------------------------------
+POST /museums/_search?size=0
 {
-    "aggs": {
-        "accidents_near_empire_state": {
-            "geo_distance": {
-                "field": "coords",
-                "unit": "km",
-                "origin" : { "lat" : 40.7484, "lon" : -73.9857 },
-                "ranges": [
-                    { "key": "very-close", "to": 3 },
-                    { "key": "close", "from" : 3, "to" : 8 },
-                    { "key": "far", "from" : 8 }
+    "aggs" : {
+        "rings_around_amsterdam" : {
+            "geo_distance" : {
+                "field" : "location",
+                "origin" : "52.3760, 4.894",
+                "ranges" : [
+                    { "to" : 100000, "key": "first_ring" },
+                    { "from" : 100000, "to" : 300000, "key": "second_ring" },
+                    { "from" : 300000, "key": "third_ring" }
                 ],
                 "keyed": true
             }
@@ -220,6 +222,8 @@ It is also possible to customize the key for each range:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Response:
 
@@ -227,27 +231,27 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
-        "accidents_near_empire_state": {
+        "rings_around_amsterdam" : {
             "buckets": {
-                "very-close": {
-                    "from": 0,
-                    "to": 3,
-                    "doc_count": 102090
+                "first_ring": {
+                    "from": 0.0,
+                    "to": 100000.0,
+                    "doc_count": 3
                 },
-                "close": {
-                    "from": 3,
-                    "to": 8,
-                    "doc_count": 170287
+                "second_ring": {
+                    "from": 100000.0,
+                    "to": 300000.0,
+                    "doc_count": 1
                 },
-                "far": {
-                    "from": 8,
-                    "doc_count": 526590
+                "third_ring": {
+                    "from": 300000.0,
+                    "doc_count": 2
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 

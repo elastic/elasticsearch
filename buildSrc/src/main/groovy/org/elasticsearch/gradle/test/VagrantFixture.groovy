@@ -18,12 +18,29 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.vagrant.VagrantCommandTask
 import org.gradle.api.Task
 
+class VagrantFixture extends VagrantCommandTask implements Fixture {
 
-public interface Fixture {
+    private final Task stopTask
 
-    /** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
-    public Task getStopTask()
+    public VagrantFixture() {
+        stopTask = createStopTask()
+        finalizedBy(stopTask)
+    }
 
+    private Task createStopTask() {
+        VagrantCommandTask halt = project.tasks.create(name: "${name}#stop", type: VagrantCommandTask) {
+            args 'halt', box
+        }
+        halt.boxName = this.boxName
+        halt.environmentVars = this.environmentVars
+        return halt;
+    }
+
+    @Override
+    public Task getStopTask() {
+        return stopTask
+    }
 }

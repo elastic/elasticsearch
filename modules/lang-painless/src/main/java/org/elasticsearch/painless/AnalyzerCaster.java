@@ -19,32 +19,41 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 
 import java.util.Objects;
 
-import static org.elasticsearch.painless.Definition.BOOLEAN_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.BOOLEAN_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.CHAR_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.CHAR_TYPE;
 import static org.elasticsearch.painless.Definition.DEF_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.LONG_TYPE;
-import static org.elasticsearch.painless.Definition.NUMBER_TYPE;
 import static org.elasticsearch.painless.Definition.OBJECT_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.SHORT_TYPE;
 import static org.elasticsearch.painless.Definition.STRING_TYPE;
+import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
+import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 
 /**
  * Used during the analysis phase to collect legal type casts and promotions
@@ -52,29 +61,27 @@ import static org.elasticsearch.painless.Definition.STRING_TYPE;
  */
 public final class AnalyzerCaster {
 
+    @SuppressWarnings("incomplete-switch") // Missing arms mean the cast is not supported
     public static Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
         Objects.requireNonNull(actual);
         Objects.requireNonNull(expected);
 
         if (actual.equals(expected)) {
-            return null;
+            return Cast.NOOP;
         }
 
         switch (actual.sort) {
             case BOOL:
                 switch (expected.sort) {
                     case DEF:
-                        return new Cast(BOOLEAN_OBJ_TYPE, DEF_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
+                        return new Cast.Box(BOOLEAN_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(BOOLEAN_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(BOOLEAN_TYPE);
                         break;
                     case BOOL_OBJ:
-                        if (internal)
-                            return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, null, null, null, BOOLEAN_TYPE);
+                        if (internal) return new Cast.Box(BOOLEAN_TYPE);
+                        break;
                 }
-
                 break;
             case BYTE:
                 switch (expected.sort) {
@@ -83,375 +90,249 @@ public final class AnalyzerCaster {
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast(BYTE_TYPE, expected, explicit);
+                        return new Cast.Numeric(BYTE_TYPE, expected);
                     case CHAR:
-                        if (explicit)
-                            return new Cast(BYTE_TYPE, CHAR_TYPE, true);
-
+                        if (explicit) return new Cast.Numeric(BYTE_TYPE, expected);
                         break;
                     case DEF:
-                        return new Cast(BYTE_OBJ_TYPE, DEF_TYPE, explicit, null, null, BYTE_TYPE, null);
+                        return new Cast.Box(BYTE_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(BYTE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BYTE_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(BYTE_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(BYTE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, BYTE_TYPE, null);
-
+                        if (internal) return new Cast.Box(BYTE_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, null, null, null, BYTE_TYPE);
-
+                        if (internal) return new Cast.Box(BYTE_TYPE);
                         break;
                     case SHORT_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-
+                        if (internal) return new Cast.Numeric(BYTE_TYPE, SHORT_TYPE, new Cast.Box(SHORT_TYPE));
                         break;
                     case INT_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
+                        if (internal) return new Cast.Numeric(BYTE_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
                         break;
                     case LONG_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
+                        if (internal) return new Cast.Numeric(BYTE_TYPE, LONG_TYPE, new Cast.Box(LONG_TYPE));
                         break;
                     case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
+                        if (internal) return new Cast.Numeric(BYTE_TYPE, FLOAT_TYPE, new Cast.Box(FLOAT_TYPE));
                         break;
                     case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new Cast.Numeric(BYTE_TYPE, DOUBLE_TYPE, new Cast.Box(DOUBLE_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(BYTE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(BYTE_TYPE, CHAR_TYPE, new Cast.Box(CHAR_TYPE));
                         break;
                 }
-
                 break;
             case SHORT:
                 switch (expected.sort) {
+                    case BYTE:
+                        if (explicit) return new Cast.Numeric(SHORT_TYPE, expected);
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast(SHORT_TYPE, expected, explicit);
-                    case BYTE:
+                        return new Cast.Numeric(SHORT_TYPE, expected);
                     case CHAR:
-                        if (explicit)
-                            return new Cast(SHORT_TYPE, expected, true);
-
+                        if (explicit) return new Cast.Numeric(SHORT_TYPE, expected);
                         break;
                     case DEF:
-                        return new Cast(SHORT_OBJ_TYPE, DEF_TYPE, explicit, null, null, SHORT_TYPE, null);
+                        return new Cast.Box(SHORT_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(SHORT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, SHORT_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(SHORT_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(SHORT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, SHORT_TYPE, null);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new Cast.Box(SHORT_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(SHORT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(SHORT_TYPE, BYTE_TYPE, new Cast.Box(BYTE_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(SHORT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(SHORT_TYPE, CHAR_TYPE, new Cast.Box(CHAR_TYPE));
+                        break;
+                    case SHORT_OBJ:
+                        if (internal) return new Cast.Box(SHORT_TYPE);
+                        break;
+                    case INT_OBJ:
+                        if (internal) return new Cast.Numeric(SHORT_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
+                        break;
+                    case LONG_OBJ:
+                        if (internal) return new Cast.Numeric(SHORT_TYPE, LONG_TYPE, new Cast.Box(LONG_TYPE));
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal) return new Cast.Numeric(SHORT_TYPE, FLOAT_TYPE, new Cast.Box(FLOAT_TYPE));
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new Cast.Numeric(SHORT_TYPE, DOUBLE_TYPE, new Cast.Box(DOUBLE_TYPE));
                         break;
                 }
-
                 break;
             case CHAR:
                 switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                        if (explicit) return new Cast.Numeric(CHAR_TYPE, expected);
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast(CHAR_TYPE, expected, explicit);
-                    case BYTE:
-                    case SHORT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
-                        break;
+                        return new Cast.Numeric(CHAR_TYPE, expected);
                     case DEF:
-                        return new Cast(CHAR_OBJ_TYPE, DEF_TYPE, explicit, null, null, CHAR_TYPE, null);
+                        return new Cast.Box(CHAR_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(CHAR_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, CHAR_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(CHAR_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, CHAR_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(CHAR_TYPE);
                         break;
                     case CHAR_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, CHAR_TYPE, explicit, null, null, null, CHAR_TYPE);
-
+                        if (internal) return new Cast.Box(CHAR_TYPE);
                         break;
                     case STRING:
-                        return new Cast(CHAR_TYPE, STRING_TYPE, explicit);
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
+                        return new Cast.InvokeStatic(UTILITY_TYPE, CHAR_TO_STRING, c -> Utility.charToString((Character) c));
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(CHAR_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(CHAR_TYPE, BYTE_TYPE, new Cast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(CHAR_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(CHAR_TYPE, SHORT_TYPE, new Cast.Box(SHORT_TYPE));
+                        break;
+                    case INT_OBJ:
+                        if (internal) return new Cast.Numeric(CHAR_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
+                        break;
+                    case LONG_OBJ:
+                        if (internal) return new Cast.Numeric(CHAR_TYPE, LONG_TYPE, new Cast.Box(LONG_TYPE));
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal) return new Cast.Numeric(CHAR_TYPE, FLOAT_TYPE, new Cast.Box(FLOAT_TYPE));
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new Cast.Numeric(CHAR_TYPE, DOUBLE_TYPE, new Cast.Box(DOUBLE_TYPE));
                         break;
                 }
-
                 break;
             case INT:
                 switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                        if (explicit) return new Cast.Numeric(INT_TYPE, expected);
+                        break;
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast(INT_TYPE, expected, explicit);
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                        if (explicit)
-                            return new Cast(INT_TYPE, expected, true);
-
-                        break;
+                        return new Cast.Numeric(INT_TYPE, expected);
                     case DEF:
-                        return new Cast(INT_OBJ_TYPE, DEF_TYPE, explicit, null, null, INT_TYPE, null);
+                        return new Cast.Box(INT_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(INT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, INT_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(INT_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(INT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, INT_TYPE, null);
-
-                        break;
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new Cast.Box(INT_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(INT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(INT_TYPE, BYTE_TYPE, new Cast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(INT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(INT_TYPE, SHORT_TYPE, new Cast.Box(SHORT_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(INT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(INT_TYPE, CHAR_TYPE, new Cast.Box(CHAR_TYPE));
+                        break;
+                    case INT_OBJ:
+                        if (internal) return new Cast.Box(INT_TYPE);
+                        break;
+                    case LONG_OBJ:
+                        if (internal) return new Cast.Numeric(INT_TYPE, LONG_TYPE, new Cast.Box(LONG_TYPE));
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal) return new Cast.Numeric(INT_TYPE, FLOAT_TYPE, new Cast.Box(FLOAT_TYPE));
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new Cast.Numeric(INT_TYPE, DOUBLE_TYPE, new Cast.Box(DOUBLE_TYPE));
                         break;
                 }
-
                 break;
             case LONG:
-                switch (expected.sort) {
-                    case FLOAT:
-                    case DOUBLE:
-                        return new Cast(LONG_TYPE, expected, explicit);
+                    switch (expected.sort) {
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
+                        if (explicit) return new Cast.Numeric(LONG_TYPE, expected);
                         break;
+                    case FLOAT:
+                    case DOUBLE:
+                        return new Cast.Numeric(LONG_TYPE, expected);
                     case DEF:
-                        return new Cast(LONG_TYPE, DEF_TYPE, explicit, null, null, LONG_TYPE, null);
+                        return new Cast.Box(LONG_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(LONG_TYPE, actual, explicit, null, null, LONG_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(LONG_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(LONG_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, LONG_TYPE, null);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(LONG_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new Cast.Box(LONG_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(LONG_TYPE, BYTE_TYPE, new Cast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(LONG_TYPE, SHORT_TYPE, new Cast.Box(SHORT_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(LONG_TYPE, CHAR_TYPE, new Cast.Box(CHAR_TYPE));
                         break;
                     case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(LONG_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
+                        break;
+                    case LONG_OBJ:
+                        if (internal) return new Cast.Box(LONG_TYPE);
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal) return new Cast.Numeric(LONG_TYPE, FLOAT_TYPE, new Cast.Box(FLOAT_TYPE));
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new Cast.Numeric(LONG_TYPE, DOUBLE_TYPE, new Cast.Box(DOUBLE_TYPE));
                         break;
                 }
-
                 break;
             case FLOAT:
                 switch (expected.sort) {
-                    case DOUBLE:
-                        return new Cast(actual, expected, explicit);
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
-                    case FLOAT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
+                    case LONG:
+                        if (explicit) return new Cast.Numeric(FLOAT_TYPE, expected);
                         break;
+                    case DOUBLE:
+                        return new Cast.Numeric(FLOAT_TYPE, expected);
                     case DEF:
-                        return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
+                        return new Cast.Box(FLOAT_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(FLOAT_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(FLOAT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, FLOAT_TYPE, null);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new Cast.Box(FLOAT_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(FLOAT_TYPE, BYTE_TYPE, new Cast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(FLOAT_TYPE, SHORT_TYPE, new Cast.Box(SHORT_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(FLOAT_TYPE, CHAR_TYPE, new Cast.Box(CHAR_TYPE));
                         break;
                     case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(FLOAT_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
                         break;
                     case LONG_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(FLOAT_TYPE, LONG_TYPE, new Cast.Box(LONG_TYPE));
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal) return new Cast.Box(FLOAT_TYPE);
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new Cast.Numeric(FLOAT_TYPE, DOUBLE_TYPE, new Cast.Box(DOUBLE_TYPE));
                         break;
                 }
 
@@ -462,369 +343,264 @@ public final class AnalyzerCaster {
                     case SHORT:
                     case CHAR:
                     case INT:
+                    case LONG:
                     case FLOAT:
-                        if (explicit)
-                            return new Cast(DOUBLE_TYPE, expected, true);
-
+                        if (explicit) return new Cast.Numeric(DOUBLE_TYPE, expected);
                         break;
                     case DEF:
-                        return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+                        return new Cast.Box(DOUBLE_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new Cast.Box(DOUBLE_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(DOUBLE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new Cast.Box(DOUBLE_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(DOUBLE_TYPE, BYTE_TYPE, new Cast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(DOUBLE_TYPE, SHORT_TYPE, new Cast.Box(SHORT_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(DOUBLE_TYPE, CHAR_TYPE, new Cast.Box(CHAR_TYPE));
                         break;
                     case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(DOUBLE_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
                         break;
                     case LONG_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(DOUBLE_TYPE, LONG_TYPE, new Cast.Box(LONG_TYPE));
                         break;
                     case FLOAT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, null, null, null, FLOAT_TYPE);
-
+                        if (explicit && internal) return new Cast.Numeric(DOUBLE_TYPE, FLOAT_TYPE, new Cast.Box(FLOAT_TYPE));
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new Cast.Box(DOUBLE_TYPE);
                         break;
                 }
-
                 break;
             case OBJECT:
                 if (OBJECT_TYPE.equals(actual))
                     switch (expected.sort) {
                         case BYTE:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(BYTE_TYPE);
                             break;
                         case SHORT:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(SHORT_TYPE);
                             break;
                         case CHAR:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(CHAR_TYPE);
                             break;
                         case INT:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(INT_TYPE);
                             break;
                         case LONG:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(LONG_TYPE);
                             break;
                         case FLOAT:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(FLOAT_TYPE);
                             break;
                         case DOUBLE:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
-
+                            if (internal && explicit) return new Cast.Unbox(DOUBLE_TYPE);
                             break;
-                    }
+                }
                 break;
             case NUMBER:
                 switch (expected.sort) {
                     case BYTE:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(BYTE_TYPE);
                         break;
                     case SHORT:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(SHORT_TYPE);
                         break;
                     case CHAR:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(CHAR_TYPE);
                         break;
                     case INT:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(INT_TYPE);
                         break;
                     case LONG:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(LONG_TYPE);
                         break;
                     case FLOAT:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(FLOAT_TYPE);
                         break;
                     case DOUBLE:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(DOUBLE_TYPE);
                         break;
                 }
-
                 break;
             case BOOL_OBJ:
                 switch (expected.sort) {
                     case BOOL:
-                        if (internal)
-                            return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, BOOLEAN_TYPE, null, null, null);
-
+                        if (internal) return new Cast.Unbox(BOOLEAN_TYPE);
                         break;
                 }
-
                 break;
             case BYTE_OBJ:
                 switch (expected.sort) {
                     case BYTE:
                     case SHORT:
+                        if (internal) return new Cast.Unbox(expected);
+                        break;
+                    case CHAR:
+                        if (internal && explicit) return new Cast.Unbox(BYTE_TYPE, new Cast.Numeric(BYTE_TYPE, CHAR_TYPE));
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, expected, explicit, BYTE_TYPE, null, null, null);
-
-                        break;
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(BYTE_TYPE, expected, true, BYTE_TYPE, null, null, null);
-
+                        if (internal) return new Cast.Unbox(expected);
                         break;
                 }
-
                 break;
             case SHORT_OBJ:
                 switch (expected.sort) {
+                    case BYTE:
+                        if (internal && explicit) return new Cast.Unbox(expected);
+                        break;
                     case SHORT:
+                        if (internal) return new Cast.Unbox(expected);
+                        break;
+                    case CHAR:
+                        if (internal && explicit) return new Cast.Unbox(SHORT_TYPE, new Cast.Numeric(SHORT_TYPE, CHAR_TYPE));
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, expected, explicit, SHORT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(SHORT_TYPE, expected, true, SHORT_TYPE, null, null, null);
-
+                        if (internal) return new Cast.Unbox(expected);
                         break;
                 }
-
                 break;
             case CHAR_OBJ:
                 switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                        if (internal && explicit) return new Cast.Unbox(CHAR_TYPE, new Cast.Numeric(CHAR_TYPE, expected));
+                        break;
                     case CHAR:
+                        if (internal) return new Cast.Unbox(CHAR_TYPE);
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, expected, explicit, CHAR_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                        if (internal && explicit)
-                            return new Cast(CHAR_TYPE, expected, true, CHAR_TYPE, null, null, null);
-
+                        if (internal) return new Cast.Unbox(CHAR_TYPE, new Cast.Numeric(CHAR_TYPE, expected));
                         break;
                 }
-
                 break;
             case INT_OBJ:
                 switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                        if (internal && explicit) return new Cast.Unbox(expected);
+                        break;
+                    case CHAR:
+                        if (internal && explicit) return new Cast.Unbox(INT_TYPE, new Cast.Numeric(INT_TYPE, CHAR_TYPE));
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(INT_TYPE, expected, explicit, INT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(INT_TYPE, expected, true, INT_TYPE, null, null, null);
-
+                        if (internal) return new Cast.Unbox(expected);
                         break;
                 }
-
                 break;
             case LONG_OBJ:
                 switch (expected.sort) {
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(LONG_TYPE, expected, explicit, LONG_TYPE, null, null, null);
-
-                        break;
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
-                        if (internal && explicit)
-                            return new Cast(LONG_TYPE, expected, true, LONG_TYPE, null, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(LONG_TYPE, new Cast.Numeric(LONG_TYPE, expected));
+                        break;
+                    case LONG:
+                        if (internal) return new Cast.Unbox(LONG_TYPE);
+                        break;
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal) return new Cast.Unbox(LONG_TYPE, new Cast.Numeric(LONG_TYPE, expected));
                         break;
                 }
-
                 break;
             case FLOAT_OBJ:
                 switch (expected.sort) {
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, expected, explicit, FLOAT_TYPE, null, null, null);
-
-                        break;
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
                     case LONG:
-                        if (internal && explicit)
-                            return new Cast(FLOAT_TYPE, expected, true, FLOAT_TYPE, null, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(FLOAT_TYPE, new Cast.Numeric(FLOAT_TYPE, expected));
+                        break;
+                    case FLOAT:
+                        if (internal) return new Cast.Unbox(FLOAT_TYPE);
+                        break;
+                    case DOUBLE:
+                        if (internal) return new Cast.Unbox(FLOAT_TYPE, new Cast.Numeric(FLOAT_TYPE, DOUBLE_TYPE));
                         break;
                 }
-
                 break;
             case DOUBLE_OBJ:
                 switch (expected.sort) {
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(DOUBLE_TYPE, expected, explicit, DOUBLE_TYPE, null, null, null);
-
-                        break;
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
                     case LONG:
                     case FLOAT:
-                        if (internal && explicit)
-                            return new Cast(DOUBLE_TYPE, expected, true, DOUBLE_TYPE, null, null, null);
-
+                        if (internal && explicit) return new Cast.Unbox(DOUBLE_TYPE, new Cast.Numeric(DOUBLE_TYPE, expected));
+                        break;
+                    case DOUBLE:
+                        if (internal) return new Cast.Unbox(DOUBLE_TYPE);
                         break;
                 }
-
                 break;
             case DEF:
                 switch (expected.sort) {
                     case BOOL:
-                        return new Cast(DEF_TYPE, BOOLEAN_OBJ_TYPE, explicit, null, BOOLEAN_TYPE, null, null);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN, Def::DefToboolean);
                     case BYTE:
-                        return new Cast(DEF_TYPE, BYTE_OBJ_TYPE, explicit, null, BYTE_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT, Def::DefTobyteExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT, Def::DefTobyteImplicit);
                     case SHORT:
-                        return new Cast(DEF_TYPE, SHORT_OBJ_TYPE, explicit, null, SHORT_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT, Def::DefToshortExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT, Def::DefToshortImplicit);
                     case CHAR:
-                        return new Cast(DEF_TYPE, CHAR_OBJ_TYPE, explicit, null, CHAR_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT, Def::DefTocharExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT, Def::DefTocharImplicit);
                     case INT:
-                        return new Cast(DEF_TYPE, INT_OBJ_TYPE, explicit, null, INT_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT, Def::DefTointExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT, Def::DefTointImplicit);
                     case LONG:
-                        return new Cast(DEF_TYPE, LONG_OBJ_TYPE, explicit, null, LONG_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT, Def::DefTolongExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT, Def::DefTolongImplicit);
                     case FLOAT:
-                        return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT, Def::DefTofloatExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT, Def::DefTofloatImplicit);
                     case DOUBLE:
-                            return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
+                        if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT, Def::DefTodoubleExplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT, Def::DefTodoubleImplicit);
                 }
-
                 break;
             case STRING:
                 switch (expected.sort) {
                     case CHAR:
-                        if (explicit)
-                            return new Cast(STRING_TYPE, CHAR_TYPE, true);
-
+                        if (explicit) return new Cast.InvokeStatic(UTILITY_TYPE, STRING_TO_CHAR, c -> Utility.StringTochar((String) c));
                         break;
                 }
-
                 break;
         }
 
-        if (       actual.sort == Sort.DEF
-                || (actual.sort != Sort.VOID && expected.sort == Sort.DEF)
-                || expected.clazz.isAssignableFrom(actual.clazz)
-                || (explicit && actual.clazz.isAssignableFrom(expected.clazz))) {
-            return new Cast(actual, expected, explicit);
-        } else {
-            throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
+        if (expected.clazz.isAssignableFrom(actual.clazz)) {
+            return Cast.NOOP;
         }
-    }
-
-    public static Object constCast(Location location, final Object constant, final Cast cast) {
-        final Sort fsort = cast.from.sort;
-        final Sort tsort = cast.to.sort;
-
-        if (fsort == tsort) {
-            return constant;
-        } else if (fsort == Sort.STRING && tsort == Sort.CHAR) {
-            return Utility.StringTochar((String)constant);
-        } else if (fsort == Sort.CHAR && tsort == Sort.STRING) {
-            return Utility.charToString((char)constant);
-        } else if (fsort.numeric && tsort.numeric) {
-            final Number number;
-
-            if (fsort == Sort.CHAR) {
-                number = (int)(char)constant;
-            } else {
-                number = (Number)constant;
-            }
-
-            switch (tsort) {
-                case BYTE:   return number.byteValue();
-                case SHORT:  return number.shortValue();
-                case CHAR:   return (char)number.intValue();
-                case INT:    return number.intValue();
-                case LONG:   return number.longValue();
-                case FLOAT:  return number.floatValue();
-                case DOUBLE: return number.doubleValue();
-                default:
-                    throw location.createError(new IllegalStateException("Cannot cast from " +
-                        "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
-            }
-        } else {
-            throw location.createError(new IllegalStateException("Cannot cast from " +
-                "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
+        if (explicit && actual.clazz.isAssignableFrom(expected.clazz)) {
+            return new Cast.CheckedCast(expected);
         }
+        if (actual.sort == Sort.DEF) {
+            return new Cast.CheckedCast(expected);
+        }
+        throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
     }
 
     public static Type promoteNumeric(Type from, boolean decimal) {

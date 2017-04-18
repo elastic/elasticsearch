@@ -20,10 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Cast;
 
 import java.util.Objects;
 
@@ -120,7 +120,7 @@ public abstract class AExpression extends ANode {
     AExpression cast(Locals locals) {
         Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
-        if (cast == null) {
+        if (false == cast.castRequired()) {
             if (constant == null || this instanceof EConstant) {
                 // For the case where a cast is not required and a constant is not set
                 // or the node is already an EConstant no changes are required to the tree.
@@ -137,7 +137,10 @@ public abstract class AExpression extends ANode {
                 EConstant econstant = new EConstant(location, constant);
                 econstant.analyze(locals);
 
-                if (!expected.equals(econstant.actual)) {
+                /* If we can't assign the constant to this node then we've failed to cast. The
+                 * types don't have to be exactly equal because a cast isn't required when a
+                 * narrower type is assigned to a wider type. */
+                if (!expected.clazz.isAssignableFrom(econstant.actual.clazz)) {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
@@ -166,7 +169,7 @@ public abstract class AExpression extends ANode {
                     // from this node because the output data for the EConstant
                     // will already be the same.
 
-                    constant = AnalyzerCaster.constCast(location, constant, cast);
+                    constant = cast.castConstant(location, constant);
 
                     EConstant econstant = new EConstant(location, constant);
                     econstant.analyze(locals);
@@ -193,7 +196,7 @@ public abstract class AExpression extends ANode {
                     // For the case where a cast is required, a constant is set,
                     // the constant cannot be immediately cast to the expected type,
                     // and this node is not an EConstant.  Replace this node with
-                    // an Econstant node copying the constant from this node.
+                    // an EConstant node copying the constant from this node.
                     // Modify the tree to add an ECast between the EConstant node
                     // and its parent.  Note that for constants output data does not
                     // need to be copied from this node because the output data for

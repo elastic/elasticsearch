@@ -54,18 +54,6 @@ public class FunctionTests extends ScriptTestCase {
         assertThat(expected.getMessage(), containsString("Cannot generate an empty function"));
     }
 
-    public void testReturnsAreUnboxedIfNeeded() {
-        assertEquals((byte) 5, exec("byte get() {Byte.valueOf(5)} get()"));
-        assertEquals((short) 5, exec("short get() {Byte.valueOf(5)} get()"));
-        assertEquals(5, exec("int get() {Byte.valueOf(5)} get()"));
-        assertEquals((short) 5, exec("short get() {Short.valueOf(5)} get()"));
-        assertEquals(5, exec("int get() {Integer.valueOf(5)} get()"));
-        assertEquals(5.0f, exec("float get() {Float.valueOf(5)} get()"));
-        assertEquals(5.0d, exec("double get() {Float.valueOf(5)} get()"));
-        assertEquals(5.0d, exec("double get() {Double.valueOf(5)} get()"));
-        assertEquals(true, exec("boolean get() {Boolean.TRUE} get()"));
-    }
-
     public void testDuplicates() {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {x = 2;} void test(def y) {y = 3;} test()");

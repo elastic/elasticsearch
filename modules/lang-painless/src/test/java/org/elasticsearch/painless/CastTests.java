@@ -19,98 +19,19 @@
 
 package org.elasticsearch.painless;
 
-/** Tests for explicit casts */
+/**
+ * Tests casts not interacting with operators.
+ */
 public class CastTests extends ScriptTestCase {
-
     /**
-     * Unary operator with explicit cast
+     * Currently these do not adopt the return value, we issue a separate cast!
      */
-    public void testUnaryOperator() {
-        assertEquals((byte)5, exec("long x = 5L; return (byte) (+x);"));
-        assertEquals((short)5, exec("long x = 5L; return (short) (+x);"));
-        assertEquals((char)5, exec("long x = 5L; return (char) (+x);"));
-        assertEquals(5, exec("long x = 5L; return (int) (+x);"));
-        assertEquals(5F, exec("long x = 5L; return (float) (+x);"));
-        assertEquals(5L, exec("long x = 5L; return (long) (+x);"));
-        assertEquals(5D, exec("long x = 5L; return (double) (+x);"));
+    public void testMethodCallDef() {
+        assertEquals(5, exec("def x = 5; return (int)x.longValue();"));
     }
 
-    /**
-     * Binary operators with explicit cast
-     */
-    public void testBinaryOperator() {
-        assertEquals((byte)6, exec("long x = 5L; return (byte) (x + 1);"));
-        assertEquals((short)6, exec("long x = 5L; return (short) (x + 1);"));
-        assertEquals((char)6, exec("long x = 5L; return (char) (x + 1);"));
-        assertEquals(6, exec("long x = 5L; return (int) (x + 1);"));
-        assertEquals(6F, exec("long x = 5L; return (float) (x + 1);"));
-        assertEquals(6L, exec("long x = 5L; return (long) (x + 1);"));
-        assertEquals(6D, exec("long x = 5L; return (double) (x + 1);"));
-    }
-
-    /**
-     * Binary compound assignment with explicit cast
-     */
-    public void testBinaryCompoundAssignment() {
-        assertEquals((byte)6, exec("long x = 5L; return (byte) (x += 1);"));
-        assertEquals((short)6, exec("long x = 5L; return (short) (x += 1);"));
-        assertEquals((char)6, exec("long x = 5L; return (char) (x += 1);"));
-        assertEquals(6, exec("long x = 5L; return (int) (x += 1);"));
-        assertEquals(6F, exec("long x = 5L; return (float) (x += 1);"));
-        assertEquals(6L, exec("long x = 5L; return (long) (x += 1);"));
-        assertEquals(6D, exec("long x = 5L; return (double) (x += 1);"));
-    }
-
-    /**
-     * Binary compound prefix with explicit cast
-     */
-    public void testBinaryPrefix() {
-        assertEquals((byte)6, exec("long x = 5L; return (byte) (++x);"));
-        assertEquals((short)6, exec("long x = 5L; return (short) (++x);"));
-        assertEquals((char)6, exec("long x = 5L; return (char) (++x);"));
-        assertEquals(6, exec("long x = 5L; return (int) (++x);"));
-        assertEquals(6F, exec("long x = 5L; return (float) (++x);"));
-        assertEquals(6L, exec("long x = 5L; return (long) (++x);"));
-        assertEquals(6D, exec("long x = 5L; return (double) (++x);"));
-    }
-
-    /**
-     * Binary compound postifx with explicit cast
-     */
-    public void testBinaryPostfix() {
-        assertEquals((byte)5, exec("long x = 5L; return (byte) (x++);"));
-        assertEquals((short)5, exec("long x = 5L; return (short) (x++);"));
-        assertEquals((char)5, exec("long x = 5L; return (char) (x++);"));
-        assertEquals(5, exec("long x = 5L; return (int) (x++);"));
-        assertEquals(5F, exec("long x = 5L; return (float) (x++);"));
-        assertEquals(5L, exec("long x = 5L; return (long) (x++);"));
-        assertEquals(5D, exec("long x = 5L; return (double) (x++);"));
-    }
-
-    /**
-     * Shift operators with explicit cast
-     */
-    public void testShiftOperator() {
-        assertEquals((byte)10, exec("long x = 5L; return (byte) (x << 1);"));
-        assertEquals((short)10, exec("long x = 5L; return (short) (x << 1);"));
-        assertEquals((char)10, exec("long x = 5L; return (char) (x << 1);"));
-        assertEquals(10, exec("long x = 5L; return (int) (x << 1);"));
-        assertEquals(10F, exec("long x = 5L; return (float) (x << 1);"));
-        assertEquals(10L, exec("long x = 5L; return (long) (x << 1);"));
-        assertEquals(10D, exec("long x = 5L; return (double) (x << 1);"));
-    }
-
-    /**
-     * Shift compound assignment with explicit cast
-     */
-    public void testShiftCompoundAssignment() {
-        assertEquals((byte)10, exec("long x = 5L; return (byte) (x <<= 1);"));
-        assertEquals((short)10, exec("long x = 5L; return (short) (x <<= 1);"));
-        assertEquals((char)10, exec("long x = 5L; return (char) (x <<= 1);"));
-        assertEquals(10, exec("long x = 5L; return (int) (x <<= 1);"));
-        assertEquals(10F, exec("long x = 5L; return (float) (x <<= 1);"));
-        assertEquals(10L, exec("long x = 5L; return (long) (x <<= 1);"));
-        assertEquals(10D, exec("long x = 5L; return (double) (x <<= 1);"));
+    public void testUnboxMethodParameters() {
+        assertEquals('a', exec("'a'.charAt(Integer.valueOf(0))"));
     }
 
     /**
@@ -156,113 +77,6 @@ public class CastTests extends ScriptTestCase {
     }
 
     /**
-     * Currently these do not adopt the return value, we issue a separate cast!
-     */
-    public void testMethodCallDef() {
-        assertEquals(5, exec("def x = 5; return (int)x.longValue();"));
-    }
-
-    /**
-     * Currently these do not adopt the argument value, we issue a separate cast!
-     */
-    public void testArgumentsDef() {
-        assertEquals(5, exec("def x = 5L; return (+(int)x);"));
-        assertEquals(6, exec("def x = 5; def y = 1L; return x + (int)y"));
-        assertEquals('b', exec("def x = 'abcdeg'; def y = 1L; x.charAt((int)y)"));
-    }
-
-    /**
-     * Unary operators adopt the return value
-     */
-    public void testUnaryOperatorDef() {
-        assertEquals((byte)5, exec("def x = 5L; return (byte) (+x);"));
-        assertEquals((short)5, exec("def x = 5L; return (short) (+x);"));
-        assertEquals((char)5, exec("def x = 5L; return (char) (+x);"));
-        assertEquals(5, exec("def x = 5L; return (int) (+x);"));
-        assertEquals(5F, exec("def x = 5L; return (float) (+x);"));
-        assertEquals(5L, exec("def x = 5L; return (long) (+x);"));
-        assertEquals(5D, exec("def x = 5L; return (double) (+x);"));
-    }
-
-    /**
-     * Binary operators adopt the return value
-     */
-    public void testBinaryOperatorDef() {
-        assertEquals((byte)6, exec("def x = 5L; return (byte) (x + 1);"));
-        assertEquals((short)6, exec("def x = 5L; return (short) (x + 1);"));
-        assertEquals((char)6, exec("def x = 5L; return (char) (x + 1);"));
-        assertEquals(6, exec("def x = 5L; return (int) (x + 1);"));
-        assertEquals(6F, exec("def x = 5L; return (float) (x + 1);"));
-        assertEquals(6L, exec("def x = 5L; return (long) (x + 1);"));
-        assertEquals(6D, exec("def x = 5L; return (double) (x + 1);"));
-    }
-
-    /**
-     * Binary operators don't yet adopt the return value with compound assignment
-     */
-    public void testBinaryCompoundAssignmentDef() {
-        assertEquals((byte)6, exec("def x = 5L; return (byte) (x += 1);"));
-        assertEquals((short)6, exec("def x = 5L; return (short) (x += 1);"));
-        assertEquals((char)6, exec("def x = 5L; return (char) (x += 1);"));
-        assertEquals(6, exec("def x = 5L; return (int) (x += 1);"));
-        assertEquals(6F, exec("def x = 5L; return (float) (x += 1);"));
-        assertEquals(6L, exec("def x = 5L; return (long) (x += 1);"));
-        assertEquals(6D, exec("def x = 5L; return (double) (x += 1);"));
-    }
-
-    /**
-     * Binary operators don't yet adopt the return value with compound assignment
-     */
-    public void testBinaryCompoundAssignmentPrefix() {
-        assertEquals((byte)6, exec("def x = 5L; return (byte) (++x);"));
-        assertEquals((short)6, exec("def x = 5L; return (short) (++x);"));
-        assertEquals((char)6, exec("def x = 5L; return (char) (++x);"));
-        assertEquals(6, exec("def x = 5L; return (int) (++x);"));
-        assertEquals(6F, exec("def x = 5L; return (float) (++x);"));
-        assertEquals(6L, exec("def x = 5L; return (long) (++x);"));
-        assertEquals(6D, exec("def x = 5L; return (double) (++x);"));
-    }
-
-    /**
-     * Binary operators don't yet adopt the return value with compound assignment
-     */
-    public void testBinaryCompoundAssignmentPostfix() {
-        assertEquals((byte)5, exec("def x = 5L; return (byte) (x++);"));
-        assertEquals((short)5, exec("def x = 5L; return (short) (x++);"));
-        assertEquals((char)5, exec("def x = 5L; return (char) (x++);"));
-        assertEquals(5, exec("def x = 5L; return (int) (x++);"));
-        assertEquals(5F, exec("def x = 5L; return (float) (x++);"));
-        assertEquals(5L, exec("def x = 5L; return (long) (x++);"));
-        assertEquals(5D, exec("def x = 5L; return (double) (x++);"));
-    }
-
-    /**
-     * Shift operators adopt the return value
-     */
-    public void testShiftOperatorDef() {
-        assertEquals((byte)10, exec("def x = 5L; return (byte) (x << 1);"));
-        assertEquals((short)10, exec("def x = 5L; return (short) (x << 1);"));
-        assertEquals((char)10, exec("def x = 5L; return (char) (x << 1);"));
-        assertEquals(10, exec("def x = 5L; return (int) (x << 1);"));
-        assertEquals(10F, exec("def x = 5L; return (float) (x << 1);"));
-        assertEquals(10L, exec("def x = 5L; return (long) (x << 1);"));
-        assertEquals(10D, exec("def x = 5L; return (double) (x << 1);"));
-    }
-
-    /**
-     * Shift operators don't yet adopt the return value with compound assignment
-     */
-    public void testShiftCompoundAssignmentDef() {
-        assertEquals((byte)10, exec("def x = 5L; return (byte) (x <<= 1);"));
-        assertEquals((short)10, exec("def x = 5L; return (short) (x <<= 1);"));
-        assertEquals((char)10, exec("def x = 5L; return (char) (x <<= 1);"));
-        assertEquals(10, exec("def x = 5L; return (int) (x <<= 1);"));
-        assertEquals(10F, exec("def x = 5L; return (float) (x <<= 1);"));
-        assertEquals(10L, exec("def x = 5L; return (long) (x <<= 1);"));
-        assertEquals(10D, exec("def x = 5L; return (double) (x <<= 1);"));
-    }
-
-    /**
      * Test that without a cast, we fail when conversions would narrow.
      */
     public void testIllegalConversionsDef() {
@@ -284,10 +98,6 @@ public class CastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> {
             exec("def x = 5L; boolean y = (x + x); return y");
         });
-    }
-
-    public void testUnboxMethodParameters() {
-        assertEquals('a', exec("'a'.charAt(Integer.valueOf(0))"));
     }
 
     public void testIllegalCastInMethodArgument() {
@@ -317,5 +127,54 @@ public class CastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> {
             exec("def x = 5L; boolean y = (boolean) (x + x); return y");
         });
+    }
+
+    public void testWideningCastOK() {
+        assertEquals(5, exec("Integer i = Integer.valueOf(5); Number n = i; n"));
+    }
+
+    public void testNarrowingCastRequiresExplicit() {
+        assertEquals(5, exec("Number n = Integer.valueOf(5); Integer i = (Integer) n; i"));
+        Exception e = expectScriptThrows(ClassCastException.class, () -> exec("Number n = Integer.valueOf(5); Integer i = n; i"));
+        assertEquals("Cannot cast from [Number] to [Integer].", e.getMessage());
+    }
+
+    public void testDefToNumericExplicitCasts() {
+        assertEquals(true, exec("     def d = true;       (boolean) d"));
+        assertEquals((byte) 5, exec(" def d = 5;          (byte) d"));
+        assertEquals((short) 5, exec("def d = 5;          (short) d"));
+        assertEquals('c', exec("      def d = (char) 'c'; (char) d"));
+        assertEquals(5, exec("        def d = 5;          (int) d"));
+        assertEquals(5L, exec("       def d = 5;          (long) d"));
+        assertEquals(5.0f, exec("     def d = 5;          (float) d"));
+        assertEquals(5.0d, exec("     def d = 5;          (double) d"));
+    }
+
+    public void testDefToNumericImplicitCasts() {
+        assertEquals(true, exec("     def d = true;      boolean b = d; b"));
+        assertEquals((byte) 5, exec(" def d = (byte) 5;  byte b = d;    b"));
+        assertEquals((short) 5, exec("def d = (short) 5; short s = d;   s"));
+        assertEquals('c', exec("def d = (char) 'c';      char c = d;    c"));
+        assertEquals(5, exec("        def d = 5;         int i = d;     i"));
+        assertEquals(5, exec("        def d = (short)5;  int i = d;     i"));
+        assertEquals(5L, exec("       def d = 5L;        long l = d;    l"));
+        assertEquals(5L, exec("       def d = 5;         long l = d;    l"));
+        assertEquals(5.0f, exec("     def d = 5f;        float f = d;   f"));
+        assertEquals(5.0f, exec("     def d = 5;         float f = d;   f"));
+        assertEquals(5.0f, exec("     def d = 5L;        float f = d;   f"));
+        assertEquals(5.0d, exec("     def d = 5d;        double n = d;  n"));
+        assertEquals(5.0d, exec("     def d = 5;         double n = d;  n"));
+        assertEquals(5.0d, exec("     def d = 5L;        double n = d;  n"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("def d = 5;    byte b = d;   b"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def d = 5;    short s = d;  s"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def d = 5L;   int i = d;    i"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def d = 5.0f; long l = d;   l"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def d = 5.0d; float f = d;  f"));
+    }
+
+    public void testDefToOtherCasts() {
+        assertEquals("test", exec("def d = new StringBuilder('test'); (StringBuilder) d").toString());
+        assertEquals("test", exec("def d = new StringBuilder('test'); StringBuilder sb = d; sb").toString());
     }
 }

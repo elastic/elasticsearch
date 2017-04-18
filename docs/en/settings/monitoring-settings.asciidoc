@@ -1,8 +1,6 @@
 [[monitoring-settings]]
 == Monitoring Settings
 
-:imagesdir:         images/monitoring
-
 You configure <<monitoring-collection-settings, `xpack.monitoring.collection`>>
 settings in `elasticsearch.yml` to control how data is collected from your
 Elasticsearch nodes. You can adjust how monitoring data is displayed in the
@@ -156,7 +154,7 @@ display the CPU Utilization based on the reported Cgroup statistics. This will a
 Cgroup CPU Utilization to the Node Overview page instead of the overall operating system's CPU
 Utilization. Defaults to `false`.
 +
-image::monitoring-es-cgroup-true.png["Elasticsearch Inside a Container",link="images/monitoring-es-cgroup-true.png"]
+image::images/monitoring-es-cgroup-true.png["Elasticsearch Inside a Container",link="images/monitoring-es-cgroup-true.png"]
 
 [float]
 [[local-exporter-settings]]

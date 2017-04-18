@@ -1,8 +1,6 @@
 [[xpack-alerting]]
 = Alerting on Cluster and Index Events
 
-:imagesdir:         images/watcher
-
 [partintro]
 --
 You can watch for changes or anomalies in your data and perform the necessary

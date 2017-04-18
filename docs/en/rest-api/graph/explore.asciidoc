@@ -7,7 +7,7 @@ Graph UI to visually click around connected data and then view the "Last request
 panel (accessible from the button with the cog icon). This panel shows the JSON request/response
 pair of the last user operation.
 
-image::spy.jpg["Viewing the last request in the Kibana Graph UI"]
+image::images/spy.jpg["Viewing the last request in the Kibana Graph UI"]
 
 - <<basic-search, Basic exploration>>
 - <<optional-controls, Optional controls>>
@@ -111,7 +111,7 @@ The `doc_count` value indicates how many documents contain this pairing of terms
 In the Kibana Graph UI response data is visualized in a diagram like this:
 
 
-image::midiclicks.jpg["An example visualization of product/search click data using the Kibana Graph UI",width="50%", align="center"]
+image::images/midiclicks.jpg["An example visualization of product/search click data using the Kibana Graph UI",width="50%", align="center"]
 
 
 [float]

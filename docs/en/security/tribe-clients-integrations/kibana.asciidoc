@@ -172,7 +172,7 @@ Kibana locally, go to `https://localhost:5601` and enter the credentials for a
 user you've assigned a Kibana user role. For example, you could log in as the
 `jacknich` user created above.
 +
-image::kibana-login.jpg["Kibana Login",link="images/kibana-login.jpg"]
+image::images/kibana-login.jpg["Kibana Login",link="images/kibana-login.jpg"]
 +
 NOTE: This must be a user who has been assigned the `kibana_user` role.
 Kibana server credentials should only be used internally by the

@@ -1,8 +1,6 @@
 [[xpack-security]]
 = Securing Elasticsearch and Kibana
 
-:imagesdir:         images/security
-
 [partintro]
 --
 {security} enables you to easily secure a cluster. With Security,

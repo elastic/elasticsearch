@@ -139,11 +139,11 @@ key:
 . Go to **Configuration > Services** and select the PagerDuty service. The 
 service must use the API integration.
 +
-image::pagerduty-services.jpg[]
+image::images/pagerduty-services.jpg[]
 
 . Click the **Integrations** tab and copy the API integration key.
 +
-image::pagerduty-integrations.jpg[]
+image::images/pagerduty-integrations.jpg[]
 
 To configure a PagerDuty account in `elasticsearch.yml`, at a minimum you
 must specify an account name and integration key:

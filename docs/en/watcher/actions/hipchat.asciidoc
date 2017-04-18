@@ -205,13 +205,13 @@ account. To generate an authentication token:
 . Click the *Tokens* link.
 . Enter a name for the token in the *Label* field.
 +
-image::hipchat-generate-room-token.jpg[]
+image::images/hipchat-generate-room-token.jpg[]
 . Select the *Send Notification* scope.
 . Click *Create*.
 . Copy the generated token so you can paste it into your HipChat account
   configuration in `elasticsearch.yml`.
 +
-image::hipchat-copy-room-token.jpg[]
+image::images/hipchat-copy-room-token.jpg[]
 
 To configure a HipChat account that uses the `integration` profile:
 
@@ -268,13 +268,13 @@ Before you can configure a `user` account, you need to:
 .. Confirm the user password.
 .. Enter a name for the token in the *Label* field.
 +
-image::hipchat-generate-user-token.jpg[]
+image::images/hipchat-generate-user-token.jpg[]
 . Select the *Send Notification* and *Send Message* scopes.
 . Click *Create*.
 . Copy the generated token so you can paste it into your HipChat account
   configuration in `elasticsearch.yml`.
 +
-image::hipchat-copy-room-token.jpg[]
+image::images/hipchat-copy-room-token.jpg[]
 
 To configure a HipChat account that uses the `user` profile:
 
@@ -335,13 +335,13 @@ Before you can configure a `v1` account, you need to generate a `v1` API token:
 . Confirm your admin password.
 . Select the *Notification* type.
 +
-image::hipchat-generate-v1-token.jpg[]
+image::images/hipchat-generate-v1-token.jpg[]
 . Enter a name for the token in the *Label* field.
 . Click *Create*.
 . Copy the generated token so you can paste it into your HipChat account
   configuration in `elasticsearch.yml`.
 +
-image::hipchat-copy-v1-token.jpg[]
+image::images/hipchat-copy-v1-token.jpg[]
 
 To configure a HipChat account that uses the `v1` profile:
 

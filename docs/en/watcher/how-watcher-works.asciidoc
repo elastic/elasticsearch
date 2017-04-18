@@ -171,7 +171,7 @@ action that was executed.
 
 The following diagram shows the watch execution process:
 
-image::watch-execution.jpg[align="center"]
+image::images/watch-execution.jpg[align="center"]
 
 [float]
 [[watch-acknowledgment-throttling]]

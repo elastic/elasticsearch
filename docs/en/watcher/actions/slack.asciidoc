@@ -185,12 +185,12 @@ URL, set up an an _Incoming Webhook Integration_ through the Slack console:
 . Go to https://my.slack.com/services/new/incoming-webhook.
 . Select a default channel for the integration.
 +
-image::slack-add-webhook-integration.jpg[]
+image::images/slack-add-webhook-integration.jpg[]
 . Click *Add Incoming Webhook Integration*.
 . Copy the generated webhook URL so you can paste it into your Slack account
   configuration in `elasticsearch.yml`.
 +
-image::slack-copy-webhook-url.jpg[]
+image::images/slack-copy-webhook-url.jpg[]
 
 To configure a Slack account, at a minimum you need to specify the account 
 name and webhook URL:

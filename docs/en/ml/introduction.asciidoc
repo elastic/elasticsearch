@@ -13,7 +13,7 @@ statistically significant influencers in the data.
 Automated periodicity detection and quick adaptation to changing data ensure
 that you don’t need to specify algorithms, models, or other data
 science-related configurations in order to get the benefits of {ml}.
-//image::graph-network.jpg["Graph network"]
+//image::images/graph-network.jpg["Graph network"]
 
 [float]
 === Integration with the Elastic Stack

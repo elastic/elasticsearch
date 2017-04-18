@@ -184,7 +184,7 @@ of the action ids you want to acknowledge. To acknowledge all actions, omit the
 The following diagram illustrates the throttling decisions made for each action
 of a watch during its execution:
 
-image::action-throttling.jpg[align="center"]
+image::images/action-throttling.jpg[align="center"]
 
 include::actions/email.asciidoc[]
 

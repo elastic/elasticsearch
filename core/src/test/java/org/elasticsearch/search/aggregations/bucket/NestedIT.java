@@ -37,18 +37,21 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
@@ -666,5 +669,112 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         numStringParams = bucket.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(0L));
+    }
+
+    public void testTermsOrderByNested() throws Exception {
+        // Mostly copied over from org.elasticsearch.search.aggregations.bucket.ReverseNestedIT#testSameParentDocHavingMultipleBuckets
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("product").field("dynamic", "strict").startObject("properties")
+                .startObject("id").field("type", "long").endObject()
+                .startObject("sku")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("sku_type").field("type", "keyword").endObject()
+                            .startObject("colors")
+                                .field("type", "nested")
+                                .startObject("properties")
+                                    .startObject("name").field("type", "keyword").endObject()
+                                .endObject()
+                            .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().endObject();
+        assertAcked(
+                prepareCreate("idx3")
+                        .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                        .addMapping("product", mapping)
+        );
+
+        client().prepareIndex("idx3", "product", "1").setRefreshPolicy(IMMEDIATE).setSource(
+                jsonBuilder()
+                    .startObject()
+                        .startArray("sku")
+                            .startObject()
+                                .field("sku_type", "bar1")
+                                .startArray("colors")
+                                    .startObject().field("name", "red").endObject()
+                                    .startObject().field("name", "green").endObject()
+                                    .startObject().field("name", "yellow").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar1")
+                                .startArray("colors")
+                                    .startObject().field("name", "red").endObject()
+                                    .startObject().field("name", "blue").endObject()
+                                    .startObject().field("name", "white").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar1")
+                                .startArray("colors")
+                                    .startObject().field("name", "black").endObject()
+                                    .startObject().field("name", "blue").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar2")
+                                .startArray("colors")
+                                    .startObject().field("name", "orange").endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .field("sku_type", "bar2")
+                                .startArray("colors")
+                                    .startObject().field("name", "pink").endObject()
+                                .endArray()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+        ).get();
+
+        SearchResponse response = client().prepareSearch("idx3")
+                .addAggregation(
+                        nested("nested_0", "sku").subAggregation(
+                                terms("by_sku").field("sku.sku_type")
+                                        .order(Terms.Order.aggregation("nested_1>colors_count", false))
+                                        .subAggregation(
+                                                nested("nested_1", "sku.colors").subAggregation(
+                                                        count("colors_count").field("sku.colors.name")
+                                                )
+                                        )
+                        )
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        Nested nested0 = response.getAggregations().get("nested_0");
+        assertThat(nested0.getDocCount(), equalTo(5L));
+        Terms terms = nested0.getAggregations().get("by_sku");
+        assertThat(terms.getBuckets().size(), equalTo(2));
+        
+        Terms.Bucket bar1 = terms.getBuckets().get(0);
+        {
+            Nested nested1 = bar1.getAggregations().get("nested_1");
+            ValueCount colors_count = nested1.getAggregations().get("colors_count");
+            assertThat(bar1.getKey(), equalTo("bar1"));
+            assertThat(bar1.getDocCount(), equalTo(3L));
+            assertThat(nested1.getDocCount(), equalTo(8L));
+            assertThat(colors_count.getValue(), equalTo(8L));
+        }
+        
+        Terms.Bucket bar2 = terms.getBuckets().get(1);
+        {
+            Nested nested1 = bar2.getAggregations().get("nested_1");
+            ValueCount colors_count = nested1.getAggregations().get("colors_count");
+            assertThat(bar2.getKey(), equalTo("bar2"));
+            assertThat(bar2.getDocCount(), equalTo(2L));
+            assertThat(nested1.getDocCount(), equalTo(2L));
+            assertThat(colors_count.getValue(), equalTo(2L));
+        }
     }
 }

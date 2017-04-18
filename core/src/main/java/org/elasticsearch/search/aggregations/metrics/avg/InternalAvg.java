@@ -69,6 +69,14 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         return sum / count;
     }
 
+    double getSum() {
+        return sum;
+    }
+
+    long getCount() {
+        return count;
+    }
+
     @Override
     public String getWriteableName() {
         return AvgAggregationBuilder.NAME;

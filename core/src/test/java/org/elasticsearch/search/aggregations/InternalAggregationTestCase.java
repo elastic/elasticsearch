@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.ParsedCardinality;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
@@ -65,6 +67,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         namedXContents.put(MinAggregationBuilder.NAME, (p, c) -> ParsedMin.fromXContent(p, (String) c));
         namedXContents.put(MaxAggregationBuilder.NAME, (p, c) -> ParsedMax.fromXContent(p, (String) c));
         namedXContents.put(SumAggregationBuilder.NAME, (p, c) -> ParsedSum.fromXContent(p, (String) c));
+        namedXContents.put(AvgAggregationBuilder.NAME, (p, c) -> ParsedAvg.fromXContent(p, (String) c));
 
         return namedXContents.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

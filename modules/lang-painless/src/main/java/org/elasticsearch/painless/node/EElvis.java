@@ -38,6 +38,11 @@ import static java.util.Objects.requireNonNull;
 public class EElvis extends AExpression {
     private AExpression lhs;
     private AExpression rhs;
+    /**
+     * The label that null safe operations in the lhs can jump to if they encounter a null. Jumping there will pop the null off of the stack
+     * and push the rhs on the stack.
+     */
+    private Label nullLabel;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
@@ -54,7 +59,16 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        if (expected != null && expected.sort.primitive) {
+        boolean lhsIsNullSafe = false;
+        if (lhs instanceof IMaybeNullSafe) {
+            IMaybeNullSafe maybeNullSafe = (IMaybeNullSafe) lhs;
+            if (maybeNullSafe.isNullSafe()) {
+                lhsIsNullSafe = true;
+                maybeNullSafe.setDefaultForNull(this);
+            }
+        }
+        lhsIsNullSafe = IMaybeNullSafe.applyIfPossible(lhs, this);
+        if (false == lhsIsNullSafe && expected != null && expected.sort.primitive) {
             throw createError(new IllegalArgumentException("Evlis operator cannot return primitives"));
         }
         lhs.expected = expected;
@@ -73,7 +87,7 @@ public class EElvis extends AExpression {
         if (lhs.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (lhs.actual.sort.primitive) {
+        if (lhs.actual.sort.primitive && false == lhsIsNullSafe) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
         if (rhs.isNull) {
@@ -92,15 +106,39 @@ public class EElvis extends AExpression {
         rhs = rhs.cast(locals);
     }
 
+    /**
+     * Get the label that null safe operations in the lhs can jump to if they encounter a null. Jumping there will pop the null off the
+     * stack and push the rhs.
+     */
+    Label nullLabel() {
+        if (nullLabel == null) {
+            nullLabel = new Label();
+        }
+        return nullLabel;
+    }
+
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         Label end = new Label();
-
         lhs.write(writer, globals);
-        writer.dup();
-        writer.ifNonNull(end);
+        if (lhs.actual.sort.primitive) {
+            /* If the lhs primitive then it doesn't make sense to check it for null. The only way to get the rhs is if the lhs jumped there
+             * on its own. We can only get here if the lhs is a null safe operation because we don't allow lhs to return a primitive
+             * otherwise. */
+            if (nullLabel == null) {
+                throw createError(new IllegalStateException("Expected nullLabel to be created and consumed. This is a bug."));
+            }
+            writer.goTo(end);
+        } else {
+            writer.dup();
+            writer.ifNonNull(end);
+        }
+        if (nullLabel != null) {
+            // If the nullLabel was created by the writing the lhs then we need to mark it so it can be jumped to.
+            writer.mark(nullLabel);
+        }
         writer.pop();
         rhs.write(writer, globals);
         writer.mark(end);

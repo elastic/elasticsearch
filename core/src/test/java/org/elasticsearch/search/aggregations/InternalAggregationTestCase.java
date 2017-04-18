@@ -132,7 +132,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     protected static DocValueFormat randomNumericDocValueFormat() {
         final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
         formats.add(() -> DocValueFormat.RAW);
-        formats.add(() -> DocValueFormat.BOOLEAN);
         formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
         return randomFrom(formats).get();
     }

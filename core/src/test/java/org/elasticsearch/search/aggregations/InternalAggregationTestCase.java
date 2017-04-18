@@ -54,7 +54,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.hamcrest.Matchers.containsString;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
 
@@ -168,6 +167,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     public final void testFromXContent() throws IOException {
         final NamedXContentRegistry xContentRegistry = xContentRegistry();
         final T aggregation = createTestInstance();
+        assumeTrue("This test does not support the aggregation type yet",
+                getNamedXContents().stream().filter(entry -> entry.name.match(aggregation.getType())).count() == 1);
 
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         final boolean humanReadable = randomBoolean();
@@ -200,9 +201,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
             assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
 
-        } catch (NamedXContentRegistry.UnknownNamedObjectException e) {
-            //norelease Remove this catch block when all aggregations can be parsed back.
-            assertThat(e.getMessage(), containsString("Unknown Aggregation"));
         }
     }
 

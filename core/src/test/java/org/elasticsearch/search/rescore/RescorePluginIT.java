@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,27 +84,20 @@ public class RescorePluginIT extends ESIntegTestCase {
                                 .field("type", "text")
                         .endObject()
                         .endObject().endObject().endObject())
-                .execute()
-                .actionGet();
-        client().admin().cluster()
-                .prepareHealth()
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForYellowStatus()
-                .execute()
-                .actionGet();
+                .get();
 
-        client().index(indexRequest("test").type("post").id("1").source(
+        client().prepareIndex("test", "post", "1").setSource(
                         jsonBuilder()
                         .startObject()
                                 .field("title", "The quick brown")
-                        .endObject()))
-                .actionGet();
-        client().index(indexRequest("test").type("post").id("2").source(
+                        .endObject())
+                .get();
+        client().prepareIndex("test", "post", "2").setSource(
                         jsonBuilder()
                         .startObject()
                                 .field("title", "quick brown fox")
-                        .endObject()))
-                .actionGet();
+                        .endObject())
+                .get();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 

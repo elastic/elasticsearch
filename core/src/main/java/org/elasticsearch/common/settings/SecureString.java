@@ -19,15 +19,15 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -51,21 +51,19 @@ public final class SecureString implements CharSequence, Closeable, Writeable {
      * Constructs a new SecureString from a StreamInput.
      */
     public SecureString(StreamInput in) throws IOException {
-        ByteBuffer bytes = null;
-        CharBuffer charBuffer = null;
+        BytesRef ref = null;
+        char[] chars = null;
         try {
-            final int length = in.readVInt();
-            final byte[] byteArray = new byte[length];
-            in.readBytes(byteArray, 0, length);
-            bytes = ByteBuffer.wrap(byteArray);
-            charBuffer = StandardCharsets.UTF_8.decode(bytes);
-            this.chars = Arrays.copyOfRange(charBuffer.array(), charBuffer.arrayOffset(), charBuffer.limit());
+            ref = in.readBytesRef();
+            chars = new char[ref.length];
+            final int charsLength = UnicodeUtil.UTF8toUTF16(ref.bytes, 0, ref.length, chars);
+            this.chars = Arrays.copyOfRange(chars, 0, charsLength);
         } finally {
-            if (bytes != null) {
-                Arrays.fill(bytes.array(), (byte) 0);
+            if (ref != null) {
+                Arrays.fill(ref.bytes, (byte) 0);
             }
-            if (charBuffer != null) {
-                Arrays.fill(charBuffer.array(), (char) 0);
+            if (chars != null) {
+                Arrays.fill(chars, (char) 0);
             }
         }
     }
@@ -182,14 +180,15 @@ public final class SecureString implements CharSequence, Closeable, Writeable {
     @Override
     public synchronized void writeTo(StreamOutput out) throws IOException {
         ensureNotClosed();
-        ByteBuffer byteBuffer = null;
+        byte[] bytes = null;
         try {
-            byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
-            out.writeVInt(byteBuffer.limit());
-            out.writeBytes(byteBuffer.array(), byteBuffer.arrayOffset(), byteBuffer.limit());
+            final int utf8Size = UnicodeUtil.calcUTF16toUTF8Length(new CharsRef(chars, 0, chars.length), 0, chars.length);
+            bytes = new byte[utf8Size];
+            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, bytes);
+            out.writeBytesRef(new BytesRef(bytes));
         } finally {
-            if (byteBuffer != null) {
-                Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
+            if (bytes != null) {
+                Arrays.fill(bytes, (byte) 0);
             }
         }
     }

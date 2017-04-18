@@ -17,20 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.script.python;
+package org.elasticsearch.tribe;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
-import java.io.IOException;
+public class TribeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-public class LangPythonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    public LangPythonClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public TribeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

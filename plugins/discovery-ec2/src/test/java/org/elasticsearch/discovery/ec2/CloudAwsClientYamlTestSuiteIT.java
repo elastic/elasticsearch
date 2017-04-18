@@ -17,16 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-
-import java.io.IOException;
 
 public class CloudAwsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 

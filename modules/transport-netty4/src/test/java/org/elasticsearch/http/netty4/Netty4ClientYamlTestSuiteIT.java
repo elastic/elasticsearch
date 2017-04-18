@@ -26,9 +26,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-
-import java.io.IOException;
 
 //TODO: This is a *temporary* workaround to ensure a timeout does not mask other problems
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)

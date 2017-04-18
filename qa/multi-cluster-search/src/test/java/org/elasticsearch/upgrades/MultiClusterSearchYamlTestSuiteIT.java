@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty3;
+package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -25,15 +25,12 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-
-import java.io.IOException;
 
 // TODO: remove timeout after address slow test issue
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
-public class Netty3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public Netty3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public MultiClusterSearchYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

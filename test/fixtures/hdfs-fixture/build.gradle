@@ -33,6 +33,7 @@ dependencies {
 task hdfs(type: JavaExec) {
   classpath = sourceSets.test.compileClasspath + sourceSets.test.output
   main = "hdfs.MiniHDFS"
+  jvmArgs = [ "-Djava.security.krb5.conf=/Users/james.baiera/Documents/source/elasticsearch/test/fixtures/krb5kdc-fixture/build/conf/krb5.conf" ]
   args = [ 'build/fixtures/hdfsFixture' ]
 }
 

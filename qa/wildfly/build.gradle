@@ -1,8 +1,11 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.test.NodeInfo
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.stream.Stream
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -149,6 +152,31 @@ task stopWildfly(type: LoggedExec) {
 
 if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
     integTestRunner.dependsOn(configureTransportClient)
+    final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
+        @Override
+        void afterExecute(Task task, TaskState state) {
+            if (state.failure != null) {
+                final File logFile = new File(wildflyInstall, "standalone/log/server.log")
+                println("\nWildfly server log (from ${logFile}):")
+                println('-----------------------------------------')
+                final Stream<String> stream = Files.lines(logFile.toPath(), StandardCharsets.UTF_8)
+                try {
+                    for (String line : stream) {
+                        println(line)
+                    }
+                } finally {
+                    stream.close()
+                }
+                println('=========================================')
+            }
+        }
+    }
+    integTestRunner.doFirst {
+        project.gradle.addListener(logDumpListener)
+    }
+    integTestRunner.doLast {
+        project.gradle.removeListener(logDumpListener)
+    }
     integTestRunner.finalizedBy(stopWildfly)
 } else {
     integTest.enabled = false

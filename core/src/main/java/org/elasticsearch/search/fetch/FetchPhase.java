@@ -132,41 +132,41 @@ public class FetchPhase implements SearchPhase {
             }
         }
 
-        SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
-        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-            if(context.isCancelled()) {
-                throw new TaskCancelledException("cancelled");
-            }
-            int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
-            int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
-            LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-            int subDocId = docId - subReaderContext.docBase;
+        try {
+            SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                if(context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+                int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
+                int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
+                LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                int subDocId = docId - subReaderContext.docBase;
 
-            final SearchHit searchHit;
-            try {
+                final SearchHit searchHit;
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
                 if (rootDocId != -1) {
                     searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId, fieldNames, fieldNamePatterns, subReaderContext);
                 } else {
                     searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId, subReaderContext);
                 }
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
+
+                hits[index] = searchHit;
+                hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
+                for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
+                    fetchSubPhase.hitExecute(context, hitContext);
+                }
             }
 
-            hits[index] = searchHit;
-            hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitExecute(context, hitContext);
+                fetchSubPhase.hitsExecute(context, hits);
             }
-        }
 
-        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            fetchSubPhase.hitsExecute(context, hits);
+            context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
         }
-
-        context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
     }
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {

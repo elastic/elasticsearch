@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -99,7 +98,7 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percents[i], state.getValueAtPercentile(percents[i]));
+            final Percentile next = new Percentile(percents[i], state.getValueAtPercentile(percents[i]));
             ++i;
             return next;
         }

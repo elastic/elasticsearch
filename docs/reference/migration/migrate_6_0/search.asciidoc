@@ -48,6 +48,9 @@
 * The `ignore_malformed` and `coerce` parameters have been removed from
   `geo_bounding_box`, `geo_polygon`, and `geo_distance` queries.
 
+* The `disable_coord` parameter of the `bool` and `common_terms` queries has
+  been removed. If provided, it will be ignored and issue a deprecation warning.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

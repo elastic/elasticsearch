@@ -128,6 +128,7 @@ public class InternalEngine extends Engine {
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
+    private static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
@@ -178,6 +179,7 @@ public class InternalEngine extends Engine {
                 }
                 logger.trace("recovered [{}]", seqNoStats);
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
+                updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 // norelease
                 /*
                  * We have no guarantees that all operations above the local checkpoint are in the Lucene commit or the translog. This means
@@ -224,6 +226,17 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    private void updateMaxUnsafeAutoIdTimestampFromWriter(IndexWriter writer) {
+        long commitMaxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
+        for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+            if (entry.getKey().equals(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)) {
+                commitMaxUnsafeAutoIdTimestamp = Long.parseLong(entry.getValue());
+                break;
+            }
+        }
+        maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), commitMaxUnsafeAutoIdTimestamp));
     }
 
     private static SequenceNumbersService sequenceNumberService(
@@ -500,7 +513,7 @@ public class InternalEngine extends Engine {
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
                     assert index.isRetry();
-                    return false; // even if retry is set we never optimize local recovery
+                    return true; // allow to optimize in order to update the max safe time stamp
                 default:
                     throw new IllegalArgumentException("unknown origin " + index.origin());
             }
@@ -1770,6 +1783,7 @@ public class InternalEngine extends Engine {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
+                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });

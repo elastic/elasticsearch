@@ -77,14 +77,15 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                 counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                counts.increment(bucket, valueCount);
-                double sum = 0;
-                for (int i = 0; i < valueCount; i++) {
-                    sum += values.valueAt(i);
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
+                    counts.increment(bucket, valueCount);
+                    double sum = 0;
+                    for (int i = 0; i < valueCount; i++) {
+                        sum += values.nextValue();
+                    }
+                    sums.increment(bucket, sum);
                 }
-                sums.increment(bucket, sum);
             }
         };
     }

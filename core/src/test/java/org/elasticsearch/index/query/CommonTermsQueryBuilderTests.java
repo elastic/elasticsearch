@@ -79,9 +79,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
             query.analyzer(randomAnalyzer());
         }
 
-        if (randomBoolean()) {
-            query.disableCoord(randomBoolean());
-        }
         return query;
     }
 
@@ -122,7 +119,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
                 "  \"common\" : {\n" +
                 "    \"body\" : {\n" +
                 "      \"query\" : \"nelly the elephant not as a cartoon\",\n" +
-                "      \"disable_coord\" : true,\n" +
                 "      \"high_freq_operator\" : \"AND\",\n" +
                 "      \"low_freq_operator\" : \"OR\",\n" +
                 "      \"cutoff_frequency\" : 0.001,\n" +
@@ -174,11 +170,9 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     // see #11730
     public void testCommonTermsQuery4() throws IOException {
-        boolean disableCoord = randomBoolean();
-        Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord)).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(commonTermsQuery("field", "text")).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
-        assertThat(ectQuery.isCoordDisabled(), equalTo(disableCoord));
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

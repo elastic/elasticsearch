@@ -120,6 +120,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "5", "6");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/23966")
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
         createIndex("test");
         ensureGreen("test");

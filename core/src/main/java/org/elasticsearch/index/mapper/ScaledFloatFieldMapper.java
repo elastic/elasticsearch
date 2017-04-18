@@ -219,7 +219,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, QueryShardContext context) {
+        public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
@@ -561,26 +561,30 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (singleValues != null) {
                 return FieldData.singleton(new NumericDoubleValues() {
                     @Override
-                    public double get(int docID) {
-                        return singleValues.get(docID) * scalingFactorInverse;
+                    public boolean advanceExact(int doc) throws IOException {
+                        return singleValues.advanceExact(doc);
                     }
-                }, DocValues.unwrapSingletonBits(values));
+                    @Override
+                    public double doubleValue() throws IOException {
+                        return singleValues.longValue() * scalingFactorInverse;
+                    }
+                });
             } else {
                 return new SortedNumericDoubleValues() {
 
                     @Override
-                    public double valueAt(int index) {
-                        return values.valueAt(index) * scalingFactorInverse;
+                    public boolean advanceExact(int target) throws IOException {
+                        return values.advanceExact(target);
                     }
 
                     @Override
-                    public void setDocument(int doc) {
-                        values.setDocument(doc);
+                    public double nextValue() throws IOException {
+                        return values.nextValue() * scalingFactorInverse;
                     }
 
                     @Override
-                    public int count() {
-                        return values.count();
+                    public int docValueCount() {
+                        return values.docValueCount();
                     }
                 };
             }

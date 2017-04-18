@@ -25,6 +25,7 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Collection;
 
@@ -41,12 +42,12 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
     }
 
     @Override
-    public void setDocument(int docId) {
-        script.setDocument(docId);
+    public boolean advanceExact(int target) throws IOException {
+        script.setDocument(target);
         final Object value = script.run();
 
         if (value == null) {
-            resize(0);
+            return false;
         } else if (value instanceof Number) {
             resize(1);
             values[0] = ((Number) value).doubleValue();
@@ -54,23 +55,32 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             resize(1);
             values[0] = ((ReadableInstant) value).getMillis();
         } else if (value.getClass().isArray()) {
-            resize(Array.getLength(value));
-            for (int i = 0; i < count(); ++i) {
+            int length = Array.getLength(value);
+            if (length == 0) {
+                return false;
+            }
+            resize(length);
+            for (int i = 0; i < length; ++i) {
                 values[i] = toDoubleValue(Array.get(value, i));
             }
         } else if (value instanceof Collection) {
-            resize(((Collection<?>) value).size());
+            Collection<?> coll = (Collection<?>) value;
+            if (coll.isEmpty()) {
+                return false;
+            }
+            resize(coll.size());
             int i = 0;
-            for (Object v : (Collection<?>) value) {
+            for (Object v : coll) {
                 values[i++] = toDoubleValue(v);
             }
-            assert i == count();
+            assert i == docValueCount();
         } else {
             resize(1);
             values[0] = toDoubleValue(value);
         }
 
         sort();
+        return true;
     }
 
     private static double toDoubleValue(Object o) {

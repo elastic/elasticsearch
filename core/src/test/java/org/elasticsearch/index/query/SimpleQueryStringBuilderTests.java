@@ -82,6 +82,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 result.flags(flagSet.toArray(new SimpleQueryStringFlag[flagSet.size()]));
             }
         }
+        if (randomBoolean()) {
+            result.autoGenerateMultiTermsSynonymsPhraseQuery(randomBoolean());
+        }
 
         int fieldCount = randomIntBetween(0, 10);
         Map<String, Float> fields = new HashMap<>();
@@ -318,6 +321,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"quote_field_suffix\" : \".quote\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

@@ -141,8 +141,12 @@ public class MatchQueryIT extends ESIntegTestCase {
         indexRandom(true, false, getDocs());
 
         // no min should match
-        SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "three what the fudge foo")
-            .operator(Operator.OR).analyzer("lower_graphsyns")).get();
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "three what the fudge foo")
+                    .operator(Operator.OR).analyzer("lower_graphsyns").autoGenerateMultiTermsSynonymsPhraseQuery(false)
+            )
+            .get();
 
         assertHitCount(searchResponse, 6L);
         assertSearchHits(searchResponse, "1", "2", "3", "4", "5", "6");
@@ -199,5 +203,19 @@ public class MatchQueryIT extends ESIntegTestCase {
 
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
+    }
+
+    public void testMultiTermsSynonymsPhrase() throws ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> builders = getDocs();
+        indexRandom(true, false, builders);
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "wtf")
+                    .analyzer("lower_graphsyns")
+                    .operator(Operator.AND)).get();
+
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "2", "3");
     }
 }

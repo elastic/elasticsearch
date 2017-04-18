@@ -162,6 +162,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             // setSplitOnWhitespace(false) is disallowed when getAutoGeneratePhraseQueries() == true
             queryStringQueryBuilder.splitOnWhitespace(randomBoolean());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.autoGenerateMultiTermsSynonymsPhraseQuery(randomBoolean());
+        }
         return queryStringQueryBuilder;
     }
 
@@ -401,6 +404,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryParser.reset(settings);
 
             // simple multi-term
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             Query query = queryParser.parse("guinea pig");
             Query expectedQuery = new BooleanQuery.Builder()
                     .add(new BooleanQuery.Builder()
@@ -409,6 +413,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
                     .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
+
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(true);
+            // simple multi-term with phrase query
+            query = queryParser.parse("guinea pig");
+            expectedQuery = new GraphQuery(
+                new PhraseQuery.Builder()
+                    .add(new Term(STRING_FIELD_NAME, "guinea"))
+                    .add(new Term(STRING_FIELD_NAME, "pig"))
+                    .build(),
+                new TermQuery(new Term(STRING_FIELD_NAME, "cavy")));
+            assertThat(query, Matchers.equalTo(expectedQuery));
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
 
             // simple with additional tokens
             query = queryParser.parse("that guinea pig smells");
@@ -881,6 +897,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
                 "    \"split_on_whitespace\" : true,\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

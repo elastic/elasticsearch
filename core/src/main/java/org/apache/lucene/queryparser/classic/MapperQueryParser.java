@@ -111,6 +111,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         setDefaultOperator(settings.defaultOperator());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setSplitOnWhitespace(settings.splitOnWhitespace());
+        setAutoGenerateMultiTermSynonymsPhraseQuery(settings.autoGenerateMultiTermsSynonymsPhraseQuery());
     }
 
     /**

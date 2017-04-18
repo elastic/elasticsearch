@@ -76,6 +76,8 @@ public class QueryParserSettings {
 
     private boolean splitOnWhitespace;
 
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery;
+
     public QueryParserSettings(String queryString) {
         this.queryString = queryString;
     }
@@ -278,5 +280,13 @@ public class QueryParserSettings {
 
     public boolean splitOnWhitespace() {
         return splitOnWhitespace;
+    }
+
+    public void autoGenerateMultiTermSynonymsPhraseQuery(boolean value) {
+        this.autoGenerateMultiTermsSynonymsPhraseQuery = value;
+    }
+
+    public boolean autoGenerateMultiTermsSynonymsPhraseQuery() {
+        return autoGenerateMultiTermsSynonymsPhraseQuery;
     }
 }

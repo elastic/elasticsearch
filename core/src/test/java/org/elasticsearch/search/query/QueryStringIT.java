@@ -19,16 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -55,6 +45,16 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
     @Override
@@ -324,6 +324,7 @@ public class QueryStringIT extends ESIntegTestCase {
                 .defaultField("field")
                 .splitOnWhitespace(true)
                 .defaultOperator(Operator.AND)
+                .autoGenerateMultiTermsSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertNoSearchHits(searchResponse);
@@ -334,6 +335,7 @@ public class QueryStringIT extends ESIntegTestCase {
                 .defaultField("field")
                 .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
+                .autoGenerateMultiTermsSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 6L);
@@ -346,10 +348,22 @@ public class QueryStringIT extends ESIntegTestCase {
                 .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
                 .analyzer("lower_graphsyns")
+                .autoGenerateMultiTermsSynonymsPhraseQuery(false)
                 .minimumShouldMatch("80%")).get();
 
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+
+        // multi terms synonyms phrase
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("what the fudge")
+                .defaultField("field")
+                .splitOnWhitespace(false)
+                .defaultOperator(Operator.AND)
+                .analyzer("lower_graphsyns"))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse,  "1", "2", "3");
     }
 
     private void assertHits(SearchHits hits, String... ids) {

@@ -1582,16 +1582,17 @@ This processor helps automatically parse messages (or specific event fields) whi
 
 For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those automatically by configuring:
 
+
 [source,js]
- ---------------------------------------------------
- {
+--------------------------------------------------
+{
   "kv": {
     "field": "message",
     "field_split": " ",
     "value_split": "="
   }
 }
----------------------------------------------------
+--------------------------------------------------
 
 [[kv-options]]
 .Kv Options
@@ -1605,6 +1606,7 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
+
 
 [[lowercase-processor]]
 === Lowercase Processor

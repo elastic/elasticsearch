@@ -160,14 +160,16 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
-    "aggs" : {
-        "nyc_recent_accidents": {
+    "aggs": {
+        "range": {
             "date_range": {
-                "field": "@timestamp",
+                "field": "date",
                 "format": "MM-yyy",
                 "ranges": [
-                    { "from": "now-10M/d", "to": "now" }
+                    { "to": "now-10M/M" },
+                    { "from": "now-10M/M" }
                 ],
                 "keyed": true
             }
@@ -175,6 +177,8 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales s/now-10M\/M/10-2015/]
 
 Response:
 
@@ -182,35 +186,40 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
-        "nyc_recent_accidents": {
+        "range": {
             "buckets": {
-                "05-2016-03-2017": {
-                    "from": 1464307200000,
-                    "from_as_string": "05-2016",
-                    "to": 1490604059606,
-                    "to_as_string": "03-2017",
-                    "doc_count": 185436
+                "*-10-2015": {
+                    "to": 1.4436576E12,
+                    "to_as_string": "10-2015",
+                    "doc_count": 7
+                },
+                "10-2015-*": {
+                    "from": 1.4436576E12,
+                    "from_as_string": "10-2015",
+                    "doc_count": 0
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 It is also possible to customize the key for each range:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
-    "aggs" : {
-        "nyc_recent_accidents": {
+    "aggs": {
+        "range": {
             "date_range": {
-                "field": "@timestamp",
+                "field": "date",
                 "format": "MM-yyy",
                 "ranges": [
-                    { "from": "now-10M/d", "to": "now" }
+                    { "from": "01-2015",  "to": "03-2015", "key": "quarter_01" },
+                    { "from": "03-2015", "to": "06-2015", "key": "quarter_02" }
                 ],
                 "keyed": true
             }
@@ -218,6 +227,8 @@ It is also possible to customize the key for each range:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Response:
 
@@ -225,19 +236,26 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
-        "nyc_recent_accidents": {
+        "range": {
             "buckets": {
-                "last-10M": {
-                    "from": 1464307200000,
-                    "from_as_string": "05-2016",
-                    "to": 1490604059606,
-                    "to_as_string": "03-2017",
-                    "doc_count": 185436
+                "quarter_01": {
+                    "from": 1.4200704E12,
+                    "from_as_string": "01-2015",
+                    "to": 1.425168E12,
+                    "to_as_string": "03-2015",
+                    "doc_count": 5
+                },
+                "quarter_02": {
+                    "from": 1.425168E12,
+                    "from_as_string": "03-2015",
+                    "to": 1.4331168E12,
+                    "to_as_string": "06-2015",
+                    "doc_count": 2
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

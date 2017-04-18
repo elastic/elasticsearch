@@ -308,18 +308,24 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
-    "aggs": {
-        "nyc_accident_histogram": {
-            "date_histogram": {
-                "field": "date",
-                "interval" : "year",
+    "aggs" : {
+        "sales_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "1M",
+                "format" : "yyyy-MM-dd",
                 "keyed": true
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+Response:
 
 Response:
 
@@ -327,35 +333,30 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
-        "nyc_accident_histogram": {
+        "sales_over_time": {
             "buckets": {
-                "2013-01-01T00:00:00.000Z": {
-                    "key_as_string": "2013-01-01T00:00:00.000Z",
-                    "key": 1356998400000,
-                    "doc_count": 203733
-                },
-                "2014-01-01T00:00:00.000Z": {
-                    "key_as_string": "2014-01-01T00:00:00.000Z",
-                    "key": 1388534400000,
-                    "doc_count": 205929
-                },
-                "2015-01-01T00:00:00.000Z": {
-                    "key_as_string": "2015-01-01T00:00:00.000Z",
+                "2015-01-01": {
+                    "key_as_string": "2015-01-01",
                     "key": 1420070400000,
-                    "doc_count": 217637
+                    "doc_count": 3
                 },
-                "2016-01-01T00:00:00.000Z": {
-                    "key_as_string": "2016-01-01T00:00:00.000Z",
-                    "key": 1451606400000,
-                    "doc_count": 227656
+                "2015-02-01": {
+                    "key_as_string": "2015-02-01",
+                    "key": 1422748800000,
+                    "doc_count": 2
+                },
+                "2015-03-01": {
+                    "key_as_string": "2015-03-01",
+                    "key": 1425168000000,
+                    "doc_count": 2
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Scripts
 

@@ -27,15 +27,20 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.monitoring.action.MonitoringIndex;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -51,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -65,7 +71,23 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class LocalExporterTests extends MonitoringIntegTestCase {
 
-    private static SetOnce<String> indexTimeFormat = new SetOnce<>();
+    private SetOnce<String> indexTimeFormat = new SetOnce<>();
+
+    private static Boolean ENABLE_WATCHER;
+
+    @AfterClass
+    public static void cleanUpStatic() {
+        ENABLE_WATCHER = null;
+    }
+
+    @Override
+    protected boolean enableWatcher() {
+        if (ENABLE_WATCHER == null) {
+            ENABLE_WATCHER = randomBoolean();
+        }
+
+        return ENABLE_WATCHER;
+    }
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
@@ -85,12 +107,8 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._local.enabled", false)
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
                 .build();
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        indexTimeFormat = null;
     }
 
     @After
@@ -130,7 +148,6 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                         .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
     }
 
-    @TestLogging("org.elasticsearch.xpack.monitoring:TRACE")
     public void testExport() throws Exception {
         if (randomBoolean()) {
             // indexing some random documents
@@ -144,7 +161,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
         if (randomBoolean()) {
             // create some marvel indices to check if aliases are correctly created
-            final int oldies = randomIntBetween(1, 20);
+            final int oldies = randomIntBetween(1, 5);
             for (int i = 0; i < oldies; i++) {
                 assertAcked(client().admin().indices().prepareCreate(".marvel-es-1-2014.12." + i)
                         .setSettings("number_of_shards", 1, "number_of_replicas", 0).get());
@@ -251,6 +268,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         checkMonitoringPipeline();
         checkMonitoringAliases();
         checkMonitoringMappings();
+        checkMonitoringWatches();
         checkMonitoringDocs();
     }
 
@@ -309,6 +327,23 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             for (String mapping : MonitoringTemplateUtils.NEW_DATA_TYPES) {
                 assertTrue("mapping [" + mapping + "] should exist in data index",
                         response.getMappings().get(DATA_INDEX).containsKey(mapping));
+            }
+        }
+    }
+
+    /**
+     * Checks that the local exporter correctly creates Watches.
+     */
+    private void checkMonitoringWatches() throws ExecutionException, InterruptedException {
+        if (enableWatcher()) {
+            final XPackClient xpackClient = new XPackClient(client());
+            final WatcherClient watcher = xpackClient.watcher();
+
+            for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+                final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId);
+                final GetWatchResponse response = watcher.getWatch(new GetWatchRequest(uniqueWatchId)).get();
+
+                assertTrue("watch [" + watchId + "] should exist", response.isFound());
             }
         }
     }

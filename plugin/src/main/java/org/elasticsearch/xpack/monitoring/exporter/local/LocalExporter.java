@@ -29,17 +29,25 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -47,6 +55,12 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchRequest;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -74,18 +88,20 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private final InternalClient client;
     private final ClusterService clusterService;
+    private final XPackLicenseState licenseState;
     private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final AtomicBoolean installingSomething = new AtomicBoolean(false);
     private final AtomicBoolean waitedForSetup = new AtomicBoolean(false);
+    private final AtomicBoolean watcherSetup = new AtomicBoolean(false);
 
-    public LocalExporter(Exporter.Config config, InternalClient client,
-                         ClusterService clusterService, CleanerService cleanerService) {
+    public LocalExporter(Exporter.Config config, InternalClient client, CleanerService cleanerService) {
         super(config);
         this.client = client;
-        this.clusterService = clusterService;
+        this.clusterService = config.clusterService();
+        this.licenseState = config.licenseState();
         this.cleanerService = cleanerService;
         this.resolvers = new ResolversRegistry(config.settings());
 
@@ -98,6 +114,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         clusterService.addListener(this);
         cleanerService.add(this);
+        licenseState.addListener(this::licenseChanged);
     }
 
     ResolversRegistry getResolvers() {
@@ -107,8 +124,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (state.get() == State.INITIALIZED) {
-            resolveBulk(event.state());
+            resolveBulk(event.state(), true);
         }
+    }
+
+    /**
+     * When the license changes, we need to ensure that Watcher is setup properly.
+     */
+    private void licenseChanged() {
+        watcherSetup.set(false);
     }
 
     @Override
@@ -116,7 +140,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (state.get() !=  State.RUNNING) {
             return null;
         }
-        return resolveBulk(clusterService.state());
+        return resolveBulk(clusterService.state(), false);
     }
 
     @Override
@@ -126,10 +150,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             // we also remove the listener in resolveBulk after we get to RUNNING, but it's okay to double-remove
             clusterService.removeListener(this);
             cleanerService.remove(this);
+            licenseState.removeListener(this::licenseChanged);
         }
     }
 
-    LocalBulk resolveBulk(ClusterState clusterState) {
+    LocalBulk resolveBulk(ClusterState clusterState, boolean clusterStateChange) {
         if (clusterService.localNode() == null || clusterState == null) {
             return null;
         }
@@ -157,7 +182,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // elected master node needs to setup templates; non-master nodes need to wait for it to be setup
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            setup = setupIfElectedMaster(clusterState, templates);
+            setup = setupIfElectedMaster(clusterState, templates, clusterStateChange);
         } else if (setupIfNotElectedMaster(clusterState, templates.keySet()) == false) {
             // the first pass will be false so that we don't bother users if the master took one-go to setup
             if (waitedForSetup.getAndSet(true)) {
@@ -233,9 +258,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      *
      * @param clusterState The current cluster state.
      * @param templates All template names that should exist.
+     * @param clusterStateChange {@code true} if a cluster state change caused this call (don't block it!)
      * @return {@code true} indicates that all resources are "ready" and the exporter can be used. {@code false} to stop and wait.
      */
-    private boolean setupIfElectedMaster(final ClusterState clusterState, final Map<String, String> templates) {
+    private boolean setupIfElectedMaster(final ClusterState clusterState, final Map<String, String> templates,
+                                         final boolean clusterStateChange) {
         // we are on the elected master
         // Check that there is nothing that could block metadata updates
         if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
@@ -301,7 +328,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     new ActionListener<IndicesAliasesResponse>() {
                         @Override
                         public void onResponse(IndicesAliasesResponse response) {
-                            responseReceived();
+                            responseReceived(pendingResponses, true, null);
                             if (response.isAcknowledged()) {
                                 logger.info("Added modern aliases to 2.x monitoring indices {}", monitoringIndices2x);
                             } else {
@@ -312,21 +339,26 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
                         @Override
                         public void onFailure(Exception e) {
-                            responseReceived();
+                            responseReceived(pendingResponses, false, null);
                             logger.error((Supplier<?>)
                                     () -> new ParameterizedMessage("Unable to add modern aliases to 2.x monitoring indices {}",
                                             monitoringIndices2x), e);
                         }
-
-                        private void responseReceived() {
-                            if (pendingResponses.decrementAndGet() <= 0) {
-                                logger.trace("all installation requests returned a response");
-                                if (installingSomething.compareAndSet(true, false) == false) {
-                                    throw new IllegalStateException("could not reset installing flag to false");
-                                }
-                            }
-                        }
                     }));
+        }
+
+        // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
+        // change
+        if (state.get() == State.RUNNING && clusterStateChange == false && canUseWatcher()) {
+            final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
+            final boolean indexExists = watches != null && watches.allPrimaryShardsActive();
+
+            // we cannot do anything with watches until the index is allocated, so we wait until it's ready
+            if (watches != null && watches.allPrimaryShardsActive() == false) {
+                logger.trace("cannot manage cluster alerts because [.watches] index is not allocated");
+            } else if ((watches == null || indexExists) && watcherSetup.compareAndSet(false, true)) {
+                installClusterAlerts(indexExists, asyncActions, pendingResponses);
+            }
         }
 
         if (asyncActions.size() > 0) {
@@ -343,6 +375,19 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // everything is setup (or running)
         return true;
+    }
+
+    private void responseReceived(final AtomicInteger pendingResponses, final boolean success, final @Nullable AtomicBoolean setup) {
+        if (setup != null && success == false) {
+            setup.set(false);
+        }
+
+        if (pendingResponses.decrementAndGet() <= 0) {
+            logger.trace("all installation requests returned a response");
+            if (installingSomething.compareAndSet(true, false) == false) {
+                throw new IllegalStateException("could not reset installing flag to false");
+            }
+        }
     }
 
     /**
@@ -453,6 +498,59 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // async call, so we won't block cluster event thread
         client.admin().indices().putTemplate(request, listener);
+    }
+
+    /**
+     * Install Cluster Alerts (Watches) into the cluster
+     *
+     * @param asyncActions Asynchronous actions are added to for each Watch.
+     * @param pendingResponses Pending response countdown we use to track completion.
+     */
+    private void installClusterAlerts(final boolean indexExists, final List<Runnable> asyncActions, final AtomicInteger pendingResponses) {
+        final XPackClient xpackClient = new XPackClient(client);
+        final WatcherClient watcher = xpackClient.watcher();
+        final boolean canAddWatches = licenseState.isMonitoringClusterAlertsAllowed();
+
+        for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+            final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
+
+            // we aren't sure if no watches exist yet, so add them
+            if (indexExists) {
+                if (canAddWatches) {
+                    logger.trace("checking monitoring watch [{}]", uniqueWatchId);
+
+                    asyncActions.add(() -> watcher.getWatch(new GetWatchRequest(uniqueWatchId),
+                                                            new GetAndPutWatchResponseActionListener(watcher, watchId, uniqueWatchId,
+                                                                                                     pendingResponses)));
+                } else {
+                    logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
+
+                    asyncActions.add(() -> watcher.deleteWatch(new DeleteWatchRequest(uniqueWatchId),
+                                                               new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses)));
+                }
+            } else if (canAddWatches) {
+                asyncActions.add(() -> putWatch(watcher, watchId, uniqueWatchId, pendingResponses));
+            }
+        }
+    }
+
+    private void putWatch(final WatcherClient watcher, final String watchId, final String uniqueWatchId,
+                          final AtomicInteger pendingResponses) {
+        final String watch = ClusterAlertsUtil.loadWatch(clusterService, watchId);
+
+        logger.trace("adding monitoring watch [{}]", uniqueWatchId);
+
+        watcher.putWatch(new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),
+                         new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses, watcherSetup));
+    }
+
+    /**
+     * Determine if the cluster can use Watcher.
+     *
+     * @return {@code true} to use Cluster Alerts.
+     */
+    private boolean canUseWatcher() {
+        return XPackSettings.WATCHER_ENABLED.get(config.globalSettings());
     }
 
     @Override
@@ -566,41 +664,82 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     /**
      * Acknowledge success / failure for any given creation attempt (e.g., template or pipeline).
      */
-    private class ResponseActionListener<Response extends AcknowledgedResponse> implements ActionListener<Response> {
+    private class ResponseActionListener<Response> implements ActionListener<Response> {
 
         private final String type;
         private final String name;
         private final AtomicInteger countDown;
+        private final AtomicBoolean setup;
 
         private ResponseActionListener(String type, String name, AtomicInteger countDown) {
+            this(type, name, countDown, null);
+        }
+
+        private ResponseActionListener(String type, String name, AtomicInteger countDown, @Nullable AtomicBoolean setup) {
             this.type = Objects.requireNonNull(type);
             this.name = Objects.requireNonNull(name);
             this.countDown = Objects.requireNonNull(countDown);
+            this.setup = setup;
         }
 
         @Override
         public void onResponse(Response response) {
-            responseReceived();
-            if (response.isAcknowledged()) {
-                logger.trace("successfully set monitoring {} [{}]", type, name);
+            responseReceived(countDown, true, setup);
+            if (response instanceof AcknowledgedResponse) {
+                if (((AcknowledgedResponse)response).isAcknowledged()) {
+                    logger.trace("successfully set monitoring {} [{}]", type, name);
+                } else {
+                    logger.error("failed to set monitoring {} [{}]", type, name);
+                }
             } else {
-                logger.error("failed to set monitoring index {} [{}]", type, name);
+                logger.trace("successfully handled monitoring {} [{}]", type, name);
             }
         }
 
         @Override
         public void onFailure(Exception e) {
-            responseReceived();
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to set monitoring index {} [{}]", type, name), e);
-        }
-
-        private void responseReceived() {
-            if (countDown.decrementAndGet() <= 0) {
-                logger.trace("all installation requests returned a response");
-                if (installingSomething.compareAndSet(true, false) == false) {
-                    throw new IllegalStateException("could not reset installing flag to false");
-                }
-            }
+            responseReceived(countDown, false, setup);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to set monitoring {} [{}]", type, name), e);
         }
     }
+
+    private class GetAndPutWatchResponseActionListener implements ActionListener<GetWatchResponse> {
+
+        private final WatcherClient watcher;
+        private final String watchId;
+        private final String uniqueWatchId;
+        private final AtomicInteger countDown;
+
+        private GetAndPutWatchResponseActionListener(final WatcherClient watcher,
+                                                     final String watchId, final String uniqueWatchId,
+                                                     final AtomicInteger countDown) {
+            this.watcher = Objects.requireNonNull(watcher);
+            this.watchId = Objects.requireNonNull(watchId);
+            this.uniqueWatchId = Objects.requireNonNull(uniqueWatchId);
+            this.countDown = Objects.requireNonNull(countDown);
+        }
+
+        @Override
+        public void onResponse(GetWatchResponse response) {
+            if (response.isFound()) {
+                logger.trace("found monitoring watch [{}]", uniqueWatchId);
+
+                responseReceived(countDown, true, watcherSetup);
+            } else {
+                putWatch(watcher, watchId, uniqueWatchId, countDown);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            responseReceived(countDown, false, watcherSetup);
+
+            if ((e instanceof IndexNotFoundException) == false) {
+                logger.error((Supplier<?>) () ->
+                             new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
+            }
+        }
+
+    }
+
 }

@@ -1,0 +1,110 @@
+{
+  "metadata": {
+    "name": "X-Pack Monitoring: Cluster Status (${monitoring.watch.cluster_uuid})",
+    "xpack": {
+      "alert_index": ".monitoring-alerts-2",
+      "cluster_uuid": "${monitoring.watch.cluster_uuid}",
+      "link": "elasticsearch/indices",
+      "severity": 2100,
+      "type": "monitoring",
+      "version": "5.4.0",
+      "watch": "${monitoring.watch.id}"
+    }
+  },
+  "trigger": {
+    "schedule": {
+      "interval": "1m"
+    }
+  },
+  "input": {
+    "chain": {
+      "inputs": [
+        {
+          "check": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-es-2-*"
+                ],
+                "body": {
+                  "size": 1,
+                  "sort": [
+                    {
+                      "timestamp": {
+                        "order": "desc"
+                      }
+                    }
+                  ],
+                  "_source": [
+                    "cluster_state.status"
+                  ],
+                  "query": {
+                    "bool": {
+                      "filter": [
+                        {
+                          "term": {
+                            "cluster_uuid": "${monitoring.watch.cluster_uuid}"
+                          }
+                        },
+                        {
+                          "term": {
+                            "_type": "cluster_state"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "alert": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-alerts-2"
+                ],
+                "body": {
+                  "size": 1,
+                  "terminate_after": 1,
+                  "query": {
+                    "bool": {
+                      "filter": {
+                        "term": {
+                          "_id": "${monitoring.watch.unique_id}"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "condition": {
+    "script": {
+      "inline":
+        "ctx.vars.fails_check = ctx.payload.check.hits.total != 0 && ctx.payload.check.hits.hits[0]._source.cluster_state.status != 'green';ctx.vars.not_resolved = ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null;return ctx.vars.fails_check || ctx.vars.not_resolved"
+    }
+  },
+  "transform": {
+    "script": {
+      "inline":
+        "def state = 'red';if (ctx.vars.fails_check){state = ctx.payload.check.hits.hits[0]._source.cluster_state.status;}if (ctx.vars.not_resolved){ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check == false) {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = ['timestamp': ctx.execution_time, 'metadata': ctx.metadata.xpack];}if (ctx.vars.fails_check) {ctx.payload.prefix = 'Elasticsearch cluster status is ' + state + '.';if (state == 'red') {ctx.payload.message = 'Allocate missing primary shards and replica shards.';ctx.payload.metadata.severity = 2100;} else {ctx.payload.message = 'Allocate missing replica shards.';ctx.payload.metadata.severity = 1100;}}ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+    }
+  },
+  "actions": {
+    "trigger_alert": {
+      "index": {
+        "index": ".monitoring-alerts-2",
+        "doc_type": "doc",
+        "doc_id": "${monitoring.watch.unique_id}"
+      }
+    }
+  }
+}

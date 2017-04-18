@@ -11,20 +11,28 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import org.junit.Before;
 import org.mockito.InOrder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,8 +59,24 @@ import static org.mockito.Mockito.when;
  */
 public class HttpExporterTests extends ESTestCase {
 
+    private final ClusterService clusterService = mock(ClusterService.class);
+    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+    private final MetaData metaData = mock(MetaData.class);
+
     private final SSLService sslService = mock(SSLService.class);
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+    @Before
+    public void setupClusterState() {
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.nodes()).thenReturn(nodes);
+        // always let the watcher resources run for these tests; HttpExporterResourceTests tests it flipping on/off
+        when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
+    }
 
     public void testExporterWithBlacklistedHeaders() {
         final String blacklistedHeader = randomFrom(HttpExporter.BLACKLISTED_HEADERS);
@@ -263,6 +287,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testCreateResources() {
         final boolean useIngest = randomBoolean();
+        final boolean clusterAlertManagement = randomBoolean();
         final TimeValue templateTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
         final TimeValue pipelineTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
         final TimeValue aliasTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
@@ -272,6 +297,10 @@ public class HttpExporterTests extends ESTestCase {
 
         if (useIngest == false) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
+        }
+
+        if (clusterAlertManagement == false) {
+            builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
         }
 
         if (templateTimeout != null) {
@@ -305,6 +334,19 @@ public class HttpExporterTests extends ESTestCase {
                 resources.stream().filter((resource) -> resource instanceof PipelineHttpResource)
                                   .map(PipelineHttpResource.class::cast)
                                   .collect(Collectors.toList());
+        final List<WatcherExistsHttpResource> watcherCheck =
+                resources.stream().filter((resource) -> resource instanceof WatcherExistsHttpResource)
+                                  .map(WatcherExistsHttpResource.class::cast)
+                                  .collect(Collectors.toList());
+        final List<ClusterAlertHttpResource> watches;
+        if (watcherCheck.isEmpty()) {
+            watches = Collections.emptyList();
+        } else {
+            watches = watcherCheck.get(0).getWatches().getResources()
+                                                      .stream().filter((resource) -> resource instanceof ClusterAlertHttpResource)
+                                                      .map(ClusterAlertHttpResource.class::cast)
+                                                      .collect(Collectors.toList());
+        }
         final List<BackwardsCompatibilityAliasesResource> bwc =
                 resources.stream().filter(resource -> resource instanceof BackwardsCompatibilityAliasesResource)
                                   .map(BackwardsCompatibilityAliasesResource.class::cast)
@@ -312,11 +354,13 @@ public class HttpExporterTests extends ESTestCase {
 
         // expected number of resources
         assertThat(multiResource.getResources().size(),
-                   equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + bwc.size()));
+                   equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + watcherCheck.size() + bwc.size()));
         assertThat(version, equalTo(1));
         assertThat(typeMappings, hasSize(MonitoringTemplateUtils.NEW_DATA_TYPES.length));
         assertThat(templates, hasSize(6));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
+        assertThat(watcherCheck, hasSize(clusterAlertManagement ? 1 : 0));
+        assertThat(watches, hasSize(clusterAlertManagement ? ClusterAlertsUtil.WATCH_IDS.length : 0));
         assertThat(bwc, hasSize(1));
 
         // timeouts
@@ -446,8 +490,8 @@ public class HttpExporterTests extends ESTestCase {
      * @param settings The settings to select the exporter's settings from
      * @return Never {@code null}.
      */
-    private static Config createConfig(Settings settings) {
-        return new Config("_http", HttpExporter.TYPE, settings.getAsSettings(exporterName()));
+    private Config createConfig(final Settings settings) {
+        return new Config("_http", HttpExporter.TYPE, settings, settings.getAsSettings(exporterName()), clusterService, licenseState);
     }
 
     private static String exporterName() {

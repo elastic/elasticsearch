@@ -65,7 +65,7 @@ public class DataTypeMappingHttpResource extends PublishableHttpResource {
         final Tuple<CheckResponse, Response> resource =
                 checkForResource(client, logger,
                                  "/" + DATA_INDEX + "/_mapping", typeName, "monitoring mapping type",
-                                 resourceOwnerName, "monitoring cluster");
+                                 resourceOwnerName, "monitoring cluster", GET_EXISTS, GET_DOES_NOT_EXIST);
 
         // depending on the content, we need to flip the actual response
         CheckResponse checkResponse = resource.v1();

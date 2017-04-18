@@ -73,6 +73,13 @@ public class MultiHttpResourceTests extends ESTestCase {
         }
     }
 
+    public void testGetResources() {
+        final List<MockHttpResource> allResources = successfulResources();
+        final MultiHttpResource multiResource = new MultiHttpResource(owner, allResources);
+
+        assertThat(multiResource.getResources(), equalTo(allResources));
+    }
+
     private List<MockHttpResource> successfulResources() {
         final int successful = randomIntBetween(2, 5);
         final List<MockHttpResource> resources = new ArrayList<>(successful);

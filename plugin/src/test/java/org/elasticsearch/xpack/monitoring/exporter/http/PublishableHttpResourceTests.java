@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
@@ -24,7 +25,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -58,12 +58,12 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final RestStatus failedStatus = failedCheckStatus();
         final Response response = response("GET", endpoint, failedStatus);
 
-        when(client.performRequest("GET", endpoint, resource.getParameters())).thenReturn(response);
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
 
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, resource.getParameters());
+        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
 
         verifyNoMoreInteractions(client, logger);
@@ -76,12 +76,12 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
         final Response response = e == responseException ? responseException.getResponse() : null;
 
-        when(client.performRequest("GET", endpoint, resource.getParameters())).thenThrow(e);
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenThrow(e);
 
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, resource.getParameters());
+        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), eq(e));
 
         verifyNoMoreInteractions(client, logger);
@@ -105,6 +105,34 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         verify(logger).trace("uploading {} [{}] to the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequest("PUT", endpoint, resource.getParameters(), entity);
+        verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), eq(e));
+
+        verifyNoMoreInteractions(client, logger);
+    }
+
+    public void testDeleteResourceTrue() throws IOException {
+        final RestStatus status = randomFrom(successfulCheckStatus(), notFoundCheckStatus());
+
+        assertDeleteResource(status, true);
+    }
+
+    public void testDeleteResourceFalse() throws IOException {
+        assertDeleteResource(failedCheckStatus(), false);
+    }
+
+    public void testDeleteResourceErrors() throws IOException {
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final RestStatus failedStatus = failedCheckStatus();
+        final ResponseException responseException = responseException("DELETE", endpoint, failedStatus);
+        final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
+        final Map<String, String> deleteParameters = deleteParameters(resource.getParameters());
+
+        when(client.performRequest("DELETE", endpoint, deleteParameters)).thenThrow(e);
+
+        assertThat(resource.deleteResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType), is(false));
+
+        verify(logger).trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, owner, ownerType);
+        verify(client).performRequest("DELETE", endpoint, deleteParameters);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), eq(e));
 
         verifyNoMoreInteractions(client, logger);
@@ -138,19 +166,18 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
 
-        when(client.performRequest("GET", endpoint, resource.getParameters())).thenReturn(response);
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
 
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, expected, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, resource.getParameters());
+        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
 
-        if (expected == CheckResponse.EXISTS) {
+        if (expected == CheckResponse.EXISTS || expected == CheckResponse.DOES_NOT_EXIST) {
             verify(response).getStatusLine();
         } else {
-            // 3 times because it also is used in the exception message
-            verify(response, times(3)).getStatusLine();
-            verify(response, times(2)).getRequestLine();
+            verify(response).getStatusLine();
+            verify(response).getRequestLine();
             verify(response).getHost();
             verify(response).getEntity();
         }
@@ -198,11 +225,40 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
                     is(expected));
         } else {
             final Tuple<CheckResponse, Response> responseTuple =
-                    resource.checkForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType);
+                    resource.checkForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType,
+                                              PublishableHttpResource.GET_EXISTS, PublishableHttpResource.GET_DOES_NOT_EXIST);
 
             assertThat(responseTuple.v1(), is(expected));
             assertThat(responseTuple.v2(), is(response));
         }
+    }
+
+    private void assertDeleteResource(final RestStatus status, final boolean expected) throws IOException {
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final Response response = response("DELETE", endpoint, status);
+        final Map<String, String> deleteParameters = deleteParameters(resource.getParameters());
+
+        when(client.performRequest("DELETE", endpoint, deleteParameters)).thenReturn(response);
+
+        assertThat(resource.deleteResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType), is(expected));
+
+        verify(client).performRequest("DELETE", endpoint, deleteParameters);
+        verify(response).getStatusLine();
+
+        verify(logger).trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, owner, ownerType);
+
+        if (expected) {
+            verify(logger).debug("{} [{}] deleted from the [{}] {}", resourceType, resourceName, owner, ownerType);
+        } else {
+            ArgumentCaptor<RuntimeException> e = ArgumentCaptor.forClass(RuntimeException.class);
+
+            verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), e.capture());
+
+            assertThat(e.getValue().getMessage(),
+                       is("[" + resourceBasePath + "/" + resourceName + "] responded with [" + status.getStatus() + "]"));
+        }
+
+        verifyNoMoreInteractions(client, response, logger, entity);
     }
 
 }

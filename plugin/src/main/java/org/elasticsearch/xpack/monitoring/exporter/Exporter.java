@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 
 import java.io.IOException;
@@ -27,6 +29,10 @@ public abstract class Exporter implements AutoCloseable {
      * Note: disabling it obviously loses any benefit of using it, but it does allow clusters that don't run with ingest to not use it.
      */
     public static final String USE_INGEST_PIPELINE_SETTING = "use_ingest";
+    /**
+     * Every {@code Exporter} allows users to explicitly disable cluster alerts.
+     */
+    public static final String CLUSTER_ALERTS_MANAGEMENT_SETTING = "cluster_alerts.management.enabled";
 
     protected final Config config;
 
@@ -109,12 +115,19 @@ public abstract class Exporter implements AutoCloseable {
         private final String name;
         private final String type;
         private final boolean enabled;
+        private final Settings globalSettings;
         private final Settings settings;
+        private final ClusterService clusterService;
+        private final XPackLicenseState licenseState;
 
-        public Config(String name, String type, Settings settings) {
+        public Config(String name, String type, Settings globalSettings, Settings settings,
+                      ClusterService clusterService, XPackLicenseState licenseState) {
             this.name = name;
             this.type = type;
+            this.globalSettings = globalSettings;
             this.settings = settings;
+            this.clusterService = clusterService;
+            this.licenseState = licenseState;
             this.enabled = settings.getAsBoolean("enabled", true);
         }
 
@@ -130,8 +143,20 @@ public abstract class Exporter implements AutoCloseable {
             return enabled;
         }
 
+        public Settings globalSettings() {
+            return globalSettings;
+        }
+
         public Settings settings() {
             return settings;
+        }
+
+        public ClusterService clusterService() {
+            return clusterService;
+        }
+
+        public XPackLicenseState licenseState() {
+            return licenseState;
         }
 
     }

@@ -9,12 +9,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
@@ -35,15 +37,20 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
 
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
+    private final ClusterService clusterService;
+    private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
 
-    public Exporters(Settings settings, Map<String, Exporter.Factory> factories, ClusterService clusterService,
+    public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
+                     ClusterService clusterService, XPackLicenseState licenseState,
                      ThreadContext threadContext) {
         super(settings);
 
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
         this.threadContext = Objects.requireNonNull(threadContext);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.licenseState = Objects.requireNonNull(licenseState);
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
     }
@@ -92,6 +99,11 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
     }
 
     ExportBulk openBulk() {
+        if (clusterService.state().version() == ClusterState.UNKNOWN_VERSION) {
+            logger.trace("skipping exporters because the cluster state is not loaded");
+            return null;
+        }
+
         List<ExportBulk> bulks = new ArrayList<>();
         for (Exporter exporter : this) {
             try {
@@ -109,12 +121,12 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks, threadContext);
     }
 
-    Map<String, Exporter> initExporters(Settings settings) {
+    Map<String, Exporter> initExporters(Settings exportersSettings) {
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
         boolean hasDisabled = false;
-        for (String name : settings.names()) {
-            Settings exporterSettings = settings.getAsSettings(name);
+        for (String name : exportersSettings.names()) {
+            Settings exporterSettings = exportersSettings.getAsSettings(name);
             String type = exporterSettings.get("type");
             if (type == null) {
                 throw new SettingsException("missing exporter type for [" + name + "] exporter");
@@ -123,7 +135,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
             if (factory == null) {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
-            Exporter.Config config = new Exporter.Config(name, type, exporterSettings);
+            Exporter.Config config = new Exporter.Config(name, type, settings, exporterSettings, clusterService, licenseState);
             if (!config.enabled()) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
@@ -150,7 +162,9 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         //          fallback on the default
         //
         if (exporters.isEmpty() && !hasDisabled) {
-            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, Settings.EMPTY);
+            Exporter.Config config =
+                    new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, Settings.EMPTY,
+                                        clusterService, licenseState);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 

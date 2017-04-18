@@ -20,6 +20,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
 import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer.Scheme;
 import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,16 +32,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
 
-import javax.net.ssl.SSLContext;
-
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -157,6 +159,11 @@ public class HttpExporter extends Exporter {
      */
     private final HttpResource resource;
 
+    /**
+     * Track whether cluster alerts are allowed or not between requests. This allows us to avoid wiring a listener and to lazily change it.
+     */
+    private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
+
     private final ResolversRegistry resolvers;
     private final ThreadContext threadContext;
 
@@ -231,7 +238,7 @@ public class HttpExporter extends Exporter {
         this.defaultParams = createDefaultParams(config);
         this.threadContext = threadContext;
 
-        // mark resources as dirty after any node failure
+        // mark resources as dirty after any node failure or license change
         listener.setResource(resource);
     }
 
@@ -317,8 +324,13 @@ public class HttpExporter extends Exporter {
         configureTemplateResources(config, resolvers, resourceOwnerName, resources);
         // load the pipeline (this will get added to as the monitoring API version increases)
         configurePipelineResources(config, resourceOwnerName, resources);
+
+        // alias .marvel-es-1-* indices
         resources.add(new BackwardsCompatibilityAliasesResource(resourceOwnerName,
-                config.settings().getAsTime(ALIAS_TIMEOUT_SETTING, timeValueSeconds(30))));
+                      config.settings().getAsTime(ALIAS_TIMEOUT_SETTING, timeValueSeconds(30))));
+
+        // load the watches for cluster alerts if Watcher is available
+        configureClusterAlertsResources(config, resourceOwnerName, resources);
 
         return new MultiHttpResource(resourceOwnerName, resources);
     }
@@ -571,8 +583,46 @@ public class HttpExporter extends Exporter {
         }
     }
 
+    /**
+     * Adds the {@code resources} necessary for checking and publishing cluster alerts.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param resourceOwnerName The resource owner name to display for any logging messages.
+     * @param resources The resources to add too.
+     */
+    private static void configureClusterAlertsResources(final Config config, final String resourceOwnerName,
+                                                        final List<HttpResource> resources) {
+        final Settings settings = config.settings();
+
+        // don't create watches if we're not using them
+        if (settings.getAsBoolean(CLUSTER_ALERTS_MANAGEMENT_SETTING, true)) {
+            final ClusterService clusterService = config.clusterService();
+            final List<HttpResource> watchResources = new ArrayList<>();
+
+            // add a resource per watch
+            for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+                // lazily load the cluster state to fetch the cluster UUID once it's loaded
+                final Supplier<String> uniqueWatchId = () -> ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
+                final Supplier<String> watch = () -> ClusterAlertsUtil.loadWatch(clusterService, watchId);
+
+                watchResources.add(new ClusterAlertHttpResource(resourceOwnerName, config.licenseState(), uniqueWatchId, watch));
+            }
+
+            // wrap the watches in a conditional resource check to ensure the remote cluster has watcher available / enabled
+            resources.add(new WatcherExistsHttpResource(resourceOwnerName, clusterService,
+                                                        new MultiHttpResource(resourceOwnerName, watchResources)));
+        }
+    }
+
     @Override
     public HttpExportBulk openBulk() {
+        final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
+
+        // if this changes between updates, then we need to add OR remove the watches
+        if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {
+            resource.markDirty();
+        }
+
         // block until all resources are verified to exist
         if (resource.checkAndPublishIfDirty(client)) {
             return new HttpExportBulk(settingFQN(config), client, defaultParams, resolvers, threadContext);

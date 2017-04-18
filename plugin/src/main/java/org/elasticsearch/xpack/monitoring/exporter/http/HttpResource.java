@@ -93,7 +93,7 @@ public abstract class HttpResource {
      * Mark the resource as {@linkplain #isDirty() dirty}.
      */
     public final void markDirty() {
-        state.compareAndSet(State.CLEAN, State.DIRTY);
+        state.set(State.DIRTY);
     }
 
     /**
@@ -138,6 +138,9 @@ public abstract class HttpResource {
      * This will perform the check regardless of the {@linkplain #isDirty() dirtiness} and it will update the dirtiness.
      * Using this directly can be useful if there is ever a need to double-check dirtiness without having to {@linkplain #markDirty() mark}
      * it as dirty.
+     * <p>
+     * If you do mark this as dirty while this is running (e.g., asynchronously something invalidates a resource), then the resource will
+     * still be dirty at the end, but the success of it will still return based on the checks it ran.
      *
      * @param client The REST client to make the request(s).
      * @return {@code true} if the resource is available for use. {@code false} to stop.
@@ -152,10 +155,7 @@ public abstract class HttpResource {
         try {
             success = doCheckAndPublish(client);
         } finally {
-            // nothing else should be unsetting from CHECKING
-            assert state.get() == State.CHECKING;
-
-            state.set(success ? State.CLEAN : State.DIRTY);
+            state.compareAndSet(State.CHECKING, success ? State.CLEAN : State.DIRTY);
         }
 
         return success;

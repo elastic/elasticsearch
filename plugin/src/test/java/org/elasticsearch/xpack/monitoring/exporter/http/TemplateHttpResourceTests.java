@@ -26,7 +26,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
 
     private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName, template);
 
-    public void testPipelineToHttpEntity() throws IOException {
+    public void testTemplateToHttpEntity() throws IOException {
         final byte[] templateValueBytes = templateValue.getBytes(ContentType.APPLICATION_JSON.getCharset());
         final HttpEntity entity = resource.templateToHttpEntity();
 

@@ -195,6 +195,11 @@ public class XPackLicenseState {
         listeners.add(Objects.requireNonNull(runnable));
     }
 
+    /** Remove a listener */
+    public void removeListener(Runnable runnable) {
+        listeners.remove(runnable);
+    }
+
     /** Return the current license type. */
     public OperationMode getOperationMode() {
         return status.mode;
@@ -326,10 +331,20 @@ public class XPackLicenseState {
     /**
      * Monitoring is always available as long as there is a valid license
      *
-     * @return true
+     * @return true if the license is active
      */
     public boolean isMonitoringAllowed() {
         return status.active;
+    }
+
+    /**
+     * Monitoring Cluster Alerts requires the equivalent license to use Watcher.
+     *
+     * @return {@link #isWatcherAllowed()}
+     * @see #isWatcherAllowed()
+     */
+    public boolean isMonitoringClusterAlertsAllowed() {
+        return isWatcherAllowed();
     }
 
     /**

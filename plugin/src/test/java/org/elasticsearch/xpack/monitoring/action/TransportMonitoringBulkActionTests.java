@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class TransportMonitoringBulkActionTests extends ESTestCase {
 
@@ -73,6 +75,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     public ExpectedException expectedException = ExpectedException.none();
 
     private ClusterService clusterService;
+    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private TransportService transportService;
     private CapturingExporters exportService;
     private TransportMonitoringBulkAction action;
@@ -271,7 +274,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         private final Collection<MonitoringDoc> exported = ConcurrentCollections.newConcurrentSet();
 
         CapturingExporters() {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService, threadPool.getThreadContext());
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService, licenseState, threadPool.getThreadContext());
         }
 
         @Override
@@ -293,7 +296,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         private final Consumer<Collection<? extends MonitoringDoc>> consumer;
 
         ConsumingExporters(Consumer<Collection<? extends MonitoringDoc>> consumer) {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService, threadPool.getThreadContext());
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService, licenseState, threadPool.getThreadContext());
             this.consumer = consumer;
         }
 

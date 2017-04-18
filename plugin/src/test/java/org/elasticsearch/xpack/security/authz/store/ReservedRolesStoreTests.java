@@ -221,9 +221,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(PutIndexTemplateAction.NAME), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterUpdateSettingsAction.NAME),
-                is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(GetWatchAction.NAME), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(PutWatchAction.NAME), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(DeleteWatchAction.NAME), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ExecuteWatchAction.NAME), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(AckWatchAction.NAME), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ActivateWatchAction.NAME), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(WatcherServiceAction.NAME), is(false));
+        // we get this from the cluster:monitor privilege
+        assertThat(remoteMonitoringAgentRole.cluster().check(WatcherStatsAction.NAME), is(true));
 
         assertThat(remoteMonitoringAgentRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 

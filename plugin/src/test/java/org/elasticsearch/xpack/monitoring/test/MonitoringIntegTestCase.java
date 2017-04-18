@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
@@ -93,23 +95,25 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
      */
     protected Boolean watcherEnabled;
 
+    private void randomizeSettings() {
+        if (watcherEnabled == null) {
+            watcherEnabled = enableWatcher();
+        }
+    }
+
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
             securityEnabled = enableSecurity();
         }
-        if (watcherEnabled == null) {
-            watcherEnabled = enableWatcher();
-        }
-
-        logger.debug("--> security {}", securityEnabled ? "enabled" : "disabled");
-        logger.debug("--> watcher {}", watcherEnabled ? "enabled" : "disabled");
 
         return super.buildTestCluster(scope, seed);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        randomizeSettings();
+
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
@@ -126,6 +130,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings transportClientSettings() {
+        randomizeSettings();
+
         if (securityEnabled) {
             return Settings.builder()
                     .put(super.transportClientSettings())
@@ -133,10 +139,12 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                     .put(Security.USER_SETTING.getKey(), "test:changeme")
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
                     .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
+                    .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
                     .build();
         }
         return Settings.builder().put(super.transportClientSettings())
-                .put("xpack.security.enabled", false)
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
                 .build();
     }
 
@@ -150,7 +158,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(XPackPlugin.class);
+        return Arrays.asList(XPackPlugin.class, MockPainlessScriptEngine.TestPlugin.class);
     }
 
     @Override
@@ -279,6 +287,21 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 .collect(Collectors.toSet()));
 
         return templates;
+    }
+
+    protected List<Tuple<String, String>> monitoringWatches() {
+        final ClusterService clusterService = clusterService();
+
+        return Arrays.stream(ClusterAlertsUtil.WATCH_IDS)
+                .map(id -> new Tuple<>(ClusterAlertsUtil.createUniqueWatchId(clusterService, id),
+                                       ClusterAlertsUtil.loadWatch(clusterService, id)))
+                .collect(Collectors.toList());
+    }
+
+    protected List<String> monitoringWatchIds() {
+        return Arrays.stream(ClusterAlertsUtil.WATCH_IDS)
+                .map(id -> ClusterAlertsUtil.createUniqueWatchId(clusterService(), id))
+                .collect(Collectors.toList());
     }
 
     protected void assertTemplateInstalled(String name) {
@@ -442,6 +465,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
                 " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
                 " 'cluster:admin/ingest/pipeline/get', 'cluster:admin/ingest/pipeline/put', 'cluster:admin/ingest/pipeline/delete'," +
+                " 'cluster:monitor/xpack/watcher/watch/get', 'cluster:monitor/xpack/watcher/watch/put', " +
+                " 'cluster:monitor/xpack/watcher/watch/delete'," +
                 " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +

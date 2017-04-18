@@ -114,8 +114,8 @@ public class Monitoring implements ActionPlugin {
         final SSLService dynamicSSLService = sslService.createDynamicSSLService();
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
-        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, cleanerService));
-        final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, threadPool.getThreadContext());
+        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
+        final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, licenseState, threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndicesStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));

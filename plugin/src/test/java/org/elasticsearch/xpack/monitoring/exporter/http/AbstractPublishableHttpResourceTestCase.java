@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import java.util.HashMap;
 import org.apache.http.HttpEntity;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
@@ -13,14 +14,19 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -40,7 +46,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
     /**
      * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} and assert that it returns
-     * {@code true} given a {@link RestStatus} that is {@link RestStatus#OK}.
+     * {@code EXISTS} given a {@link RestStatus} that is {@link RestStatus#OK}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
@@ -53,7 +59,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
     /**
      * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} and assert that it returns
-     * {@code false} given a {@link RestStatus} that is not {@link RestStatus#OK}.
+     * {@code DOES_NOT_EXIST} given a {@link RestStatus} that is not {@link RestStatus#OK}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
@@ -66,7 +72,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
     /**
      * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} that throws an exception and assert
-     * that it returns {@code false}.
+     * that it returns {@code ERROR}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
@@ -79,7 +85,43 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ResponseException responseException = responseException("GET", endpoint, failedCheckStatus());
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
-        when(client.performRequest("GET", endpoint, resource.getParameters())).thenThrow(e);
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenThrow(e);
+
+        assertThat(resource.doCheck(client), is(CheckResponse.ERROR));
+    }
+
+    /**
+     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource}, expecting a {@code DELETE}, and
+     * assert that it returns {@code EXISTS} given a {@link RestStatus} that is {@link RestStatus#OK} or {@link RestStatus#NOT_FOUND}.
+     *
+     * @param resource The resource to execute.
+     * @param resourceBasePath The base endpoint (e.g., "/_template")
+     * @param resourceName The resource name (e.g., the template or pipeline name).
+     */
+    protected void assertCheckAsDeleteExists(final PublishableHttpResource resource,
+                                             final String resourceBasePath, final String resourceName)
+            throws IOException {
+        final RestStatus status = randomFrom(successfulCheckStatus(), notFoundCheckStatus());
+
+        doCheckAsDeleteWithStatusCode(resource, resourceBasePath, resourceName, status, CheckResponse.EXISTS);
+    }
+
+    /**
+     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} that throws an exception and assert
+     * that it returns {@code ERRPR} when performing a {@code DELETE} rather than the more common {@code GET}.
+     *
+     * @param resource The resource to execute.
+     * @param resourceBasePath The base endpoint (e.g., "/_template")
+     * @param resourceName The resource name (e.g., the template or pipeline name).
+     */
+    protected void assertCheckAsDeleteWithException(final PublishableHttpResource resource,
+                                                    final String resourceBasePath, final String resourceName)
+            throws IOException {
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final ResponseException responseException = responseException("DELETE", endpoint, failedCheckStatus());
+        final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
+
+        when(client.performRequest("DELETE", endpoint, deleteParameters(resource.getParameters()))).thenThrow(e);
 
         assertThat(resource.doCheck(client), is(CheckResponse.ERROR));
     }
@@ -135,29 +177,44 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     protected void assertParameters(final PublishableHttpResource resource) {
-        final Map<String, String> parameters = resource.getParameters();
+        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
 
         if (masterTimeout != null) {
-            assertThat(parameters.get("master_timeout"), is(masterTimeout.toString()));
+            assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
         }
 
-        assertThat(parameters.get("filter_path"), is("$NONE"));
+        assertThat(parameters.remove("filter_path"), is("$NONE"));
+        assertThat(parameters.isEmpty(), is(true));
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final RestStatus status,
                                          final CheckResponse expected)
             throws IOException {
+        doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, GET_EXISTS, GET_DOES_NOT_EXIST, expected);
+    }
+
+    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         final RestStatus status, final Set<Integer> exists, final Set<Integer> doesNotExist,
+                                         final CheckResponse expected)
+            throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
 
-        doCheckWithStatusCode(resource, endpoint, expected, response);
+        doCheckWithStatusCode(resource, getParameters(resource.getParameters(), exists, doesNotExist), endpoint, expected, response);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String endpoint, final CheckResponse expected,
                                          final Response response)
             throws IOException {
-        when(client.performRequest("GET", endpoint, resource.getParameters())).thenReturn(response);
+        doCheckWithStatusCode(resource, getParameters(resource.getParameters()), endpoint, expected, response);
+    }
+
+    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final Map<String, String> expectedParameters,
+                                         final String endpoint, final CheckResponse expected,
+                                         final Response response)
+            throws IOException {
+        when(client.performRequest("GET", endpoint, expectedParameters)).thenReturn(response);
 
         assertThat(resource.doCheck(client), is(expected));
     }
@@ -173,6 +230,26 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         when(client.performRequest(eq("PUT"), eq(endpoint), eq(resource.getParameters()), any(bodyType))).thenReturn(response);
 
         assertThat(resource.doPublish(client), is(expected));
+    }
+
+    protected void doCheckAsDeleteWithStatusCode(final PublishableHttpResource resource,
+                                                 final String resourceBasePath, final String resourceName,
+                                                 final RestStatus status,
+                                                 final CheckResponse expected)
+            throws IOException {
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final Response response = response("DELETE", endpoint, status);
+
+        doCheckAsDeleteWithStatusCode(resource, endpoint, expected, response);
+    }
+
+    protected void doCheckAsDeleteWithStatusCode(final PublishableHttpResource resource,
+                                                 final String endpoint, final CheckResponse expected,
+                                                 final Response response)
+            throws IOException {
+        when(client.performRequest("DELETE", endpoint, deleteParameters(resource.getParameters()))).thenReturn(response);
+
+        assertThat(resource.doCheck(client), is(expected));
     }
 
     protected RestStatus successfulCheckStatus() {
@@ -202,6 +279,10 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     protected Response response(final String method, final String endpoint, final RestStatus status) {
+        return response(method, endpoint, status, null);
+    }
+
+    protected Response response(final String method, final String endpoint, final RestStatus status, final HttpEntity entity) {
         final Response response = mock(Response.class);
         // fill out the response enough so that the exception can be constructed
         final RequestLine requestLine = mock(RequestLine.class);
@@ -213,6 +294,8 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         when(response.getRequestLine()).thenReturn(requestLine);
         when(response.getStatusLine()).thenReturn(statusLine);
 
+        when(response.getEntity()).thenReturn(entity);
+
         return response;
     }
 
@@ -222,6 +305,28 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         } catch (final IOException e) {
             throw new IllegalStateException("update responseException to properly build the ResponseException", e);
         }
+    }
+
+    protected Map<String, String> getParameters(final Map<String, String> parameters) {
+        return getParameters(parameters, GET_EXISTS, GET_DOES_NOT_EXIST);
+    }
+
+    protected Map<String, String> getParameters(final Map<String, String> parameters,
+                                                final Set<Integer> exists, final Set<Integer> doesNotExist) {
+        final Set<Integer> statusCodes = Sets.union(exists, doesNotExist);
+        final Map<String, String> parametersWithIgnore = new HashMap<>(parameters);
+
+        parametersWithIgnore.putIfAbsent("ignore", statusCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
+
+        return parametersWithIgnore;
+    }
+
+    protected Map<String, String> deleteParameters(final Map<String, String> parameters) {
+        final Map<String, String> parametersWithIgnore = new HashMap<>(parameters);
+
+        parametersWithIgnore.putIfAbsent("ignore", "404");
+
+        return parametersWithIgnore;
     }
 
 }

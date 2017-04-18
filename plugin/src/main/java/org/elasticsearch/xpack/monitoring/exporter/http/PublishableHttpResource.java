@@ -15,12 +15,15 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * {@code PublishableHttpResource} represents an {@link HttpResource} that is a single file or object that can be checked <em>and</em>
@@ -38,6 +41,8 @@ public abstract class PublishableHttpResource extends HttpResource {
 
         /**
          * The check found the resource, so nothing needs to be published.
+         * <p>
+         * This can also be used to skip the publishing portion if desired.
          */
         EXISTS,
         /**
@@ -60,6 +65,15 @@ public abstract class PublishableHttpResource extends HttpResource {
      * Use this to avoid getting any JSON response from a request.
      */
     public static final Map<String, String> NO_BODY_PARAMETERS = Collections.singletonMap("filter_path", FILTER_PATH_NONE);
+
+    /**
+     * The default set of acceptable exists response codes for GET requests.
+     */
+    public static final Set<Integer> GET_EXISTS = Collections.singleton(RestStatus.OK.getStatus());
+    /**
+     * The default set of <em>acceptable</em> response codes for GET requests to represent that it does NOT exist.
+     */
+    public static final Set<Integer> GET_DOES_NOT_EXIST = Collections.singleton(RestStatus.NOT_FOUND.getStatus());
 
     /**
      * The default parameters to use for any request.
@@ -161,7 +175,9 @@ public abstract class PublishableHttpResource extends HttpResource {
                                                    final String resourceBasePath,
                                                    final String resourceName, final String resourceType,
                                                    final String resourceOwnerName, final String resourceOwnerType) {
-        return checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType).v1();
+        return checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
+                                GET_EXISTS, GET_DOES_NOT_EXIST)
+                    .v1();
     }
 
     /**
@@ -171,11 +187,13 @@ public abstract class PublishableHttpResource extends HttpResource {
      *
      * @param client The REST client to make the request(s).
      * @param logger The logger to use for status messages.
-     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
+     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template"), if any.
      * @param resourceName The name of the resource (e.g., "template123").
      * @param resourceType The type of resource (e.g., "monitoring template").
      * @param resourceOwnerName The user-recognizeable resource owner.
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
+     * @param exists Response codes that represent {@code EXISTS}.
+     * @param doesNotExist Response codes that represent {@code DOES_NOT_EXIST}.
      * @return Never {@code null} pair containing the checked response and the returned response.
      *         The response will only ever be {@code null} if none was returned.
      * @see #simpleCheckForResource(RestClient, Logger, String, String, String, String, String)
@@ -183,18 +201,28 @@ public abstract class PublishableHttpResource extends HttpResource {
     protected Tuple<CheckResponse, Response> checkForResource(final RestClient client, final Logger logger,
                                                               final String resourceBasePath,
                                                               final String resourceName, final String resourceType,
-                                                              final String resourceOwnerName, final String resourceOwnerType) {
+                                                              final String resourceOwnerName, final String resourceOwnerType,
+                                                              final Set<Integer> exists, final Set<Integer> doesNotExist) {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-        try {
-            final Response response = client.performRequest("GET", resourceBasePath + "/" + resourceName, parameters);
+        final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
+        // avoid exists and DNE parameters from being an exception by default
+        final Map<String, String> getParameters = new HashMap<>(parameters);
+        getParameters.put("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
 
-            // we don't currently check for the content because we always expect it to be the same;
-            // if we ever make a BWC change to any template (thus without renaming it), then we need to check the content!
-            if (response.getStatusLine().getStatusCode() == RestStatus.OK.getStatus()) {
+        try {
+            final Response response = client.performRequest("GET", resourceBasePath + "/" + resourceName, getParameters);
+            final int statusCode = response.getStatusLine().getStatusCode();
+
+            // checking the content is the job of whoever called this function by checking the tuple's response
+            if (exists.contains(statusCode)) {
                 logger.debug("{} [{}] found on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
                 return new Tuple<>(CheckResponse.EXISTS, response);
+            } else if (doesNotExist.contains(statusCode)) {
+                logger.debug("{} [{}] does not exist on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+
+                return new Tuple<>(CheckResponse.DOES_NOT_EXIST, response);
             } else {
                 throw new ResponseException(response);
             }
@@ -202,20 +230,13 @@ public abstract class PublishableHttpResource extends HttpResource {
             final Response response = e.getResponse();
             final int statusCode = response.getStatusLine().getStatusCode();
 
-            // 404
-            if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
-                logger.debug("{} [{}] does not exist on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+            logger.error((Supplier<?>) () ->
+                    new ParameterizedMessage("failed to verify {} [{}] on the [{}] {} with status code [{}]",
+                                             resourceType, resourceName, resourceOwnerName, resourceOwnerType, statusCode),
+                    e);
 
-                return new Tuple<>(CheckResponse.DOES_NOT_EXIST, response);
-            } else {
-                logger.error((Supplier<?>) () ->
-                        new ParameterizedMessage("failed to verify {} [{}] on the [{}] {} with status code [{}]",
-                                                 resourceType, resourceName, resourceOwnerName, resourceOwnerType, statusCode),
-                        e);
-
-                // weirder failure than below; block responses just like other unexpected failures
-                return new Tuple<>(CheckResponse.ERROR, response);
-            }
+            // weirder failure than below; block responses just like other unexpected failures
+            return new Tuple<>(CheckResponse.ERROR, response);
         } catch (IOException | RuntimeException e) {
             logger.error((Supplier<?>) () ->
                     new ParameterizedMessage("failed to verify {} [{}] on the [{}] {}",
@@ -275,6 +296,55 @@ public abstract class PublishableHttpResource extends HttpResource {
                     new ParameterizedMessage("failed to upload {} [{}] on the [{}] {}",
                                              resourceType, resourceName, resourceOwnerName, resourceOwnerType),
                     e);
+        }
+
+        return success;
+    }
+
+    /**
+     * Delete the {@code resourceName} using the {@code resourceBasePath} endpoint.
+     * <p>
+     * Note to callers: this will add an "ignore" parameter to the request so that 404 is not an exception and therefore considered
+     * successful if it's not found. You can override this behavior by specifying any valid value for "ignore", at which point 404
+     * responses will result in {@code false} and logged failure.
+     *
+     * @param client The REST client to make the request(s).
+     * @param logger The logger to use for status messages.
+     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
+     * @param resourceName The name of the resource (e.g., "template123").
+     * @param resourceType The type of resource (e.g., "monitoring template").
+     * @param resourceOwnerName The user-recognizeable resource owner.
+     * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
+     * @return {@code true} if it successfully deleted the item; otherwise {@code false}.
+     */
+    protected boolean deleteResource(final RestClient client, final Logger logger,
+                                     final String resourceBasePath, final String resourceName,
+                                     final String resourceType,
+                                     final String resourceOwnerName, final String resourceOwnerType) {
+        logger.trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+
+        boolean success = false;
+
+        // avoid 404 being an exception by default
+        final Map<String, String> deleteParameters = new HashMap<>(parameters);
+        deleteParameters.putIfAbsent("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
+
+        try {
+            final Response response = client.performRequest("DELETE", resourceBasePath + "/" + resourceName, deleteParameters);
+            final int statusCode = response.getStatusLine().getStatusCode();
+
+            // 200 or 404 (not found is just as good as deleting it!)
+            if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.NOT_FOUND.getStatus()) {
+                logger.debug("{} [{}] deleted from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+
+                success = true;
+            } else {
+                throw new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]");
+            }
+        } catch (IOException | RuntimeException e) {
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete {} [{}] on the [{}] {}",
+                                                                      resourceType, resourceName, resourceOwnerName, resourceOwnerType),
+                         e);
         }
 
         return success;

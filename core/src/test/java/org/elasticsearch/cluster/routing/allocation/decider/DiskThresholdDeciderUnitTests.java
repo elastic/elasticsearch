@@ -106,8 +106,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         decision = decider.canAllocate(test_0, new RoutingNode("node_1", node_1), allocation);
         assertEquals(mostAvailableUsage.toString(), Decision.Type.NO, decision.type());
         assertThat(((Decision.Single) decision).getExplanation(), containsString(
-            "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=90%], using more disk space than " +
-            "the maximum allowed [90.0%]"));
+            "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], using more " +
+            "disk space than the maximum allowed [90.0%]"));
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {
@@ -181,8 +181,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         decision = decider.canRemain(test_1, new RoutingNode("node_1", node_1), allocation);
         assertEquals(Decision.Type.NO, decision.type());
         assertThat(((Decision.Single) decision).getExplanation(), containsString("the shard cannot remain on this node because it is " +
-            "above the high watermark [cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10.0%] " +
-            "free disk on node, actual free: [9.0%]"));
+            "above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%] and there is less than " +
+            "the required [10.0%] free disk on node, actual free: [9.0%]"));
         try {
             decider.canRemain(test_0, new RoutingNode("node_1", node_1), allocation);
             fail("not allocated on this node");

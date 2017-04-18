@@ -13,6 +13,8 @@ include::tokenfilters/standard-tokenfilter.asciidoc[]
 
 include::tokenfilters/asciifolding-tokenfilter.asciidoc[]
 
+include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
+
 include::tokenfilters/length-tokenfilter.asciidoc[]
 
 include::tokenfilters/lowercase-tokenfilter.asciidoc[]

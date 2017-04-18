@@ -25,7 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Gateway extends AbstractComponent implements ClusterStateListener {
+public class Gateway extends AbstractComponent implements ClusterStateApplier {
 
     private final ClusterService clusterService;
 
@@ -60,7 +60,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
-        clusterService.addLast(this);
+        clusterService.addLowPriorityApplier(this);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
@@ -176,10 +176,10 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     @Override
-    public void clusterChanged(final ClusterChangedEvent event) {
+    public void applyClusterState(final ClusterChangedEvent event) {
         // order is important, first metaState, and then shardsState
         // so dangling indices will be recorded
-        metaState.clusterChanged(event);
+        metaState.applyClusterState(event);
     }
 
     public interface GatewayStateRecoveredListener {

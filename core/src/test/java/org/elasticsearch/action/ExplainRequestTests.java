@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
@@ -41,9 +40,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class ExplainRequestTests extends ESTestCase {
+    private NamedWriteableRegistry namedWriteableRegistry;
 
-    protected NamedWriteableRegistry namedWriteableRegistry;
-    protected SearchRequestParsers searchRequestParsers;
     public void setUp() throws Exception {
         super.setUp();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
@@ -52,9 +50,7 @@ public class ExplainRequestTests extends ESTestCase {
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        searchRequestParsers = searchModule.getSearchRequestParsers();
     }
-
 
     public void testSerialize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {

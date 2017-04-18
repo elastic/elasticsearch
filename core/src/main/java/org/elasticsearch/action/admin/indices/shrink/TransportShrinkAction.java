@@ -131,6 +131,9 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             }
 
         }
+        if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
+            throw new IllegalArgumentException("cannot provide a routing partition size value when shrinking an index");
+        }
         targetIndex.cause("shrink_index");
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
         settingsBuilder.put("index.number_of_shards", numShards);

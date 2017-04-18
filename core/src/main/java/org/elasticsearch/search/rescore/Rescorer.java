@@ -66,7 +66,6 @@ public interface Rescorer {
     /**
      * Extracts all terms needed to execute this {@link Rescorer}. This method
      * is executed in a distributed frequency collection roundtrip for
-     * {@link SearchType#DFS_QUERY_AND_FETCH} and
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
     void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);

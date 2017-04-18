@@ -49,13 +49,6 @@ public final class CommitStats implements Streamable, ToXContent {
     }
 
     private CommitStats() {
-
-    }
-
-    public static CommitStats readCommitStatsFrom(StreamInput in) throws IOException {
-        CommitStats commitStats = new CommitStats();
-        commitStats.readFrom(in);
-        return commitStats;
     }
 
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {

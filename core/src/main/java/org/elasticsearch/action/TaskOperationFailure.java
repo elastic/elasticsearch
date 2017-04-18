@@ -88,7 +88,7 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
         return status;
     }
 
-    public Throwable getCause() {
+    public Exception getCause() {
         return reason;
     }
 
@@ -105,7 +105,7 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
         if (reason != null) {
             builder.field("reason");
             builder.startObject();
-            ElasticsearchException.toXContent(builder, params, reason);
+            ElasticsearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;

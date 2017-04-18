@@ -39,13 +39,13 @@ class MatrixStatsResults implements Writeable {
     protected final Map<String, HashMap<String, Double>> correlation;
 
     /** Base ctor */
-    public MatrixStatsResults() {
+    MatrixStatsResults() {
         results = new RunningStats();
         this.correlation = new HashMap<>();
     }
 
     /** creates and computes result from provided stats */
-    public MatrixStatsResults(RunningStats stats) {
+    MatrixStatsResults(RunningStats stats) {
         this.results = stats.clone();
         this.correlation = new HashMap<>();
         this.compute();

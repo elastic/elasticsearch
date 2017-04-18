@@ -2,7 +2,7 @@
 == Index API
 
 The index API is very similar to the
-// {java}/java-docs-index.html[]
+// {javaclient}/java-docs-index.html[]
 Java index API. The Groovy
 extension to it is the ability to provide the indexed source using a
 closure. For example:

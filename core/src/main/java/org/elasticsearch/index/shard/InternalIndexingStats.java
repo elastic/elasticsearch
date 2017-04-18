@@ -65,7 +65,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public Engine.Index preIndex(Engine.Index operation) {
+    public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
         if (!operation.origin().isRecovery()) {
             totalStats.indexCurrent.inc();
             typeStats(operation.type()).indexCurrent.inc();
@@ -74,7 +74,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postIndex(Engine.Index index, Engine.IndexResult result) {
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         if (result.hasFailure() == false) {
             if (!index.origin().isRecovery()) {
                 long took = result.getTook();
@@ -85,12 +85,12 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 typeStats.indexCurrent.dec();
             }
         } else {
-            postIndex(index, result.getFailure());
+            postIndex(shardId, index, result.getFailure());
         }
     }
 
     @Override
-    public void postIndex(Engine.Index index, Exception ex) {
+    public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (!index.origin().isRecovery()) {
             totalStats.indexCurrent.dec();
             typeStats(index.type()).indexCurrent.dec();
@@ -100,7 +100,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public Engine.Delete preDelete(Engine.Delete delete) {
+    public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (!delete.origin().isRecovery()) {
             totalStats.deleteCurrent.inc();
             typeStats(delete.type()).deleteCurrent.inc();
@@ -110,7 +110,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         if (result.hasFailure() == false) {
             if (!delete.origin().isRecovery()) {
                 long took = result.getTook();
@@ -121,12 +121,12 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 typeStats.deleteCurrent.dec();
             }
         } else {
-            postDelete(delete, result.getFailure());
+            postDelete(shardId, delete, result.getFailure());
         }
     }
 
     @Override
-    public void postDelete(Engine.Delete delete, Exception ex) {
+    public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
         if (!delete.origin().isRecovery()) {
             totalStats.deleteCurrent.dec();
             typeStats(delete.type()).deleteCurrent.dec();

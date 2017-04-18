@@ -152,6 +152,21 @@ We have ported the known scenarios in the Jepsen blogs that check loss of acknow
 The new tests are run continuously in our testing farm and are passing. We are also working on running Jepsen independently to verify
 that no failures are found.
 
+[float]
+=== Replicas can fall out of sync when a primary shard fails (STATUS: ONGOING)
+
+When a primary shard fails, a replica shard will be promoted to be the
+primary shard. If there is more than one replica shard, it is possible
+for the remaining replicas to be out of sync with the new primary
+shard. This is caused by operations that were in-flight when the primary
+shard failed and may not have been processed on all replica
+shards. Currently, the discrepancies are not repaired on primary
+promotion but instead would be repaired if replica shards are relocated
+(e.g., from hot to cold nodes); this does mean that the length of time
+which replicas can be out of sync with the primary shard is
+unbounded. Sequence numbers {GIT}10708[#10708] will provide a mechanism
+for syncing the remaining replicas with the newly-promoted primary
+shard.
 
 == Completed
 

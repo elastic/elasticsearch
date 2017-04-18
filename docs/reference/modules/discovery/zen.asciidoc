@@ -39,8 +39,8 @@ Unicast discovery provides the following settings with the `discovery.zen.ping.u
 |=======================================================================
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
-value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be
-bracketed. Defaults to `127.0.0.1, [::1]`
+          value should be in the form of `host:port` or `host` (where `port` defaults to the setting `transport.profiles.default.port`
+          falling back to `transport.tcp.port` if not set). Note that IPv6 hosts must be bracketed. Defaults to `127.0.0.1, [::1]`
 |`hosts.resolve_timeout` |The amount of time to wait for DNS lookups on each round of pinging. Specified as
 <<time-units, time units>>. Defaults to 5s.
 |=======================================================================

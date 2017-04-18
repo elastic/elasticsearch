@@ -297,8 +297,9 @@ purge_elasticsearch() {
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
     local index=$2
+    local commandLineArgs=$3
 
-    run_elasticsearch_service 0
+    run_elasticsearch_service 0 $commandLineArgs
 
     wait_for_elasticsearch_status $desiredStatus $index
 
@@ -330,8 +331,10 @@ run_elasticsearch_service() {
     if [ ! -z "$CONF_DIR" ] ; then
         if is_dpkg ; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+            echo "ES_JVM_OPTIONS=$ES_JVM_OPTIONS" >> /etc/default/elasticsearch;
         elif is_rpm; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+            echo "ES_JVM_OPTIONS=$ES_JVM_OPTIONS" >> /etc/sysconfig/elasticsearch
         fi
     fi
 
@@ -435,7 +438,7 @@ wait_for_elasticsearch_status() {
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
-        echo "Unable to connect to Elastisearch"
+        echo "Unable to connect to Elasticsearch"
         false
     fi
 
@@ -481,12 +484,12 @@ run_elasticsearch_tests() {
     [ "$status" -eq 0 ]
     echo "$output" | grep -w "green"
 
-    curl -s -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
       "title": "Book #1",
       "pages": 123
     }'
 
-    curl -s -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
       "title": "Book #2",
       "pages": 456
     }'
@@ -494,7 +497,7 @@ run_elasticsearch_tests() {
     curl -s -XGET 'http://localhost:9200/_count?pretty' |
       grep \"count\"\ :\ 2
 
-    curl -s -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
       "query": {
         "script": {
           "script": {
@@ -508,7 +511,7 @@ run_elasticsearch_tests() {
       }
     }' | grep \"count\"\ :\ 2
 
-    curl -s -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
       "file": "is_guide"
     }' | grep \"total\"\ :\ 1
 
@@ -525,6 +528,7 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
+    assert_file_exist "$ESCONFIG/jvm.options"
     assert_file_exist "$ESCONFIG/log4j2.properties"
 }
 

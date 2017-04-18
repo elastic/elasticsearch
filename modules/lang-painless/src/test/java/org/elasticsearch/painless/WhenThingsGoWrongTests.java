@@ -148,10 +148,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testLoopLimits() {
         // right below limit: ok
-        exec("for (int x = 0; x < 9999; ++x) {}");
+        exec("for (int x = 0; x < 999999; ++x) {}");
 
         PainlessError expected = expectScriptThrows(PainlessError.class, () -> {
-            exec("for (int x = 0; x < 10000; ++x) {}");
+            exec("for (int x = 0; x < 1000000; ++x) {}");
         });
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
@@ -265,6 +265,22 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testQuestionSpaceDotIsNotNullSafeDereference() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a? .b", false));
         assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
+    }
+
+    public void testBadStringEscape() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\a'", false));
+        assertEquals("unexpected character ['\\a]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+                e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\a\"", false));
+        assertEquals("unexpected character [\"\\a]. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+                e.getMessage());
+    }
+
+    public void testRegularUnexpectedCharacter() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'", false));
+        assertEquals("unexpected character ['].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'cat", false));
+        assertEquals("unexpected character ['cat].", e.getMessage());
     }
 
 }

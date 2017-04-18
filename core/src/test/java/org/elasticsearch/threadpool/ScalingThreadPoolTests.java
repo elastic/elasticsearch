@@ -29,10 +29,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 
 public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
@@ -95,13 +95,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         });
     }
 
-    @FunctionalInterface
-    private interface SizeFunction {
-        int size(int numberOfProcessors);
-    }
-
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
-        final Map<String, SizeFunction> sizes = new HashMap<>();
+        final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));
         sizes.put(ThreadPool.Names.MANAGEMENT, n -> 5);
         sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfNumberOfProcessorsMaxFive);
@@ -110,7 +105,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfNumberOfProcessorsMaxFive);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceNumberOfProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceNumberOfProcessors);
-        return sizes.get(threadPoolName).size(numberOfProcessors);
+        return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 
     public void testScalingThreadPoolIsBounded() throws InterruptedException {
@@ -198,13 +193,4 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             terminateThreadPoolIfNeeded(threadPool);
         }
     }
-
-    private static Settings settings(final String setting, final int value) {
-        return settings(setting, Integer.toString(value));
-    }
-
-    private static Settings settings(final String setting, final String value) {
-        return Settings.builder().put(setting, value).build();
-    }
-
 }

@@ -83,6 +83,30 @@ The `simple_query_string` supports the following special characters:
 In order to search for any of these special characters, they will need to
 be escaped with `\`.
 
+Be aware that this syntax may have a different behavior depending on the
+`default_operator` value. For example, consider the following query:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "simple_query_string" : {
+            "fields" : ["content"],
+            "query" : "foo bar -baz"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+You may expect that documents containing only "foo" or "bar" will be returned,
+as long as they do not contain "baz", however, due to the `default_operator`
+being OR, this really means "match documents that contain "foo" or documents
+that contain "bar", or documents that don't contain "baz". If this is unintended
+then the query can be switched to `"foo bar +-baz"` which will not return
+documents that contain "baz".
+
 [float]
 ==== Default Field
 When not explicitly specifying the field to search on in the query

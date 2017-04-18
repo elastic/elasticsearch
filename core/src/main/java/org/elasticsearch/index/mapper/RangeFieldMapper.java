@@ -19,10 +19,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.DoubleRangeField;
-import org.apache.lucene.document.FloatRangeField;
-import org.apache.lucene.document.IntRangeField;
-import org.apache.lucene.document.LongRangeField;
+import org.apache.lucene.document.DoubleRange;
+import org.apache.lucene.document.FloatRange;
+import org.apache.lucene.document.IntRange;
+import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -166,7 +166,7 @@ public class RangeFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
                             + "] field types.");
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
@@ -405,12 +405,14 @@ public class RangeFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().format().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()) == false)) {
+        if (fieldType().rangeType == RangeType.DATE
+                && (includeDefaults || (fieldType().dateTimeFormatter() != null
+                && fieldType().dateTimeFormatter().format().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()) == false))) {
             builder.field("format", fieldType().dateTimeFormatter().format());
         }
-        if (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != Locale.ROOT)) {
+        if (fieldType().rangeType == RangeType.DATE
+                && (includeDefaults || (fieldType().dateTimeFormatter() != null
+                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {
@@ -428,7 +430,7 @@ public class RangeFieldMapper extends FieldMapper {
         DATE("date_range", NumberType.LONG) {
             @Override
             public Field getRangeField(String name, Range r) {
-                return new LongRangeField(name, new long[] {r.from.longValue()}, new long[] {r.to.longValue()});
+                return new LongRange(name, new long[] {r.from.longValue()}, new long[] {r.to.longValue()});
             }
             private Number parse(DateMathParser dateMathParser, String dateStr) {
                 return dateMathParser.parse(dateStr, () -> {throw new IllegalArgumentException("now is not used at indexing time");});
@@ -514,7 +516,7 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Field getRangeField(String name, Range r) {
-                return new FloatRangeField(name, new float[] {r.from.floatValue()}, new float[] {r.to.floatValue()});
+                return new FloatRange(name, new float[] {r.from.floatValue()}, new float[] {r.to.floatValue()});
             }
             @Override
             public byte[] getBytes(Range r) {
@@ -525,19 +527,19 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return FloatRangeField.newWithinQuery(field,
+                return FloatRange.newWithinQuery(field,
                     new float[] {includeFrom ? (Float)from : Math.nextUp((Float)from)},
                     new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
             }
             @Override
             public Query containsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return FloatRangeField.newContainsQuery(field,
+                return FloatRange.newContainsQuery(field,
                     new float[] {includeFrom ? (Float)from : Math.nextUp((Float)from)},
                     new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
             }
             @Override
             public Query intersectsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return FloatRangeField.newIntersectsQuery(field,
+                return FloatRange.newIntersectsQuery(field,
                     new float[] {includeFrom ? (Float)from : Math.nextUp((Float)from)},
                     new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
             }
@@ -561,7 +563,7 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Field getRangeField(String name, Range r) {
-                return new DoubleRangeField(name, new double[] {r.from.doubleValue()}, new double[] {r.to.doubleValue()});
+                return new DoubleRange(name, new double[] {r.from.doubleValue()}, new double[] {r.to.doubleValue()});
             }
             @Override
             public byte[] getBytes(Range r) {
@@ -572,19 +574,19 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return DoubleRangeField.newWithinQuery(field,
+                return DoubleRange.newWithinQuery(field,
                     new double[] {includeFrom ? (Double)from : Math.nextUp((Double)from)},
                     new double[] {includeTo ? (Double)to : Math.nextDown((Double)to)});
             }
             @Override
             public Query containsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return DoubleRangeField.newContainsQuery(field,
+                return DoubleRange.newContainsQuery(field,
                     new double[] {includeFrom ? (Double)from : Math.nextUp((Double)from)},
                     new double[] {includeTo ? (Double)to : Math.nextDown((Double)to)});
             }
             @Override
             public Query intersectsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return DoubleRangeField.newIntersectsQuery(field,
+                return DoubleRange.newIntersectsQuery(field,
                     new double[] {includeFrom ? (Double)from : Math.nextUp((Double)from)},
                     new double[] {includeTo ? (Double)to : Math.nextDown((Double)to)});
             }
@@ -610,7 +612,7 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Field getRangeField(String name, Range r) {
-                return new IntRangeField(name, new int[] {r.from.intValue()}, new int[] {r.to.intValue()});
+                return new IntRange(name, new int[] {r.from.intValue()}, new int[] {r.to.intValue()});
             }
             @Override
             public byte[] getBytes(Range r) {
@@ -621,17 +623,17 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return IntRangeField.newWithinQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
+                return IntRange.newWithinQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
                     new int[] {(Integer)to - (includeTo ? 0 : 1)});
             }
             @Override
             public Query containsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return IntRangeField.newContainsQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
+                return IntRange.newContainsQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
                     new int[] {(Integer)to - (includeTo ? 0 : 1)});
             }
             @Override
             public Query intersectsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return IntRangeField.newIntersectsQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
+                return IntRange.newIntersectsQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
                     new int[] {(Integer)to - (includeTo ? 0 : 1)});
             }
         },
@@ -654,7 +656,7 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Field getRangeField(String name, Range r) {
-                return new LongRangeField(name, new long[] {r.from.longValue()}, new long[] {r.to.longValue()});
+                return new LongRange(name, new long[] {r.from.longValue()}, new long[] {r.to.longValue()});
             }
             @Override
             public byte[] getBytes(Range r) {
@@ -667,17 +669,17 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return LongRangeField.newWithinQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
+                return LongRange.newWithinQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
                     new long[] {(Long)to - (includeTo ? 0 : 1)});
             }
             @Override
             public Query containsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return LongRangeField.newContainsQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
+                return LongRange.newContainsQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
                     new long[] {(Long)to - (includeTo ? 0 : 1)});
             }
             @Override
             public Query intersectsQuery(String field, Number from, Number to, boolean includeFrom, boolean includeTo) {
-                return LongRangeField.newIntersectsQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
+                return LongRange.newIntersectsQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
                     new long[] {(Long)to - (includeTo ? 0 : 1)});
             }
         };
@@ -728,8 +730,8 @@ public class RangeFieldMapper extends FieldMapper {
         public Query rangeQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
                 ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
                 QueryShardContext context) {
-            Number lower = from == null ? minValue() : numberType.parse(from);
-            Number upper = to == null ? maxValue() : numberType.parse(to);
+            Number lower = from == null ? minValue() : numberType.parse(from, false);
+            Number upper = to == null ? maxValue() : numberType.parse(to, false);
             if (relation == ShapeRelation.WITHIN) {
                 return withinQuery(field, lower, upper, includeFrom, includeTo);
             } else if (relation == ShapeRelation.CONTAINS) {

@@ -220,7 +220,7 @@ the operating system:
     The `cpuacct` control group to which the Elasticsearch process
     belongs
 
-`os.cgroup.cpuacct.usage` (Linux only)::
+`os.cgroup.cpuacct.usage_nanos` (Linux only)::
     The total CPU time (in nanoseconds) consumed by all tasks in the
     same cgroup as the Elasticsearch process
 

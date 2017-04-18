@@ -53,11 +53,6 @@ public class CorsRegexIT extends HttpSmokeTestCase {
                 .build();
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testThatRegularExpressionWorksOnMatch() throws IOException {
         String corsValue = "http://localhost:9200";
         Response response = getRestClient().performRequest("GET", "/",

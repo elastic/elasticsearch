@@ -25,6 +25,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
@@ -34,8 +35,11 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
@@ -49,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -91,7 +96,7 @@ public class RestClient implements Closeable {
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
-    private volatile Set<HttpHost> hosts;
+    private volatile HostTuple<Set<HttpHost>> hostTuple;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
 
@@ -121,11 +126,13 @@ public class RestClient implements Closeable {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
         Set<HttpHost> httpHosts = new HashSet<>();
+        AuthCache authCache = new BasicAuthCache();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
             httpHosts.add(host);
+            authCache.put(host, new BasicScheme());
         }
-        this.hosts = Collections.unmodifiableSet(httpHosts);
+        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(httpHosts), authCache);
         this.blacklist.clear();
     }
 
@@ -282,29 +289,65 @@ public class RestClient implements Closeable {
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        URI uri = buildUri(pathPrefix, endpoint, params);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost().iterator(), request, httpAsyncResponseConsumerFactory, failureTrackingResponseListener);
+        try {
+            Objects.requireNonNull(params, "params must not be null");
+            Map<String, String> requestParams = new HashMap<>(params);
+            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = requestParams.remove("ignore");
+            Set<Integer> ignoreErrorCodes;
+            if (ignoreString == null) {
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes = Collections.singleton(404);
+                } else {
+                    ignoreErrorCodes = Collections.emptySet();
+                }
+            } else {
+                String[] ignoresArray = ignoreString.split(",");
+                ignoreErrorCodes = new HashSet<>();
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes.add(404);
+                }
+                for (String ignoreCode : ignoresArray) {
+                    try {
+                        ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                    }
+                }
+            }
+            URI uri = buildUri(pathPrefix, endpoint, requestParams);
+            HttpRequestBase request = createHttpRequest(method, uri, entity);
+            setHeaders(request, headers);
+            FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+            long startTime = System.nanoTime();
+            performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+                    failureTrackingResponseListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+        }
     }
 
-    private void performRequestAsync(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
+    private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
+                                     final Set<Integer> ignoreErrorCodes,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
-        final HttpHost host = hosts.next();
+        final HttpHost host = hostTuple.hosts.next();
         //we stream the request body if the entity allows for it
-        HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
-        HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer = httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
-        client.execute(requestProducer, asyncResponseConsumer, new FutureCallback<HttpResponse>() {
+        final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
+        final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
+            httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
+        final HttpClientContext context = HttpClientContext.create();
+        context.setAuthCache(hostTuple.authCache);
+        client.execute(requestProducer, asyncResponseConsumer, context, new FutureCallback<HttpResponse>() {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
                     RequestLogger.logResponse(logger, request, host, httpResponse);
                     int statusCode = httpResponse.getStatusLine().getStatusCode();
                     Response response = new Response(request.getRequestLine(), host, httpResponse);
-                    if (isSuccessfulResponse(request.getMethod(), statusCode)) {
+                    if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(host);
                         listener.onSuccess(response);
                     } else {
@@ -312,7 +355,7 @@ public class RestClient implements Closeable {
                         if (isRetryStatus(statusCode)) {
                             //mark host dead and retry against next one
                             onFailure(host);
-                            retryIfPossible(responseException, hosts, request);
+                            retryIfPossible(responseException);
                         } else {
                             //mark host alive and don't retry, as the error should be a request problem
                             onResponse(host);
@@ -329,14 +372,14 @@ public class RestClient implements Closeable {
                 try {
                     RequestLogger.logFailedRequest(logger, request, host, failure);
                     onFailure(host);
-                    retryIfPossible(failure, hosts, request);
+                    retryIfPossible(failure);
                 } catch(Exception e) {
                     listener.onDefinitiveFailure(e);
                 }
             }
 
-            private void retryIfPossible(Exception exception, Iterator<HttpHost> hosts, HttpRequestBase request) {
-                if (hosts.hasNext()) {
+            private void retryIfPossible(Exception exception) {
+                if (hostTuple.hosts.hasNext()) {
                     //in case we are retrying, check whether maxRetryTimeout has been reached
                     long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
                     long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
@@ -347,7 +390,7 @@ public class RestClient implements Closeable {
                     } else {
                         listener.trackFailure(exception);
                         request.reset();
-                        performRequestAsync(startTime, hosts, request, httpAsyncResponseConsumerFactory, listener);
+                        performRequestAsync(startTime, hostTuple, request, ignoreErrorCodes, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);
@@ -385,17 +428,18 @@ public class RestClient implements Closeable {
      * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
      * one dead host gets returned so that it can be retried.
      */
-    private Iterable<HttpHost> nextHost() {
+    private HostTuple<Iterator<HttpHost>> nextHost() {
+        final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
         Collection<HttpHost> nextHosts = Collections.emptySet();
         do {
-            Set<HttpHost> filteredHosts = new HashSet<>(hosts);
+            Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
             for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
                 if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
                     filteredHosts.remove(entry.getKey());
                 }
             }
             if (filteredHosts.isEmpty()) {
-                //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
+                //last resort: if there are no good host to use, return a single dead one, the one that's closest to being retried
                 List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
                 if (sortedHosts.size() > 0) {
                     Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
@@ -414,7 +458,7 @@ public class RestClient implements Closeable {
                 nextHosts = rotatedHosts;
             }
         } while(nextHosts.isEmpty());
-        return nextHosts;
+        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache);
     }
 
     /**
@@ -452,8 +496,8 @@ public class RestClient implements Closeable {
         client.close();
     }
 
-    private static boolean isSuccessfulResponse(String method, int statusCode) {
-        return statusCode < 300 || (HttpHead.METHOD_NAME.equals(method) && statusCode == 404);
+    private static boolean isSuccessfulResponse(int statusCode) {
+        return statusCode < 300;
     }
 
     private static boolean isRetryStatus(int statusCode) {
@@ -510,7 +554,6 @@ public class RestClient implements Closeable {
     }
 
     private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
-        Objects.requireNonNull(params, "params must not be null");
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
@@ -655,6 +698,20 @@ public class RestClient implements Closeable {
          */
         public void onFailure(HttpHost host) {
 
+        }
+    }
+
+    /**
+     * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
+     * safe, volatile way.
+     */
+    private static class HostTuple<T> {
+        public final T hosts;
+        public final AuthCache authCache;
+
+        HostTuple(final T hosts, final AuthCache authCache) {
+            this.hosts = hosts;
+            this.authCache = authCache;
         }
     }
 }

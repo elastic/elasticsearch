@@ -134,12 +134,6 @@ public class GetStats implements Streamable, ToXContent {
         static final String CURRENT = "current";
     }
 
-    public static GetStats readGetStats(StreamInput in) throws IOException {
-        GetStats stats = new GetStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         existsCount = in.readVLong();

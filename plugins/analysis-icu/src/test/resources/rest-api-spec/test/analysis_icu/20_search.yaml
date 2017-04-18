@@ -26,13 +26,13 @@
                                 analyzer: my_analyzer
 
     - do:
-      index:
-          index:  test
-          type:   type
-          id:     1
-          body:   { "text": "Bâton enflammé" }
+        index:
+            index:  test
+            type:   type
+            id:     1
+            body:   { "text": "Bâton enflammé" }
     - do:
-      indices.refresh: {}
+        indices.refresh: {}
 
     - do:
         search:

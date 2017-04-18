@@ -23,18 +23,26 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -45,7 +53,7 @@ public class FsProbeTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsProbe probe = new FsProbe(Settings.EMPTY, env);
 
-            FsInfo stats = probe.stats(null);
+            FsInfo stats = probe.stats(null, null);
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
 
@@ -84,6 +92,67 @@ public class FsProbeTests extends ESTestCase {
                 assertThat(path.available, greaterThan(0L));
             }
         }
+    }
+
+    public void testFsInfoOverflow() throws Exception {
+        final FsInfo.Path pathStats =
+                new FsInfo.Path(
+                        "/foo/bar",
+                        null,
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong());
+
+        addUntilOverflow(
+                pathStats,
+                p -> p.total,
+                "total",
+                () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
+
+        addUntilOverflow(
+                pathStats,
+                p -> p.free,
+                "free",
+                () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
+
+        addUntilOverflow(
+                pathStats,
+                p -> p.available,
+                "available",
+                () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
+
+        // even after overflowing these should not be negative
+        assertThat(pathStats.total, greaterThan(0L));
+        assertThat(pathStats.free, greaterThan(0L));
+        assertThat(pathStats.available, greaterThan(0L));
+    }
+
+    private void addUntilOverflow(
+            final FsInfo.Path pathStats,
+            final Function<FsInfo.Path, Long> getter,
+            final String field,
+            final Supplier<FsInfo.Path> supplier) {
+        FsInfo.Path pathToAdd = supplier.get();
+        while ((getter.apply(pathStats) + getter.apply(pathToAdd)) > 0) {
+            // add a path to increase the total bytes until it overflows
+            logger.info(
+                    "--> adding {} bytes to {}, {} will be: {}",
+                    getter.apply(pathToAdd),
+                    getter.apply(pathStats),
+                    field,
+                    getter.apply(pathStats) + getter.apply(pathToAdd));
+            pathStats.add(pathToAdd);
+            pathToAdd = supplier.get();
+        }
+        // this overflows
+        logger.info(
+                "--> adding {} bytes to {}, {} will be: {}",
+                getter.apply(pathToAdd),
+                getter.apply(pathStats),
+                field,
+                getter.apply(pathStats) + getter.apply(pathToAdd));
+        assertThat(getter.apply(pathStats) + getter.apply(pathToAdd), lessThan(0L));
+        pathStats.add(pathToAdd);
     }
 
     public void testIoStats() {
@@ -174,4 +243,74 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
     }
 
+    public void testAdjustForHugeFilesystems() throws Exception {
+        NodePath np = new FakeNodePath(createTempDir());
+        assertThat(FsProbe.getFSInfo(np).total, greaterThanOrEqualTo(0L));
+    }
+
+    static class FakeNodePath extends NodeEnvironment.NodePath {
+        public final FileStore fileStore;
+
+        FakeNodePath(Path path) throws IOException {
+            super(path);
+            this.fileStore = new HugeFileStore();
+        }
+    }
+
+    /**
+     * Randomly returns negative values for disk space to simulate https://bugs.openjdk.java.net/browse/JDK-8162520
+     */
+    static class HugeFileStore extends FileStore {
+
+        @Override
+        public String name() {
+            return "myHugeFS";
+        }
+
+        @Override
+        public String type() {
+            return "bigFS";
+        }
+
+        @Override
+        public boolean isReadOnly() {
+            return false;
+        }
+
+        @Override
+        public long getTotalSpace() throws IOException {
+            return randomIntBetween(-1000, 1000);
+        }
+
+        @Override
+        public long getUsableSpace() throws IOException {
+            return 10;
+        }
+
+        @Override
+        public long getUnallocatedSpace() throws IOException {
+            return 10;
+        }
+
+        @Override
+        public boolean supportsFileAttributeView(Class<? extends FileAttributeView> type) {
+            return false;
+        }
+
+        @Override
+        public boolean supportsFileAttributeView(String name) {
+            return false;
+        }
+
+        @Override
+        public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) {
+            throw new UnsupportedOperationException("don't call me");
+        }
+
+        @Override
+        public Object getAttribute(String attribute) throws IOException {
+            throw new UnsupportedOperationException("don't call me");
+        }
+
+    }
 }

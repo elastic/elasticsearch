@@ -197,13 +197,9 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      *
-     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
-     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
-     *
      * @see #matchQuery(String, Object)
      * @see #rangeQuery(String)
      */
-    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -214,13 +210,9 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      *
-     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
-     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
-     *
      * @see #matchQuery(String, Object)
      * @see #rangeQuery(String)
      */
-    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -497,7 +489,7 @@ public abstract class QueryBuilders {
      *
      * @param type      The parent type.
      * @param query     The query.
-     * @param score     Whether the score from the parent hit should propogate to the child hit
+     * @param score     Whether the score from the parent hit should propagate to the child hit
      */
     public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
         return new HasParentQueryBuilder(type, query, score);
@@ -586,18 +578,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that will execute the wrapped query only for the specified
-     * indices, and "match_all" when it does not match those indices.
-     *
-     * @deprecated instead search on the `_index` field
-     */
-    @Deprecated
-    public static IndicesQueryBuilder indicesQuery(QueryBuilder queryBuilder, String... indices) {
-        // TODO remove this method in 6.0
-        return new IndicesQueryBuilder(queryBuilder, indices);
-    }
-
-    /**
      * A Query builder which allows building a query thanks to a JSON string or binary data.
      */
     public static WrapperQueryBuilder wrapperQuery(String source) {
@@ -652,80 +632,12 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A filter to filter based on a specific range from a specific geo location / point.
-     *
-     * @param name The location field name.
-     * @param point The point
-     */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, GeoPoint point) {
-        return new GeoDistanceRangeQueryBuilder(name, point);
-    }
-
-    /**
-     * A filter to filter based on a specific range from a specific geo location / point.
-     *
-     * @param name The location field name.
-     * @param geohash The point as geohash
-     */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, String geohash) {
-        return new GeoDistanceRangeQueryBuilder(name, geohash);
-    }
-
-    /**
-     * A filter to filter based on a specific range from a specific geo location / point.
-     *
-     * @param name The location field name.
-     * @param lat The points latitude
-     * @param lon The points longitude
-     */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, double lat, double lon) {
-        return new GeoDistanceRangeQueryBuilder(name, lat, lon);
-    }
-
-    /**
      * A filter to filter based on a bounding box defined by top left and bottom right locations / points
      *
      * @param name The location field name.
      */
     public static GeoBoundingBoxQueryBuilder geoBoundingBoxQuery(String name) {
         return new GeoBoundingBoxQueryBuilder(name);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name.
-     * @param geohash The Geohash to filter
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash) {
-        return new GeohashCellQuery.Builder(name, geohash);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name.
-     * @param point a geo point within the geohash bucket
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name, GeoPoint point) {
-        return new GeohashCellQuery.Builder(name, point);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name
-     * @param geohash The Geohash to filter
-     * @param neighbors should the neighbor cell also be filtered
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash, boolean neighbors) {
-        return new GeohashCellQuery.Builder(name, geohash, neighbors);
     }
 
     /**

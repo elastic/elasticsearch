@@ -22,10 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -83,23 +81,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 "}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
-    }
-
-    /**
-     * Test with empty inner query body, this should be converted to a {@link MatchNoDocsQuery}.
-     * To test this, we use inner {@link ConstantScoreQueryBuilder} with empty inner filter.
-     */
-    public void testInnerQueryEmptyException() throws IOException {
-        String queryString = "{ \"" + DisMaxQueryBuilder.NAME + "\" :"
-                + "             { \"queries\" : [ {\"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } } ] "
-                + "             }"
-                + "           }";
-        QueryBuilder queryBuilder = parseQuery(queryString, ParseFieldMatcher.EMPTY);
-        QueryShardContext context = createShardContext();
-        Query luceneQuery = queryBuilder.toQuery(context);
-        assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));
-        assertThat(luceneQuery.toString(), equalTo("MatchNoDocsQuery(\"no clauses for dismax query.\")"));
-        checkWarningHeaders("query malformed, empty clause found at [1:78]");
     }
 
     public void testIllegalArguments() {

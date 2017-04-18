@@ -75,8 +75,6 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
                 fields.add(fieldMapper.fieldType().name());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
-                fields.add(fieldMapper.fieldType().name());
             }
         }
         return fields;

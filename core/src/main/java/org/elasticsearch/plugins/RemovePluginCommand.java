@@ -19,57 +19,73 @@
 
 package org.elasticsearch.plugins;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
- * A command for the plugin cli to remove a plugin from elasticsearch.
+ * A command for the plugin CLI to remove a plugin from Elasticsearch.
  */
-final class RemovePluginCommand extends SettingCommand {
+class RemovePluginCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> arguments;
 
     RemovePluginCommand() {
-        super("Removes a plugin from elasticsearch");
+        super("removes a plugin from Elasticsearch");
         this.arguments = parser.nonOptions("plugin name");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        String arg = arguments.value(options);
-        execute(terminal, arg, settings);
+    protected void execute(final Terminal terminal, final OptionSet options, final Environment env)
+            throws Exception {
+        final String pluginName = arguments.value(options);
+        execute(terminal, pluginName, env);
     }
 
-    // pkg private for testing
-    void execute(Terminal terminal, String pluginName, Map<String, String> settings) throws Exception {
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    /**
+     * Remove the plugin specified by {@code pluginName}.
+     *
+     * @param terminal   the terminal to use for input/output
+     * @param pluginName the name of the plugin to remove
+     * @param env        the environment for the local node
+     * @throws IOException   if any I/O exception occurs while performing a file operation
+     * @throws UserException if plugin name is null
+     * @throws UserException if plugin directory does not exist
+     * @throws UserException if the plugin bin directory is not a directory
+     */
+    void execute(final Terminal terminal, final String pluginName, final Environment env)
+            throws IOException, UserException {
+        if (pluginName == null) {
+            throw new UserException(ExitCodes.USAGE, "plugin name is required");
+        }
 
-        terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
+        terminal.println("-> removing [" + Strings.coalesceToEmpty(pluginName) + "]...");
 
         final Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserException(
-                    ExitCodes.CONFIG,
-                    "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
+            final String message = String.format(
+                    Locale.ROOT,
+                    "plugin [%s] not found; "
+                            + "run 'elasticsearch-plugin list' to get list of installed plugins",
+                    pluginName);
+            throw new UserException(ExitCodes.CONFIG, message);
         }
 
         final List<Path> pluginPaths = new ArrayList<>();
@@ -77,25 +93,41 @@ final class RemovePluginCommand extends SettingCommand {
         final Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
-                throw new UserException(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
+                throw new UserException(
+                        ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");
             }
             pluginPaths.add(pluginBinDir);
-            terminal.println(VERBOSE, "Removing: " + pluginBinDir);
+            terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
         }
 
-        terminal.println(VERBOSE, "Removing: " + pluginDir);
+        terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         final Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
-        Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
+        try {
+            Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
+        } catch (final AtomicMoveNotSupportedException e) {
+            /*
+             * On a union file system if the plugin that we are removing is not installed on the
+             * top layer then atomic move will not be supported. In this case, we fall back to a
+             * non-atomic move.
+             */
+            Files.move(pluginDir, tmpPluginDir);
+        }
         pluginPaths.add(tmpPluginDir);
 
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
 
-        // we preserve the config files in case the user is upgrading the plugin, but we print
-        // a message so the user knows in case they want to remove manually
+        /*
+         * We preserve the config files in case the user is upgrading the plugin, but we print a
+         * message so the user knows in case they want to remove manually.
+         */
         final Path pluginConfigDir = env.configFile().resolve(pluginName);
         if (Files.exists(pluginConfigDir)) {
-            terminal.println(
-                    "-> Preserving plugin config files [" + pluginConfigDir + "] in case of upgrade, delete manually if not needed");
+            final String message = String.format(
+                    Locale.ROOT,
+                    "-> preserving plugin config files [%s] in case of upgrade; "
+                            + "delete manually if not needed",
+                    pluginConfigDir);
+            terminal.println(message);
         }
     }
 

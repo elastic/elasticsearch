@@ -55,11 +55,11 @@ public class MetaDataDeleteIndexServiceTests extends ESTestCase {
     }
 
     public void testDeleteSnapshotting() {
-        String index = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = new SnapshotsInProgress(new SnapshotsInProgress.Entry(snapshot, true, false,
                 SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
-                System.currentTimeMillis(), ImmutableOpenMap.of()));
+                System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of()));
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
                 .build();
@@ -71,7 +71,7 @@ public class MetaDataDeleteIndexServiceTests extends ESTestCase {
 
     public void testDeleteUnassigned() {
         // Create an unassigned index
-        String index = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
         ClusterState before = clusterState(index);
 
         // Mock the built reroute

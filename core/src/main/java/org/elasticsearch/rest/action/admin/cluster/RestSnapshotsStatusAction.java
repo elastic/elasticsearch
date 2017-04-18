@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -38,8 +37,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Returns status of currently running snapshot
  */
 public class RestSnapshotsStatusAction extends BaseRestHandler {
-
-    @Inject
     public RestSnapshotsStatusAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}/_status", this);

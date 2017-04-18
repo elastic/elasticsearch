@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -28,12 +29,12 @@ public class UpdateByQueryRequestBuilder extends
         AbstractBulkIndexByScrollRequestBuilder<UpdateByQueryRequest, UpdateByQueryRequestBuilder> {
 
     public UpdateByQueryRequestBuilder(ElasticsearchClient client,
-            Action<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> action) {
+            Action<UpdateByQueryRequest, BulkByScrollResponse, UpdateByQueryRequestBuilder> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
     }
 
     private UpdateByQueryRequestBuilder(ElasticsearchClient client,
-            Action<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> action,
+            Action<UpdateByQueryRequest, BulkByScrollResponse, UpdateByQueryRequestBuilder> action,
             SearchRequestBuilder search) {
         super(client, action, search, new UpdateByQueryRequest(search.request()));
     }

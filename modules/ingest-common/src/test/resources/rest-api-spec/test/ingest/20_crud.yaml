@@ -50,6 +50,46 @@ teardown:
       catch: missing
       ingest.get_pipeline:
         id: "my_pipeline"
+---
+"Test wildcard pipeline delete":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_*"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"
+
+  - do:
+      catch: missing
+      ingest.delete_pipeline:
+        id: "my_*"
+  - match: { "error.type": "resource_not_found_exception" }
+  - match: { "error.reason": "pipeline [my_*] is missing" }
 
 ---
 "Test Get All Pipelines":

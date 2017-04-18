@@ -37,6 +37,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -135,8 +136,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public IndexFieldData.XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
-                IndexFieldData.XFieldComparatorSource.Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -225,8 +225,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
-                XFieldComparatorSource.Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -749,6 +748,33 @@ public class FunctionScoreTests extends ESTestCase {
         searchResult = localSearcher.search(query, 1);
         explanation = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
         assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
+    }
+
+    public void testWeightFactorNeedsScore() {
+        for (boolean needsScore : new boolean[] {true, false}) {
+            WeightFactorFunction function = new WeightFactorFunction(10.0f, new ScoreFunction(CombineFunction.REPLACE) {
+                @Override
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return needsScore;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            });
+            assertEquals(needsScore, function.needsScores());
+        }
     }
 
     private static class DummyScoreFunction extends ScoreFunction {

@@ -13,7 +13,7 @@ removes some network roundtrips and reduces chances of version conflicts
 between the get and the index. The `_source` field needs to be enabled
 for this feature to work.
 
-For example, lets index a simple doc:
+For example, let's index a simple doc:
 
 [source,js]
 --------------------------------------------------
@@ -184,7 +184,7 @@ POST test/type1/1/_update
     "doc" : {
         "name" : "new_name"
     },
-    "detect_noop": true
+    "detect_noop": false
 }
 --------------------------------------------------
 // CONSOLE

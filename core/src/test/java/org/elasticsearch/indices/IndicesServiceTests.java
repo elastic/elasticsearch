@@ -38,9 +38,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
@@ -90,7 +90,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", new StringFieldMapper.TypeParser());
+            return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
         }
 
         @Override
@@ -104,23 +104,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
-    }
-
-    public void testCanDeleteIndexContent() throws IOException {
-        final IndicesService indicesService = getIndicesService();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                .put(IndexMetaData.SETTING_DATA_PATH, "/foo/bar")
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-                .build());
-        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
-
-        final IndexMetaData.Builder newIndexMetaData = IndexMetaData.builder(idxSettings.getIndexMetaData());
-        newIndexMetaData.state(IndexMetaData.State.CLOSE);
-        idxSettings = IndexSettingsModule.newIndexSettings(newIndexMetaData.build());
-        assertTrue("shard on shared filesystem, but closed, so it should be deletable",
-            indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
     }
 
     public void testCanDeleteShardContent() {

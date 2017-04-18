@@ -62,7 +62,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
         settings.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
-        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString).build();
+        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings.getAsMap().keySet(), contains("cloud.azure.storage.azure1.default"));
     }
 

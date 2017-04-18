@@ -9,20 +9,24 @@ example:
 
 [source,js]
 --------------------------------------------------
-"index" : {
-    "analysis" : {
-        "analyzer" : {
-            "default" : {
-                "tokenizer" : "standard",
-                "filter" : ["standard", "elision"]
-            }
-        },
-        "filter" : {
-            "elision" : {
-                "type" : "elision",
-                "articles" : ["l", "m", "t", "qu", "n", "s", "j"]
+PUT /elision_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "default" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "elision"]
+                }
+            },
+            "filter" : {
+                "elision" : {
+                    "type" : "elision",
+                    "articles" : ["l", "m", "t", "qu", "n", "s", "j"]
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE

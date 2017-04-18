@@ -88,7 +88,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
         List<ShardStateAction.ShardEntry> tasks = Collections.emptyList();
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result =
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result =
             executor.execute(clusterState, tasks);
         assertTasksSuccessful(tasks, result, clusterState, false);
     }
@@ -97,7 +97,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         String reason = "test duplicate failures are okay";
         ClusterState currentState = createClusterStateWithStartedShards(reason);
         List<ShardStateAction.ShardEntry> tasks = createExistingShards(currentState, reason);
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result = executor.execute(currentState, tasks);
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(currentState, tasks);
         assertTasksSuccessful(tasks, result, clusterState, true);
     }
 
@@ -105,7 +105,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         String reason = "test non existent shards are marked as successful";
         ClusterState currentState = createClusterStateWithStartedShards(reason);
         List<ShardStateAction.ShardEntry> tasks = createNonExistentShards(currentState, reason);
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result = executor.execute(clusterState, tasks);
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(clusterState, tasks);
         assertTasksSuccessful(tasks, result, clusterState, false);
     }
 
@@ -123,7 +123,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<ShardStateAction.ShardEntry> tasks = new ArrayList<>();
         tasks.addAll(failingTasks);
         tasks.addAll(nonExistentTasks);
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result = failingExecutor.execute(currentState, tasks);
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = failingExecutor.execute(currentState, tasks);
         Map<ShardStateAction.ShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
             failingTasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.failure(new RuntimeException("simulated applyFailedShards failure"))));
         taskResultMap.putAll(nonExistentTasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.success())));
@@ -146,7 +146,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 task -> ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.NoLongerPrimaryShardException(task.shardId,
                     "primary term [" + task.primaryTerm + "] did not match current primary term [" +
                         currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]"))));
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result = executor.execute(currentState, tasks);
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
     }
 
@@ -214,7 +214,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private static void assertTasksSuccessful(
         List<ShardStateAction.ShardEntry> tasks,
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result,
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result,
         ClusterState clusterState,
         boolean clusterStateChanged
     ) {
@@ -225,7 +225,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private static void assertTaskResults(
         Map<ShardStateAction.ShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap,
-        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardEntry> result,
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result,
         ClusterState clusterState,
         boolean clusterStateChanged
     ) {

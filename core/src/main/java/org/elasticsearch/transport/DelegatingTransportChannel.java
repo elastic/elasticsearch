@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
+
 import java.io.IOException;
 
 /**
@@ -70,5 +72,10 @@ public class DelegatingTransportChannel implements TransportChannel {
 
     public TransportChannel getChannel() {
         return channel;
+    }
+
+    @Override
+    public Version getVersion() {
+        return channel.getVersion();
     }
 }

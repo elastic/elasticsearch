@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -43,7 +42,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected final ThreadPool threadPool;
     protected final String actionName;
     private final ActionFilter[] filters;
-    protected final ParseFieldMatcher parseFieldMatcher;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final TaskManager taskManager;
 
@@ -53,7 +51,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.threadPool = threadPool;
         this.actionName = actionName;
         this.filters = actionFilters.filters();
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.taskManager = taskManager;
     }
@@ -167,8 +164,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    this.action.doExecute(task, request, new FilteredActionListener<>(actionName, listener,
-                            new ResponseFilterChain<>(this.action.filters, logger)));
+                    this.action.doExecute(task, request, listener);
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
@@ -178,69 +174,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             }
         }
 
-        @Override
-        public void proceed(String action, Response response, ActionListener<Response> listener) {
-            assert false : "request filter chain should never be called on the response side";
-        }
-    }
-
-    private static class ResponseFilterChain<Request extends ActionRequest, Response extends ActionResponse>
-            implements ActionFilterChain<Request, Response> {
-
-        private final ActionFilter[] filters;
-        private final AtomicInteger index;
-        private final Logger logger;
-
-        private ResponseFilterChain(ActionFilter[] filters, Logger logger) {
-            this.filters = filters;
-            this.index = new AtomicInteger(filters.length);
-            this.logger = logger;
-        }
-
-        @Override
-        public void proceed(Task task, String action, Request request, ActionListener<Response> listener) {
-            assert false : "response filter chain should never be called on the request side";
-        }
-
-        @Override
-        public void proceed(String action, Response response, ActionListener<Response> listener) {
-            int i = index.decrementAndGet();
-            try {
-                if (i >= 0) {
-                    filters[i].apply(action, response, listener, this);
-                } else if (i == -1) {
-                    listener.onResponse(response);
-                } else {
-                    listener.onFailure(new IllegalStateException("proceed was called too many times"));
-                }
-            } catch (Exception e) {
-                logger.trace("Error during transport action execution.", e);
-                listener.onFailure(e);
-            }
-        }
-    }
-
-    private static class FilteredActionListener<Response extends ActionResponse> implements ActionListener<Response> {
-
-        private final String actionName;
-        private final ActionListener<Response> listener;
-        private final ResponseFilterChain<?, Response> chain;
-
-        private FilteredActionListener(String actionName, ActionListener<Response> listener, ResponseFilterChain<?, Response> chain) {
-            this.actionName = actionName;
-            this.listener = listener;
-            this.chain = chain;
-        }
-
-        @Override
-        public void onResponse(Response response) {
-            chain.proceed(actionName, response, listener);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
     }
 
     /**

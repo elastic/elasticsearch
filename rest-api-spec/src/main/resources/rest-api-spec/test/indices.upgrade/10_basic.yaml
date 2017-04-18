@@ -19,8 +19,8 @@
 ---
 "Upgrade indices ignore unavailable":
   - skip:
-    version: " - 5.0.0"
-    reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
+      version: " - 5.0.0"
+      reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
 
   - do:
       indices.create:
@@ -44,8 +44,8 @@
 "Upgrade indices allow no indices":
 
   - skip:
-    version: " - 5.0.0"
-    reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
+      version: " - 5.0.0"
+      reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
 
   - do:
       indices.upgrade:
@@ -59,8 +59,8 @@
 "Upgrade indices disallow no indices":
 
   - skip:
-    version: " - 5.0.0"
-    reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
+      version: " - 5.0.0"
+      reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
 
   - do:
       catch: missing
@@ -73,8 +73,8 @@
 "Upgrade indices disallow unavailable":
 
   - skip:
-    version: " - 5.0.0"
-    reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
+      version: " - 5.0.0"
+      reason: ignore_unavailable was added as a bugfix in 5.0.1 see #21281
 
   - do:
       indices.create:

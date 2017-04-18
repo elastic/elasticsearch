@@ -210,12 +210,22 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a non-negative long in a variable-length format.
-     * Writes between one and nine bytes. Smaller values take fewer bytes.
-     * Negative numbers are not supported.
+     * Writes a non-negative long in a variable-length format. Writes between one and ten bytes. Smaller values take fewer bytes. Negative
+     * numbers use ten bytes and trip assertions (if running in tests) so prefer {@link #writeLong(long)} or {@link #writeZLong(long)} for
+     * negative numbers.
      */
     public void writeVLong(long i) throws IOException {
-        assert i >= 0;
+        if (i < 0) {
+            throw new IllegalStateException("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + i + "]");
+        }
+        writeVLongNoCheck(i);
+    }
+
+    /**
+     * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
+     * {@link #writeVLong(long)} instead.
+     */
+    void writeVLongNoCheck(long i) throws IOException {
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
@@ -328,7 +338,7 @@ public abstract class StreamOutput extends OutputStream {
             // make sure any possible char can fit into the buffer in any possible iteration
             // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
             // left before we start another iteration
-            if (offset > buffer.length-3) {
+            if (offset > buffer.length - 3) {
                 writeBytes(buffer, offset);
                 offset = 0;
             }
@@ -368,7 +378,7 @@ public abstract class StreamOutput extends OutputStream {
         if (b == null) {
             writeByte(TWO);
         } else {
-            writeByte(b ? ONE : ZERO);
+            writeBoolean(b);
         }
     }
 
@@ -467,16 +477,32 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+    public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
             throws IOException {
-        writeVInt(map.size());
-
-        for (final Map.Entry<K, List<V>> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            writeVInt(entry.getValue().size());
-            for (final V value : entry.getValue()) {
+        writeMap(map, keyWriter, (stream, list) -> {
+            writeVInt(list.size());
+            for (final V value : list) {
                 valueWriter.write(this, value);
             }
+        });
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+     * <pre><code>
+     * Map&lt;String, String&gt; map = ...;
+     * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+        throws IOException {
+        writeVInt(map.size());
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
+            valueWriter.write(this, entry.getValue());
         }
     }
 

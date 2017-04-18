@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,9 +41,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class ShardValidateQueryRequestTests extends ESTestCase {
-
     protected NamedWriteableRegistry namedWriteableRegistry;
-    protected SearchRequestParsers searchRequestParsers;
+
     public void setUp() throws Exception {
         super.setUp();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
@@ -53,9 +51,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        searchRequestParsers = searchModule.getSearchRequestParsers();
     }
-
 
     public void testSerialize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {

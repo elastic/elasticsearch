@@ -22,15 +22,12 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -165,16 +162,5 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         if (hasParams) {
             out.writeMap(scriptParams);
         }
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        //if we are simulating no index is involved in the request
-        if (simulate) {
-            assert request == null;
-            return Collections.emptyList();
-        }
-        //composite request as it delegates to search, but it holds one single action (search itself)
-        return Collections.singletonList(request);
     }
 }

@@ -135,19 +135,13 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shards = new ShardStats[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardStats.readShardStats(in);
-        }
+        shards = in.readArray(ShardStats::readShardStats, (size) -> new ShardStats[size]);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardStats shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeArray(shards);
     }
 
     @Override

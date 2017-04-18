@@ -30,11 +30,11 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -77,8 +77,8 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof ToParentBlockJoinQuery) {
-            ToParentBlockJoinQuery blockJoinQuery = (ToParentBlockJoinQuery) sourceQuery;
+        } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
+            ESToParentBlockJoinQuery blockJoinQuery = (ESToParentBlockJoinQuery) sourceQuery;
             flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof BoostingQuery) {
             BoostingQuery boostingQuery = (BoostingQuery) sourceQuery;

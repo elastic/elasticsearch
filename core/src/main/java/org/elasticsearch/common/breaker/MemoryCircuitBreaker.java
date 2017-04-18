@@ -79,7 +79,9 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) throws CircuitBreakingException {
         this.trippedCount.incrementAndGet();
-        final String message = "Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
+        final String message = "[" + getName() + "] Data too large, data for field [" + fieldName + "]" +
+                " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
+                ", which is larger than the limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
         logger.debug("{}", message);
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit);

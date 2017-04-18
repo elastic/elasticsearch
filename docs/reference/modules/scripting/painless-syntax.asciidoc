@@ -185,9 +185,9 @@ doesn't have a `foo.keyword` field but is the length of that field if it does.
 Lastly, `?:` is lazy so the right hand side is not evaluated at all if the left
 hand side isn't null.
 
-NOTE: Unlike Groovy, Painless' `?:` operator only coalesces `null`, not `false`
+NOTE: Unlike Groovy, Painless' ++?:++ operator only coalesces `null`, not `false`
 or http://groovy-lang.org/semantics.html#Groovy-Truth[falsy] values. Strictly
-speaking Painless' `?:` is more like Kotlin's `?:` than Groovy's `?:`.
+speaking Painless' ++?:++ is more like Kotlin's ++?:++ than Groovy's ++?:++.
 
 NOTE: The result of `?.` and `?:` can't be assigned to primitives. So
 `int[] someArray = null; int l = someArray?.length` and

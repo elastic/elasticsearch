@@ -92,9 +92,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -187,7 +188,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -217,7 +218,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -279,9 +280,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -414,7 +416,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -444,7 +446,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -535,7 +537,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -605,7 +609,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -710,7 +716,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         DiskThresholdDecider decider = makeDecider(diskSettings);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY), decider)));
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ), decider)));
 
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
@@ -786,8 +794,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         } catch (IllegalArgumentException e) {
             assertThat("can't be allocated because there isn't enough room: " + e.getMessage(),
                     e.getMessage(),
-                    containsString("the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=0.7], using " +
-                                   "more disk space than the maximum allowed [70.0%], actual free: [26.0%]"));
+                    containsString("the node is above the low watermark cluster setting " +
+                                   "[cluster.routing.allocation.disk.watermark.low=0.7], using more disk space than the maximum " +
+                                   "allowed [70.0%], actual free: [26.0%]"));
         }
 
     }
@@ -858,7 +867,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(((Decision.Single) decision).getExplanation(), containsString(
-            "the shard cannot remain on this node because it is above the high watermark " +
+            "the shard cannot remain on this node because it is above the high watermark cluster setting " +
             "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node, " +
             "actual free: [20.0%]"));
 
@@ -890,12 +899,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         if (fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE) {
             assertThat(((Decision.Single) decision).getExplanation(), containsString(
-                "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=70%], using more disk space than " +
-                "the maximum allowed [70.0%], actual free: [20.0%]"));
+                "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=70%], using " +
+                "more disk space than the maximum allowed [70.0%], actual free: [20.0%]"));
         } else {
             assertThat(((Decision.Single) decision).getExplanation(), containsString(
-                "the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=60%], using more disk space than " +
-                "the maximum allowed [60.0%], actual free: [20.0%]"));
+                "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=60%], using more " +
+                "disk space than the maximum allowed [60.0%], actual free: [20.0%]"));
         }
 
         // Creating AllocationService instance and the services it depends on...
@@ -912,7 +921,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             }
         };
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                diskThresholdDecider
         )));
         AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -1010,7 +1022,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                diskThresholdDecider
         )));
 
         AllocationService strategy = new AllocationService(Settings.builder()

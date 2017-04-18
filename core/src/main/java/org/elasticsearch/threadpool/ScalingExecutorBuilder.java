@@ -118,7 +118,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         private final int max;
         private final TimeValue keepAlive;
 
-        public ScalingExecutorSettings(final String nodeName, final int core, final int max, final TimeValue keepAlive) {
+        ScalingExecutorSettings(final String nodeName, final int core, final int max, final TimeValue keepAlive) {
             super(nodeName);
             this.core = core;
             this.max = max;

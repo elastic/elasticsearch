@@ -8,17 +8,21 @@ equivalents, if one exists.  Example:
 
 [source,js]
 --------------------------------------------------
-"index" : {
-    "analysis" : {
-        "analyzer" : {
-            "default" : {
-                "tokenizer" : "standard",
-                "filter" : ["standard", "asciifolding"]
+PUT /asciifold_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "default" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "asciifolding"]
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Accepts `preserve_original` setting which defaults to false but if true
 will keep the original token as well as emit the folded token.  For
@@ -26,20 +30,24 @@ example:
 
 [source,js]
 --------------------------------------------------
-"index" : {
-    "analysis" : {
-        "analyzer" : {
-            "default" : {
-                "tokenizer" : "standard",
-                "filter" : ["standard", "my_ascii_folding"]
-            }
-        },
-        "filter" : {
-            "my_ascii_folding" : {
-                "type" : "asciifolding",
-                "preserve_original" : true
+PUT /asciifold_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "default" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "my_ascii_folding"]
+                }
+            },
+            "filter" : {
+                "my_ascii_folding" : {
+                    "type" : "asciifolding",
+                    "preserve_original" : true
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE

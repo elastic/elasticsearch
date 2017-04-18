@@ -24,12 +24,12 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class HttpCompressionIT extends ESIntegTestCase {
+public class HttpCompressionIT extends ESRestTestCase {
     private static final String GZIP_ENCODING = "gzip";
 
     private static final StringEntity SAMPLE_DOCUMENT = new StringEntity("{\n" +
@@ -39,31 +39,23 @@ public class HttpCompressionIT extends ESIntegTestCase {
         "   }\n" +
         "}", ContentType.APPLICATION_JSON);
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return false;
-    }
 
     public void testCompressesResponseIfRequested() throws IOException {
-        ensureGreen();
-        try (RestClient client = getRestClient()) {
-            Response response = client.performRequest("GET", "/", new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING));
-            assertEquals(200, response.getStatusLine().getStatusCode());
-            assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
-        }
+        RestClient client = client();
+        Response response = client.performRequest("GET", "/", new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
     }
 
     public void testUncompressedResponseByDefault() throws IOException {
-        ensureGreen();
-        try (RestClient client = getRestClient()) {
-            Response response = client.performRequest("GET", "/");
-            assertEquals(200, response.getStatusLine().getStatusCode());
-            assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        RestClient client = client();
+        Response response = client.performRequest("GET", "/");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
 
-            response = client.performRequest("POST", "/company/employees/1", Collections.emptyMap(), SAMPLE_DOCUMENT);
-            assertEquals(201, response.getStatusLine().getStatusCode());
-            assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
-        }
+        response = client.performRequest("POST", "/company/employees/1", Collections.emptyMap(), SAMPLE_DOCUMENT);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
     }
 
 }

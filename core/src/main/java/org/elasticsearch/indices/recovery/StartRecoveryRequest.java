@@ -19,46 +19,60 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Represents a request for starting a peer recovery.
+ */
 public class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;
-
     private ShardId shardId;
-
     private DiscoveryNode sourceNode;
-
     private DiscoveryNode targetNode;
-
     private Store.MetadataSnapshot metadataSnapshot;
-
     private boolean primaryRelocation;
+    private long startingSeqNo;
 
     public StartRecoveryRequest() {
     }
 
     /**
-     * Start recovery request.
+     * Construct a request for starting a peer recovery.
      *
-     * @param sourceNode       The node to recover from
-     * @param targetNode       The node to recover to
+     * @param shardId           the shard ID to recover
+     * @param sourceNode        the source node to remover from
+     * @param targetNode        the target node to recover to
+     * @param metadataSnapshot  the Lucene metadata
+     * @param primaryRelocation whether or not the recovery is a primary relocation
+     * @param recoveryId        the recovery ID
+     * @param startingSeqNo     the starting sequence number
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Store.MetadataSnapshot metadataSnapshot, boolean primaryRelocation, long recoveryId) {
+    public StartRecoveryRequest(final ShardId shardId,
+                                final DiscoveryNode sourceNode,
+                                final DiscoveryNode targetNode,
+                                final Store.MetadataSnapshot metadataSnapshot,
+                                final boolean primaryRelocation,
+                                final long recoveryId,
+                                final long startingSeqNo) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
+        this.startingSeqNo = startingSeqNo;
     }
 
     public long recoveryId() {
@@ -85,6 +99,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return metadataSnapshot;
     }
 
+    public long startingSeqNo() {
+        return startingSeqNo;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -94,6 +112,11 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         primaryRelocation = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            startingSeqNo = in.readLong();
+        } else {
+            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
     }
 
     @Override
@@ -105,6 +128,9 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeLong(startingSeqNo);
+        }
     }
 
 }

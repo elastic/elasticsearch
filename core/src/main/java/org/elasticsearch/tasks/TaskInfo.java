@@ -20,7 +20,6 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -164,12 +163,6 @@ public final class TaskInfo implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        return builder.endObject();
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node", taskId.getNodeId());
         builder.field("id", taskId.getId());
         builder.field("type", type);
@@ -189,8 +182,8 @@ public final class TaskInfo implements Writeable, ToXContent {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskInfo, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            "task_info", a -> {
+    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
+            "task_info", true, a -> {
                 int i = 0;
                 TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
                 String type = (String) a[i++];
@@ -203,11 +196,11 @@ public final class TaskInfo implements Writeable, ToXContent {
                 String parentTaskIdString = (String) a[i++];
 
                 RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
-                TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId((String) parentTaskIdString);
+                TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
                 return new TaskInfo(id, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId);
             });
     static {
-        // Note for the future: this has to be backwards compatible with all changes to the task storage format
+        // Note for the future: this has to be backwards and forwards compatible with all changes to the task storage format
         PARSER.declareString(constructorArg(), new ParseField("node"));
         PARSER.declareLong(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("type"));

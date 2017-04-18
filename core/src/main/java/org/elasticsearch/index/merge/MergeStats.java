@@ -182,12 +182,6 @@ public class MergeStats implements Streamable, ToXContent {
         return new ByteSizeValue(currentSizeInBytes);
     }
 
-    public static MergeStats readMergeStats(StreamInput in) throws IOException {
-        MergeStats stats = new MergeStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGES);

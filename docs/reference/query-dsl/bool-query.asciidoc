@@ -13,7 +13,9 @@ occurrence types are:
 contribute to the score.
 
 |`filter` |The clause (query) must appear in matching documents. However unlike
-`must` the score of the query will be ignored.
+`must` the score of the query will be ignored. Filter clauses are executed
+in <<query-filter-context,filter context>>, meaning that scoring is ignored
+and clauses are considered for caching.
 
 |`should` |The clause (query) should appear in the matching document. In
 a boolean query with no `must` or `filter` clauses, one or more `should` clauses
@@ -23,7 +25,9 @@ be set using the
 parameter.
 
 |`must_not` |The clause (query) must not appear in the matching
-documents.
+documents.  Clauses are executed in <<query-filter-context,filter context>> meaning
+that scoring is ignored and clauses are considered for caching. Because scoring is
+ignored, a score of `0` for all documents is returned.
 |=======================================================================
 
 [IMPORTANT]
@@ -56,7 +60,7 @@ POST _search
       },
       "must_not" : {
         "range" : {
-          "age" : { "from" : 10, "to" : 20 }
+          "age" : { "gte" : 10, "lte" : 20 }
         }
       },
       "should" : [

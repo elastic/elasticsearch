@@ -23,6 +23,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
 /**
  * An index event listener is the primary extension point for plugins and build-in services
@@ -104,28 +106,29 @@ public interface IndexEventListener {
     }
 
     /**
-     * Called before the index shard gets created.
-     */
-    default void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
-    }
-
-
-    /**
      * Called before the index get closed.
      *
      * @param indexService The index service
+     * @param reason       the reason for index removal
      */
-    default void beforeIndexClosed(IndexService indexService) {
+    default void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
 
     }
 
     /**
-     * Called after the index has been closed.
+     * Called after the index has been removed.
      *
      * @param index The index
+     * @param reason       the reason for index removal
      */
-    default void afterIndexClosed(Index index, Settings indexSettings) {
+    default void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
 
+    }
+
+    /**
+     * Called before the index shard gets created.
+     */
+    default void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
     }
 
     /**
@@ -147,28 +150,6 @@ public interface IndexEventListener {
      * @param indexSettings the shards index settings
      */
     default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
-
-    /**
-     * Called after the index has been deleted.
-     * This listener method is invoked after {@link #afterIndexClosed(org.elasticsearch.index.Index, org.elasticsearch.common.settings.Settings)}
-     * when an index is deleted
-     *
-     * @param index The index
-     */
-    default void afterIndexDeleted(Index index, Settings indexSettings) {
-
-    }
-
-    /**
-     * Called before the index gets deleted.
-     * This listener method is invoked after
-     * {@link #beforeIndexClosed(org.elasticsearch.index.IndexService)} when an index is deleted
-     *
-     * @param indexService The index service
-     */
-    default void beforeIndexDeleted(IndexService indexService) {
-
     }
 
     /**

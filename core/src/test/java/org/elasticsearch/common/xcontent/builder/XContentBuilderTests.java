@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -213,7 +214,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         builder.field("fakefield", terms).endObject().endObject().endObject();
 
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
 
         XContentBuilder filterBuilder = null;
         XContentParser.Token token;
@@ -235,7 +236,7 @@ public class XContentBuilderTests extends ESTestCase {
         }
 
         assertNotNull(filterBuilder);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(filterBuilder.bytes());
+        parser = createParser(JsonXContent.jsonXContent, filterBuilder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), equalTo("terms"));

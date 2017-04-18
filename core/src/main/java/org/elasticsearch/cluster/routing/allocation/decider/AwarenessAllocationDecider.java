@@ -78,12 +78,12 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     public static final String NAME = "awareness";
 
     public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING =
-        new Setting<>("cluster.routing.allocation.awareness.attributes", "", Strings::splitStringByCommaToArray , Property.Dynamic,
+        new Setting<>("cluster.routing.allocation.awareness.attributes", "", s -> Strings.tokenizeToStringArray(s, ","), Property.Dynamic,
             Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING =
         Setting.groupSetting("cluster.routing.allocation.awareness.force.", Property.Dynamic, Property.NodeScope);
 
-    private String[] awarenessAttributes;
+    private volatile String[] awarenessAttributes;
 
     private volatile Map<String, String[]> forcedAwarenessAttributes;
 
@@ -125,7 +125,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.length == 0) {
             return allocation.decision(Decision.YES, NAME,
-                "allocation awareness is not enabled, set [%s] to enable it",
+                "allocation awareness is not enabled, set cluster setting [%s] to enable it",
                 CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
         }
 
@@ -135,7 +135,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // the node the shard exists on must be associated with an awareness attribute
             if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
                 return allocation.decision(Decision.NO, NAME,
-                    "node does not contain the awareness attribute [%s]; required attributes [%s=%s]",
+                    "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
                     awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
                     allocation.debugDecision() ? Strings.arrayToCommaDelimitedString(awarenessAttributes) : null);
             }

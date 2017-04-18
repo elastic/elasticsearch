@@ -21,8 +21,8 @@ Python::
 
 *********************************************
 
-The REST API endpoint is `/_bulk`, and it expects the following JSON
-structure:
+The REST API endpoint is `/_bulk`, and it expects the following newline delimited JSON
+(NDJSON) structure:
 
 [source,js]
 --------------------------------------------------
@@ -34,8 +34,11 @@ optional_source\n
 action_and_meta_data\n
 optional_source\n
 --------------------------------------------------
+// NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`.
+*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
+may be preceded by a carriage return `\r`. When sending requests to this endpoint the
+`Content-Type` header should be set to `application/x-ndjson`.
 
 The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next
@@ -56,9 +59,11 @@ newlines. Example:
 $ cat requests
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
-$ curl -s -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
+$ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
 {"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"type1","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
+// NOTCONSOLE
+// Not converting to console because this shows how curl works
 
 Because this format uses literal `\n`'s as delimiters, please be sure
 that the JSON actions and sources are not pretty printed. Here is an
@@ -212,7 +217,7 @@ operation based on the `_parent` / `_routing` mapping.
 
 When making bulk calls, you can set the `wait_for_active_shards`
 parameter to require a minimum number of shard copies to be active
-before starting to process the bulk request. See 
+before starting to process the bulk request. See
 <<index-wait-for-active-shards,here>> for further details and a usage
 example.
 

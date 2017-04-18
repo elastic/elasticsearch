@@ -21,7 +21,6 @@ package org.elasticsearch.http.netty4.pipelining;
 
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.ReferenceCounted;
 
 class HttpPipelinedResponse implements Comparable<HttpPipelinedResponse>, ReferenceCounted {

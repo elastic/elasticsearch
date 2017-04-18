@@ -68,7 +68,7 @@ public class RoutingAllocation {
 
     private final boolean retryFailed;
 
-    private boolean debugDecision = false;
+    private DebugMode debugDecision = DebugMode.OFF;
 
     private boolean hasPendingAsyncFetch = false;
 
@@ -167,11 +167,19 @@ public class RoutingAllocation {
         return this.ignoreDisable;
     }
 
-    public void debugDecision(boolean debug) {
+    public void setDebugMode(DebugMode debug) {
         this.debugDecision = debug;
     }
 
+    public void debugDecision(boolean debug) {
+        this.debugDecision = debug ? DebugMode.ON : DebugMode.OFF;
+    }
+
     public boolean debugDecision() {
+        return this.debugDecision != DebugMode.OFF;
+    }
+
+    public DebugMode getDebugMode() {
         return this.debugDecision;
     }
 
@@ -279,5 +287,21 @@ public class RoutingAllocation {
 
     public boolean isRetryFailed() {
         return retryFailed;
+    }
+
+    public enum DebugMode {
+        /**
+         * debug mode is off
+         */
+        OFF,
+        /**
+         * debug mode is on
+         */
+        ON,
+        /**
+         * debug mode is on, but YES decisions from a {@link org.elasticsearch.cluster.routing.allocation.decider.Decision.Multi}
+         * are not included.
+         */
+        EXCLUDE_YES_DECISIONS
     }
 }

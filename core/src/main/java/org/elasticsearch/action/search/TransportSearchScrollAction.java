@@ -66,7 +66,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
                         searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
-                case QUERY_AND_FETCH_TYPE:
+                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
                     action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
                         searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;

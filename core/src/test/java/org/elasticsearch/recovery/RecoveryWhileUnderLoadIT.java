@@ -276,7 +276,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery()).addSort("id", SortOrder.ASC).get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
-            if (searchResponse.getHits().totalHits() != numberOfDocs) {
+            if (searchResponse.getHits().getTotalHits() != numberOfDocs) {
                 error = true;
             }
         }
@@ -312,7 +312,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                                 boolean errorOccurred = false;
                                 for (int i = 0; i < iterations; i++) {
                                     SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                                    if (searchResponse.getHits().totalHits() != numberOfDocs) {
+                                    if (searchResponse.getHits().getTotalHits() != numberOfDocs) {
                                         errorOccurred = true;
                                     }
                                 }
@@ -337,7 +337,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
             logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
         }
-        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, searchResponse.getHits().totalHits(), numberOfDocs);
+        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, searchResponse.getHits().getTotalHits(), numberOfDocs);
     }
 
     private void refreshAndAssert() throws Exception {

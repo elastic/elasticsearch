@@ -35,7 +35,7 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
     private Object[][] pages;
 
     /** Constructor. */
-    public BigObjectArray(long size, BigArrays bigArrays) {
+    BigObjectArray(long size, BigArrays bigArrays) {
         super(OBJECT_PAGE_SIZE, bigArrays, true);
         this.size = size;
         pages = new Object[numPages(size)][];

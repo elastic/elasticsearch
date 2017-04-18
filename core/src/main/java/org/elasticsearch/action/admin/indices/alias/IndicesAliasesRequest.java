@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -118,8 +118,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         public static AliasActions removeIndex() {
             return new AliasActions(AliasActions.Type.REMOVE_INDEX);
         }
-        private static ObjectParser<AliasActions, ParseFieldMatcherSupplier> parser(String name, Supplier<AliasActions> supplier) {
-            ObjectParser<AliasActions, ParseFieldMatcherSupplier> parser = new ObjectParser<>(name, supplier);
+        private static ObjectParser<AliasActions, Void> parser(String name, Supplier<AliasActions> supplier) {
+            ObjectParser<AliasActions, Void> parser = new ObjectParser<>(name, supplier);
             parser.declareString((action, index) -> {
                 if (action.indices() != null) {
                     throw new IllegalArgumentException("Only one of [index] and [indices] is supported");
@@ -147,7 +147,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return parser;
         }
 
-        private static final ObjectParser<AliasActions, ParseFieldMatcherSupplier> ADD_PARSER = parser("add", AliasActions::add);
+        private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser("add", AliasActions::add);
         static {
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
@@ -157,18 +157,17 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 }
             }, new ParseField("filter"));
             // Since we need to support numbers AND strings here we have to use ValueType.INT.
-            ADD_PARSER.declareField(AliasActions::routing, p -> p.text(), new ParseField("routing"), ValueType.INT);
-            ADD_PARSER.declareField(AliasActions::indexRouting, p -> p.text(), new ParseField("index_routing"), ValueType.INT);
-            ADD_PARSER.declareField(AliasActions::searchRouting, p -> p.text(), new ParseField("search_routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::routing, XContentParser::text, new ParseField("routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, new ParseField("index_routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, new ParseField("search_routing"), ValueType.INT);
         }
-        private static final ObjectParser<AliasActions, ParseFieldMatcherSupplier> REMOVE_PARSER = parser("remove", AliasActions::remove);
-        private static final ObjectParser<AliasActions, ParseFieldMatcherSupplier> REMOVE_INDEX_PARSER = parser("remove_index",
-                AliasActions::removeIndex);
+        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser("remove", AliasActions::remove);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser("remove_index", AliasActions::removeIndex);
 
         /**
          * Parser for any one {@link AliasAction}.
          */
-        public static final ConstructingObjectParser<AliasActions, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<AliasActions, Void> PARSER = new ConstructingObjectParser<>(
                 "alias_action", a -> {
                     // Take the first action and complain if there are more than one actions
                     AliasActions action = null;

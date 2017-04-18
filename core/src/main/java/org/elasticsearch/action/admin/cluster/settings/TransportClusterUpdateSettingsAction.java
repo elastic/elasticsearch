@@ -67,10 +67,10 @@ public class TransportClusterUpdateSettingsAction extends
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        if ((request.transientSettings().getAsMap().isEmpty() &&
-            request.persistentSettings().getAsMap().size() == 1 &&
+        if ((request.transientSettings().isEmpty() &&
+            request.persistentSettings().size() == 1 &&
             MetaData.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())) ||
-            (request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 &&
+            (request.persistentSettings().isEmpty() && request.transientSettings().size() == 1 &&
                 MetaData.SETTING_READ_ONLY_SETTING.exists(request.transientSettings()))) {
             return null;
         }

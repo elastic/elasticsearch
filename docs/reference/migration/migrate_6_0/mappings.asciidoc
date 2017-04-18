@@ -1,0 +1,31 @@
+[[breaking_60_mappings_changes]]
+=== Mapping changes
+
+==== Coercion of boolean fields
+
+Previously, Elasticsearch recognized the strings `true`, `false`, `on`, `off`, `yes`, `no`, `0`, `1` as booleans. Elasticsearch 6.0
+recognizes only `true` and `false` as boolean and will throw an error otherwise. For backwards compatibility purposes, during the 6.x
+series the previous coercion rules will continue to work on pre-6.0 indices. This means that you do not need to change affected existing
+mappings immediately. However, it is not possible to create new indices from existing index templates that violate the strict `boolean`
+coercion rules.
+
+==== The `_all` meta field is now disabled by default
+
+On new mappings, the `_all` meta field that contains a copy of the text from
+each field is now disabled by default. The `query_string` and
+`simple_query_string` queries that previously used `_all` to search will now
+check if `_all` is enabled/disabled and switch to executing the query across all
+fields if `_all` is disabled. `_all` can no longer be configured for indices
+created with Elasticsearch version 6.0 or later.
+
+==== The `include_in_all` mapping parameter is now disallowed
+
+Since the `_all` field is now disabled by default and cannot be configured for
+indices created with Elasticsearch 6.0 or later, the `include_in_all` setting is
+now disallowed for these indices' mappings.
+
+==== Unrecognized `match_mapping_type` options not silently ignored
+
+Previously Elastiscearch would silently ignore any dynamic templates that
+included a `match_mapping_type` type that was unrecognized. An exception is now
+thrown on an unrecognized type.

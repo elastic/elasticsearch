@@ -18,13 +18,26 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
+import java.util.EnumSet;
 
 public class ConnectionProfileTests extends ESTestCase {
 
     public void testBuildConnectionProfile() {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        TimeValue handshaketTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        final boolean setConnectTimeout = randomBoolean();
+        if (setConnectTimeout) {
+            builder.setConnectTimeout(connectTimeout);
+        }
+        final boolean setHandshakeTimeout = randomBoolean();
+        if (setHandshakeTimeout) {
+            builder.setHandshakeTimeout(handshaketTimeout);
+        }
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(3, TransportRequestOptions.Type.PING);
@@ -36,7 +49,22 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals("type [PING] is already registered", illegalArgumentException.getMessage());
         builder.addConnections(4, TransportRequestOptions.Type.REG);
         ConnectionProfile build = builder.build();
+        if (randomBoolean()) {
+            build = new ConnectionProfile.Builder(build).build();
+        }
         assertEquals(10, build.getNumConnections());
+        if (setConnectTimeout) {
+            assertEquals(connectTimeout, build.getConnectTimeout());
+        } else {
+            assertNull(build.getConnectTimeout());
+        }
+
+        if (setHandshakeTimeout) {
+            assertEquals(handshaketTimeout, build.getHandshakeTimeout());
+        } else {
+            assertNull(build.getHandshakeTimeout());
+        }
+
         Integer[] array = new Integer[10];
         for (int i = 0; i < array.length; i++) {
             array[i] = i;
@@ -45,7 +73,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(4, build.getHandles().size());
         assertEquals(0, build.getHandles().get(0).offset);
         assertEquals(1, build.getHandles().get(0).length);
-        assertArrayEquals(new TransportRequestOptions.Type[] {TransportRequestOptions.Type.BULK}, build.getHandles().get(0).getTypes());
+        assertEquals(EnumSet.of(TransportRequestOptions.Type.BULK), build.getHandles().get(0).getTypes());
         Integer channel = build.getHandles().get(0).getChannel(array);
         for (int i = 0; i < numIters; i++) {
             assertEquals(0, channel.intValue());
@@ -53,7 +81,7 @@ public class ConnectionProfileTests extends ESTestCase {
 
         assertEquals(1, build.getHandles().get(1).offset);
         assertEquals(2, build.getHandles().get(1).length);
-        assertArrayEquals(new TransportRequestOptions.Type[] {TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY},
+        assertEquals(EnumSet.of(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY),
             build.getHandles().get(1).getTypes());
         channel = build.getHandles().get(1).getChannel(array);
         for (int i = 0; i < numIters; i++) {
@@ -62,7 +90,7 @@ public class ConnectionProfileTests extends ESTestCase {
 
         assertEquals(3, build.getHandles().get(2).offset);
         assertEquals(3, build.getHandles().get(2).length);
-        assertArrayEquals(new TransportRequestOptions.Type[] {TransportRequestOptions.Type.PING}, build.getHandles().get(2).getTypes());
+        assertEquals(EnumSet.of(TransportRequestOptions.Type.PING), build.getHandles().get(2).getTypes());
         channel = build.getHandles().get(2).getChannel(array);
         for (int i = 0; i < numIters; i++) {
             assertThat(channel, Matchers.anyOf(Matchers.is(3), Matchers.is(4), Matchers.is(5)));
@@ -70,10 +98,29 @@ public class ConnectionProfileTests extends ESTestCase {
 
         assertEquals(6, build.getHandles().get(3).offset);
         assertEquals(4, build.getHandles().get(3).length);
-        assertArrayEquals(new TransportRequestOptions.Type[] {TransportRequestOptions.Type.REG}, build.getHandles().get(3).getTypes());
+        assertEquals(EnumSet.of(TransportRequestOptions.Type.REG), build.getHandles().get(3).getTypes());
         channel = build.getHandles().get(3).getChannel(array);
         for (int i = 0; i < numIters; i++) {
             assertThat(channel, Matchers.anyOf(Matchers.is(6), Matchers.is(7), Matchers.is(8), Matchers.is(9)));
         }
+
+        assertEquals(3, build.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(4, build.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(2, build.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, build.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(1, build.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+    }
+
+    public void testNoChannels() {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1, TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.STATE,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG);
+        builder.addConnections(0, TransportRequestOptions.Type.PING);
+        ConnectionProfile build = builder.build();
+        Integer[] array = new Integer[]{Integer.valueOf(0)};
+        assertEquals(Integer.valueOf(0), build.getHandles().get(0).getChannel(array));
+        expectThrows(IllegalStateException.class, () -> build.getHandles().get(1).getChannel(array));
     }
 }

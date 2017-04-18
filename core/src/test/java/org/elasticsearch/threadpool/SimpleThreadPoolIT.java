@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
-import org.elasticsearch.tribe.TribeIT;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -136,7 +135,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         builder.endObject();
         builder.close();
         Map<String, Object> poolsMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             poolsMap = parser.map();
         }
         return (Map<String, Object>) ((Map<String, Object>) poolsMap.get("thread_pool")).get(poolName);

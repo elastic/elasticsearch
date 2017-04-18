@@ -36,7 +36,7 @@ class ByteBufStreamInput extends StreamInput {
     private final int startIndex;
     private final int endIndex;
 
-    public ByteBufStreamInput(ByteBuf buffer, int length) {
+    ByteBufStreamInput(ByteBuf buffer, int length) {
         if (length > buffer.readableBytes()) {
             throw new IndexOutOfBoundsException();
         }

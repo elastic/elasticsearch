@@ -37,4 +37,9 @@ public class BasicReplicationRequest extends ReplicationRequest<BasicReplication
     public BasicReplicationRequest(ShardId shardId) {
         super(shardId);
     }
+
+    @Override
+    public String toString() {
+        return "BasicReplicationRequest{" + shardId + "}";
+    }
 }

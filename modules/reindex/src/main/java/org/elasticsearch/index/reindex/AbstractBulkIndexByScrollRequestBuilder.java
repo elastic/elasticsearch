@@ -20,6 +20,8 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.script.Script;
@@ -30,7 +32,7 @@ public abstract class AbstractBulkIndexByScrollRequestBuilder<
         extends AbstractBulkByScrollRequestBuilder<Request, Self> {
 
     protected AbstractBulkIndexByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, BulkIndexByScrollResponse, Self> action, SearchRequestBuilder search, Request request) {
+            Action<Request, BulkByScrollResponse, Self> action, SearchRequestBuilder search, Request request) {
         super(client, action, search, request);
     }
 

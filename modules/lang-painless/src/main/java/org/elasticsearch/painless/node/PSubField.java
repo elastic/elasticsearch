@@ -37,7 +37,7 @@ final class PSubField extends AStoreable {
 
     private final Field field;
 
-    public PSubField(Location location, Field field) {
+    PSubField(Location location, Field field) {
         super(location);
 
         this.field = Objects.requireNonNull(field);

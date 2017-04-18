@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser.Range;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregationBuilder> {
@@ -37,7 +37,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
-                key = randomAsciiOfLengthBetween(1, 20);
+                key = randomAlphaOfLengthBetween(1, 20);
             }
             double from = randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE - 1000);
             double to = randomBoolean() ? Double.POSITIVE_INFINITY
@@ -45,7 +45,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
                             : randomIntBetween((int) from, Integer.MAX_VALUE));
             factory.addRange(new Range(key, from, to));
         }
-        factory.field(randomAsciiOfLengthBetween(1, 20));
+        factory.field(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }

@@ -43,6 +43,7 @@ dependencies {
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
+  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }

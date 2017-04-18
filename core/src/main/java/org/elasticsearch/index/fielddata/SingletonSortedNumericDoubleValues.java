@@ -34,7 +34,7 @@ final class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues
   private double value;
   private int count;
 
-  public SingletonSortedNumericDoubleValues(NumericDoubleValues in, Bits docsWithField) {
+  SingletonSortedNumericDoubleValues(NumericDoubleValues in, Bits docsWithField) {
     this.in = in;
     this.docsWithField = docsWithField instanceof MatchAllBits ? null : docsWithField;
   }

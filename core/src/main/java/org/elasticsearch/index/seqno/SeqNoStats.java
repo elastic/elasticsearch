@@ -30,17 +30,19 @@ import java.io.IOException;
 public class SeqNoStats implements ToXContent, Writeable {
 
     private static final String SEQ_NO = "seq_no";
-    private static final String MAX_SEQ_NO = "max";
+    private static final String MAX_SEQ_NO = "max_seq_no";
     private static final String LOCAL_CHECKPOINT = "local_checkpoint";
     private static final String GLOBAL_CHECKPOINT = "global_checkpoint";
-
-    public static final SeqNoStats PROTO = new SeqNoStats(0, 0, 0);
 
     private final long maxSeqNo;
     private final long localCheckpoint;
     private final long globalCheckpoint;
 
     public SeqNoStats(long maxSeqNo, long localCheckpoint, long globalCheckpoint) {
+        assert localCheckpoint <= maxSeqNo:
+            "local checkpoint [" + localCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
+        // note that the the global checkpoint can be higher from both maxSeqNo and localCheckpoint
+        // as we use this stats object to describe lucene commits as well as live statistic.
         this.maxSeqNo = maxSeqNo;
         this.localCheckpoint = localCheckpoint;
         this.globalCheckpoint = globalCheckpoint;

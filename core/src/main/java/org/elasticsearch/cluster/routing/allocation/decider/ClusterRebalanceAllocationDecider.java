@@ -120,13 +120,13 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned primary shards and [%s] is set to [%s]",
+                        "the cluster has unassigned primary shards and cluster setting [%s] is set to [%s]",
                         CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
             if ( allocation.routingNodes().hasInactivePrimaries() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive primary shards and [%s] is set to [%s]",
+                        "the cluster has inactive primary shards and cluster setting [%s] is set to [%s]",
                         CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
 
@@ -136,14 +136,14 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             // check if there are unassigned shards.
             if (allocation.routingNodes().hasUnassignedShards() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned shards and [%s] is set to [%s]",
+                        "the cluster has unassigned shards and cluster setting [%s] is set to [%s]",
                         CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
             if ( allocation.routingNodes().hasInactiveShards() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive shards and [%s] is set to [%s]",
+                        "the cluster has inactive shards and cluster setting [%s] is set to [%s]",
                         CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
         }

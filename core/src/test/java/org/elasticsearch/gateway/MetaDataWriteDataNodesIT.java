@@ -36,6 +36,7 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,10 +58,9 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
         // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        InternalTestCluster.Async<String> nodeName1 = internalCluster().startDataOnlyNodeAsync();
-        InternalTestCluster.Async<String> nodeName2 = internalCluster().startDataOnlyNodeAsync();
-        String node1 = nodeName1.get();
-        String node2 = nodeName2.get();
+        List<String> nodeNames= internalCluster().startDataOnlyNodes(2);
+        String node1 = nodeNames.get(0);
+        String node2 = nodeNames.get(1);
 
         String index = "index";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0).put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -38,7 +39,7 @@ import java.util.Objects;
  *
  * @see AllocationDecider
  */
-public abstract class Decision implements ToXContent {
+public abstract class Decision implements ToXContent, Writeable {
 
     public static final Decision ALWAYS = new Single(Type.YES);
     public static final Decision YES = new Single(Type.YES);
@@ -55,26 +56,6 @@ public abstract class Decision implements ToXContent {
      */
     public static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
         return new Single(type, label, explanation, explanationParams);
-    }
-
-    public static void writeTo(Decision decision, StreamOutput out) throws IOException {
-        if (decision instanceof Multi) {
-            // Flag specifying whether it is a Multi or Single Decision
-            out.writeBoolean(true);
-            out.writeVInt(((Multi) decision).decisions.size());
-            for (Decision d : ((Multi) decision).decisions) {
-                writeTo(d, out);
-            }
-        } else {
-            // Flag specifying whether it is a Multi or Single Decision
-            out.writeBoolean(false);
-            Single d = ((Single) decision);
-            Type.writeTo(d.type, out);
-            out.writeOptionalString(d.label);
-            // Flatten explanation on serialization, so that explanationParams
-            // do not need to be serialized
-            out.writeOptionalString(d.getExplanation());
-        }
     }
 
     public static Decision readFrom(StreamInput in) throws IOException {
@@ -100,10 +81,16 @@ public abstract class Decision implements ToXContent {
      * This enumeration defines the
      * possible types of decisions
      */
-    public enum Type {
-        YES,
-        NO,
-        THROTTLE;
+    public enum Type implements Writeable {
+        YES(1),
+        THROTTLE(2),
+        NO(0);
+
+        private final int id;
+
+        Type(int id) {
+            this.id = id;
+        }
 
         public static Type resolve(String s) {
             return Type.valueOf(s.toUpperCase(Locale.ROOT));
@@ -123,20 +110,9 @@ public abstract class Decision implements ToXContent {
             }
         }
 
-        public static void writeTo(Type type, StreamOutput out) throws IOException {
-            switch (type) {
-                case NO:
-                    out.writeVInt(0);
-                    break;
-                case YES:
-                    out.writeVInt(1);
-                    break;
-                case THROTTLE:
-                    out.writeVInt(2);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Invalid Type [" + type + "]");
-            }
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(id);
         }
 
         public boolean higherThan(Type other) {
@@ -163,6 +139,12 @@ public abstract class Decision implements ToXContent {
      */
     @Nullable
     public abstract String label();
+
+    /**
+     * Get the explanation for this decision.
+     */
+    @Nullable
+    public abstract String getExplanation();
 
     /**
      * Return the list of all decisions that make up this decision
@@ -224,6 +206,7 @@ public abstract class Decision implements ToXContent {
         /**
          * Returns the explanation string, fully formatted.  Only formats the string once.
          */
+        @Override
         @Nullable
         public String getExplanation() {
             if (explanationString == null && explanation != null) {
@@ -275,6 +258,16 @@ public abstract class Decision implements ToXContent {
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(false); // flag specifying its a single decision
+            type.writeTo(out);
+            out.writeOptionalString(label);
+            // Flatten explanation on serialization, so that explanationParams
+            // do not need to be serialized
+            out.writeOptionalString(getExplanation());
+        }
     }
 
     /**
@@ -316,6 +309,12 @@ public abstract class Decision implements ToXContent {
         }
 
         @Override
+        @Nullable
+        public String getExplanation() {
+            throw new UnsupportedOperationException("multi-level decisions do not have an explanation");
+        }
+
+        @Override
         public List<Decision> getDecisions() {
             return Collections.unmodifiableList(this.decisions);
         }
@@ -351,12 +350,19 @@ public abstract class Decision implements ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray("decisions");
             for (Decision d : decisions) {
                 d.toXContent(builder, params);
             }
-            builder.endArray();
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(true); // flag indicating it is a multi decision
+            out.writeVInt(getDecisions().size());
+            for (Decision d : getDecisions()) {
+                d.writeTo(out);
+            }
         }
     }
 }

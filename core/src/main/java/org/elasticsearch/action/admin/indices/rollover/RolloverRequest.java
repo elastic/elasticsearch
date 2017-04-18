@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -26,16 +25,10 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -50,23 +43,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    public static ObjectParser<RolloverRequest, ParseFieldMatcherSupplier> PARSER =
-        new ObjectParser<>("conditions", null);
+    public static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("conditions", null);
     static {
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                Condition.PARSER.parse(parser, request.conditions, parseFieldMatcherSupplier),
+        PARSER.declareField((parser, request, context) -> Condition.PARSER.parse(parser, request.conditions, null),
             new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.createIndexRequest.settings(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) -> {
+        PARSER.declareField((parser, request, context) -> {
             for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
                 request.createIndexRequest.mapping(mappingsEntry.getKey(),
                     (Map<String, Object>) mappingsEntry.getValue());
             }
         }, new ParseField("mappings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.createIndexRequest.aliases(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
@@ -192,19 +181,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     CreateIndexRequest getCreateIndexRequest() {
         return createIndexRequest;
-    }
-
-    public void source(BytesReference source) {
-        XContentType xContentType = XContentFactory.xContentType(source);
-        if (xContentType != null) {
-            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
-                PARSER.parse(parser, this, () -> ParseFieldMatcher.EMPTY);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse source for rollover index", e);
-            }
-        } else {
-            throw new ElasticsearchParseException("failed to parse content type for rollover index source");
-        }
     }
 
     /**

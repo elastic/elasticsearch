@@ -19,11 +19,10 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
-import org.elasticsearch.common.ParseFieldMatcher;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -48,7 +47,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
+        qe = new MustacheScriptEngineService();
         factory = new CustomMustacheFactory();
     }
 
@@ -80,9 +79,13 @@ public class MustacheScriptEngineTests extends ESTestCase {
     }
 
     public void testSimple() throws IOException {
-        String templateString = "{" + "\"inline\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
-        XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        String templateString =
+                  "{" 
+                + "\"inline\":{\"match_{{template}}\": {}},"
+                + "\"params\":{\"template\":\"all\"}"
+                + "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
+        Script script = Script.parse(parser);
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
@@ -90,10 +93,15 @@ public class MustacheScriptEngineTests extends ESTestCase {
     }
 
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
-        String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
-                + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
-        XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        String templateString =
+                  "{"
+                + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
+                + "    \"template\":\"all\","
+                + "    \"use_it\": true"
+                + "  }"
+                + "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
+        Script script = Script.parse(parser);
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());

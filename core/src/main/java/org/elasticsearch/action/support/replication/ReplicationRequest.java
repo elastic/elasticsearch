@@ -55,7 +55,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      */
     protected ShardId shardId;
 
-    long seqNo;
     long primaryTerm;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
@@ -171,19 +170,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return routedBasedOnClusterVersion;
     }
 
-    /**
-     * Returns the sequence number for this operation. The sequence number is assigned while the operation
-     * is performed on the primary shard.
-     */
-    public long seqNo() {
-        return seqNo;
-    }
-
-    /** sets the sequence number for this operation. should only be called on the primary shard */
-    public void seqNo(long seqNo) {
-        this.seqNo = seqNo;
-    }
-
     /** returns the primary term active at the time the operation was performed on the primary shard */
     public long primaryTerm() {
         return primaryTerm;
@@ -215,7 +201,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
-        seqNo = in.readVLong();
         primaryTerm = in.readVLong();
     }
 
@@ -232,7 +217,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        out.writeVLong(seqNo);
         out.writeVLong(primaryTerm);
     }
 
@@ -252,13 +236,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public String toString() {
-        if (shardId != null) {
-            return shardId.toString();
-        } else {
-            return index;
-        }
-    }
+    public abstract String toString(); // force a proper to string to ease debugging
 
     @Override
     public String getDescription() {

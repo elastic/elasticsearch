@@ -20,20 +20,21 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -41,8 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest,
     GlobalCheckpointSyncAction.ReplicaRequest, ReplicationResponse> {
@@ -63,6 +62,17 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
     @Override
     protected ReplicationResponse newResponseInstance() {
         return new ReplicationResponse();
+    }
+
+    @Override
+    protected void sendReplicaRequest(ConcreteShardRequest<ReplicaRequest> concreteShardRequest, DiscoveryNode node,
+                                      ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+        if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            super.sendReplicaRequest(concreteShardRequest, node, listener);
+        } else {
+            listener.onResponse(
+                new ReplicaResponse(concreteShardRequest.getTargetAllocationID(), SequenceNumbersService.UNASSIGNED_SEQ_NO));
+        }
     }
 
     @Override
@@ -105,6 +115,11 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         public PrimaryRequest(ShardId shardId) {
             super(shardId);
         }
+
+        @Override
+        public String toString() {
+            return "GlobalCkpSyncPrimary{" + shardId + "}";
+        }
     }
 
     public static final class ReplicaRequest extends ReplicationRequest<GlobalCheckpointSyncAction.ReplicaRequest> {
@@ -133,6 +148,14 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
 
         public long getCheckpoint() {
             return checkpoint;
+        }
+
+        @Override
+        public String toString() {
+            return "GlobalCkpSyncReplica{" +
+                "checkpoint=" + checkpoint +
+                ", shardId=" + shardId +
+                '}';
         }
     }
 

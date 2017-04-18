@@ -66,7 +66,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected ParentIdQueryBuilder doCreateTestQueryBuilder() {
-        return new ParentIdQueryBuilder(CHILD_TYPE, randomAsciiOfLength(4)).ignoreUnmapped(randomBoolean());
+        return new ParentIdQueryBuilder(CHILD_TYPE, randomAlphaOfLength(4)).ignoreUnmapped(randomBoolean());
     }
 
     @Override

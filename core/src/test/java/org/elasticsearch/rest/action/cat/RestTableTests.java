@@ -104,42 +104,42 @@ public class RestTableTests extends ESTestCase {
     }
 
     public void testThatWeUseTheAcceptHeaderJson() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, APPLICATION_JSON),
+        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)),
                 APPLICATION_JSON,
                 JSON_TABLE_BODY);
     }
 
     public void testThatWeUseTheAcceptHeaderYaml() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, APPLICATION_YAML),
+        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_YAML)),
                 APPLICATION_YAML,
                 YAML_TABLE_BODY);
     }
 
     public void testThatWeUseTheAcceptHeaderSmile() throws Exception {
-        assertResponseContentType(Collections.singletonMap(ACCEPT, APPLICATION_SMILE),
+        assertResponseContentType(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_SMILE)),
                 APPLICATION_SMILE);
     }
 
     public void testThatWeUseTheAcceptHeaderCbor() throws Exception {
-        assertResponseContentType(Collections.singletonMap(ACCEPT, APPLICATION_CBOR),
+        assertResponseContentType(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_CBOR)),
                 APPLICATION_CBOR);
     }
 
     public void testThatWeUseTheAcceptHeaderText() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, TEXT_PLAIN),
+        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN)),
                 TEXT_PLAIN,
                 TEXT_TABLE_BODY);
     }
 
     public void testIgnoreContentType() throws Exception {
-        assertResponse(Collections.singletonMap(CONTENT_TYPE, APPLICATION_JSON),
+        assertResponse(Collections.singletonMap(CONTENT_TYPE, Collections.singletonList(APPLICATION_JSON)),
                 TEXT_PLAIN,
                 TEXT_TABLE_BODY);
     }
 
     public void testThatDisplayHeadersWithoutTimestamp() throws Exception {
         restRequest.params().put("h", "timestamp,epoch,bulk*");
-        restRequest.params().put("ts", "0");
+        restRequest.params().put("ts", "false");
         List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);
 
         List<String> headerNames = getHeaderNames(headers);
@@ -252,8 +252,8 @@ public class RestTableTests extends ESTestCase {
         assertEquals(Arrays.asList(1,0,2), rowOrder);
     }
 
-    private RestResponse assertResponseContentType(Map<String, String> headers, String mediaType) throws Exception {
-        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder().withHeaders(headers).build();
+    private RestResponse assertResponseContentType(Map<String, List<String>> headers, String mediaType) throws Exception {
+        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).build();
         table.startRow();
         table.addCell("foo");
         table.addCell("foo");
@@ -274,7 +274,7 @@ public class RestTableTests extends ESTestCase {
         return response;
     }
 
-    private void assertResponse(Map<String, String> headers, String mediaType, String body) throws Exception {
+    private void assertResponse(Map<String, List<String>> headers, String mediaType, String body) throws Exception {
         RestResponse response = assertResponseContentType(headers, mediaType);
         assertThat(response.content().utf8ToString(), equalTo(body));
     }

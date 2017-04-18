@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -181,24 +182,24 @@ public class StatsIT extends AbstractNumericTestCase {
         Stats stats = global.getAggregations().get("stats");
         assertThat(stats, notNullValue());
         assertThat(stats.getName(), equalTo("stats"));
-        Stats statsFromProperty = (Stats) global.getProperty("stats");
+        Stats statsFromProperty = (Stats) ((InternalAggregation)global).getProperty("stats");
         assertThat(statsFromProperty, notNullValue());
         assertThat(statsFromProperty, sameInstance(stats));
         double expectedAvgValue = (double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10;
         assertThat(stats.getAvg(), equalTo(expectedAvgValue));
-        assertThat((double) global.getProperty("stats.avg"), equalTo(expectedAvgValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.avg"), equalTo(expectedAvgValue));
         double expectedMinValue = 1.0;
         assertThat(stats.getMin(), equalTo(expectedMinValue));
-        assertThat((double) global.getProperty("stats.min"), equalTo(expectedMinValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.min"), equalTo(expectedMinValue));
         double expectedMaxValue = 10.0;
         assertThat(stats.getMax(), equalTo(expectedMaxValue));
-        assertThat((double) global.getProperty("stats.max"), equalTo(expectedMaxValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.max"), equalTo(expectedMaxValue));
         double expectedSumValue = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
         assertThat(stats.getSum(), equalTo(expectedSumValue));
-        assertThat((double) global.getProperty("stats.sum"), equalTo(expectedSumValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.sum"), equalTo(expectedSumValue));
         long expectedCountValue = 10;
         assertThat(stats.getCount(), equalTo(expectedCountValue));
-        assertThat((double) global.getProperty("stats.count"), equalTo((double) expectedCountValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.count"), equalTo((double) expectedCountValue));
     }
 
     @Override

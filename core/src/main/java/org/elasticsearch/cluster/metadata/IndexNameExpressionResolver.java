@@ -502,11 +502,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             this(state, options, System.currentTimeMillis(), preserveAliases);
         }
 
-        public Context(ClusterState state, IndicesOptions options, long startTime) {
+        Context(ClusterState state, IndicesOptions options, long startTime) {
            this(state, options, startTime, false);
         }
 
-        public Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
+        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
@@ -754,7 +754,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final String defaultDateFormatterPattern;
         private final DateTimeFormatter defaultDateFormatter;
 
-        public DateMathExpressionResolver(Settings settings) {
+        DateMathExpressionResolver(Settings settings) {
             String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
             this.defaultTimeZone = DateTimeZone.forID(defaultTimeZoneId);
             defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "YYYY.MM.dd");

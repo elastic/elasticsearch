@@ -34,10 +34,11 @@ import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 
@@ -55,7 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TruncateTranslogCommand extends SettingCommand {
+public class TruncateTranslogCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> translogFolder;
     private final OptionSpec<Void> batchMode;
@@ -87,7 +88,7 @@ public class TruncateTranslogCommand extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         boolean batch = options.has(batchMode);
 
         Path translogPath = getTranslogPath(options);
@@ -167,7 +168,8 @@ public class TruncateTranslogCommand extends SettingCommand {
 
     /** Write a checkpoint file to the given location with the given generation */
     public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
-        Checkpoint emptyCheckpoint = new Checkpoint(translogLength, 0, translogGeneration, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        Checkpoint emptyCheckpoint =
+                Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

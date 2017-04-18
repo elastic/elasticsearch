@@ -631,7 +631,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         refresh();
 
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10)
                 .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();

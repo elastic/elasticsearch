@@ -307,4 +307,14 @@ public class GrokTests extends ESTestCase {
         Grok grok = new Grok(bank, "%{MONTHDAY:greatday}");
         assertThat(grok.captures("nomatch"), nullValue());
     }
+
+    public void testMultipleNamedCapturesWithSameName() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("SINGLEDIGIT", "[0-9]");
+        Grok grok = new Grok(bank, "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("num", "1");
+        assertThat(grok.captures("12"), equalTo(expected));
+    }
 }

@@ -55,5 +55,12 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+
+        // but the multi-term aware component still emits a single token
+        tokenFilter = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilter).getMultiTermComponent();
+        tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        expected = new String[]{"Anspruche"};
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 }

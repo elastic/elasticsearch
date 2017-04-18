@@ -268,7 +268,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         private final AtomicBoolean shouldBlock = new AtomicBoolean(true);
 
-        public NativeTestScriptedBlockFactory() {
+        NativeTestScriptedBlockFactory() {
         }
 
         public void reset() {

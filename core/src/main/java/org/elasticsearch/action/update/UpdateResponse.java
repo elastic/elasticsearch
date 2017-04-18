@@ -23,6 +23,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,7 +31,11 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 public class UpdateResponse extends DocWriteResponse {
+
+    private static final String GET = "get";
 
     private GetResult getResult;
 
@@ -82,15 +87,11 @@ public class UpdateResponse extends DocWriteResponse {
         }
     }
 
-    static final class Fields {
-        static final String GET = "get";
-    }
-
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerToXContent(builder, params);
         if (getGetResult() != null) {
-            builder.startObject(Fields.GET);
+            builder.startObject(GET);
             getGetResult().toXContentEmbedded(builder, params);
             builder.endObject();
         }
@@ -108,5 +109,61 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
+    }
+
+    public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        Builder context = new Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (GET.equals(currentFieldName)) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                context.setGetResult(GetResult.fromXContentEmbedded(parser));
+            }
+        } else {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+    }
+
+    /**
+     * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
+     * instantiate the {@link UpdateResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
+
+        private GetResult getResult = null;
+
+        public void setGetResult(GetResult getResult) {
+            this.getResult = getResult;
+        }
+
+        @Override
+        public UpdateResponse build() {
+            UpdateResponse update;
+            if (shardInfo != null && seqNo != null) {
+                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+            } else {
+                update = new UpdateResponse(shardId, type, id, version, result);
+            }
+            if (getResult != null) {
+                update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
+                        getResult.isExists(),getResult.internalSourceRef(), getResult.getFields()));
+            }
+            update.setForcedRefresh(forcedRefresh);
+            return update;
+        }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,7 +28,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -45,8 +45,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetMappingAction extends BaseRestHandler {
-
-    @Inject
     public RestGetMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
@@ -66,20 +64,23 @@ public class RestGetMappingAction extends BaseRestHandler {
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
+
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                 if (mappingsByIndex.isEmpty()) {
                     if (indices.length != 0 && types.length != 0) {
-                        return new BytesRestResponse(OK, builder.endObject());
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
                     } else if (indices.length != 0) {
+                        builder.close();
                         return new BytesRestResponse(channel, new IndexNotFoundException(indices[0]));
                     } else if (types.length != 0) {
+                        builder.close();
                         return new BytesRestResponse(channel, new TypeMissingException("_all", types[0]));
                     } else {
-                        return new BytesRestResponse(OK, builder.endObject());
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
                     }
                 }
 
+                builder.startObject();
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
                     if (indexEntry.value.isEmpty()) {
                         continue;

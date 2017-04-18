@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestController;
@@ -60,7 +59,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    @Inject
     public RestIndicesAction(Settings settings, RestController controller, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -259,6 +257,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("refresh.time", "sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
         table.addCell("pri.refresh.time", "default:false;text-align:right;desc:time spent in refreshes");
+
+        table.addCell("refresh.listeners", "sibling:pri;alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
+        table.addCell("pri.refresh.listeners", "default:false;text-align:right;desc:number of pending refresh listeners");
 
         table.addCell("search.fetch_current", "sibling:pri;alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("pri.search.fetch_current", "default:false;text-align:right;desc:current fetch phase ops");
@@ -474,6 +475,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getListeners());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getListeners());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getFetchCurrent());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getFetchCurrent());

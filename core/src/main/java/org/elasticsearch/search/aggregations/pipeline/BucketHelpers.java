@@ -52,7 +52,7 @@ public class BucketHelpers {
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "ignore": empty buckets will simply be ignored
      */
-    public static enum GapPolicy {
+    public enum GapPolicy {
         INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
 
         /**
@@ -65,7 +65,7 @@ public class BucketHelpers {
         public static GapPolicy parse(QueryParseContext context, String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
-                if (context.getParseFieldMatcher().match(text, policy.parseField)) {
+                if (policy.parseField.match(text)) {
                     if (result == null) {
                         result = policy;
                     } else {
@@ -87,7 +87,7 @@ public class BucketHelpers {
         private final byte id;
         private final ParseField parseField;
 
-        private GapPolicy(byte id, String name) {
+        GapPolicy(byte id, String name) {
             this.id = id;
             this.parseField = new ParseField(name);
         }
@@ -147,13 +147,13 @@ public class BucketHelpers {
      *         <code>aggPath</code>
      */
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.Bucket bucket, String aggPath, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath, GapPolicy gapPolicy) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {

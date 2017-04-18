@@ -19,31 +19,31 @@
 
 package org.elasticsearch.plugin.example;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Locale;
 
 /**
  * Example configuration.
  */
 public class ExamplePluginConfiguration {
-
     private final Settings customSettings;
 
     public static final Setting<String> TEST_SETTING =
       new Setting<String>("test", "default_value",
       (value) -> value, Setting.Property.Dynamic);
 
-    @Inject
-    public ExamplePluginConfiguration(Environment env) throws IOException {
+    public ExamplePluginConfiguration(Environment env) {
         // The directory part of the location matches the artifactId of this plugin
         Path path = env.configFile().resolve("jvm-example/example.yaml");
-        customSettings = Settings.builder().loadFromPath(path).build();
+        try {
+            customSettings = Settings.builder().loadFromPath(path).build();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load settings, giving up", e);
+        }
 
         // asserts for tests
         assert customSettings != null;

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -54,9 +55,10 @@ public class TestZenDiscovery extends ZenDiscovery {
         }
         @Override
         public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
                                                                   ClusterService clusterService, UnicastHostsProvider hostsProvider) {
             return Collections.singletonMap("test-zen",
-                () -> new TestZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
+                () -> new TestZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
         }
 
         @Override
@@ -71,8 +73,9 @@ public class TestZenDiscovery extends ZenDiscovery {
     }
 
     private TestZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
-                             ClusterService clusterService, UnicastHostsProvider hostsProvider) {
-        super(settings, threadPool, transportService, clusterService, hostsProvider);
+                             NamedWriteableRegistry namedWriteableRegistry, ClusterService clusterService,
+                             UnicastHostsProvider hostsProvider) {
+        super(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider);
     }
 
     @Override

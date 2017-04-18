@@ -19,11 +19,6 @@
 
 package org.elasticsearch.index.search;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -39,6 +34,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 public class MatchQueryIT extends ESIntegTestCase {
     private static final String INDEX = "test";
@@ -66,7 +65,9 @@ public class MatchQueryIT extends ESIntegTestCase {
 
         assertAcked(builder.addMapping(INDEX, createMapping()));
         ensureGreen();
+    }
 
+    private List<IndexRequestBuilder> getDocs() {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test", "test", "1").setSource("field", "say wtf happened foo"));
         builders.add(client().prepareIndex("test", "test", "2").setSource("field", "bar baz what the fudge man"));
@@ -75,7 +76,7 @@ public class MatchQueryIT extends ESIntegTestCase {
         builders.add(client().prepareIndex("test", "test", "5").setSource("field", "bar two three"));
         builders.add(client().prepareIndex("test", "test", "6").setSource("field", "bar baz two three"));
 
-        indexRandom(true, false, builders);
+        return builders;
     }
 
     /**
@@ -98,6 +99,8 @@ public class MatchQueryIT extends ESIntegTestCase {
     }
 
     public void testSimpleMultiTermPhrase() throws ExecutionException, InterruptedException {
+        indexRandom(true, false, getDocs());
+
         // first search using regular synonym field using phrase
         SearchResponse searchResponse = client().prepareSearch(INDEX)
             .setQuery(QueryBuilders.matchPhraseQuery("field", "foo two three").analyzer("lower_syns")).get();
@@ -116,13 +119,15 @@ public class MatchQueryIT extends ESIntegTestCase {
     }
 
     public void testSimpleMultiTermAnd() throws ExecutionException, InterruptedException {
+        indexRandom(true, false, getDocs());
+
         // first search using regular synonym field using phrase
         SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "say what the fudge")
             .operator(Operator.AND).analyzer("lower_syns")).get();
 
-        // 0 = say, 1 = OR(wtf, what), 2 = the, 3 = fudge
-        // "the" and "fudge" are required here, even though they were part of the synonym which is also expanded
-        assertNoSearchHits(searchResponse);
+        // Old synonyms work fine in that case, but it is coincidental
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "1");
 
         // same query using graph should find correct result
         searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "say what the fudge")
@@ -133,6 +138,8 @@ public class MatchQueryIT extends ESIntegTestCase {
     }
 
     public void testMinShouldMatch() throws ExecutionException, InterruptedException {
+        indexRandom(true, false, getDocs());
+
         // no min should match
         SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "three what the fudge foo")
             .operator(Operator.OR).analyzer("lower_graphsyns")).get();
@@ -150,5 +157,47 @@ public class MatchQueryIT extends ESIntegTestCase {
         // three what the fudge bar baz = 4 terms, match #2
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+    }
+
+    public void testPhrasePrefix() throws ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> builders = getDocs();
+        builders.add(client().prepareIndex("test", "test", "7").setSource("field", "WTFD!"));
+        builders.add(client().prepareIndex("test", "test", "8").setSource("field", "Weird Al's WHAT THE FUDGESICLE"));
+        indexRandom(true, false, builders);
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "wtf")
+            .analyzer("lower_graphsyns")).get();
+
+        assertHitCount(searchResponse, 5L);
+        assertSearchHits(searchResponse, "1", "2", "3", "7", "8");
+    }
+
+    public void testCommonTerms() throws ExecutionException, InterruptedException {
+        String route = "commonTermsTest";
+        List<IndexRequestBuilder> builders = getDocs();
+        for (IndexRequestBuilder indexRequet : builders) {
+            // route all docs to same shard for this test
+            indexRequet.setRouting(route);
+        }
+        indexRandom(true, false, builders);
+
+        // do a search with no cutoff frequency to show which docs should match
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setRouting(route)
+            .setQuery(QueryBuilders.matchQuery("field", "bar three happened")
+                .operator(Operator.OR)).get();
+
+        assertHitCount(searchResponse, 4L);
+        assertSearchHits(searchResponse, "1", "2", "5", "6");
+
+        // do same search with cutoff and see less documents match
+        // in this case, essentially everything but "happened" gets excluded
+        searchResponse = client().prepareSearch(INDEX)
+            .setRouting(route)
+            .setQuery(QueryBuilders.matchQuery("field", "bar three happened")
+                .operator(Operator.OR).cutoffFrequency(1f)).get();
+
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "1");
     }
 }

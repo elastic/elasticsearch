@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -85,14 +84,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new IndexFieldMapper(indexSettings, fieldType);
         }
     }
 
     static final class IndexFieldType extends MappedFieldType {
 
-        public IndexFieldType() {}
+        IndexFieldType() {}
 
         protected IndexFieldType(IndexFieldType ref) {
             super(ref);

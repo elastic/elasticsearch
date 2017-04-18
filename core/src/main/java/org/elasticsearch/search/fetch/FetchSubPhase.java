@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -34,20 +34,20 @@ import java.util.Map;
 public interface FetchSubPhase {
 
     class HitContext {
-        private InternalSearchHit hit;
+        private SearchHit hit;
         private IndexSearcher searcher;
         private LeafReaderContext readerContext;
         private int docId;
         private Map<String, Object> cache;
 
-        public void reset(InternalSearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
+        public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.searcher = searcher;
         }
 
-        public InternalSearchHit hit() {
+        public SearchHit hit() {
             return hit;
         }
 
@@ -82,5 +82,5 @@ public interface FetchSubPhase {
     default void hitExecute(SearchContext context, HitContext hitContext) {}
 
 
-    default void hitsExecute(SearchContext context, InternalSearchHit[] hits) {}
+    default void hitsExecute(SearchContext context, SearchHit[] hits) {}
 }

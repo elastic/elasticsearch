@@ -57,7 +57,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
 
         logger.info("--> starting 2 nodes on the same rack");
-        internalCluster().startNodesAsync(2, Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_1").build()).get();
+        internalCluster().startNodes(2, Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_1").build());
 
         createIndex("test1");
         createIndex("test2");
@@ -107,12 +107,12 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 .build();
 
         logger.info("--> starting 4 nodes on different zones");
-        List<String> nodes = internalCluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodes(
                 Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
-        ).get();
+        );
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
         String B_1 = nodes.get(2);
@@ -153,10 +153,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 .build();
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
-        List<String> nodes = internalCluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodes(
                 Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
-        ).get();
+        );
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
         client().admin().indices().prepareCreate("test")

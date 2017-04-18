@@ -35,7 +35,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     private int[][] pages;
 
     /** Constructor. */
-    public BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(INT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new int[numPages(size)][];

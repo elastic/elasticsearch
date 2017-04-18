@@ -9,25 +9,15 @@ of the request includes the updated settings, for example:
 
 [source,js]
 --------------------------------------------------
+PUT /twitter/_settings
 {
     "index" : {
-        "number_of_replicas" : 4
+        "number_of_replicas" : 2
     }
 }
 --------------------------------------------------
-
-The above will change the number of replicas to 4 from the current
-number of replicas. Here is a curl example:
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'localhost:9200/my_index/_settings' -d '
-{
-    "index" : {
-        "number_of_replicas" : 4
-    }
-}'
---------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The list of per-index settings which can be updated dynamically on live
 indices can be found in <<index-modules>>.
@@ -43,11 +33,15 @@ use:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/_settings -d '{
+PUT /twitter/_settings
+{
     "index" : {
         "refresh_interval" : "-1"
-    } }'
+    }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 (Another optimization option is to start the index without any replicas,
 and only later adding them, but that really depends on the use case).
@@ -57,18 +51,24 @@ the defaults for example):
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/_settings -d '{
+PUT /twitter/_settings
+{
     "index" : {
         "refresh_interval" : "1s"
-    } }'
+    }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 And, a force merge should be called:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/test/_forcemerge?max_num_segments=5'
+POST /twitter/_forcemerge?max_num_segments=5
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[update-settings-analysis]]
@@ -83,9 +83,10 @@ you can use the following commands to add it:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/myindex/_close'
+POST /twitter/_close
 
-curl -XPUT 'localhost:9200/myindex/_settings' -d '{
+PUT /twitter/_settings
+{
   "analysis" : {
     "analyzer":{
       "content":{
@@ -94,7 +95,9 @@ curl -XPUT 'localhost:9200/myindex/_settings' -d '{
       }
     }
   }
-}'
+}
 
-curl -XPOST 'localhost:9200/myindex/_open'
+POST /twitter/_open
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

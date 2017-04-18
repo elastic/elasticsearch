@@ -27,6 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
@@ -64,6 +65,6 @@ public class CompletionFieldStats {
                 throw new ElasticsearchException(ioe);
             }
         }
-        return new CompletionStats(sizeInBytes, completionFields);
+        return new CompletionStats(sizeInBytes, completionFields == null ? null : new FieldMemoryStats(completionFields));
     }
 }

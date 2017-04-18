@@ -23,10 +23,10 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 
 /**
@@ -38,6 +38,15 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.collapse() != null) {
+            // retrieve the `doc_value` associated with the collapse field
+            String name = context.collapse().getFieldType().name();
+            if (context.docValueFieldsContext() == null) {
+                context.docValueFieldsContext(new DocValueFieldsContext(Collections.singletonList(name)));
+            } else if (context.docValueFieldsContext().fields().contains(name) == false) {
+                context.docValueFieldsContext().fields().add(name);
+            }
+        }
         if (context.docValueFieldsContext() == null) {
             return;
         }
@@ -45,17 +54,19 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>(2));
             }
-            SearchHitField hitField = hitContext.hit().fields().get(field);
+            SearchHitField hitField = hitContext.hit().getFields().get(field);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(field, new ArrayList<>(2));
-                hitContext.hit().fields().put(field, hitField);
+                hitField = new SearchHitField(field, new ArrayList<>(2));
+                hitContext.hit().getFields().put(field, hitField);
             }
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
+                /* Because this is called once per document we end up creating a new ScriptDocValues for every document which is important
+                 * because the values inside ScriptDocValues might be reused for different documents (Dates do this). */
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
-                ScriptDocValues values = data.getScriptValues();
+                ScriptDocValues<?> values = data.getScriptValues();
                 values.setNextDocId(hitContext.docId());
-                hitField.values().addAll(values.getValues());
+                hitField.getValues().addAll(values);
             }
         }
     }

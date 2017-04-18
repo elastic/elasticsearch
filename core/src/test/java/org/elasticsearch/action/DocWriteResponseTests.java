@@ -37,18 +37,42 @@ import static org.hamcrest.Matchers.not;
 
 public class DocWriteResponseTests extends ESTestCase {
     public void testGetLocation() {
-        DocWriteResponse response =
-            new DocWriteResponse(
-                new ShardId("index", "uuid", 0),
-                "type",
-                "id",
-                SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                0,
-                Result.CREATED) {
-                // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
-            };
+        final DocWriteResponse response =
+                new DocWriteResponse(
+                        new ShardId("index", "uuid", 0),
+                        "type",
+                        "id",
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        0,
+                        Result.CREATED) {};
         assertEquals("/index/type/id", response.getLocation(null));
         assertEquals("/index/type/id?routing=test_routing", response.getLocation("test_routing"));
+    }
+
+    public void testGetLocationNonAscii() {
+        final DocWriteResponse response =
+                new DocWriteResponse(
+                        new ShardId("index", "uuid", 0),
+                        "type",
+                        "❤",
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        0,
+                        Result.CREATED) {};
+        assertEquals("/index/type/%E2%9D%A4", response.getLocation(null));
+        assertEquals("/index/type/%E2%9D%A4?routing=%C3%A4", response.getLocation("ä"));
+    }
+
+    public void testGetLocationWithSpaces() {
+        final DocWriteResponse response =
+                new DocWriteResponse(
+                        new ShardId("index", "uuid", 0),
+                        "type",
+                        "a b",
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        0,
+                        Result.CREATED) {};
+        assertEquals("/index/type/a+b", response.getLocation(null));
+        assertEquals("/index/type/a+b?routing=c+d", response.getLocation("c d"));
     }
 
     /**
@@ -69,19 +93,15 @@ public class DocWriteResponseTests extends ESTestCase {
         response.setShardInfo(new ShardInfo(1, 1));
         response.setForcedRefresh(false);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
                 assertThat(parser.map(), not(hasKey("forced_refresh")));
             }
         }
         response.setForcedRefresh(true);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
                 assertThat(parser.map(), hasEntry("forced_refresh", true));
             }
         }

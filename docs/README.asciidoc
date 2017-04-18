@@ -4,9 +4,9 @@ Elasticsearch documentation build process.
 See: https://github.com/elastic/docs
 
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
-SENSE" in the documentation and are automatically tested by the command
+CONSOLE" in the documentation and are automatically tested by the command
 `gradle :docs:check`. To test just the docs from a single page, use e.g.
-`gradle :docs:check -Dtest.method=*rollover*`.
+`gradle :docs:check -Dtests.method=*rollover*`.
 
 By default `// CONSOLE` snippet runs as its own isolated
 test. You can manipulate the test execution in the following ways:
@@ -36,9 +36,9 @@ are tests even if they don't have `// CONSOLE`.
   text then the test fails. If the response includes `Warning` headers that
   aren't expected then the test fails.
 * `// TESTRESPONSE`: Matches this snippet against the body of the response of
-  the last test. If the response is JSON then order is ignored. With
-  `// TEST[continued]` you can make tests that contain multiple command snippets
-  and multiple response snippets.
+  the last test. If the response is JSON then order is ignored. If you add
+  `// TEST[continued]` to the snippet after `// TESTRESPONSE` it will continue
+  in the same test, allowing you to interleve requests with responses to check.
   * `// TESTRESPONSE[s/foo/bar/]`: Substitutions. See `// TEST[s/foo/bar]`.
   * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
   this after all other substitutions so it doesn't make other substitutions

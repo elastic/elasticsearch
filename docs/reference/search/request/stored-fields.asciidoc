@@ -52,7 +52,7 @@ things like `_source.obj1.field1` can be used, though not recommended, as
 
 ==== Disable stored fields entirely
 
-To disable the stored fields (and metadata fields) entirely use: `\_none_`:
+To disable the stored fields (and metadata fields) entirely use: `_none_`:
 
 [source,js]
 --------------------------------------------------

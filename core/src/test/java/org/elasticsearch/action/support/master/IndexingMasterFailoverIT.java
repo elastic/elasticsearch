@@ -75,7 +75,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .build();
 
-        internalCluster().startMasterOnlyNodesAsync(3, sharedSettings).get();
+        internalCluster().startMasterOnlyNodes(3, sharedSettings);
 
         String dataNode = internalCluster().startDataOnlyNode(sharedSettings);
 

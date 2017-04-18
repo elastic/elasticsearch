@@ -27,14 +27,14 @@
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
+          realtime: false
 
  - do:
       get:
           index:    test_1
           type:     test
           id:       1
-          realtime: 1
+          realtime: true
 
  - is_true: found
 
@@ -43,7 +43,7 @@
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
-          refresh:  1
+          realtime: false
+          refresh:  true
 
  - is_true: found

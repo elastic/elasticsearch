@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * A query that performs a <code>match_all</code> query, but with each <em>index</em> touched getting a unique deprecation warning.
@@ -66,14 +65,14 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
         builder.startObject(NAME).endObject();
     }
 
-    public static Optional<TestDeprecatedQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static TestDeprecatedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[{}] query does not have any fields", NAME);
         }
 
-        return Optional.of(new TestDeprecatedQueryBuilder());
+        return new TestDeprecatedQueryBuilder();
     }
 
     @Override

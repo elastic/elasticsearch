@@ -11,22 +11,26 @@ Here is a short example of how a simple reroute API call:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_cluster/reroute' -d '{
-    "commands" : [ {
-        "move" :
-            {
-              "index" : "test", "shard" : 0,
-              "from_node" : "node1", "to_node" : "node2"
+POST /_cluster/reroute
+{
+    "commands" : [
+        {
+            "move" : {
+                "index" : "test", "shard" : 0,
+                "from_node" : "node1", "to_node" : "node2"
             }
         },
         {
           "allocate_replica" : {
-              "index" : "test", "shard" : 1, "node" : "node3"
+                "index" : "test", "shard" : 1,
+                "node" : "node3"
           }
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:doc tests run with only a single node]
 
 An important aspect to remember is the fact that once when an allocation
 occurs, the cluster will aim at re-balancing its state back to an even

@@ -65,12 +65,6 @@ public class StoreStats implements Streamable, ToXContent {
         return size();
     }
 
-    public static StoreStats readStoreStats(StreamInput in) throws IOException {
-        StoreStats store = new StoreStats();
-        store.readFrom(in);
-        return store;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();

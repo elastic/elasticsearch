@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -91,7 +91,6 @@ public class TestSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
-        super(ParseFieldMatcher.STRICT);
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
         this.indexFieldDataService = indexService.fieldData();
@@ -102,7 +101,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
-        super(ParseFieldMatcher.STRICT);
         this.bigArrays = null;
         this.indexService = null;
         this.indexFieldDataService = null;
@@ -117,7 +115,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Query searchFilter(String[] types) {
+    public Query buildFilteredQuery(Query query) {
         return null;
     }
 
@@ -154,11 +152,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public float queryBoost() {
         return 0;
-    }
-
-    @Override
-    public SearchContext queryBoost(float queryBoost) {
-        return null;
     }
 
     @Override
@@ -368,6 +361,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public FieldDoc searchAfter() {
+        return null;
+    }
+
+    @Override
+    public SearchContext collapse(CollapseContext collapse) {
+        return null;
+    }
+
+    @Override
+    public CollapseContext collapse() {
         return null;
     }
 

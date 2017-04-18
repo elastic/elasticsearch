@@ -86,9 +86,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void finalizeRecovery() {
+    public void finalizeRecovery(final long globalCheckpoint) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
-            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
+            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }

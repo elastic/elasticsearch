@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.bulk.byscroll.AsyncDeleteByQueryAction;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
+import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
+import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -36,7 +40,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkIndexByScrollResponse> {
+public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -52,70 +56,20 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     }
 
     @Override
-    protected void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         if (request.getSlices() > 1) {
-            ReindexParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE, clusterService.localNode().getId(),
-                    (ParentBulkByScrollTask) task, request, listener);
+            BulkByScrollParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE,
+                    clusterService.localNode().getId(), (ParentBulkByScrollTask) task, request, listener);
         } else {
             ClusterState state = clusterService.state();
             ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncDeleteBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
-                    state).start();
+            new AsyncDeleteByQueryAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+                    listener).start();
         }
     }
 
     @Override
-    protected void doExecute(DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         throw new UnsupportedOperationException("task required");
-    }
-
-    /**
-     * Implementation of delete-by-query using scrolling and bulk.
-     */
-    static class AsyncDeleteBySearchAction extends AbstractAsyncBulkIndexByScrollAction<DeleteByQueryRequest> {
-
-        public AsyncDeleteBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                ScriptService scriptService, ClusterState clusterState) {
-            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
-        }
-
-        @Override
-        protected boolean needsSourceDocumentVersions() {
-            /*
-             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-             * changed.
-             */
-            return true;
-        }
-
-        @Override
-        protected boolean accept(ScrollableHitSource.Hit doc) {
-            // Delete-by-query does not require the source to delete a document
-            // and the default implementation checks for it
-            return true;
-        }
-
-        @Override
-        protected RequestWrapper<DeleteRequest> buildRequest(ScrollableHitSource.Hit doc) {
-            DeleteRequest delete = new DeleteRequest();
-            delete.index(doc.getIndex());
-            delete.type(doc.getType());
-            delete.id(doc.getId());
-            delete.version(doc.getVersion());
-            return wrap(delete);
-        }
-
-        /**
-         * Overrides the parent {@link AbstractAsyncBulkIndexByScrollAction#copyMetadata(RequestWrapper, ScrollableHitSource.Hit)}
-         * method that is much more Update/Reindex oriented and so also copies things like timestamp/ttl which we
-         * don't care for a deletion.
-         */
-        @Override
-        protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
-            request.setParent(doc.getParent());
-            request.setRouting(doc.getRouting());
-            return request;
-        }
     }
 }

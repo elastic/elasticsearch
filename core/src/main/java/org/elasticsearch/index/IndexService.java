@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -43,7 +44,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -55,7 +55,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
@@ -67,7 +66,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -102,6 +100,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexSearcherWrapper searcherWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
+    private final NamedXContentRegistry xContentRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
@@ -118,11 +117,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BigArrays bigArrays;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final ScriptService scriptService;
-    private final IndicesQueriesRegistry queryRegistry;
     private final ClusterService clusterService;
     private final Client client;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
+                        NamedXContentRegistry xContentRegistry,
                         SimilarityService similarityService,
                         ShardStoreDeleter shardStoreDeleter,
                         AnalysisRegistry registry,
@@ -131,7 +130,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         BigArrays bigArrays,
                         ThreadPool threadPool,
                         ScriptService scriptService,
-                        IndicesQueriesRegistry queryRegistry,
                         ClusterService clusterService,
                         Client client,
                         QueryCache queryCache,
@@ -146,8 +144,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.globalCheckpointSyncer = globalCheckpointSyncer;
+        this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), similarityService, mapperRegistry,
+        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
+            mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
             () -> newQueryShardContext(0, null, () -> {
                 throw new IllegalArgumentException("Percolator queries are not allowed to use the current timestamp");
@@ -157,7 +157,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
-        this.queryRegistry = queryRegistry;
         this.clusterService = clusterService;
         this.client = client;
         this.eventListener = eventListener;
@@ -234,6 +233,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public MapperService mapperService() {
         return mapperService;
+    }
+
+    public NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     public SimilarityService similarityService() {
@@ -339,8 +342,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
-                (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             final Engine.Warmer engineWarmer = (searcher) -> {
                 IndexShard shard =  getShardOrNull(shardId.getId());
                 if (shard != null) {
@@ -348,18 +349,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
-                new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
-            if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                    searchOperationListeners);
-                // no indexing listeners - shadow  engines don't index
-            } else {
-                indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
+                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
+            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
                     indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                     () -> globalCheckpointSyncer.accept(shardId),
                     searchOperationListeners, indexingOperationListeners);
-            }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -375,10 +369,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
-    }
-
-    static boolean useShadowEngine(boolean primary, Settings indexSettings) {
-        return primary == false && IndexMetaData.isIndexUsingShadowReplicas(indexSettings);
     }
 
     @Override
@@ -434,16 +424,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
 
-    private void onShardClose(ShardLock lock, boolean ownsShard) {
+    private void onShardClose(ShardLock lock) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                if (ownsShard) {
-                    try {
-                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
-                    } finally {
-                        shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
-                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
-                    }
+                try {
+                    eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
+                } finally {
+                    shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
+                    eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
@@ -469,9 +457,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
             shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, queryRegistry,
+                similarityService(), scriptService, xContentRegistry,
                 client, indexReader,
-                clusterService.state(),
             nowInMillis);
     }
 
@@ -511,12 +498,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
-        private final boolean ownsShard;
         private final Closeable[] toClose;
 
-        public StoreCloseListener(ShardId shardId, boolean ownsShard, Closeable... toClose) {
+        StoreCloseListener(ShardId shardId, Closeable... toClose) {
             this.shardId = shardId;
-            this.ownsShard = ownsShard;
             this.toClose = toClose;
         }
 
@@ -524,7 +509,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         public void handle(ShardLock lock) {
             try {
                 assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
-                onShardClose(lock, ownsShard);
+                onShardClose(lock);
             } finally {
                 try {
                     IOUtils.close(toClose);
@@ -569,7 +554,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final class FieldDataCacheListener implements IndexFieldDataCache.Listener {
         final IndexService indexService;
 
-        public FieldDataCacheListener(IndexService indexService) {
+        FieldDataCacheListener(IndexService indexService) {
             this.indexService = indexService;
         }
 
@@ -671,7 +656,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     if (translog.syncNeeded()) {
                         translog.sync();
                     }
-                } catch (EngineClosedException | AlreadyClosedException ex) {
+                } catch (AlreadyClosedException ex) {
                     // fine - continue;
                 } catch (IOException e) {
                     logger.warn("failed to sync translog", e);
@@ -719,7 +704,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.updateGlobalCheckpointOnPrimary();
-                        } catch (EngineClosedException | AlreadyClosedException ex) {
+                        } catch (AlreadyClosedException ex) {
                             // fine - continue, the shard was concurrently closed on us.
                         }
                         continue;

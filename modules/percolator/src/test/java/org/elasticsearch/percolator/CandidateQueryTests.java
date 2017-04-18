@@ -60,6 +60,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -384,13 +385,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator allDocs = DocIdSetIterator.all(context.reader().maxDoc());
-                    PercolateQuery.QueryStore.Leaf leaf = queryStore.getQueries(context);
+                    CheckedFunction<Integer, Query, IOException> leaf = queryStore.getQueries(context);
                     FilteredDocIdSetIterator memoryIndexIterator = new FilteredDocIdSetIterator(allDocs) {
 
                         @Override
                         protected boolean match(int doc) {
                             try {
-                                Query query = leaf.getQuery(doc);
+                                Query query = leaf.apply(doc);
                                 float score = memoryIndex.search(query);
                                 if (score != 0f) {
                                     if (needsScores) {

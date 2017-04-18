@@ -83,7 +83,7 @@ id                     name    active rejected completed
 0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
 --------------------------------------------------
 
-Here the host columns and the active, rejected and completed suggest thread pool statistic are displayed.
+Here the host columns and the active, rejected and completed suggest thread pool statistics are displayed.
 
 All <<modules-threadpool,built-in thread pools>> and custom thread pools are available.
 [float]

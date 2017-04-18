@@ -45,7 +45,7 @@ import java.util.Map;
  */
 public class RecoveryState implements ToXContent, Streamable {
 
-    public static enum Stage {
+    public enum Stage {
         INIT((byte) 0),
 
         /**

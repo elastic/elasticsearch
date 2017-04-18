@@ -66,6 +66,10 @@
         "rewrite": {
           "type": "boolean",
           "description": "Provide a more detailed explanation showing the actual Lucene query that will be executed."
+        },
+        "all_shards": {
+          "type": "boolean",
+          "description": "Execute validation on all shards instead of one random shard per index"
         }
       }
     },

@@ -147,7 +147,7 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     static class ThrowingTermsEnum extends FilterTermsEnum {
         private final Thrower thrower;
 
-        public ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
+        ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
             super(in);
             this.thrower = thrower;
 

@@ -20,6 +20,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
@@ -32,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 abstract class ESElasticsearchCliTestCase extends ESTestCase {
 
     interface InitConsumer {
-        void accept(final boolean foreground, final Path pidFile, final boolean quiet, final Map<String, String> esSettings);
+        void accept(boolean foreground, Path pidFile, boolean quiet, Environment initialEnv);
     }
 
     void runTest(
@@ -42,13 +45,26 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             final InitConsumer initConsumer,
             String... args) throws Exception {
         final MockTerminal terminal = new MockTerminal();
+        Path home = createTempDir();
         try {
             final AtomicBoolean init = new AtomicBoolean();
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
-                void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Map<String, String> esSettings) {
+                protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+                    Settings realSettings = Settings.builder()
+                        .put("path.home", home)
+                        .put(settings).build();
+                    return new Environment(realSettings);
+                }
+                @Override
+                void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) {
                     init.set(true);
-                    initConsumer.accept(!daemonize, pidFile, quiet, esSettings);
+                    initConsumer.accept(!daemonize, pidFile, quiet, initialEnv);
+                }
+
+                @Override
+                protected boolean addShutdownHook() {
+                    return false;
                 }
             }, terminal);
             assertThat(status, equalTo(expectedStatus));

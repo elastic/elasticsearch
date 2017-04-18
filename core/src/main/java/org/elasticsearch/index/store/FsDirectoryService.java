@@ -28,8 +28,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.apache.lucene.store.SleepingLockWrapper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -75,16 +73,13 @@ public class FsDirectoryService extends DirectoryService {
         Set<String> preLoadExtensions = new HashSet<>(
                 indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings.getSettings())) {
-            wrapped = new SleepingLockWrapper(wrapped, 5000);
-        }
         return wrapped;
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
             IndexModule.Type.FS.getSettingsKey());
-        if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
+        if (IndexModule.Type.FS.match(storeType)) {
             return FSDirectory.open(location, lockFactory); // use lucene defaults
         } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);

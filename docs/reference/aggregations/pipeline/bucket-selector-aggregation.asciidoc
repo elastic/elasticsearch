@@ -38,8 +38,8 @@ the metrics to use for that variable.
 for more details) |Required |
 |`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable
 (see <<buckets-path-syntax>> for more details) |Required |
- |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` |
+|`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional |`skip`
 |===
 
 The following snippet only retains buckets where the total sales for the month is more than 400:

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.get.GetResponse;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
@@ -88,7 +89,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with EXTERNAL versioning which has "refresh" semantics.
      */
-    private BulkIndexByScrollResponse reindexExternal() {
+    private BulkByScrollResponse reindexExternal() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(EXTERNAL);
         return reindex.get();
@@ -97,7 +98,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with INTERNAL versioning which has "overwrite" semantics.
      */
-    private BulkIndexByScrollResponse reindexInternal() {
+    private BulkByScrollResponse reindexInternal() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(INTERNAL);
         return reindex.get();
@@ -106,7 +107,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with CREATE OpType which has "create" semantics.
      */
-    private BulkIndexByScrollResponse reindexCreate() {
+    private BulkByScrollResponse reindexCreate() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setOpType(CREATE);
         return reindex.get();

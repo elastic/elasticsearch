@@ -286,12 +286,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         return maxUnsafeAutoIdTimestamp;
     }
 
-    public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {
-        SegmentsStats stats = new SegmentsStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEGMENTS);
@@ -391,10 +385,9 @@ public class SegmentsStats implements Streamable, ToXContent {
         out.writeLong(maxUnsafeAutoIdTimestamp);
 
         out.writeVInt(fileSizes.size());
-        for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
-            ObjectObjectCursor<String, Long> entry = it.next();
+        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
             out.writeString(entry.key);
-            out.writeLong(entry.value);
+            out.writeLong(entry.value.longValue());
         }
     }
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -438,7 +437,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(
-                IndexMetaData.builder(randomAsciiOfLength(10))
+                IndexMetaData.builder(randomAlphaOfLength(10))
                     .settings(settings(Version.CURRENT))
                     .numberOfReplicas(randomIntBetween(0, 3))
                     .numberOfShards(randomIntBetween(1, 5))

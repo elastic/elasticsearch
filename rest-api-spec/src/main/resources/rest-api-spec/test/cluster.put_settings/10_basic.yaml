@@ -64,8 +64,9 @@
 ---
 "Test get a default settings":
 
+# this can't be bumped to 5.0.2 until snapshots are published
  - skip:
-        version: " - 5.99.99" # this can't be bumped to 5.0.2 until snapshots are published
+        version: " - 5.99.99"
         reason:  Fetching default group setting was buggy until 5.0.3
 
  - do:

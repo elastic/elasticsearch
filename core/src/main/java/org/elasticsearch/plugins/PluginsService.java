@@ -101,7 +101,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName());
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -270,9 +270,6 @@ public class PluginsService extends AbstractComponent {
         Set<Bundle> bundles = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
             for (Path module : stream) {
-                if (FileSystemUtils.isHidden(module)) {
-                    continue; // skip over .DS_Store etc
-                }
                 PluginInfo info = PluginInfo.readFromProperties(module);
                 Set<URL> urls = new LinkedHashSet<>();
                 // gather urls for jar files
@@ -305,10 +302,6 @@ public class PluginsService extends AbstractComponent {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
-                if (FileSystemUtils.isHidden(plugin)) {
-                    logger.trace("--- skip hidden plugin file[{}]", plugin.toAbsolutePath());
-                    continue;
-                }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
                 final PluginInfo info;
                 try {

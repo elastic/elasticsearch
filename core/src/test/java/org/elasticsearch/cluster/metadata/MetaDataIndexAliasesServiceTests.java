@@ -60,7 +60,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
     public void testAddAndRemove() {
         // Create a state with a single index
-        String index = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
 
         // Add an alias to it

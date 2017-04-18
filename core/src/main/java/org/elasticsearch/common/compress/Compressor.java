@@ -20,6 +20,7 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -31,5 +32,9 @@ public interface Compressor {
 
     StreamInput streamInput(StreamInput in) throws IOException;
 
+    /**
+     * Creates a new stream output that compresses the contents and writes to the provided stream
+     * output. Closing the returned {@link StreamOutput} will close the provided stream output.
+     */
     StreamOutput streamOutput(StreamOutput out) throws IOException;
 }

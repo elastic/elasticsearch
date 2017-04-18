@@ -77,6 +77,7 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /arabic_example
 {
   "settings": {
     "analysis": {
@@ -87,7 +88,7 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "arabic_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["مثال"] <2>
         },
         "arabic_stemmer": {
           "type":       "stemmer",
@@ -110,6 +111,7 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -122,6 +124,7 @@ The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows
 
 [source,js]
 ----------------------------------------------------
+PUT /armenian_example
 {
   "settings": {
     "analysis": {
@@ -132,7 +135,7 @@ The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows
         },
         "armenian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["օրինակ"] <2>
         },
         "armenian_stemmer": {
           "type":       "stemmer",
@@ -154,6 +157,7 @@ The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -166,6 +170,7 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /armenian_example
 {
   "settings": {
     "analysis": {
@@ -176,7 +181,7 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "basque_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["Adibidez"] <2>
         },
         "basque_stemmer": {
           "type":       "stemmer",
@@ -198,6 +203,7 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -210,6 +216,7 @@ The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
+PUT /brazilian_example
 {
   "settings": {
     "analysis": {
@@ -220,7 +227,7 @@ The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follow
         },
         "brazilian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["exemplo"] <2>
         },
         "brazilian_stemmer": {
           "type":       "stemmer",
@@ -242,6 +249,7 @@ The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follow
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -254,6 +262,7 @@ The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
+PUT /bulgarian_example
 {
   "settings": {
     "analysis": {
@@ -264,7 +273,7 @@ The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follow
         },
         "bulgarian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["пример"] <2>
         },
         "bulgarian_stemmer": {
           "type":       "stemmer",
@@ -286,6 +295,7 @@ The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follow
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -298,6 +308,7 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /catalan_example
 {
   "settings": {
     "analysis": {
@@ -312,7 +323,7 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "catalan_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["exemple"] <2>
         },
         "catalan_stemmer": {
           "type":       "stemmer",
@@ -335,6 +346,7 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -347,6 +359,7 @@ The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /cjk_example
 {
   "settings": {
     "analysis": {
@@ -371,6 +384,7 @@ The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 
@@ -381,6 +395,7 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /czech_example
 {
   "settings": {
     "analysis": {
@@ -391,7 +406,7 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "czech_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["příklad"] <2>
         },
         "czech_stemmer": {
           "type":       "stemmer",
@@ -413,6 +428,7 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -425,6 +441,7 @@ The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /danish_example
 {
   "settings": {
     "analysis": {
@@ -435,7 +452,7 @@ The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "danish_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["eksempel"] <2>
         },
         "danish_stemmer": {
           "type":       "stemmer",
@@ -457,6 +474,7 @@ The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -469,6 +487,7 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /detch_example
 {
   "settings": {
     "analysis": {
@@ -479,7 +498,7 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "dutch_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["voorbeeld"] <2>
         },
         "dutch_stemmer": {
           "type":       "stemmer",
@@ -511,6 +530,7 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -523,6 +543,7 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /english_example
 {
   "settings": {
     "analysis": {
@@ -533,7 +554,7 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "english_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["example"] <2>
         },
         "english_stemmer": {
           "type":       "stemmer",
@@ -560,6 +581,7 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -572,6 +594,7 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /finnish_example
 {
   "settings": {
     "analysis": {
@@ -582,7 +605,7 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "finnish_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["esimerkki"] <2>
         },
         "finnish_stemmer": {
           "type":       "stemmer",
@@ -604,6 +627,7 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -616,6 +640,7 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /french_example
 {
   "settings": {
     "analysis": {
@@ -635,7 +660,7 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "french_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["Exemple"] <2>
         },
         "french_stemmer": {
           "type":       "stemmer",
@@ -658,6 +683,7 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -670,6 +696,7 @@ The `galician` analyzer could be reimplemented as a `custom` analyzer as follows
 
 [source,js]
 ----------------------------------------------------
+PUT /galician_example
 {
   "settings": {
     "analysis": {
@@ -680,7 +707,7 @@ The `galician` analyzer could be reimplemented as a `custom` analyzer as follows
         },
         "galician_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["exemplo"] <2>
         },
         "galician_stemmer": {
           "type":       "stemmer",
@@ -702,6 +729,7 @@ The `galician` analyzer could be reimplemented as a `custom` analyzer as follows
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -714,6 +742,7 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /german_example
 {
   "settings": {
     "analysis": {
@@ -724,7 +753,7 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "german_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["Beispiel"] <2>
         },
         "german_stemmer": {
           "type":       "stemmer",
@@ -747,6 +776,7 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -759,6 +789,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /greek_example
 {
   "settings": {
     "analysis": {
@@ -773,7 +804,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "greek_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["παράδειγμα"] <2>
         },
         "greek_stemmer": {
           "type":       "stemmer",
@@ -795,6 +826,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -807,6 +839,7 @@ The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /hindi_example
 {
   "settings": {
     "analysis": {
@@ -817,7 +850,7 @@ The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "hindi_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["उदाहरण"] <2>
         },
         "hindi_stemmer": {
           "type":       "stemmer",
@@ -841,6 +874,7 @@ The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -853,6 +887,7 @@ The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
+PUT /hungarian_example
 {
   "settings": {
     "analysis": {
@@ -863,7 +898,7 @@ The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follow
         },
         "hungarian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["példa"] <2>
         },
         "hungarian_stemmer": {
           "type":       "stemmer",
@@ -885,6 +920,7 @@ The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follow
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -898,6 +934,7 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
 
 [source,js]
 ----------------------------------------------------
+PUT /indonesian_example
 {
   "settings": {
     "analysis": {
@@ -908,7 +945,7 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
         },
         "indonesian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["contoh"] <2>
         },
         "indonesian_stemmer": {
           "type":       "stemmer",
@@ -930,6 +967,7 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -942,6 +980,7 @@ The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /irish_example
 {
   "settings": {
     "analysis": {
@@ -960,7 +999,7 @@ The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "irish_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["sampla"] <2>
         },
         "irish_stemmer": {
           "type":       "stemmer",
@@ -983,6 +1022,7 @@ The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -995,6 +1035,7 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /italian_example
 {
   "settings": {
     "analysis": {
@@ -1014,7 +1055,7 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "italian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["esempio"] <2>
         },
         "italian_stemmer": {
           "type":       "stemmer",
@@ -1037,6 +1078,7 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1049,6 +1091,7 @@ The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /latvian_example
 {
   "settings": {
     "analysis": {
@@ -1059,7 +1102,7 @@ The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "latvian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["piemērs"] <2>
         },
         "latvian_stemmer": {
           "type":       "stemmer",
@@ -1081,6 +1124,7 @@ The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1093,6 +1137,7 @@ The `lithuanian` analyzer could be reimplemented as a `custom` analyzer as follo
 
 [source,js]
 ----------------------------------------------------
+PUT /lithuanian_example
 {
   "settings": {
     "analysis": {
@@ -1103,7 +1148,7 @@ The `lithuanian` analyzer could be reimplemented as a `custom` analyzer as follo
         },
         "lithuanian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["pavyzdys"] <2>
         },
         "lithuanian_stemmer": {
           "type":       "stemmer",
@@ -1125,6 +1170,7 @@ The `lithuanian` analyzer could be reimplemented as a `custom` analyzer as follo
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1137,6 +1183,7 @@ The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
+PUT /norwegian_example
 {
   "settings": {
     "analysis": {
@@ -1147,7 +1194,7 @@ The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follow
         },
         "norwegian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["eksempel"] <2>
         },
         "norwegian_stemmer": {
           "type":       "stemmer",
@@ -1169,6 +1216,7 @@ The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follow
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1181,6 +1229,7 @@ The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /persian_example
 {
   "settings": {
     "analysis": {
@@ -1212,6 +1261,7 @@ The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> Replaces zero-width non-joiners with an ASCII space.
 <2> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
@@ -1223,6 +1273,7 @@ The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follo
 
 [source,js]
 ----------------------------------------------------
+PUT /portuguese_example
 {
   "settings": {
     "analysis": {
@@ -1233,7 +1284,7 @@ The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follo
         },
         "portuguese_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["exemplo"] <2>
         },
         "portuguese_stemmer": {
           "type":       "stemmer",
@@ -1255,6 +1306,7 @@ The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follo
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1267,6 +1319,7 @@ The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows
 
 [source,js]
 ----------------------------------------------------
+PUT /romanian_example
 {
   "settings": {
     "analysis": {
@@ -1277,7 +1330,7 @@ The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows
         },
         "romanian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["exemplu"] <2>
         },
         "romanian_stemmer": {
           "type":       "stemmer",
@@ -1299,6 +1352,7 @@ The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1312,6 +1366,7 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /russian_example
 {
   "settings": {
     "analysis": {
@@ -1322,7 +1377,7 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "russian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["пример"] <2>
         },
         "russian_stemmer": {
           "type":       "stemmer",
@@ -1344,6 +1399,7 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1356,6 +1412,7 @@ The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /sorani_example
 {
   "settings": {
     "analysis": {
@@ -1366,7 +1423,7 @@ The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "sorani_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["mînak"] <2>
         },
         "sorani_stemmer": {
           "type":       "stemmer",
@@ -1389,6 +1446,7 @@ The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1401,6 +1459,7 @@ The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /spanish_example
 {
   "settings": {
     "analysis": {
@@ -1411,7 +1470,7 @@ The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "spanish_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["ejemplo"] <2>
         },
         "spanish_stemmer": {
           "type":       "stemmer",
@@ -1433,6 +1492,7 @@ The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1445,6 +1505,7 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /swidish_example
 {
   "settings": {
     "analysis": {
@@ -1455,7 +1516,7 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "swedish_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["exempel"] <2>
         },
         "swedish_stemmer": {
           "type":       "stemmer",
@@ -1477,6 +1538,7 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1489,6 +1551,7 @@ The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /turkish_example
 {
   "settings": {
     "analysis": {
@@ -1503,7 +1566,7 @@ The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "turkish_keywords": {
           "type":       "keyword_marker",
-          "keywords":   [] <2>
+          "keywords":   ["örnek"] <2>
         },
         "turkish_stemmer": {
           "type":       "stemmer",
@@ -1526,6 +1589,7 @@ The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1538,6 +1602,7 @@ The `thai` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
+PUT /thai_example
 {
   "settings": {
     "analysis": {
@@ -1560,5 +1625,6 @@ The `thai` analyzer could be reimplemented as a `custom` analyzer as follows:
   }
 }
 ----------------------------------------------------
+// CONSOLE
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.

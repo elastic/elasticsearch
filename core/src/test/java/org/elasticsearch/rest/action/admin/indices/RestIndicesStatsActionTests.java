@@ -46,7 +46,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
 
     public void testUnrecognizedMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        final String metric = randomAsciiOfLength(64);
+        final String metric = randomAlphaOfLength(64);
         params.put("metric", metric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(

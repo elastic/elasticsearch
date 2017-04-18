@@ -248,9 +248,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start back the 2 nodes ");
         String[] newNodes = internalCluster().startNodes(2, settings).stream().toArray(String[]::new);
 
+        internalCluster().validateClusterFormed();
         ensureGreen();
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(4));

@@ -61,7 +61,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
                 PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
                 terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
             } catch (IllegalArgumentException e) {
-                if (e.getMessage().contains("incompatible with Elasticsearch")) {
+                if (e.getMessage().contains("incompatible with version")) {
                     terminal.println("WARNING: " + e.getMessage());
                 } else {
                     throw e;

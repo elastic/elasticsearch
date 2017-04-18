@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.term.TermSuggestion.Entry.Option;
@@ -35,7 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class TermSuggestionOptionTests extends ESTestCase {
 
     public static Option createTestItem() {
-        Text text = new Text(randomAsciiOfLengthBetween(5, 15));
+        Text text = new Text(randomAlphaOfLengthBetween(5, 15));
         float score = randomFloat();
         int freq = randomInt();
         return new Option(text, freq, score);
@@ -45,7 +46,7 @@ public class TermSuggestionOptionTests extends ESTestCase {
         Option option = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(option, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(option, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         Option parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);

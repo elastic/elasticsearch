@@ -39,6 +39,9 @@ class PluginPropertiesExtension {
     @Input
     String classname
 
+    @Input
+    boolean hasNativeController = false
+
     /** Indicates whether the plugin jar should be made available for the transport client. */
     @Input
     boolean hasClientJar = false

@@ -44,7 +44,7 @@ public class BulkByScrollParallelizationHelperTests extends ESTestCase {
             searchRequest.source().slice(null);
         }
         int times = between(2, 100);
-        String field = randomBoolean() ? UidFieldMapper.NAME : randomAsciiOfLength(5);
+        String field = randomBoolean() ? UidFieldMapper.NAME : randomAlphaOfLength(5);
         int currentSliceId = 0;
         for (SearchRequest slice : sliceIntoSubRequests(searchRequest, field, times)) {
             assertEquals(field, slice.source().slice().getField());

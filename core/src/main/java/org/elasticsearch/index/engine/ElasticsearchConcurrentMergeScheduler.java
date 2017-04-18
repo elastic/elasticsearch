@@ -110,10 +110,15 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(tookMS);
-
-            long stoppedMS = TimeValue.nsecToMSec(merge.rateLimiter.getTotalStoppedNS());
-            long throttledMS = TimeValue.nsecToMSec(merge.rateLimiter.getTotalPausedNS());
-
+            long stoppedMS = TimeValue.nsecToMSec(
+                merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.STOPPED)
+            );
+            long throttledMS = TimeValue.nsecToMSec(
+                merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.PAUSED)
+            );
+            final Thread thread = Thread.currentThread();
+            long totalBytesWritten = OneMergeHelper.getTotalBytesWritten(thread, merge);
+            double mbPerSec = OneMergeHelper.getMbPerSec(thread, merge);
             totalMergeStoppedTime.inc(stoppedMS);
             totalMergeThrottledTime.inc(throttledMS);
 
@@ -125,8 +130,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                                            totalNumDocs,
                                            TimeValue.timeValueMillis(stoppedMS),
                                            TimeValue.timeValueMillis(throttledMS),
-                                           merge.rateLimiter.getTotalBytesWritten()/1024f/1024f,
-                                           merge.rateLimiter.getMBPerSec());
+                                           totalBytesWritten/1024f/1024f,
+                                           mbPerSec);
 
             if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug("{}", message);

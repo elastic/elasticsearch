@@ -44,6 +44,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -66,7 +67,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummySettingPlugin.class);
+        return Arrays.asList(DummySettingPlugin.class, FinalSettingPlugin.class);
     }
 
     public static class DummySettingPlugin extends Plugin {
@@ -86,6 +87,19 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
+    public static class FinalSettingPlugin extends Plugin {
+        public static final Setting<String> FINAL_SETTING = Setting.simpleString("index.final",
+            Setting.Property.IndexScope, Setting.Property.Final);
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(FINAL_SETTING);
+        }
+    }
+
     public void testResetDefault() {
         createIndex("test");
 
@@ -93,7 +107,11 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .admin()
             .indices()
             .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.translog.flush_threshold_size", "1024b"))
+            .setSettings(
+                    Settings.builder()
+                            .put("index.refresh_interval", -1)
+                            .put("index.translog.flush_threshold_size", "1024b")
+                            .put("index.translog.generation_threshold_size", "4096b"))
             .execute()
             .actionGet();
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
@@ -103,6 +121,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
         client()
@@ -119,12 +138,13 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
     }
     public void testOpenCloseUpdateSettings() throws Exception {
         createIndex("test");
-        try {
+        expectThrows(IllegalArgumentException.class, () ->
             client()
                 .admin()
                 .indices()
@@ -133,20 +153,29 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                     .put("index.refresh_interval", -1) // this one can change
                     .put("index.fielddata.cache", "none")) // this one can't
                 .execute()
-                .actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
-            // all is well
-        }
-
+                .actionGet()
+        );
+        expectThrows(IllegalArgumentException.class, () ->
+            client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put("index.refresh_interval", -1) // this one can change
+                    .put("index.final", "no")) // this one can't
+                .execute()
+                .actionGet()
+        );
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), nullValue());
         assertThat(indexMetaData.getSettings().get("index.fielddata.cache"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.final"), nullValue());
 
         // Now verify via dedicated get settings api:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), nullValue());
         assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
+        assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
 
         client()
             .admin()
@@ -204,10 +233,27 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetaData.getSettings().get("index.fielddata.cache"), equalTo("none"));
 
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put("index.refresh_interval", -1) // this one can change
+                    .put("index.final", "no")) // this one really can't
+                .execute()
+                .actionGet()
+        );
+        assertThat(ex.getMessage(), containsString("final test setting [index.final], not updateable"));
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
+        assertThat(indexMetaData.getSettings().get("index.final"), nullValue());
+
+
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("1s"));
-        assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), equalTo("none"));
+        assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
     }
 
     public void testEngineGCDeletesSetting() throws InterruptedException {

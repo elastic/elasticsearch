@@ -125,7 +125,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
             protected void executePhaseOnShard(
                     final ShardIterator shardIt,
                     final ShardRouting shard,
-                    final ActionListener<SearchPhaseResult> listener) {
+                    final SearchActionListener<SearchPhaseResult> listener) {
 
             }
 

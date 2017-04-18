@@ -110,7 +110,7 @@ public class TransportShrinkActionTests extends ESTestCase {
     }
 
     public void testShrinkIndexSettings() {
-        String indexName = randomAsciiOfLength(10);
+        String indexName = randomAlphaOfLength(10);
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
             Settings.builder()

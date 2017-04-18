@@ -536,7 +536,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
             shortestTerms1Length = Math.min(shortestTerms1Length, length);
-            terms1.add(new Term("field", randomAsciiOfLength(length)));
+            terms1.add(new Term("field", randomAlphaOfLength(length)));
             sumTermLength -= length;
         }
 
@@ -546,7 +546,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
             shortestTerms2Length = Math.min(shortestTerms2Length, length);
-            terms2.add(new Term("field", randomAsciiOfLength(length)));
+            terms2.add(new Term("field", randomAlphaOfLength(length)));
             sumTermLength -= length;
         }
 

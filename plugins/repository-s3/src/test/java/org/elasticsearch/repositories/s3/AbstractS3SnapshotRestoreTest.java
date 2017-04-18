@@ -30,9 +30,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
-import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -167,6 +166,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
             .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
             .put(S3Repository.Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000))
             .put(S3Repository.Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), true)
+            .put(S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING.getKey(), randomBoolean())
             .build();
 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -196,7 +196,8 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
 
         Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucket = settings.getByPrefix("repositories.s3.");
-        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(repositorySettings, null, randomBoolean(), null);
+        RepositoryMetaData metadata = new RepositoryMetaData("test-repo", "fs", Settings.EMPTY);
+        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(repositorySettings);
 
         String bucketName = bucket.get("bucket");
         logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
@@ -282,8 +283,6 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.builder()
                     .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
                     .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
                     ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -299,9 +298,6 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.builder()
                     .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
-                    .put(S3Repository.Repository.ENDPOINT_SETTING.getKey(), bucketSettings.get("endpoint"))
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
                     .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
                     ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -463,8 +459,9 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
-            assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(Settings.EMPTY, null, randomBoolean(), null);
+            assertThat("Your settings in elasticsearch.yml are incorrect. Check README file.", bucketName, notNullValue());
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(
+                Settings.builder().put(S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING.getKey(), randomBoolean()).build());
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

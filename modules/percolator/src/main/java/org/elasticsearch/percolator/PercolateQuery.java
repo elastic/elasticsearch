@@ -192,25 +192,19 @@ final class PercolateQuery extends Query implements Accountable {
         return queryStore;
     }
 
+    // Comparing identity here to avoid being cached
+    // Note that in theory if the same instance gets used multiple times it could still get cached,
+    // however since we create a new query instance each time we this query this shouldn't happen and thus
+    // this risk neglectable.
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (sameClassAs(o) == false) return false;
-
-        PercolateQuery that = (PercolateQuery) o;
-
-        if (!documentType.equals(that.documentType)) return false;
-        return documentSource.equals(that.documentSource);
-
+        return this == o;
     }
 
+    // Computing hashcode based on identity to avoid caching.
     @Override
     public int hashCode() {
-        int result = classHash();
-        result = 31 * result + documentType.hashCode();
-        result = 31 * result + documentSource.hashCode();
-        return result;
+        return System.identityHashCode(this);
     }
 
     @Override

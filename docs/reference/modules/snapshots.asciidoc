@@ -16,6 +16,19 @@ a 2.x cluster and use <<reindex-from-remote,reindex-from-remote>> to rebuild
 the index in a 5.x cluster. This is as time consuming as restoring from
 archival copies of the original data.
 
+Note: If a repository is connected to a 2.x cluster, and you want to connect
+a 5.x cluster to the same repository, you will have to either first set the 2.x 
+repository to `readonly` mode (see below for details on `readonly` mode) or create
+the 5.x repository in `readonly` mode.  A 5.x cluster will update the repository 
+to conform to 5.x specific formats, which will mean that any new snapshots written 
+via the 2.x cluster will not be visible to the 5.x cluster, and vice versa.  
+In fact, as a general rule, only one cluster should connect to the same repository
+location with write access; all other clusters connected to the same repository
+should be set to `readonly` mode.  While setting all but one repositories to 
+`readonly` should work with multiple clusters differing by one major version, 
+it is not a supported configuration.
+
+
 [float]
 === Repositories
 

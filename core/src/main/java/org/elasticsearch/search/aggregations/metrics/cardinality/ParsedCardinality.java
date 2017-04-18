@@ -62,7 +62,7 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
             CardinalityAggregationBuilder.NAME, true, ParsedCardinality::new);
 
     static {
-        declareCommonFields(PARSER);
+        declareAggregationFields(PARSER);
         PARSER.declareLong(ParsedCardinality::setValue, CommonFields.VALUE);
     }
 

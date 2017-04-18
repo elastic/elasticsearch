@@ -120,7 +120,7 @@ public abstract class AbstractParsedPercentiles extends ParsedAggregation implem
     }
 
     protected static void declarePercentilesFields(ObjectParser<? extends AbstractParsedPercentiles, Void> objectParser) {
-        ParsedAggregation.declareCommonFields(objectParser);
+        ParsedAggregation.declareAggregationFields(objectParser);
 
         objectParser.declareField((parser, aggregation, context) -> {
             XContentParser.Token token = parser.currentToken();

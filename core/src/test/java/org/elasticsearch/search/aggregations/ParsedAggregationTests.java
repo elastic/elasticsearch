@@ -90,7 +90,7 @@ public class ParsedAggregationTests extends ESTestCase {
         private static ObjectParser<TestParsedAggregation, Void> PARSER = new ObjectParser<>("testAggParser", TestParsedAggregation::new);
 
         static {
-            ParsedAggregation.declareCommonFields(PARSER);
+            ParsedAggregation.declareAggregationFields(PARSER);
         }
 
         @Override

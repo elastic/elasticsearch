@@ -23,14 +23,33 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.AbstractParsedPercentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 public class ParsedHDRPercentileRanks extends ParsedPercentileRanks {
 
     @Override
     protected String getType() {
         return InternalHDRPercentileRanks.NAME;
+    }
+
+    @Override
+    public Iterator<Percentile> iterator() {
+        final Iterator<Percentile> iterator = super.iterator();
+        return new Iterator<Percentile>() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public Percentile next() {
+                Percentile percentile = iterator.next();
+                return new Percentile(percentile.getValue(), percentile.getPercent());
+            }
+        };
     }
 
     private static ObjectParser<ParsedHDRPercentileRanks, Void> PARSER =

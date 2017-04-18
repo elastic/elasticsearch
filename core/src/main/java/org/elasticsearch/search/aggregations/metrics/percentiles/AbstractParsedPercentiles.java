@@ -81,7 +81,7 @@ public abstract class AbstractParsedPercentiles extends ParsedAggregation implem
             @Override
             public Percentile next() {
                 Map.Entry<Double, Double> next = iterator.next();
-                return new InternalPercentile(next.getKey(), next.getValue());
+                return new Percentile(next.getKey(), next.getValue());
             }
         };
     }

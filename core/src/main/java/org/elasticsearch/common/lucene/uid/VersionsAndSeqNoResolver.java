@@ -160,7 +160,7 @@ public final class VersionsAndSeqNoResolver {
     public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo) throws IOException {
         LeafReader leaf = docIdAndSeqNo.context.reader();
         PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
-        long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId);
+        long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId, leaf);
         assert result > 0 : "should always resolve a primary term for a resolved sequence number. primary_term [" + result + "]"
             + " docId [" + docIdAndSeqNo.docId + "] seqNo [" + docIdAndSeqNo.seqNo + "]";
         return result;

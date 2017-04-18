@@ -50,9 +50,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
-    /** The segment reader. */
-    private final LeafReader reader;
-
     /** terms enum for uid field */
     private final TermsEnum termsEnum;
 
@@ -66,7 +63,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * Initialize lookup for the provided segment
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader) throws IOException {
-        this.reader = reader;
         Fields fields = reader.fields();
         Terms terms = fields.terms(UidFieldMapper.NAME);
         termsEnum = terms.iterator();
@@ -130,7 +126,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, liveDocs);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            NumericDocValues seqNos = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+            NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
             long seqNo;
             if (seqNos != null && seqNos.advanceExact(docID)) {
                 seqNo = seqNos.longValue();
@@ -148,7 +144,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      *
      * Note that 0 is an illegal primary term. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
      **/
-    long lookUpPrimaryTerm(int docID) throws IOException {
+    long lookUpPrimaryTerm(int docID, LeafReader reader) throws IOException {
         NumericDocValues primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         if (primaryTerms != null && primaryTerms.advanceExact(docID)) {
             return primaryTerms.longValue();

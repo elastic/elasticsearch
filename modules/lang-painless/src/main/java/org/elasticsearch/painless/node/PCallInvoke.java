@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
@@ -74,7 +73,7 @@ public final class PCallInvoke extends AExpression {
         Struct struct = prefix.actual.struct;
 
         if (prefix.actual.sort.primitive) {
-            struct = Definition.getType(prefix.actual.sort.boxed.getSimpleName()).struct;
+            struct = locals.getDefinition().getType(prefix.actual.sort.boxed.getSimpleName()).struct;
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());

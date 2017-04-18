@@ -33,7 +33,7 @@ import java.util.Map;
  */
 public abstract class ParsedAggregation implements Aggregation, ToXContent {
 
-    protected static void declareCommonFields(ObjectParser<? extends ParsedAggregation, Void> objectParser) {
+    protected static void declareAggregationFields(ObjectParser<? extends ParsedAggregation, Void> objectParser) {
         objectParser.declareObject((parsedAgg, metadata) -> parsedAgg.metadata = Collections.unmodifiableMap(metadata),
                 (parser, context) -> parser.map(), InternalAggregation.CommonFields.META);
     }

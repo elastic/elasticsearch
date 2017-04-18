@@ -120,6 +120,7 @@ public class InternalEngine extends Engine {
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
+    private static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
@@ -147,6 +148,7 @@ public class InternalEngine extends Engine {
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
+                updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer);
                 assert translog.getGeneration() != null;
@@ -184,6 +186,17 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    private void updateMaxUnsafeAutoIdTimestampFromWriter(IndexWriter writer) {
+        long commitMaxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
+        for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+            if (entry.getKey().equals(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)) {
+                commitMaxUnsafeAutoIdTimestamp = Long.parseLong(entry.getValue());
+                break;
+            }
+        }
+        maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), commitMaxUnsafeAutoIdTimestamp));
     }
 
     @Override
@@ -410,7 +423,7 @@ public class InternalEngine extends Engine {
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
                     assert index.isRetry();
-                    return false; // even if retry is set we never optimize local recovery
+                    return true; // allow to optimize in order to update the max safe time stamp
                 default:
                     throw new IllegalArgumentException("unknown origin " + index.origin());
             }
@@ -1528,15 +1541,21 @@ public class InternalEngine extends Engine {
     private void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
         ensureCanFlush();
         try {
-            Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-            logger.trace("committing writer with translog id [{}]  and sync id [{}] ", translogGeneration.translogFileGeneration, syncId);
-            Map<String, String> commitData = new HashMap<>(2);
-            commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
-            commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
-            if (syncId != null) {
-                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-            }
-            indexWriter.setCommitData(commitData);
+            final Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+            final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
+            final String translogUUID = translogGeneration.translogUUID;
+
+            writer.setLiveCommitData(() -> {
+                final Map<String, String> commitData = new HashMap<>(4);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                if (syncId != null) {
+                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+                }
+                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                logger.trace("committing writer with commit data [{}]", commitData);
+                return commitData.entrySet().iterator();
+            });
             writer.commit();
         } catch (Exception ex) {
             try {

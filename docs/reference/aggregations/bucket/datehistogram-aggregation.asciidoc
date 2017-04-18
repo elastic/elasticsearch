@@ -327,8 +327,6 @@ POST /sales/_search?size=0
 
 Response:
 
-Response:
-
 [source,js]
 --------------------------------------------------
 {

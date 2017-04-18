@@ -57,7 +57,7 @@ class ClusterFormationTasks {
         // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
         // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
         // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: runner.dependsOn.collect()) {
+        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: config.dependencies) {
             delete sharedDir
             doLast {
                 sharedDir.mkdirs()
@@ -104,7 +104,7 @@ class ClusterFormationTasks {
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
             Task dependsOn = startTasks.empty ? cleanup : startTasks.get(0)
-            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, distro, nodes.get(0)))
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 
         Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)
@@ -148,7 +148,8 @@ class ClusterFormationTasks {
      *
      * @return a task which starts the node.
      */
-    static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, Configuration configuration, NodeInfo seedNode) {
+    static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, ClusterConfiguration config,
+                              Configuration distribution, NodeInfo seedNode) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
@@ -161,7 +162,7 @@ class ClusterFormationTasks {
 
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
-        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, configuration)
+        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
@@ -205,6 +206,13 @@ class ClusterFormationTasks {
             // if we are running in the background, make sure to stop the server when the task completes
             runner.finalizedBy(stop)
             start.finalizedBy(stop)
+            for (Object dependency : config.dependencies) {
+                if (dependency instanceof Fixture) {
+                    Task depStop = ((Fixture)dependency).stopTask
+                    runner.finalizedBy(depStop)
+                    start.finalizedBy(depStop)
+                }
+            }
         }
         return start
     }
@@ -541,7 +549,7 @@ class ClusterFormationTasks {
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
-            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
+            ant.waitfor(maxwait: '60', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
                         resourceexists {

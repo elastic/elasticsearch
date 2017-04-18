@@ -1,7 +1,7 @@
 [[search-aggregations-metrics-geocentroid-aggregation]]
 === Geo Centroid Aggregation
 
-A metric aggregation that computes the weighted centroid from all coordinate values for a <<geo-point>> field.
+A metric aggregation that computes the weighted https://en.wikipedia.org/wiki/Centroid[centroid] from all coordinate values for a <<geo-point>> field.
 
 Example:
 

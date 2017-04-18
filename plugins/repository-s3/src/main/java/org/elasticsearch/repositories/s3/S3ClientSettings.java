@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
 
 /**
  * A container for settings used to create an S3 client.
@@ -45,15 +44,15 @@ class S3ClientSettings {
 
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
-        key -> SecureSetting.secureString(key, S3Repository.Repositories.KEY_SETTING));
+        key -> SecureSetting.secureString(key, null));
 
     /** The secret key (ie password) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
-        key -> SecureSetting.secureString(key, S3Repository.Repositories.SECRET_SETTING));
+        key -> SecureSetting.secureString(key, null));
 
     /** An override for the s3 endpoint to connect to. */
     static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
-        key -> new Setting<>(key, S3Repository.Repositories.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT),
+        key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT),
             Setting.Property.NodeScope));
 
     /** The protocol to use to connect to s3. */
@@ -70,11 +69,11 @@ class S3ClientSettings {
 
     /** The username of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING));
+        key -> SecureSetting.secureString(key, null));
 
     /** The password of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING));
+        key -> SecureSetting.secureString(key, null));
 
     /** The socket timeout for connecting to s3. */
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
@@ -142,10 +141,10 @@ class S3ClientSettings {
     // pkg private for tests
     /** Parse settings for a single client. */
     static S3ClientSettings getClientSettings(Settings settings, String clientName) {
-        try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
-             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING, S3Repository.Repositories.SECRET_SETTING);
-             SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING, CLOUD_S3.PROXY_USERNAME_SETTING);
-             SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING, CLOUD_S3.PROXY_PASSWORD_SETTING)) {
+        try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
+             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
+             SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
+             SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
             BasicAWSCredentials credentials = null;
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
@@ -158,26 +157,21 @@ class S3ClientSettings {
             }
             return new S3ClientSettings(
                 credentials,
-                getConfigValue(settings, clientName, ENDPOINT_SETTING, S3Repository.Repositories.ENDPOINT_SETTING),
-                getConfigValue(settings, clientName, PROTOCOL_SETTING, S3Repository.Repositories.PROTOCOL_SETTING),
-                getConfigValue(settings, clientName, PROXY_HOST_SETTING, AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING),
-                getConfigValue(settings, clientName, PROXY_PORT_SETTING, AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING),
+                getConfigValue(settings, clientName, ENDPOINT_SETTING),
+                getConfigValue(settings, clientName, PROTOCOL_SETTING),
+                getConfigValue(settings, clientName, PROXY_HOST_SETTING),
+                getConfigValue(settings, clientName, PROXY_PORT_SETTING),
                 proxyUsername.toString(),
                 proxyPassword.toString(),
-                (int)getConfigValue(settings, clientName, READ_TIMEOUT_SETTING, AwsS3Service.CLOUD_S3.READ_TIMEOUT).millis()
+                (int)getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()
             );
         }
     }
 
     private static <T> T getConfigValue(Settings settings, String clientName,
-                                        Setting.AffixSetting<T> clientSetting,
-                                        Setting<T> globalSetting) {
+                                        Setting.AffixSetting<T> clientSetting) {
         Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
-        if (concreteSetting.exists(settings)) {
-            return concreteSetting.get(settings);
-        } else {
-            return globalSetting.get(settings);
-        }
+        return concreteSetting.get(settings);
     }
 
 }

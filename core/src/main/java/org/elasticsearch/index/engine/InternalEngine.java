@@ -51,7 +51,8 @@ import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.lucene.uid.VersionsResolver;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -298,7 +299,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
             }
             if (generation.translogUUID == null) {
-                throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
         final Translog translog = new Translog(translogConfig, generation, globalCheckpointSupplier);
@@ -389,10 +390,10 @@ public class InternalEngine extends Engine {
                     if (versionValue.isDelete()) {
                         return GetResult.NOT_EXISTS;
                     }
-                    if (get.versionType().isVersionConflictForReads(versionValue.getVersion(), get.version())) {
+                    if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         Uid uid = Uid.createUid(get.uid().text());
                         throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
-                            get.versionType().explainConflictForReads(versionValue.getVersion(), get.version()));
+                            get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
                     refresh("realtime_get");
                 }
@@ -416,6 +417,43 @@ public class InternalEngine extends Engine {
         LUCENE_DOC_NOT_FOUND
     }
 
+    private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
+        assert op.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
+        final OpVsLuceneDocStatus status;
+        final VersionValue versionValue = versionMap.getUnderLock(op.uid());
+        assert incrementVersionLookup();
+        if (versionValue != null) {
+            if  (op.seqNo() > versionValue.seqNo ||
+                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
+                status = OpVsLuceneDocStatus.OP_NEWER;
+            else {
+                status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+            }
+        } else {
+            // load from index
+            assert incrementIndexVersionLookup();
+            try (Searcher searcher = acquireSearcher("load_seq_no")) {
+                DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
+                if (docAndSeqNo == null) {
+                    status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
+                } else if (op.seqNo() > docAndSeqNo.seqNo) {
+                    status = OpVsLuceneDocStatus.OP_NEWER;
+                } else if (op.seqNo() == docAndSeqNo.seqNo) {
+                    // load term to tie break
+                    final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo);
+                    if (op.primaryTerm() > existingTerm) {
+                        status = OpVsLuceneDocStatus.OP_NEWER;
+                    } else {
+                        status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+                    }
+                } else {
+                    status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+                }
+            }
+        }
+        return status;
+    }
+
     /** resolves the current version of the document, returning null if not found */
     private VersionValue resolveDocVersion(final Operation op) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
@@ -424,11 +462,10 @@ public class InternalEngine extends Engine {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final long currentVersion = loadCurrentVersionFromIndex(op.uid());
             if (currentVersion != Versions.NOT_FOUND) {
-                versionValue = new VersionValue(currentVersion);
+                versionValue = new VersionValue(currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0L);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
-            (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.getTime()) >
-                getGcDeletesInMillis()) {
+            (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
             versionValue = null;
         }
         return versionValue;
@@ -436,12 +473,13 @@ public class InternalEngine extends Engine {
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
         throws IOException {
+        assert op.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO : "op is resolved based on versions but have a seq#";
         assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
         final VersionValue versionValue = resolveDocVersion(op);
         if (versionValue == null) {
             return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
-            return op.versionType().isVersionConflictForWrites(versionValue.getVersion(), op.version(), versionValue.isDelete()) ?
+            return op.versionType().isVersionConflictForWrites(versionValue.version, op.version(), versionValue.isDelete()) ?
                 OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
         }
     }
@@ -601,7 +639,16 @@ public class InternalEngine extends Engine {
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
-            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
+            final OpVsLuceneDocStatus opVsLucene;
+            if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
+            } else {
+                // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
+                // created by an old version.
+                assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) :
+                    "index is newly created but op has no sequence numbers. op: " + index;
+                opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
+            }
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
@@ -633,7 +680,7 @@ public class InternalEngine extends Engine {
                 currentVersion = Versions.NOT_FOUND;
                 currentNotFoundOrDeleted = true;
             } else {
-                currentVersion = versionValue.getVersion();
+                currentVersion = versionValue.version;
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
             if (index.versionType().isVersionConflictForWrites(
@@ -671,9 +718,9 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 index(index.docs(), indexWriter);
             }
-            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(plan.versionForIndexing));
-            return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing,
-                plan.currentNotFoundOrDeleted);
+            versionMap.putUnderLock(index.uid().bytes(),
+                new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
+            return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 /* There is no tragic event recorded so this must be a document failure.
@@ -873,7 +920,14 @@ public class InternalEngine extends Engine {
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
-        final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
+        final OpVsLuceneDocStatus opVsLucene;
+        if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
+        } else {
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) :
+                "index is newly created but op has no sequence numbers. op: " + delete;
+            opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
+        }
 
         final DeletionStrategy plan;
         if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
@@ -898,7 +952,7 @@ public class InternalEngine extends Engine {
             currentVersion = Versions.NOT_FOUND;
             currentlyDeleted = true;
         } else {
-            currentVersion = versionValue.getVersion();
+            currentVersion = versionValue.version;
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
@@ -923,7 +977,7 @@ public class InternalEngine extends Engine {
                 indexWriter.deleteDocuments(delete.uid());
             }
             versionMap.putUnderLock(delete.uid().bytes(),
-                new DeleteVersionValue(plan.versionOfDeletion,
+                new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
                     engineConfig.getThreadPool().relativeTimeInMillis()));
             return new DeleteResult(
                 plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
@@ -1179,12 +1233,12 @@ public class InternalEngine extends Engine {
                     try {
                         translog.prepareCommit();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translog, null);
+                        final long committedGeneration = commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
                         // after refresh documents can be retrieved from the index so we can now commit the translog
-                        translog.commit();
+                        translog.commit(committedGeneration);
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -1235,14 +1289,14 @@ public class InternalEngine extends Engine {
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
-        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
+        for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
             try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
+                DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
                 if (versionValue != null) {
-                    if (timeMSec - versionValue.getTime() > getGcDeletesInMillis()) {
+                    if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
                         versionMap.removeTombstoneUnderLock(uid);
                     }
                 }
@@ -1490,7 +1544,7 @@ public class InternalEngine extends Engine {
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
         assert incrementIndexVersionLookup();
         try (Searcher searcher = acquireSearcher("load_version")) {
-            return VersionsResolver.loadVersion(searcher.reader(), uid);
+            return VersionsAndSeqNoResolver.loadVersion(searcher.reader(), uid);
         }
     }
 
@@ -1680,55 +1734,65 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+    /**
+     * Commits the specified index writer.
+     *
+     * @param writer   the index writer to commit
+     * @param translog the translog
+     * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
+     * @return the minimum translog generation for the local checkpoint committed with the specified index writer
+     * @throws IOException if an I/O exception occurs committing the specfied writer
+     */
+    private long commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
-            Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-
-            final String translogFileGen = Long.toString(translogGeneration.translogFileGeneration);
+            final long localCheckpoint = seqNoService().getLocalCheckpoint();
+            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
+            final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
-            final String localCheckpoint = Long.toString(seqNoService().getLocalCheckpoint());
+            final String localCheckpointValue = Long.toString(localCheckpoint);
 
             writer.setLiveCommitData(() -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
-                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different - we never want
+                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different, we never want
                  * the maximum sequence number to be less than the last sequence number to go into a Lucene commit, otherwise we run the
                  * risk of re-using a sequence number for two different documents when restoring from this commit point and subsequently
-                 * writing new documents to the index.  Since we only know which Lucene documents made it into the final commit after the
-                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the max_seq_no to the time of invocation
-                 * of the commit data iterator (which occurs after all documents have been flushed to Lucene).
+                 * writing new documents to the index. Since we only know which Lucene documents made it into the final commit after the
+                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
+                 * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(6);
-                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
+                final Map<String, String> commitData = new HashMap<>(5);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
                 if (syncId != null) {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
-                if (logger.isTraceEnabled()) {
-                    logger.trace("committing writer with commit data [{}]", commitData);
-                }
+                logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
 
             writer.commit();
-        } catch (Exception ex) {
+            return translogGeneration.translogFileGeneration;
+        } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 ex.addSuppressed(inner);
             }
             throw ex;
-        } catch (AssertionError e) {
-            // IndexWriter throws AssertionError on commit, if asserts are enabled, if any files don't exist, but tests that
-            // randomly throw FNFE/NSFE can also hit this:
+        } catch (final AssertionError e) {
+            /*
+             * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
+             * throw FileNotFoundException or NoSuchFileException can also hit this.
+             */
             if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
-                EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
+                final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
                 try {
                     failEngine("lucene commit failed", engineException);
-                } catch (Exception inner) {
+                } catch (final Exception inner) {
                     engineException.addSuppressed(inner);
                 }
                 throw engineException;
@@ -1812,7 +1876,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        Map<String, String> commitData = new HashMap<>(6);
+        Map<String, String> commitData = new HashMap<>(5);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }

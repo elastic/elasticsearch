@@ -362,7 +362,7 @@ quality boxes available in vagrant atlas:
 
 * sles-11
 
-We're missing the follow because our tests are very linux/bash centric:
+We're missing the following because our tests are very linux/bash centric:
 
 * Windows Server 2012
 
@@ -418,8 +418,8 @@ sudo -E bats $BATS_TESTS/*rpm*.bats
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-gradle vagrantSetUp
-vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
+gradle setupBats
+cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
 cd $BATS_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
@@ -505,4 +505,3 @@ included as part of the build by checking the projects of the build.
 ---------------------------------------------------------------------------
 gradle projects
 ---------------------------------------------------------------------------
-

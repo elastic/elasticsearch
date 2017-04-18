@@ -202,7 +202,7 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
                     Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
-                    Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
+                    Path dir = resolveNodePath(dataDir, possibleLockId);
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -266,6 +266,17 @@ public final class NodeEnvironment  implements Closeable {
                 IOUtils.closeWhileHandlingException(locks);
             }
         }
+    }
+
+    /**
+     * Resolve a specific nodes/{node.id} path for the specified path and node lock id.
+     *
+     * @param path       the path
+     * @param nodeLockId the node lock id
+     * @return the resolved path
+     */
+    public static Path resolveNodePath(final Path path, final int nodeLockId) {
+        return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));
     }
 
     /** Returns true if the directory is empty */
@@ -724,6 +735,14 @@ public final class NodeEnvironment  implements Closeable {
         return nodePaths;
     }
 
+    public int getNodeLockId() {
+        assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        return nodeLockId;
+    }
+
     /**
      * Returns all index paths.
      */
@@ -735,6 +754,8 @@ public final class NodeEnvironment  implements Closeable {
         }
         return indexPaths;
     }
+
+
 
     /**
      * Returns all shard paths excluding custom shard path. Note: Shards are only allocated on one of the
@@ -764,19 +785,36 @@ public final class NodeEnvironment  implements Closeable {
         assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
-            Path indicesLocation = nodePath.indicesPath;
-            if (Files.isDirectory(indicesLocation)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
-                    for (Path index : stream) {
-                        if (Files.isDirectory(index)) {
-                            indexFolders.add(index.getFileName().toString());
-                        }
+            indexFolders.addAll(availableIndexFoldersForPath(nodePath));
+        }
+        return indexFolders;
+
+    }
+
+    /**
+     * Return all directory names in the nodes/{node.id}/indices directory for the given node path.
+     *
+     * @param nodePath the path
+     * @return all directories that could be indices for the given node path.
+     * @throws IOException if an I/O exception occurs traversing the filesystem
+     */
+    public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assertEnvIsLocked();
+        final Set<String> indexFolders = new HashSet<>();
+        Path indicesLocation = nodePath.indicesPath;
+        if (Files.isDirectory(indicesLocation)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
+                for (Path index : stream) {
+                    if (Files.isDirectory(index)) {
+                        indexFolders.add(index.getFileName().toString());
                     }
                 }
             }
         }
         return indexFolders;
-
     }
 
     /**

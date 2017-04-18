@@ -127,13 +127,13 @@ configure(distributions) {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
-    dependsOn project.assemble
     includePackaged project.name == 'integ-test-zip'
     if (project.name != 'integ-test-zip') {
       mustRunAfter ':distribution:integ-test-zip:integTest'
     }
   }
   project.integTestCluster {
+    dependsOn project.assemble
     distribution = project.name
   }
 

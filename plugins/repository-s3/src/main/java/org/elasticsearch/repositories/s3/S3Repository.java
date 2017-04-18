@@ -19,30 +19,23 @@
 
 package org.elasticsearch.repositories.s3;
 
+import java.io.IOException;
+
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.AffixSetting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-
-import java.io.IOException;
-import java.util.Locale;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -65,32 +58,6 @@ class S3Repository extends BlobStoreRepository {
      * NOTE: These are legacy settings. Use the named client config settings above.
      */
     public interface Repositories {
-        /**
-         * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
-         * @see CLOUD_S3#KEY_SETTING
-         */
-        Setting<SecureString> KEY_SETTING = new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, SecureString::new,
-            Property.NodeScope, Property.Filtered, Property.Deprecated);
-
-        /**
-         * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
-         * @see CLOUD_S3#SECRET_SETTING
-         */
-        Setting<SecureString> SECRET_SETTING = new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, SecureString::new,
-            Property.NodeScope, Property.Filtered, Property.Deprecated);
-
-        /**
-         * repositories.s3.endpoint: Endpoint specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.endpoint.
-         * @see CLOUD_S3#ENDPOINT_SETTING
-         */
-        Setting<String> ENDPOINT_SETTING = new Setting<>("repositories.s3.endpoint", CLOUD_S3.ENDPOINT_SETTING,
-            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
-        /**
-         * repositories.s3.protocol: Protocol specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.protocol.
-         * @see CLOUD_S3#PROTOCOL_SETTING
-         */
-        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("repositories.s3.protocol", CLOUD_S3.PROTOCOL_SETTING,
-            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.bucket: The name of the bucket to be used for snapshots.
          */
@@ -173,25 +140,9 @@ class S3Repository extends BlobStoreRepository {
      * If undefined, they use the repositories.s3.xxx equivalent setting.
      */
     public interface Repository {
-        Setting<SecureString> KEY_SETTING = new Setting<>("access_key", "", SecureString::new,
-            Property.Filtered, Property.Deprecated);
-
-
-        Setting<SecureString> SECRET_SETTING = new Setting<>("secret_key", "", SecureString::new,
-            Property.Filtered, Property.Deprecated);
 
         Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
-        /**
-         * endpoint
-         * @see  Repositories#ENDPOINT_SETTING
-         */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", Property.Deprecated);
-        /**
-         * protocol
-         * @see  Repositories#PROTOCOL_SETTING
-         */
-        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
-            Property.Deprecated);
+
         /**
          * server_side_encryption
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING

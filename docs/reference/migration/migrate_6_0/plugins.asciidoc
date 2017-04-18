@@ -23,6 +23,10 @@ the region of the configured bucket.
 
 * Specifying s3 signer type has been removed, including `cloud.aws.signer` and `cloud.aws.s3.signer`.
 
+* All `cloud.aws` and `repositories.s3` settings have been removed. Use `s3.client.*` settings instead.
+
+* All repository level client settings have been removed. Use `s3.client.*` settings instead.
+
 ==== Azure Repository plugin
 
 * The container an azure repository is configured with will no longer be created automatically.

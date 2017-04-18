@@ -283,8 +283,6 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.builder()
                     .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
                     .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
                     ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -300,9 +298,6 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.builder()
                     .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
-                    .put(S3Repository.Repository.ENDPOINT_SETTING.getKey(), bucketSettings.get("endpoint"))
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
                     .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
                     ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

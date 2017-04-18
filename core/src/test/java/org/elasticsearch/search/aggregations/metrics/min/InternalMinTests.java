@@ -30,9 +30,7 @@ import java.util.Map;
 public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
     @Override
     protected InternalMin createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalMin(name, randomDouble(),
-                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), pipelineAggregators,
-                metaData);
+        return new InternalMin(name, randomDouble(), randomNumericDocValueFormat(), pipelineAggregators, metaData);
     }
 
     @Override

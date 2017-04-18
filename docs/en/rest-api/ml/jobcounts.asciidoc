@@ -83,7 +83,14 @@ and any related error counts. It has the following properties:
 `missing_field_count`::
   (long) The number of records that are missing a field that the job is configured to analyze.
   Records with missing fields are still processed because it is possible that not all fields are missing.
-  The value of `processed_record_count` includes this count.
+  The value of `processed_record_count` includes this count. +
++
+--
+NOTE: If you are using data feeds or posting data to the job in JSON format, a
+high `missing_field_count` is often not an indication of data issues. It is not
+necessarily a cause for concern.
+
+--
 
 `out_of_order_timestamp_count`::
   (long) The number of records that are out of time sequence and outside of the latency window.

@@ -161,7 +161,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      * Asserts that the script_stack looks right.
      */
     public static void assertScriptStack(ScriptException e, String... stack) {
-        // This particular incantation of assertions makes the error messages failure useful
+        // This particular incantation of assertions makes the error messages more useful
         try {
             assertThat(e.getScriptStack(), hasSize(stack.length));
             for (int i = 0; i < stack.length; i++) {

@@ -312,10 +312,13 @@ A bucket resource has the following properties:
 
 `timestamp`::
   (date) The start time of the bucket, specified in ISO 8601 format.
-  For example, 1454020800000. This timestamp uniquely identifies the bucket.
-
+  For example, 1454020800000. This timestamp uniquely identifies the bucket. +
++
+--
 NOTE: Events that occur exactly at the timestamp of the bucket are included in
 the results for the bucket.
+
+--
 
 [float]
 [[ml-results-categories]]

@@ -8,10 +8,12 @@ The update data feed API enables you to update certain properties of a data feed
 
 `POST _xpack/ml/datafeeds/<feed_id>/_update`
 
-////
+
 ===== Description
 
-////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id` (required)::

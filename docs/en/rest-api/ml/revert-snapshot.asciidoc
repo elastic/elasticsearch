@@ -50,6 +50,9 @@ IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 Sending data to a closed job changes its status to `open`, so you must also
 ensure that you do not expect data imminently.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id` (required)::

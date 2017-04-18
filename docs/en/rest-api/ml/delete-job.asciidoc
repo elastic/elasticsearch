@@ -17,6 +17,9 @@ IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
             DELETE Document API. When {security} is enabled, make sure no `write`
             privileges are granted to anyone over the `.ml-*` indices.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 Before you can delete a job, you must delete the data feeds that are associated with it.
 See <<ml-delete-datafeed,Delete Data Feeds>>.
 

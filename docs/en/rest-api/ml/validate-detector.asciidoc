@@ -12,6 +12,9 @@ The validate detectors API validates detector configuration information.
 
 This API enables you validate the detector configuration before you create a job.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ////
 ===== Path Parameters
 

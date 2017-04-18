@@ -10,15 +10,17 @@ The get jobs API enables you to retrieve configuration information for jobs.
 
 `GET _xpack/ml/anomaly_detectors/<job_id>`
 
-////
+
 ===== Description
 
-////
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id`::
   (string) Identifier for the job. If you do not specify this optional parameter,
-  the API returns information about all jobs that you have authority to view.
+  the API returns information about all jobs.
 
 ===== Results
 

@@ -15,6 +15,10 @@ settings update, rerouting, or managing users and roles.
 All cluster read-only operations, like cluster health & state, hot threads, node
 info, node & cluster stats, snapshot/restore status, pending cluster tasks.
 
+`monitor_ml`::
+All read only {ml} operations, such as getting information about data feeds, jobs,
+model snapshots, or results.
+
 `monitor_watcher`::
 All read only watcher operations, such as getting a watch and watcher stats.
 
@@ -23,15 +27,19 @@ Builds on `monitor` and adds cluster operations that change values in the cluste
 This includes snapshotting,updating settings, and rerouting. This privilege does
 not include the ability to manage security.
 
-`manage_security`::
-All security related operations such as CRUD operations on users and roles and
-cache clearing.
-
 `manage_index_templates`::
 All operations on index templates.
 
+`manage_ml`::
+All {ml} operations, such as creating and deleting data feeds, jobs, and model
+snapshots.
+
 `manage_pipeline`::
 All operations on ingest pipelines.
+
+`manage_security`::
+All security related operations such as CRUD operations on users and roles and
+cache clearing.
 
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
@@ -63,7 +71,7 @@ privilege is primarily available for use by <<kibana-roles, Kibana users>>.
 `read`::
 Read only access to actions (count, explain, get, mget, get indexed scripts,
 more like this, multi percolate/search/termvector, percolate, scroll,
-clear_scroll, search, tv). Also grants access to the update mapping 
+clear_scroll, search, tv). Also grants access to the update mapping
 action.
 
 `index`::

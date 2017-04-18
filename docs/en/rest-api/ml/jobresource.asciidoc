@@ -69,11 +69,13 @@ An analysis configuration object has the following properties:
 `detectors` (required)::
   (array) An array of detector configuration objects,
   which describe the anomaly detectors that are used in the job.
-  See <<ml-detectorconfig,detector configuration objects>>.
-
+  See <<ml-detectorconfig,detector configuration objects>>. +
++
+--
 NOTE: If the `detectors` array does not contain at least one detector, no analysis can occur
 and an error is returned.
 
+--
 `influencers`::
   (array of strings) A comma separated list of influencer field names.
   Typically these can be the by, over, or partition fields that are used in the detector configuration.
@@ -82,10 +84,12 @@ and an error is returned.
   the use of influencers is recommended as it aggregates results for each influencer entity.
 
 `latency`::
-  (unsigned integer) The size of the window, in seconds, in which to expect data that is out of time order. The default value is 0 milliseconds (no latency).
-
+  (unsigned integer) The size of the window, in seconds, in which to expect data that is out of time order. The default value is 0 milliseconds (no latency). +
++
+--
 NOTE: Latency is only applicable when you send data by using the <<ml-post-data, Post Data to Jobs>> API.
 
+--
 `multivariate_by_fields`::
   (boolean) If set to `true`, the analysis will automatically find correlations
   between metrics for a given `by` field value and report anomalies when those
@@ -94,10 +98,12 @@ NOTE: Latency is only applicable when you send data by using the <<ml-post-data,
   correlation occurs because they are running a load-balanced application.
   If you enable this property, then anomalies will be reported when, for example,
   CPU usage on host A is high and the value of CPU usage on host B is low.
-  That is to say, you'll see an anomaly when the CPU of host A is unusual given the CPU of host B.
-
+  That is to say, you'll see an anomaly when the CPU of host A is unusual given the CPU of host B. +
++
+--
 NOTE: To use the `multivariate_by_fields` property, you must also specify `by_field_name` in your detector.
 
+--
 `overlapping_buckets`::
   (boolean) If set to `true`, an additional analysis occurs that runs out of phase by half a bucket length.
   This requires more system resources and enhances detection of anomalies that span bucket boundaries.
@@ -105,10 +111,12 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify `by_fi
 `summary_count_field_name`::
   (string) If not null, the data fed to the job is expected to be pre-summarized.
   This property value is the name of the field that contains the count of raw data points that have been summarized.
-  The same `summary_count_field_name` applies to all detectors in the job.
-
+  The same `summary_count_field_name` applies to all detectors in the job. +
++
+--
 NOTE: The `summary_count_field_name` property cannot be used with the `metric` function.
 
+--
 `use_per_partition_normalization`::
   () TBD
 
@@ -140,19 +148,23 @@ Each detector has the following properties:
 
 `field_name`::
   (string) The field that the detector uses in the function. If you use an event rate
-  function such as `count` or `rare`, do not specify this field.
-
+  function such as `count` or `rare`, do not specify this field. +
++
+--
 NOTE: The `field_name` cannot contain double quotes or backslashes.
 
+--
 `function` (required)::
   (string) The analysis function that is used.
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`.
   The default function is `metric`, which looks for anomalies in all of `min`, `max`,
-  and `mean`.
-
+  and `mean`. +
++
+--
 NOTE: You cannot use the `metric` function with pre-summarized input. If `summary_count_field_name`
   is not null, you must specify a function other than `metric`.
 
+--
 `over_field_name`::
   (string) The field used to split the data.
   In particular, this property is used for analyzing the splits with respect to the history of all splits.
@@ -164,9 +176,12 @@ NOTE: You cannot use the `metric` function with pre-summarized input. If `summar
 
 `use_null`::
   (boolean) Defines whether a new series is used as the null series
-  when there is no value for the by or partition fields. The default value is `false`
-
+  when there is no value for the by or partition fields. The default value is `false`. +
++
+--
 IMPORTANT: Field names are case sensitive, for example a field named 'Bytes' is different to one named 'bytes'.
+
+--
 
 [[ml-datadescription]]
 ===== Data Description Objects
@@ -203,9 +218,11 @@ A data description object has the following properties:
   since 1 Jan 1970) and corresponds to the time_t type in C and C++.
   The value `epoch_ms` indicates that time is measured in milliseconds since the epoch.
   The `epoch` and `epoch_ms` time formats accept either integer or real values. +
-
++
+--
 NOTE: Custom patterns must conform to the Java `DateTimeFormatter` class. When you use date-time formatting patterns, it is recommended that you provide the full date, time and time zone. For example: `yyyy-MM-dd'T'HH:mm:ssX`. If the pattern that you specify is not sufficient to produce a complete timestamp, job creation fails.
 
+--
 `quotecharacter`::
   () TBD
 

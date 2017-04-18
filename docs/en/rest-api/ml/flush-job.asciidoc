@@ -12,9 +12,14 @@ The flush job API forces any buffered data to be processed by the job.
 
 The flush job API is only applicable when sending data for analysis using the <<ml-post-data,post data API>>. Depending on the content of the buffer, then it might additionally calculate new results.
 
-Both flush and close operations are similar, however the flush is more efficient if you are expecting to send more data for analysis.
+Both flush and close operations are similar, however the flush is more efficient
+if you are expecting to send more data for analysis.
 When flushing, the job remains open and is available to continue analyzing data.
-A close operation additionally prunes and persists the model state to disk and the job must be opened again before analyzing further data.
+A close operation additionally prunes and persists the model state to disk
+and the job must be opened again before analyzing further data.
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 

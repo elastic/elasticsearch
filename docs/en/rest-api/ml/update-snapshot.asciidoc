@@ -16,6 +16,9 @@ The update model snapshot API enables you to update certain properties of a snap
 Updates to the configuration are only applied after the job has been closed
 and new data has been sent to it.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id` (required)::

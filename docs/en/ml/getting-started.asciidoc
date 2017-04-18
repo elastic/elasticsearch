@@ -133,9 +133,8 @@ locally, go to `http://localhost:5601/`. To use the {ml} features,
 you must log in as a user who has the `kibana_user`
 and `monitor_ml` roles (TBD).
 
-. Click **Machine Learning** in the side navigation.
-
-//image::images/ml.jpg["Job Management"]
+. Click **Machine Learning** in the side navigation:
+image::images/ml.jpg["Job Management"]
 
 You can choose to create single-metric, multi-metric, or advanced jobs in Kibana.
 

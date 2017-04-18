@@ -16,12 +16,15 @@ data feeds.
 If the data feed is stopped, the only information you receive is the
 `datafeed_id` and the `state`.
 
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id`::
   (string) Identifier for the data feed.
   If you do not specify this optional parameter, the API returns information
-  about all data feeds that you have authority to view.
+  about all data feeds.
 
 ===== Results
 

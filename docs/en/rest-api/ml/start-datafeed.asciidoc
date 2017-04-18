@@ -50,6 +50,9 @@ because the job might not have completely processed all data for that millisecon
 If you specify a `start` value that is earlier than the timestamp of the latest
 processed record, that value is ignored.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id` (required)::

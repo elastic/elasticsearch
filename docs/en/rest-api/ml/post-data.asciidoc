@@ -16,16 +16,18 @@ then split it into multiple files and upload each one separately in sequential t
 When running in real-time, it is generally recommended to arrange to perform
 many small uploads, rather than queueing data to upload larger files.
 
-
 IMPORTANT:  Data can only be accepted from a single connection.
 Use a single connection synchronously to send data, close, flush, or delete a single job.
 It is not currently possible to post data to multiple jobs using wildcards
 or a comma separated list.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id` (required)::
-		(string)    Identifier for the job
+		(string) Identifier for the job
 
 ===== Request Body
 
@@ -33,7 +35,7 @@ or a comma separated list.
 		(string) Specifies the start of the bucket resetting range
 
 `reset_end`::
-		(string) Specifies the end of the bucket resetting range"
+		(string) Specifies the end of the bucket resetting range
 
 ////
 ===== Responses

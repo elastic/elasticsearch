@@ -12,6 +12,9 @@ The delete data feed API allows you to delete an existing data feed.
 
 NOTE: You must stop the data feed before you can delete it.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id` (required)::

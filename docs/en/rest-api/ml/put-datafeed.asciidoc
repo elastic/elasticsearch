@@ -13,6 +13,9 @@ The create data feed API enables you to instantiate a data feed.
 You must create a job before you create a data feed.  You can associate only one
 data feed to each job.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id` (required)::

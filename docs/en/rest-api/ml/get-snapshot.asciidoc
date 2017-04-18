@@ -9,18 +9,20 @@ The get model snapshots API enables you to retrieve information about model snap
 `GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots` +
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
-////
+
 ===== Description
 
-////
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id`::
   (string) Identifier for the job.
 
 `snapshot_id`::
-  (string) Identifier for the model snapshot. If you do not specify this optional parameter,
-  the API returns information about all model snapshots that you have authority to view.
+  (string) Identifier for the model snapshot. If you do not specify this
+  optional parameter, the API returns information about all model snapshots.
 
 ===== Request Body
 

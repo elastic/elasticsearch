@@ -9,10 +9,11 @@ A data feed can be opened and closed multiple times throughout its lifecycle.
 
 `POST _xpack/ml/datafeeds/<feed_id>/_stop`
 
-////
 ===== Description
 
-////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id` (required)::

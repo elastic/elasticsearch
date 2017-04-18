@@ -14,6 +14,9 @@ The preview data feed API enables you to preview a data feed.
 //TBD: How much data does it return?
 The API returns example data by using the current data feed settings.
 
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `feed_id` (required)::

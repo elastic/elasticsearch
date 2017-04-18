@@ -8,10 +8,12 @@ The get records API enables you to retrieve anomaly records for a job.
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/results/records`
 
-////
+
 ===== Description
 
-////
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id`::

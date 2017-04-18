@@ -18,6 +18,9 @@ When you open a new job, it starts with an empty model.
 When you open an existing job, the most recent model state is automatically loaded.
 The job is ready to resume its analysis from where it left off, once new data is received.
 
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id` (required)::

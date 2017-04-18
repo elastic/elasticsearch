@@ -8,10 +8,12 @@ The create job API enables you to instantiate a job.
 
 `PUT _xpack/ml/anomaly_detectors/<job_id>`
 
-////
+
 ===== Description
 
-////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id` (required)::

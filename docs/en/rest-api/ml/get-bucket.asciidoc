@@ -15,6 +15,9 @@ results from a job.
 
 This API presents a chronological view of the records, grouped by bucket.
 
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 ===== Path Parameters
 
 `job_id`::
@@ -23,7 +26,7 @@ This API presents a chronological view of the records, grouped by bucket.
 `timestamp`::
   (string) The timestamp of a single bucket result.
   If you do not specify this optional parameter, the API returns information
-  about all buckets that you have authority to view in the job.
+  about all buckets.
 
 ===== Request Body
 

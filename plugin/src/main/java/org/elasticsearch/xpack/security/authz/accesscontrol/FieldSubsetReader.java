@@ -21,7 +21,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -101,8 +100,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
 
         @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 
@@ -302,16 +301,16 @@ public final class FieldSubsetReader extends FilterLeafReader {
         return hasField(field) ? super.getNormValues(field) : null;
     }
 
-    @Override
-    public Bits getDocsWithField(String field) throws IOException {
-        return hasField(field) ? super.getDocsWithField(field) : null;
-    }
-
     // we share core cache keys (for e.g. fielddata)
 
     @Override
-    public Object getCoreCacheKey() {
-        return in.getCoreCacheKey();
+    public CacheHelper getCoreCacheHelper() {
+        return in.getCoreCacheHelper();
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
     }
 
     /**
@@ -458,100 +457,12 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
 
-    /**
-     * Filters the PointValues instance.
-     * <p>
-     * Like other parts of the index, fields without access will not exist.
-     */
-    // TODO: push up a similar class into lucene
-    // TODO: fix the FieldFilterReader we use in lucene tests!
-    final class FieldFilterPointValues extends PointValues {
-        private final PointValues in;
-
-        FieldFilterPointValues(PointValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void intersect(String fieldName, IntersectVisitor visitor) throws IOException {
-            if (hasField(fieldName)) {
-                in.intersect(fieldName, visitor);
-            } else {
-                return; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public long estimatePointCount(String fieldName, IntersectVisitor visitor) {
-            if (hasField(fieldName)) {
-                return in.estimatePointCount(fieldName, visitor);
-            } else {
-                return 0L; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public byte[] getMinPackedValue(String fieldName) throws IOException {
-            if (hasField(fieldName)) {
-                return in.getMinPackedValue(fieldName);
-            } else {
-                return null; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public byte[] getMaxPackedValue(String fieldName) throws IOException {
-            if (hasField(fieldName)) {
-                return in.getMaxPackedValue(fieldName);
-            } else {
-                return null; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public int getNumDimensions(String fieldName) throws IOException {
-            if (hasField(fieldName)) {
-                return in.getNumDimensions(fieldName);
-            } else {
-                return 0; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public int getBytesPerDimension(String fieldName) throws IOException {
-            if (hasField(fieldName)) {
-                return in.getBytesPerDimension(fieldName);
-            } else {
-                return 0; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public long size(String fieldName) {
-            if (hasField(fieldName)) {
-                return in.size(fieldName);
-            } else {
-                return 0; // behave as field does not exist
-            }
-        }
-
-        @Override
-        public int getDocCount(String fieldName) {
-            if (hasField(fieldName)) {
-                return in.getDocCount(fieldName);
-            } else {
-                return 0;  // behave as field does not exist
-            }
-        }
-    }
-
     @Override
-    public PointValues getPointValues() {
-        PointValues points = super.getPointValues();
-        if (points == null) {
-            return null;
+    public PointValues getPointValues(String fieldName) throws IOException {
+        if (hasField(fieldName)) {
+            return super.getPointValues(fieldName);
         } else {
-            return new FieldFilterPointValues(points);
+            return null;
         }
     }
 }

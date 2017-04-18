@@ -72,8 +72,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         }
 
         @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 
@@ -155,8 +155,13 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     // Don't delegate getCombinedCoreAndDeletesKey(), because we change the live docs here.
 
     @Override
-    public Object getCoreCacheKey() {
-        return in.getCoreCacheKey();
+    public CacheHelper getCoreCacheHelper() {
+        return in.getCoreCacheHelper();
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
     }
 
     BitSet getRoleQueryBits() {

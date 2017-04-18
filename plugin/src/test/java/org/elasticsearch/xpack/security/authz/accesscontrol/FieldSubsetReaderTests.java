@@ -18,6 +18,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -25,9 +26,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PointValues.IntersectVisitor;
 import org.apache.lucene.index.PointValues.Relation;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
@@ -114,35 +117,30 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
-        PointValues points = segmentReader.getPointValues();
+        PointValues points = segmentReader.getPointValues("fieldA");
+        assertNull(segmentReader.getPointValues("fieldB"));
 
         // size statistic
-        assertEquals(1, points.size("fieldA"));
-        assertEquals(0, points.size("fieldB"));
+        assertEquals(1, points.size());
 
         // doccount statistic
-        assertEquals(1, points.getDocCount("fieldA"));
-        assertEquals(0, points.getDocCount("fieldB"));
+        assertEquals(1, points.getDocCount());
 
         // min statistic
-        assertNotNull(points.getMinPackedValue("fieldA"));
-        assertNull(points.getMinPackedValue("fieldB"));
+        assertNotNull(points.getMinPackedValue());
 
         // max statistic
-        assertNotNull(points.getMaxPackedValue("fieldA"));
-        assertNull(points.getMaxPackedValue("fieldB"));
+        assertNotNull(points.getMaxPackedValue());
 
         // bytes per dimension
-        assertEquals(Integer.BYTES, points.getBytesPerDimension("fieldA"));
-        assertEquals(0, points.getBytesPerDimension("fieldB"));
+        assertEquals(Integer.BYTES, points.getBytesPerDimension());
 
         // number of dimensions
-        assertEquals(1, points.getNumDimensions("fieldA"));
-        assertEquals(0, points.getNumDimensions("fieldB"));
+        assertEquals(1, points.getNumDimensions());
 
         // walk the trees: we should see stuff in fieldA
         AtomicBoolean sawDoc = new AtomicBoolean(false);
-        points.intersect("fieldA", new IntersectVisitor() {
+        points.intersect(new IntersectVisitor() {
             @Override
             public void visit(int docID) throws IOException {
                 throw new IllegalStateException("should not get here");
@@ -159,23 +157,6 @@ public class FieldSubsetReaderTests extends ESTestCase {
             }
         });
         assertTrue(sawDoc.get());
-        // not in fieldB
-        points.intersect("fieldB", new IntersectVisitor() {
-            @Override
-            public void visit(int docID) throws IOException {
-                throw new IllegalStateException("should not get here");
-            }
-
-            @Override
-            public void visit(int docID, byte[] packedValue) throws IOException {
-                throw new IllegalStateException("should not get here");
-            }
-
-            @Override
-            public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                throw new IllegalStateException("should not get here");
-            }
-        });
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -413,13 +394,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
-        assertNotNull(segmentReader.getNumericDocValues("fieldA"));
-        assertEquals(1, segmentReader.getNumericDocValues("fieldA").get(0));
+        NumericDocValues values = segmentReader.getNumericDocValues("fieldA");
+        assertNotNull(values);
+        assertTrue(values.advanceExact(0));
+        assertEquals(1, values.longValue());
         assertNull(segmentReader.getNumericDocValues("fieldB"));
-        
-        // check docs with field
-        assertNotNull(segmentReader.getDocsWithField("fieldA"));
-        assertNull(segmentReader.getDocsWithField("fieldB"));
         
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -444,13 +423,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
-        assertNotNull(segmentReader.getBinaryDocValues("fieldA"));
-        assertEquals(new BytesRef("testA"), segmentReader.getBinaryDocValues("fieldA").get(0));
+        BinaryDocValues values = segmentReader.getBinaryDocValues("fieldA");
+        assertNotNull(values);
+        assertTrue(values.advanceExact(0));
+        assertEquals(new BytesRef("testA"), values.binaryValue());
         assertNull(segmentReader.getBinaryDocValues("fieldB"));
-        
-        // check docs with field
-        assertNotNull(segmentReader.getDocsWithField("fieldA"));
-        assertNull(segmentReader.getDocsWithField("fieldB"));
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -475,13 +452,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
-        assertNotNull(segmentReader.getSortedDocValues("fieldA"));
-        assertEquals(new BytesRef("testA"), segmentReader.getSortedDocValues("fieldA").get(0));
+        SortedDocValues values = segmentReader.getSortedDocValues("fieldA");
+        assertNotNull(values);
+        assertTrue(values.advanceExact(0));
+        assertEquals(new BytesRef("testA"), values.binaryValue());
         assertNull(segmentReader.getSortedDocValues("fieldB"));
-        
-        // check docs with field
-        assertNotNull(segmentReader.getDocsWithField("fieldA"));
-        assertNull(segmentReader.getDocsWithField("fieldB"));
         
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -508,15 +483,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         LeafReader segmentReader = ir.leaves().get(0).reader();
         SortedSetDocValues dv = segmentReader.getSortedSetDocValues("fieldA");
         assertNotNull(dv);
-        dv.setDocument(0);
+        assertTrue(dv.advanceExact(0));
         assertEquals(0, dv.nextOrd());
         assertEquals(SortedSetDocValues.NO_MORE_ORDS, dv.nextOrd());
         assertEquals(new BytesRef("testA"), dv.lookupOrd(0));
         assertNull(segmentReader.getSortedSetDocValues("fieldB"));
-        
-        // check docs with field
-        assertNotNull(segmentReader.getDocsWithField("fieldA"));
-        assertNull(segmentReader.getDocsWithField("fieldB"));
         
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -543,14 +514,10 @@ public class FieldSubsetReaderTests extends ESTestCase {
         LeafReader segmentReader = ir.leaves().get(0).reader();
         SortedNumericDocValues dv = segmentReader.getSortedNumericDocValues("fieldA");
         assertNotNull(dv);
-        dv.setDocument(0);
-        assertEquals(1, dv.count());
-        assertEquals(1, dv.valueAt(0));
+        assertTrue(dv.advanceExact(0));
+        assertEquals(1, dv.docValueCount());
+        assertEquals(1, dv.nextValue());
         assertNull(segmentReader.getSortedNumericDocValues("fieldB"));
-        
-        // check docs with field
-        assertNotNull(segmentReader.getDocsWithField("fieldA"));
-        assertNull(segmentReader.getDocsWithField("fieldB"));
         
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -923,7 +890,8 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // we should have the same cache key as before
         assertEquals(1, ir2.numDocs());
         assertEquals(1, ir2.leaves().size());
-        assertSame(ir.leaves().get(0).reader().getCoreCacheKey(), ir2.leaves().get(0).reader().getCoreCacheKey());
+        assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(),
+                ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
         
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);

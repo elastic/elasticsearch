@@ -218,7 +218,8 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         // we should have the same cache key as before
         assertEquals(1, ir2.numDocs());
         assertEquals(1, ir2.leaves().size());
-        assertSame(ir.leaves().get(0).reader().getCoreCacheKey(), ir2.leaves().get(0).reader().getCoreCacheKey());
+        assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(),
+                ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);

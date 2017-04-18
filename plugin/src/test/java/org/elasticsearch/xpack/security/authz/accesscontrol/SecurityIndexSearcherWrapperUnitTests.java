@@ -519,25 +519,15 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         @Override
-        public float getValueForNormalization() throws IOException {
-            return weight.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float boost) {
-            weight.normalize(norm, boost);
-        }
-
-        @Override
         public Scorer scorer(LeafReaderContext context) throws IOException {
-            assertTrue(seenLeaves.add(context.reader().getCoreCacheKey()));
+            assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
             return weight.scorer(context);
         }
 
         @Override
         public BulkScorer bulkScorer(LeafReaderContext context)
                 throws IOException {
-            assertTrue(seenLeaves.add(context.reader().getCoreCacheKey()));
+            assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
             return weight.bulkScorer(context);
         }
     }
@@ -565,8 +555,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-            return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores));
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+            return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores, boost));
         }
 
         @Override

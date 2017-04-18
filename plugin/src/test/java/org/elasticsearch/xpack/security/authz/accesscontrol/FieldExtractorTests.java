@@ -6,19 +6,20 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AssertingQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
-import org.apache.lucene.search.DocValuesRangeQuery;
 import org.apache.lucene.search.FieldValueQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -112,12 +113,6 @@ public class FieldExtractorTests extends ESTestCase {
         assertEquals(asSet("foo"), fields);
     }
     
-    public void testDocValuesRange() {
-        Set<String> fields = new HashSet<>();
-        FieldExtractor.extractFields(DocValuesRangeQuery.newLongRange("foo", 1L, 2L, true, true), fields);
-        assertEquals(asSet("foo"), fields);
-    }
-    
     public void testMatchAllDocs() {
         Set<String> fields = new HashSet<>();
         FieldExtractor.extractFields(new MatchAllDocsQuery(), fields);
@@ -139,16 +134,24 @@ public class FieldExtractorTests extends ESTestCase {
 
     public void testIndexOrDocValuesQuery() {
         Set<String> fields = new HashSet<>();
-        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(new FieldValueQuery("foo"),
-                        new DocValuesNumbersQuery("foo", 5L));
+        Query supported = IntPoint.newExactQuery("foo", 42);
+        Query unsupported = NumericDocValuesField.newExactQuery("bar", 3);
+
+        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(supported, supported);
         FieldExtractor.extractFields(query, fields);
         assertEquals(asSet("foo"), fields);
 
-        // what if they have different fields - some programming error
-        fields.clear();
-        query = new IndexOrDocValuesQuery(new FieldValueQuery("foo1"),
-                new DocValuesNumbersQuery("bar", 5L));
-        FieldExtractor.extractFields(query, fields);
-        assertEquals(asSet("foo1", "bar"), fields);
+        IndexOrDocValuesQuery query2 = new IndexOrDocValuesQuery(unsupported, unsupported);
+        expectThrows(UnsupportedOperationException.class, () -> FieldExtractor.extractFields(query2, new HashSet<>()));
+
+        fields = new HashSet<>();
+        IndexOrDocValuesQuery query3 = new IndexOrDocValuesQuery(supported, unsupported);
+        FieldExtractor.extractFields(query3, fields);
+        assertEquals(asSet("foo"), fields);
+
+        fields = new HashSet<>();
+        IndexOrDocValuesQuery query4 = new IndexOrDocValuesQuery(unsupported, supported);
+        FieldExtractor.extractFields(query4, fields);
+        assertEquals(asSet("foo"), fields);
     }
 }

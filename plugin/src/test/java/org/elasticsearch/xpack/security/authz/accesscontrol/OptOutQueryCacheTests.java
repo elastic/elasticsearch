@@ -49,7 +49,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("foo", "bar")), BooleanClause.Occur.MUST);
         builder.add(new TermQuery(new Term("no", "baz")), BooleanClause.Occur.MUST_NOT);
-        Weight weight = builder.build().createWeight(searcher, false);
+        Weight weight = builder.build().createWeight(searcher, false, 1f);
 
         // whenever the allowed fields match the fields in the query and we do not deny access to any fields we allow caching.
         IndicesAccessControl.IndexAccessControl permissions = new IndicesAccessControl.IndexAccessControl(true,

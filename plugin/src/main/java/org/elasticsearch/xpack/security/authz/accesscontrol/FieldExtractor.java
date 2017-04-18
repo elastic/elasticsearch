@@ -9,7 +9,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
-import org.apache.lucene.search.DocValuesRangeQuery;
 import org.apache.lucene.search.FieldValueQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -24,6 +23,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.spans.SpanTermQuery;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /** 
@@ -80,10 +82,14 @@ class FieldExtractor {
         } else if (query instanceof DocValuesNumbersQuery) {
             fields.add(((DocValuesNumbersQuery)query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {
-            extractFields(((IndexOrDocValuesQuery) query).getIndexQuery(), fields);
-            extractFields(((IndexOrDocValuesQuery) query).getRandomAccessQuery(), fields);
-        } else if (query instanceof DocValuesRangeQuery) {
-            fields.add(((DocValuesRangeQuery)query).getField());
+            // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
+            try {
+                Set<String> dvQueryFields = new HashSet<>(1);
+                extractFields(((IndexOrDocValuesQuery) query).getRandomAccessQuery(), dvQueryFields);
+                fields.addAll(dvQueryFields);
+            } catch (UnsupportedOperationException e) {
+                extractFields(((IndexOrDocValuesQuery) query).getIndexQuery(), fields);
+            }
         } else if (query instanceof MatchAllDocsQuery) {
             // no field
         } else if (query instanceof MatchNoDocsQuery) {

@@ -35,6 +35,7 @@ final String wildflyInstall = "${buildDir}/wildfly/wildfly-${wildflyVersion}"
 // TODO: use ephemeral ports
 final int portOffset = 30000
 final int managementPort = 9990 + portOffset
+// we skip these tests on Windows so we do no need to worry about compatibility here
 final String stopWildflyCommand = "${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${managementPort} --connect command=:shutdown"
 
 repositories {
@@ -92,7 +93,11 @@ task writeElasticsearchProperties {
     doLast {
         final File elasticsearchProperties =
                 file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
-        elasticsearchProperties.write(["transport.uri=${-> integTest.getNodes().get(0).transportUri()}", "cluster.name=${-> integTest.getNodes().get(0).clusterName}"].join("\n"))
+        elasticsearchProperties.write(
+                [
+                        "transport.uri=${-> integTest.getNodes().get(0).transportUri()}",
+                        "cluster.name=${-> integTest.getNodes().get(0).clusterName}"
+                ].join("\n"))
     }
 }
 
@@ -111,6 +116,7 @@ task enableIPv6 {
 task startWildfly {
     dependsOn enableIPv6, writeElasticsearchProperties
     doFirst {
+        // we skip these tests on Windows so we do no need to worry about compatibility here
         final File script = new File(project.buildDir, "wildfly/wildfly.killer.sh")
         script.setText(
                 ["function shutdown {",
@@ -123,6 +129,7 @@ task startWildfly {
         pb.start()
     }
     doLast {
+        // we skip these tests on Windows so we do no need to worry about compatibility here
         final ProcessBuilder pb =
                 new ProcessBuilder("${wildflyInstall}/bin/standalone.sh", "-Djboss.socket.binding.port-offset=${portOffset}")
         final Process process = pb.start()
@@ -139,6 +146,7 @@ task startWildfly {
 
 task configureTransportClient(type: LoggedExec) {
     dependsOn startWildfly
+    // we skip these tests on Windows so we do no need to worry about compatibility here
     commandLine "${wildflyInstall}/bin/jboss-cli.sh",
             "--controller=localhost:${managementPort}",
             "--connect",

@@ -49,21 +49,17 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
         return cardinalityValue;
     }
 
-    private void setValue(long cardinalityValue) {
-        this.cardinalityValue = cardinalityValue;
-    }
-
     @Override
     protected String getType() {
         return CardinalityAggregationBuilder.NAME;
     }
 
     private static final ObjectParser<ParsedCardinality, Void> PARSER = new ObjectParser<>(
-            CardinalityAggregationBuilder.NAME, true, ParsedCardinality::new);
+            ParsedCardinality.class.getSimpleName(), true, ParsedCardinality::new);
 
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareLong(ParsedCardinality::setValue, CommonFields.VALUE);
+        PARSER.declareLong((agg, value) -> agg.cardinalityValue = value, CommonFields.VALUE);
     }
 
     public static ParsedCardinality fromXContent(XContentParser parser, final String name) {

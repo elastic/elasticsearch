@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;

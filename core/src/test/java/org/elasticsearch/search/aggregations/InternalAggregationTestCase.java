@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ParsedValueCount
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
@@ -56,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import static java.util.Collections.*;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -148,5 +150,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     //norelease TODO make abstract
     protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
+    }
+
+    /**
+     * @return a random {@link DocValueFormat} that can be used in aggregations which
+     * compute numbers.
+     */
+    protected static DocValueFormat randomNumericDocValueFormat() {
+        final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
+        formats.add(() -> DocValueFormat.RAW);
+        formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
+        return randomFrom(formats).get();
     }
 }

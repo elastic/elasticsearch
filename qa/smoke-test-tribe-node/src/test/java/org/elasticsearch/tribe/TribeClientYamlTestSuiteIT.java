@@ -27,13 +27,25 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 public class TribeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
+    // tribe nodes can not handle delete indices requests
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
+    // tribe nodes can not handle delete template requests
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
     public TribeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return createParameters();
     }
 }
 

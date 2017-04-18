@@ -32,8 +32,7 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
     @Override
     protected InternalSimpleValue createTestInstance(String name,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        DocValueFormat formatter = randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH,
-                DocValueFormat.IP, DocValueFormat.RAW);
+        DocValueFormat formatter = randomNumericDocValueFormat();
         double value = randomDoubleBetween(0, 100000, true);
         return new InternalSimpleValue(name, value, formatter, pipelineAggregators, metaData);
     }

@@ -58,6 +58,54 @@ The response will look like this:
 From this information you can determine you are hitting the 99% load time target but not quite
 hitting the 95% load time target
 
+==== Keyed Response
+
+By default the `keyed` flag is set to `true` associates a unique string key with each bucket and returns the ranges as a hash rather than an array. Setting the `keyed` flag to `false` will disable this behavior:
+
+[source,js]
+--------------------------------------------------
+POST bank/account/_search?size=0
+{
+    "aggs": {
+        "balance_outlier": {
+            "percentile_ranks": {
+                "field": "balance",
+                "values": [25000, 50000],
+                "keyed": false
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:bank]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "balance_outlier": {
+            "values": [
+                {
+                    "key": 25000.0,
+                    "value": 48.537724935732655
+                },
+                {
+                    "key": 50000.0,
+                    "value": 99.85567010309278
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+// TESTRESPONSE[s/48.537724935732655/$body.aggregations.balance_outlier.values.0.value/]
+// TESTRESPONSE[s/99.85567010309278/$body.aggregations.balance_outlier.values.1.value/]
 
 ==== Script
 

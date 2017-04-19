@@ -44,9 +44,10 @@ import java.util.stream.Collectors;
  */
 public abstract class TaskBatching {
 
-    protected final Logger logger;
-    protected final ThreadPool threadPool;
-    protected final PrioritizedEsThreadPoolExecutor threadExecutor;
+    private final Logger logger;
+    private final ThreadPool threadPool;
+    private final PrioritizedEsThreadPoolExecutor threadExecutor;
+    // package visible for tests
     final Map<Object, LinkedHashSet<BatchingTask>> tasksPerExecutor = new HashMap<>();
 
     public TaskBatching(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {

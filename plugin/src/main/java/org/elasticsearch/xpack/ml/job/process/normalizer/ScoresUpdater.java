@@ -87,7 +87,7 @@ public class ScoresUpdater {
                 perPartitionNormalization);
         updateInfluencers(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts);
 
-        LOGGER.info("[{}] Normalization resulted in: {} updates, {} no-ops", job.getId(), counts[0], counts[1]);
+        LOGGER.debug("[{}] Normalization resulted in: {} updates, {} no-ops", job.getId(), counts[0], counts[1]);
     }
 
     private void updateBuckets(Normalizer normalizer, String quantilesState, long endBucketEpochMs,

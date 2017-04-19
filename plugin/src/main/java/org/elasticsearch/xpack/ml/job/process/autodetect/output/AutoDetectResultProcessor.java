@@ -103,7 +103,6 @@ public class AutoDetectResultProcessor {
             }
             context.bulkResultsPersister.executeRequest();
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
-            LOGGER.info("[{}] Parse results Complete", jobId);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}), e);
         } finally {

@@ -235,8 +235,7 @@ For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
-
-IMPORTANT: `custom_elasticsearch.yml` should be readable by uid:gid `1000:1000`
+IMPORTANT: The container **runs Elasticsearch as user `elasticsearch` using uid:gid `1000:1000`**. Bind mounted host directories and files, such as `custom_elasticsearch.yml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs], such as `/usr/share/elasticsearch/data`, write access is required as well.
 
 ===== C. Customized image
 In some environments, it may make more sense to prepare a custom image containing your configuration. A `Dockerfile` to achieve this may be as simple as:
@@ -273,6 +272,8 @@ docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclusternam
 We have collected a number of best practices for production use.
 
 NOTE: Any Docker parameters mentioned below assume the use of `docker run`.
+
+. Elasticsearch inside the container runs as user `elasticsearch` using uid:gid `1000:1000`. If you are bind mounting a local directory or file, ensure it is readable by this user while the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs] additionally require write access.
 
 . It is important to correctly set capabilities and ulimits via the Docker CLI. As seen earlier in the example <<docker-prod-cluster-composefile,docker-compose.yml>>, the following options are required:
 +

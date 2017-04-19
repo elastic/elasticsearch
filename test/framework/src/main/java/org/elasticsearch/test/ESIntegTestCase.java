@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -45,7 +46,10 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -111,6 +115,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -1994,6 +1999,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         return nodes;
+    }
+
+
+    /**
+     * Asserts that all segments are sorted with the provided {@link Sort}.
+     */
+    public void assertSortedSegments(String indexName, Sort expectedIndexSort) {
+        IndicesSegmentResponse segmentResponse =
+            client().admin().indices().prepareSegments(indexName).execute().actionGet();
+        IndexSegments indexSegments = segmentResponse.getIndices().get(indexName);
+        for (IndexShardSegments indexShardSegments : indexSegments.getShards().values()) {
+            for (ShardSegments shardSegments : indexShardSegments.getShards()) {
+                for (Segment segment : shardSegments) {
+                    assertThat(expectedIndexSort, equalTo(segment.getSegmentSort()));
+                }
+            }
+        }
     }
 
     protected static class NumShards {

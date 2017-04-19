@@ -18,6 +18,8 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.test.Fixture
+
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -68,6 +70,63 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
        baseDir
 }
 
+// MIT Kerberos Vagrant Testing Fixture
+def box = "krb5kdc"
+def vagrantEnvVars = [
+        'VAGRANT_CWD'           : "${project(':test:fixtures:krb5kdc-fixture').projectDir}",
+        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
+        'VAGRANT_PROJECT_DIR'   : "${project(':test:fixtures:krb5kdc-fixture').projectDir}"
+]
+
+//evaluationDependsOn(':test:fixtures:krb5kdc-fixture')
+//Task krb5update = project(':test:fixtures:krb5kdc-fixture').tasks.getByName("update")
+
+task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+  boxName box
+  environmentVars vagrantEnvVars
+  args 'box', 'update', box
+}
+
+Fixture krb5kdcFixture = project.tasks.create("krb5kdcFixture", org.elasticsearch.gradle.test.VagrantFixture) {
+  dependsOn krb5kdcUpdate
+  boxName box
+  environmentVars vagrantEnvVars
+  args 'up', box, '--provision', '--provider', 'virtualbox'
+}
+
+task krb5AddPrincipals {
+  dependsOn krb5kdcFixture
+  finalizedBy krb5kdcFixture.getStopTask()
+}
+
+def principals = [ "elasticsearch", "hdfs/hdfs.build.elasticsearch.co" ]
+def realm = "BUILD.ELASTIC.CO"
+
+for (String principal : principals) {
+  Task create = project.tasks.create("addPrincipal#${principal}", Exec) {
+    environment vagrantEnvVars
+    commandLine 'vagrant', 'ssh', box, '--command', "sudo bash /elasticsearch/src/main/resources/provision/addprinc.sh $principal"
+    dependsOn krb5kdcFixture
+  }
+  krb5AddPrincipals.dependsOn(create)
+}
+
+task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
+  dependsOn project.configurations.hdfsFixture, krb5kdcFixture, krb5AddPrincipals
+  executable = new File(project.javaHome, 'bin/java')
+  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+
+  def keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
+  def krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
+
+  args "-Djava.security.krb5.conf=${krb5Config}", 'hdfs.MiniHDFS',
+          baseDir,
+          "hdfs/hdfs.build.elastic.co@${realm}",
+          "${keytabPath}"
+
+  finalizedBy krb5kdcFixture.getStopTask()
+}
+
 boolean fixtureSupported = false;
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   // hdfs fixture will not start without hadoop native libraries on windows
@@ -93,6 +152,34 @@ if (fixtureSupported) {
   logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
   // just tests that the plugin loads
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
+}
+
+boolean secureFixtureSupported = false;
+if (fixtureSupported) {
+  // Only do secure fixture support if the regular fixture is supported,
+  // and if vagrant is installed
+  def pipe = new ByteArrayOutputStream()
+  try {
+    def runResult = exec {
+      commandLine 'vagrant', '--version'
+      standardOutput pipe
+      ignoreExitValue true
+    }
+    String output = pipe.toString().trim()
+    if (runResult.exitValue == 0) {
+      secureFixtureSupported = (output ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/)
+    } else {
+      logger.warn("secured hdfsFixture is unsupported. Could not read installed vagrant version:\n" + output)
+    }
+  } catch (org.gradle.process.internal.ExecException e) {
+    // Swallow error. Vagrant isn't installed. Leave secure fixture support off.
+  }
+}
+
+if (secureFixtureSupported) {
+  // TODO: configure secure integTest suite
+} else {
+  logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")
 }
 
 thirdPartyAudit.excludes = [

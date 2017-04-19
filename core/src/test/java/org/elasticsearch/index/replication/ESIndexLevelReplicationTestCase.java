@@ -569,7 +569,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             request.type(),
             request.id(),
             indexResult.getSeqNo(),
-            indexResult.getPrimaryTerm(),
+            primary.getPrimaryTerm(),
             indexResult.getVersion(),
             indexResult.isCreated());
     }

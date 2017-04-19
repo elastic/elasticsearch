@@ -896,7 +896,7 @@ public class InternalEngine extends Engine {
                 deleteResult = deleteInLucene(delete, plan);
             } else {
                 deleteResult = new DeleteResult(
-                        plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(), plan.currentlyDeleted == false);
+                        plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             }
             if (!deleteResult.hasFailure() &&
                 delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
@@ -990,12 +990,12 @@ public class InternalEngine extends Engine {
                 new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
                     engineConfig.getThreadPool().relativeTimeInMillis()));
             return new DeleteResult(
-                plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(), plan.currentlyDeleted == false);
+                plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
                 return new DeleteResult(
-                        ex, plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(), plan.currentlyDeleted == false);
+                        ex, plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             } else {
                 throw ex;
             }
@@ -1028,7 +1028,7 @@ public class InternalEngine extends Engine {
         static DeletionStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, long currentVersion, long primaryTerm, boolean currentlyDeleted) {
             final DeleteResult deleteResult =
-                    new DeleteResult(e, currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, primaryTerm, currentlyDeleted == false);
+                    new DeleteResult(e, currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, currentlyDeleted == false);
             return new DeletionStrategy(
                     false, currentlyDeleted, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, deleteResult);
         }
@@ -1057,7 +1057,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire()) {
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
-            noOpResult = new NoOpResult(noOp.seqNo(), noOp.primaryTerm(), e);
+            noOpResult = new NoOpResult(noOp.seqNo(), e);
         }
         return noOpResult;
     }
@@ -1066,7 +1066,7 @@ public class InternalEngine extends Engine {
         assert noOp.seqNo() > SequenceNumbersService.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try {
-            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo(), noOp.primaryTerm());
+            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo());
             final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
             noOpResult.setTranslogLocation(location);
             noOpResult.setTook(System.nanoTime() - noOp.startTime());

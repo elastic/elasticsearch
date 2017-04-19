@@ -139,7 +139,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return new BulkItemResultHolder(null, indexResult, bulkItemRequest);
         } else {
             IndexResponse response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
-                    indexResult.getSeqNo(), indexResult.getPrimaryTerm(), indexResult.getVersion(), indexResult.isCreated());
+                    indexResult.getSeqNo(), primary.getPrimaryTerm(), indexResult.getVersion(), indexResult.isCreated());
             return new BulkItemResultHolder(response, indexResult, bulkItemRequest);
         }
     }
@@ -152,7 +152,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return new BulkItemResultHolder(null, deleteResult, bulkItemRequest);
         } else {
             DeleteResponse response = new DeleteResponse(primary.shardId(), deleteRequest.type(), deleteRequest.id(),
-                    deleteResult.getSeqNo(), deleteResult.getPrimaryTerm(), deleteResult.getVersion(), deleteResult.isFound());
+                    deleteResult.getSeqNo(), primary.getPrimaryTerm(), deleteResult.getVersion(), deleteResult.isFound());
             return new BulkItemResultHolder(response, deleteResult, bulkItemRequest);
         }
     }
@@ -317,7 +317,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         assert result instanceof Engine.IndexResult : result.getClass();
                         IndexRequest updateIndexRequest = translate.action();
                         final IndexResponse indexResponse =
-                                new IndexResponse(primary.shardId(), updateIndexRequest.type(), updateIndexRequest.id(), result.getSeqNo(), result.getPrimaryTerm(),
+                                new IndexResponse(primary.shardId(), updateIndexRequest.type(), updateIndexRequest.id(), result.getSeqNo(), primary.getPrimaryTerm(),
                             result.getVersion(), ((Engine.IndexResult) result).isCreated());
                         BytesReference indexSourceAsBytes = updateIndexRequest.source();
                         updateResponse = new UpdateResponse(
@@ -343,7 +343,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         assert result instanceof Engine.DeleteResult : result.getClass();
                         DeleteRequest updateDeleteRequest = translate.action();
                         DeleteResponse deleteResponse = new DeleteResponse(primary.shardId(),
-                            updateDeleteRequest.type(), updateDeleteRequest.id(), result.getSeqNo(), result.getPrimaryTerm(),
+                            updateDeleteRequest.type(), updateDeleteRequest.id(), result.getSeqNo(), primary.getPrimaryTerm(),
                             result.getVersion(), ((Engine.DeleteResult) result).isFound());
                         updateResponse = new UpdateResponse(
                                 deleteResponse.getShardInfo(),

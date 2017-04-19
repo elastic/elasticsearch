@@ -26,7 +26,8 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 
-public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation implements NumericMetricsAggregation.SingleValue {
+public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation
+        implements NumericMetricsAggregation.SingleValue {
 
         protected double value;
         protected String valueAsString;

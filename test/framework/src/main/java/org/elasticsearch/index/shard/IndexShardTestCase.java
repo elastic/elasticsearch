@@ -279,7 +279,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             });
             IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
                 new NoneCircuitBreakerService(), mapperService);
-            indexShard = new IndexShard(routing, indexSettings, shardPath, store, indexCache, mapperService, similarityService,
+            indexShard = new IndexShard(routing, indexSettings, shardPath, store, () ->null, indexCache, mapperService, similarityService,
                 indexFieldDataService, engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
                 BigArrays.NON_RECYCLING_INSTANCE, warmer, globalCheckpointSyncer, Collections.emptyList(), Arrays.asList(listeners));
             success = true;

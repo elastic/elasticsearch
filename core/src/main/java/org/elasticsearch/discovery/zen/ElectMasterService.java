@@ -150,7 +150,8 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
-        return minimumMasterNodes < 1 || countMasterNodes(nodes) >= minimumMasterNodes;
+        final int count = countMasterNodes(nodes);
+        return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
     }
 
     public boolean hasTooManyMasterNodes(Iterable<DiscoveryNode> nodes) {

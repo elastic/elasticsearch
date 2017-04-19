@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -109,11 +110,14 @@ final class StoreRecovery {
                 mappingUpdateConsumer.accept(mapping.key, mapping.value);
             }
             indexShard.mapperService().merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
+            // now that the mapping is merged we can validate the index sort configuration.
+            Sort indexSort = indexShard.getIndexSort();
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
-                    addIndices(indexShard.recoveryState().getIndex(), directory, shards.stream().map(s -> s.getSnapshotDirectory())
+                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort,
+                        shards.stream().map(s -> s.getSnapshotDirectory())
                         .collect(Collectors.toList()).toArray(new Directory[shards.size()]));
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
@@ -128,16 +132,19 @@ final class StoreRecovery {
         return false;
     }
 
-    void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
+    void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Sort indexSort, Directory... sources) throws IOException {
         target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
-        try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
-            new IndexWriterConfig(null)
-                .setCommitOnClose(false)
-                // we don't want merges to happen here - we call maybe merge on the engine
-                // later once we stared it up otherwise we would need to wait for it here
-                // we also don't specify a codec here and merges should use the engines for this index
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) {
+        IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setCommitOnClose(false)
+            // we don't want merges to happen here - we call maybe merge on the engine
+            // later once we stared it up otherwise we would need to wait for it here
+            // we also don't specify a codec here and merges should use the engines for this index
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
+        try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats), iwc)) {
             writer.addIndexes(sources);
             writer.commit();
         }

@@ -90,7 +90,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
     }
 
     @Override
-    public boolean equals(Object obj) {
+    public final boolean equals(Object obj) {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
@@ -98,8 +98,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
     }
 
     @Override
-    public int hashCode() {
+    public final int hashCode() {
         return Objects.hash(getClass(), aggregations);
     }
-
 }

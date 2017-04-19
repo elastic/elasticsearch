@@ -35,7 +35,7 @@ import static java.util.Collections.emptyMap;
 /**
  * An internal implementation of {@link Aggregations}.
  */
-public class InternalAggregations extends Aggregations implements ToXContent, Streamable {
+public final class InternalAggregations extends Aggregations implements ToXContent, Streamable {
 
     public static final InternalAggregations EMPTY = new InternalAggregations();
 

@@ -1610,6 +1610,9 @@ public class InternalEngine extends Engine {
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
+        if (config().getIndexSort() != null) {
+            iwc.setIndexSort(config().getIndexSort());
+        }
         return iwc;
     }
 

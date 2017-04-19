@@ -119,7 +119,7 @@ public class AllocatedPersistentTask extends CancellableTask {
     private void completeAndNotifyIfNeeded(@Nullable Exception failure) {
         State prevState = state.getAndSet(AllocatedPersistentTask.State.COMPLETED);
         if (prevState == State.COMPLETED) {
-            logger.warn("attempt to complete task {} in the {} state", getPersistentTaskId(), prevState);
+            logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state", getAction(), getPersistentTaskId(), prevState);
         } else {
             if (failure != null) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage(
@@ -128,18 +128,20 @@ public class AllocatedPersistentTask extends CancellableTask {
             try {
                 this.failure = failure;
                 if (prevState == State.STARTED) {
-                    logger.trace("sending notification for completed task {}", getPersistentTaskId());
-                    persistentTasksService.sendCompletionNotification(getPersistentTaskId(), failure, new
+                    logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
+                    persistentTasksService.sendCompletionNotification(getPersistentTaskId(), getAllocationId(), failure, new
                             ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                                 @Override
                                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                    logger.trace("notification for task {} was successful", getId());
+                                    logger.trace("notification for task [{}] with id [{}] was successful", getAction(),
+                                            getPersistentTaskId());
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
                                     logger.warn((Supplier<?>) () ->
-                                            new ParameterizedMessage("notification for task {} failed", getPersistentTaskId()), e);
+                                            new ParameterizedMessage("notification for task [{}] with id [{}] failed",
+                                                    getAction(), getPersistentTaskId()), e);
                                 }
                             });
                 }

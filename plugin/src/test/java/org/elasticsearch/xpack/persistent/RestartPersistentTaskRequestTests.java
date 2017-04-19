@@ -12,7 +12,7 @@ public class RestartPersistentTaskRequestTests extends AbstractStreamableTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(10), null);
+        return new Request(randomAlphaOfLength(10), randomLong(), null);
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -57,6 +58,11 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait until the gateway has recovered from disk, otherwise if the only master restarts
+            // we start cancelling all local tasks before cluster has a chance to recover.
+            return;
+        }
         PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
@@ -107,11 +113,14 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 AllocatedPersistentTask task = runningTasks.get(id);
                 if (task.getState() == AllocatedPersistentTask.State.COMPLETED) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
+                    logger.trace("Found completed persistent task [{}] with id [{}] and allocation id [{}] - removing",
+                            task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
                     runningTasks.remove(id);
                 } else {
                     // task is running locally, but master doesn't know about it - that means that the persistent task was removed
                     // cancel the task without notifying master
-                    logger.trace("Found unregistered persistent task with id {} - cancelling ", id);
+                    logger.trace("Found unregistered persistent task [{}] with id [{}] and allocation id [{}] - cancelling",
+                            task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
                     cancelTask(id);
                 }
             }
@@ -147,6 +156,8 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         boolean processed = false;
         try {
             task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
+            logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was created", task.getAction(),
+                    task.getPersistentTaskId(), task.getAllocationId());
             try {
                 runningTasks.put(taskInProgress.getAllocationId(), task);
                 nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), task, executor);
@@ -158,6 +169,8 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         } finally {
             if (processed == false) {
                 // something went wrong - unregistering task
+                logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
+                        task.getPersistentTaskId(), task.getAllocationId());
                 taskManager.unregister(task);
             }
         }
@@ -174,14 +187,16 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
             persistentTasksService.sendTaskManagerCancellation(task.getId(), new ActionListener<CancelTasksResponse>() {
                 @Override
                 public void onResponse(CancelTasksResponse cancelTasksResponse) {
-                    logger.trace("Persistent task with id {} was cancelled", task.getId());
-
+                    logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was cancelled", task.getAction(),
+                            task.getPersistentTaskId(), task.getAllocationId());
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to cancel task {}", task.getPersistentTaskId()), e);
+                    logger.warn((Supplier<?>) () ->
+                            new ParameterizedMessage("failed to cancel task [{}] with id [{}] and allocation id [{}]", task.getAction(),
+                                    task.getPersistentTaskId(), task.getAllocationId()), e);
                 }
             });
         }

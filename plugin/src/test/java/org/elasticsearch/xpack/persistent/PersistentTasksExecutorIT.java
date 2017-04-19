@@ -108,6 +108,18 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(allocationId));
         assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
         assertThat(firstRunningTask.getDescription(), equalTo("id=" + taskId));
+
+        if (randomBoolean()) {
+            logger.info("Simulating errant completion notification");
+            //try sending completion request with incorrect allocation id
+            PlainActionFuture<PersistentTask<?>> failedCompletionNotificationFuture = new PlainActionFuture<>();
+            persistentTasksService.sendCompletionNotification(taskId, Long.MAX_VALUE, null, failedCompletionNotificationFuture);
+            assertThrows(failedCompletionNotificationFuture, ResourceNotFoundException.class);
+            // Make sure that the task is still running
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
+                    .setDetailed(true).get().getTasks().size(), equalTo(1));
+        }
+
         stopOrCancelTask(firstRunningTask.getTaskId());
     }
 

@@ -60,8 +60,9 @@ public class PersistentTasksService extends AbstractComponent {
     /**
      * Notifies the PersistentTasksClusterService about successful (failure == null) completion of a task or its failure
      */
-    public void sendCompletionNotification(String taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
-        CompletionPersistentTaskAction.Request restartRequest = new CompletionPersistentTaskAction.Request(taskId, failure);
+    public void sendCompletionNotification(String taskId, long allocationId, Exception failure,
+                                           ActionListener<PersistentTask<?>> listener) {
+        CompletionPersistentTaskAction.Request restartRequest = new CompletionPersistentTaskAction.Request(taskId, allocationId, failure);
         try {
             client.execute(CompletionPersistentTaskAction.INSTANCE, restartRequest,
                     ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));

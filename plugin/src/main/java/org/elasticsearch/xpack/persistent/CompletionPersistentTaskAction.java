@@ -62,19 +62,23 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
         private Exception exception;
 
+        private long allocationId = -1;
+
         public Request() {
 
         }
 
-        public Request(String taskId, Exception exception) {
+        public Request(String taskId, long allocationId, Exception exception) {
             this.taskId = taskId;
             this.exception = exception;
+            this.allocationId = allocationId;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             taskId = in.readString();
+            allocationId = in.readLong();
             exception = in.readException();
         }
 
@@ -82,6 +86,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(taskId);
+            out.writeLong(allocationId);
             out.writeException(exception);
         }
 
@@ -90,6 +95,9 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
             ActionRequestValidationException validationException = null;
             if (taskId == null) {
                 validationException = addValidationError("task id is missing", validationException);
+            }
+            if (allocationId < 0) {
+                validationException = addValidationError("allocation id is negative or missing", validationException);
             }
             return validationException;
         }
@@ -100,12 +108,13 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(taskId, request.taskId) &&
+                    allocationId == request.allocationId &&
                     Objects.equals(exception, request.exception);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskId, exception);
+            return Objects.hash(taskId, allocationId, exception);
         }
     }
 
@@ -149,7 +158,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.completePersistentTask(request.taskId, request.exception,
+            persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
                     new ActionListener<PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTask<?> task) {

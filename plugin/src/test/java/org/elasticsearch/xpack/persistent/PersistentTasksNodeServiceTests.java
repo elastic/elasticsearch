@@ -170,7 +170,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             }
 
             @Override
-            public void sendCompletionNotification(String taskId, Exception failure, ActionListener<PersistentTask<?>> listener) {
+            public void sendCompletionNotification(String taskId, long allocationId, Exception failure,
+                                                   ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
             }
         };

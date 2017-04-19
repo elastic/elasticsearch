@@ -45,7 +45,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * Creates a new persistent task on master node
      *
      * @param action   the action name
-     * @param params  params
+     * @param params   params
      * @param listener the listener that will be called when task is started
      */
     public <Params extends PersistentTaskParams> void createPersistentTask(String taskId, String action, @Nullable Params params,
@@ -85,11 +85,12 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
     /**
      * Restarts a record about a running persistent task from cluster state
      *
-     * @param id       the id of a persistent task
-     * @param failure  the reason for restarting the task or null if the task completed successfully
-     * @param listener the listener that will be called when task is removed
+     * @param id           the id of the persistent task
+     * @param allocationId the allocation id of the persistent task
+     * @param failure      the reason for restarting the task or null if the task completed successfully
+     * @param listener     the listener that will be called when task is removed
      */
-    public void completePersistentTask(String id, Exception failure, ActionListener<PersistentTask<?>> listener) {
+    public void completePersistentTask(String id, long allocationId, Exception failure, ActionListener<PersistentTask<?>> listener) {
         final String source;
         if (failure != null) {
             logger.warn("persistent task " + id + " failed", failure);
@@ -101,13 +102,17 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(id)) {
+                if (tasksInProgress.hasTask(id, allocationId)) {
                     tasksInProgress.finishTask(id);
                     return update(currentState, tasksInProgress);
                 } else {
-                    // we don't send the error message back to the caller becase that would cause an infinite loop of notifications
-                    logger.warn("The task {} wasn't found, status is not updated", id);
-                    return currentState;
+                    if (tasksInProgress.hasTask(id)) {
+                        logger.warn("The task [{}] with id [{}] was found but it has a different allocation id [{}], status is not updated",
+                                PersistentTasksCustomMetaData.getTaskWithId(currentState, id).getTaskName(), id, allocationId);
+                    } else {
+                        logger.warn("The task [{}] wasn't found, status is not updated", id);
+                    }
+                    throw new ResourceNotFoundException("the task with id [" + id + "] and allocation id [" + allocationId + "] not found");
                 }
             }
 

@@ -2074,7 +2074,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
                 1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, primaryTerm, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -2085,7 +2085,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
                 2, VersionType.INTERNAL, Origin.PRIMARY, 0);
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, primaryTerm, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();

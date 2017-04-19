@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -34,14 +33,9 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -52,13 +46,8 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.bulk.MappingUpdatePerformer;
-import org.elasticsearch.action.bulk.BulkItemResultHolder;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -390,7 +379,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0);
         BulkItemResultHolder failedResults = new BulkItemResultHolder(null, indexResult,
                 replicaRequest);
 
@@ -428,7 +417,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Exception err = new VersionConflictEngineException(shardId, "type", "id",
                 "I'm conflicted <(;_;)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0);
         BulkItemResultHolder failedResults = new BulkItemResultHolder(null, indexResult,
                 replicaRequest);
 
@@ -584,7 +573,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
         public IndexResultWithLocation(long version, long seqNo, long primaryTerm, boolean created, Translog.Location newLocation) {
-            super(version, seqNo, primaryTerm, created);
+            super(version, seqNo, created);
             this.location = newLocation;
         }
 
@@ -620,7 +609,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         private final Translog.Location location;
 
         protected FakeResult(long version, long seqNo, long primaryTerm, boolean created, Translog.Location location) {
-            super(version, seqNo, primaryTerm, created);
+            super(version, seqNo, created);
             this.location = location;
         }
 

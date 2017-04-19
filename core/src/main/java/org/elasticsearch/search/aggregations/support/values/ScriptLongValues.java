@@ -21,11 +21,12 @@ package org.elasticsearch.search.aggregations.support.values;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.index.fielddata.SortingNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.Iterator;
@@ -33,7 +34,7 @@ import java.util.Iterator;
 /**
  * {@link LongValues} implementation which is based on a script
  */
-public class ScriptLongValues extends SortingNumericDocValues implements ScorerAware {
+public class ScriptLongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
     final LeafSearchScript script;
 
@@ -43,28 +44,36 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
     }
 
     @Override
-    public void setDocument(int docId) {
-        script.setDocument(docId);
+    public boolean advanceExact(int target) throws IOException {
+        script.setDocument(target);
         final Object value = script.run();
 
         if (value == null) {
-            resize(0);
+            return false;
         }
 
         else if (value.getClass().isArray()) {
-            resize(Array.getLength(value));
-            for (int i = 0; i < count(); ++i) {
+            int length = Array.getLength(value);
+            if (length == 0) {
+                return false;
+            }
+            resize(length);
+            for (int i = 0; i < length; ++i) {
                 values[i] = toLongValue(Array.get(value, i));
             }
         }
 
         else if (value instanceof Collection) {
-            resize(((Collection<?>) value).size());
+            Collection<?> coll = (Collection<?>) value;
+            if (coll.isEmpty()) {
+                return false;
+            }
+            resize(coll.size());
             int i = 0;
-            for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
+            for (Iterator<?> it = coll.iterator(); it.hasNext(); ++i) {
                 values[i] = toLongValue(it.next());
             }
-            assert i == count();
+            assert i == docValueCount();
         }
 
         else {
@@ -73,6 +82,7 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
         }
 
         sort();
+        return true;
     }
 
     private static long toLongValue(Object o) {

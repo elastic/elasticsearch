@@ -562,4 +562,16 @@ public class SettingsTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
     }
+
+    public void testGetAsArrayFailsOnDuplicates() {
+        final Settings settings =
+                Settings.builder()
+                        .put("foobar.0", "bar")
+                        .put("foobar.1", "baz")
+                        .put("foobar", "foo")
+                        .build();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
+        assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
+    }
+
 }

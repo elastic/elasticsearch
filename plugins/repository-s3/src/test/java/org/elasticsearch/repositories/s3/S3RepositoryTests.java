@@ -65,21 +65,6 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
-    public void testSettingsResolution() throws Exception {
-        Settings localSettings = Settings.builder().put(Repository.KEY_SETTING.getKey(), "key1").build();
-        Settings globalSettings = Settings.builder().put(Repositories.KEY_SETTING.getKey(), "key2").build();
-
-        assertEquals(new SecureString("key1".toCharArray()),
-                     getValue(localSettings, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals(new SecureString("key1".toCharArray()),
-                     getValue(localSettings, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals(new SecureString("key2".toCharArray()),
-                     getValue(Settings.EMPTY, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals(new SecureString("".toCharArray()),
-                     getValue(Settings.EMPTY, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Repository.KEY_SETTING, Repositories.KEY_SETTING});
-    }
-
     public void testInvalidChunkBufferSizeSettings() throws IOException {
         // chunk < buffer should fail
         assertInvalidBuffer(10, 5, RepositoryException.class, "chunk_size (5mb) can't be lower than buffer_size (10mb).");

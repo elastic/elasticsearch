@@ -119,41 +119,22 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-        // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
-        AwsEc2Service.KEY_SETTING,
-        AwsEc2Service.SECRET_SETTING,
+        // Register EC2 discovery settings: discovery.ec2
+        AwsEc2Service.ACCESS_KEY_SETTING,
+        AwsEc2Service.SECRET_KEY_SETTING,
+        AwsEc2Service.ENDPOINT_SETTING,
         AwsEc2Service.PROTOCOL_SETTING,
         AwsEc2Service.PROXY_HOST_SETTING,
         AwsEc2Service.PROXY_PORT_SETTING,
         AwsEc2Service.PROXY_USERNAME_SETTING,
         AwsEc2Service.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.READ_TIMEOUT,
-        // Register EC2 specific settings: cloud.aws.ec2
-        AwsEc2Service.CLOUD_EC2.KEY_SETTING,
-        AwsEc2Service.CLOUD_EC2.SECRET_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING,
-        AwsEc2Service.CLOUD_EC2.READ_TIMEOUT,
-        // Register EC2 discovery settings: discovery.ec2
-        AwsEc2Service.DISCOVERY_EC2.ACCESS_KEY_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.SECRET_KEY_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.ENDPOINT_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROTOCOL_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_HOST_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_PORT_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_USERNAME_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.READ_TIMEOUT_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.HOST_TYPE_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.ANY_GROUP_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.GROUPS_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.NODE_CACHE_TIME_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.TAG_SETTING,
+        AwsEc2Service.READ_TIMEOUT_SETTING,
+        AwsEc2Service.HOST_TYPE_SETTING,
+        AwsEc2Service.ANY_GROUP_SETTING,
+        AwsEc2Service.GROUPS_SETTING,
+        AwsEc2Service.AVAILABILITY_ZONES_SETTING,
+        AwsEc2Service.NODE_CACHE_TIME_SETTING,
+        AwsEc2Service.TAG_SETTING,
         // Register cloud node settings: cloud.node
         AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
     }
@@ -161,17 +142,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public Settings additionalSettings() {
         Settings.Builder builder = Settings.builder();
-        // For 5.0, discovery.type was used prior to the new discovery.zen.hosts_provider
-        // setting existed. This check looks for the legacy setting, and sets hosts provider if set
-        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        if (discoveryType.equals(EC2)) {
-            deprecationLogger.deprecated("using [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                "] setting to set hosts provider is deprecated; " +
-                "set [" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "] instead");
-            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
-                builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
-            }
-        }
 
         // Adds a node attribute for the ec2 availability zone
         String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";

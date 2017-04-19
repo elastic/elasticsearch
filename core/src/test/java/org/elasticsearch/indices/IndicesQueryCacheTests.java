@@ -69,9 +69,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores)
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost)
                 throws IOException {
-            return new ConstantScoreWeight(this) {
+            return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     return new ConstantScoreScorer(this, score(), DocIdSetIterator.all(context.reader().maxDoc()));

@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EvilJNANativesTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23640")
     public void testSetMaximumNumberOfThreads() throws IOException {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
@@ -56,7 +55,6 @@ public class EvilJNANativesTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23640")
     public void testSetMaxSizeVirtualMemory() throws IOException {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));

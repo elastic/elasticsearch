@@ -90,3 +90,93 @@ Response:
     }
 }
 --------------------------------------------------
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "ip_ranges": {
+            "ip_range": {
+                "field": "remote_ip",
+                "ranges": [
+                    { "to" : "10.0.0.5" },
+                    { "from" : "10.0.0.5" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "ip_ranges": {
+            "buckets": {
+                "*-10.0.0.5": {
+                    "to": "10.0.0.5",
+                    "doc_count": 1462
+                },
+                "10.0.0.5-*": {
+                    "from": "10.0.0.5",
+                    "doc_count": 50000
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+It is also possible to customize the key for each range:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "ip_ranges": {
+            "ip_range": {
+                "field": "remote_ip",
+                "ranges": [
+                    { "key": "infinity", "to" : "10.0.0.5" },
+                    { "key": "and-beyond", "from" : "10.0.0.5" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "ip_ranges": {
+            "buckets": {
+                "infinity": {
+                    "to": "10.0.0.5",
+                    "doc_count": 1462
+                },
+                "and-beyond": {
+                    "from": "10.0.0.5",
+                    "doc_count": 50000
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

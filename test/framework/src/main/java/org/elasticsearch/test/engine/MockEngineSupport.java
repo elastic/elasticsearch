@@ -180,11 +180,6 @@ public final class MockEngineSupport {
             this.subReaderWrapper = subReaderWrapper;
         }
 
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
-        }
-
     }
 
     public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {

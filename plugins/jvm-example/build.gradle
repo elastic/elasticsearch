@@ -41,7 +41,7 @@ task exampleFixture(type: org.elasticsearch.gradle.test.Fixture) {
        baseDir
 }
 
-integTest {
+integTestCluster {
   dependsOn exampleFixture
 }
 integTestRunner {

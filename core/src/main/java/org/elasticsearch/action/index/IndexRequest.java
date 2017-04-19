@@ -491,12 +491,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
 
             if (parent != null && !mappingMd.hasParentField()) {
-                throw new IllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
             }
         } else {
             if (parent != null) {
-                throw new IllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
             }
+        }
+
+        if ("".equals(id)) {
+            throw new IllegalArgumentException("if _id is specified it must not be empty");
         }
 
         // generate id if not already provided

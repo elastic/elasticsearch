@@ -297,5 +297,5 @@ GET /_search
 The high frequency generated query is then slightly less restrictive
 than with an `AND`.
 
-The `common` terms query also supports `boost`, `analyzer` and
-`disable_coord` as parameters.
+The `common` terms query also supports `boost` and `analyzer` as
+parameters.

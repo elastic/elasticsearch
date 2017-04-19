@@ -67,7 +67,7 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Type> types = Definition.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
+            List<Type> types = Definition.BUILTINS.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Type type : types) {
                 if (type.sort.primitive) {
                     // Primitives don't have methods to reference

@@ -490,26 +490,26 @@ public final class Definition {
 
     /** Returns whether or not a non-array type exists. */
     public boolean isSimpleType(final String name) {
-        return BUILTINS.structsMap.containsKey(name);
+        return structsMap.containsKey(name);
     }
 
     /** Gets the type given by its name */
     public Type getType(final String name) {
-        return BUILTINS.getTypeInternal(name);
+        return getTypeInternal(name);
     }
 
     /** Creates an array type from the given Struct. */
     public Type getType(final Struct struct, final int dimensions) {
-        return BUILTINS.getTypeInternal(struct, dimensions);
+        return getTypeInternal(struct, dimensions);
     }
 
     public RuntimeClass getRuntimeClass(Class<?> clazz) {
-        return BUILTINS.runtimeMap.get(clazz);
+        return runtimeMap.get(clazz);
     }
 
     /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
-    static Collection<Type> allSimpleTypes() {
-        return BUILTINS.simpleTypesMap.values();
+    Collection<Type> allSimpleTypes() {
+        return simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:

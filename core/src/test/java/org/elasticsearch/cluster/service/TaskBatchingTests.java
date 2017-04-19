@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class TaskBatchingTests extends SingleTaskExecutorTests {
+public class TaskBatchingTests extends TaskExecutorTests {
 
     protected TestTaskBatching taskBatching;
 

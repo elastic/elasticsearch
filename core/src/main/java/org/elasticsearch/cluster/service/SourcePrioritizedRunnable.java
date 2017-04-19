@@ -20,9 +20,11 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 
+/**
+ * PrioritizedRunnable that also has a source string
+ */
 public abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
     protected final String source;
 

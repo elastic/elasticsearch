@@ -46,7 +46,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
-public class SingleTaskExecutorTests extends ESTestCase {
+public class TaskExecutorTests extends ESTestCase {
 
     protected static ThreadPool threadPool;
     protected PrioritizedEsThreadPoolExecutor threadExecutor;

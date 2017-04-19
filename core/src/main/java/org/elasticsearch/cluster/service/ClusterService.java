@@ -477,6 +477,8 @@ public class ClusterService extends AbstractLifecycleComponent {
      */
     public List<PendingClusterTask> pendingTasks() {
         return Arrays.stream(threadPoolExecutor.getPending()).map(pending -> {
+            assert pending.task instanceof SourcePrioritizedRunnable :
+                "thread pool executor should only use SourcePrioritizedRunnable instances but found: " + pending.task.getClass().getName();
             SourcePrioritizedRunnable task = (SourcePrioritizedRunnable) pending.task;
             return new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(task.source()),
                 task.getAgeInMillis(), pending.executing);

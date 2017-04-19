@@ -1068,7 +1068,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire()) {
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
-            noOpResult = new NoOpResult(noOp.seqNo(), noOp.primaryTerm(), e);
+            noOpResult = new NoOpResult(noOp.seqNo(), e);
         }
         return noOpResult;
     }
@@ -1077,7 +1077,7 @@ public class InternalEngine extends Engine {
         assert noOp.seqNo() > SequenceNumbersService.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try {
-            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo(), noOp.primaryTerm());
+            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo());
             final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
             noOpResult.setTranslogLocation(location);
             noOpResult.setTook(System.nanoTime() - noOp.startTime());

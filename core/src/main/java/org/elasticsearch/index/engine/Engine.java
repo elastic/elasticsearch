@@ -433,11 +433,11 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long seqNo, long primaryTerm) {
+        NoOpResult(long seqNo) {
             super(Operation.TYPE.NO_OP, 0, seqNo);
         }
 
-        NoOpResult(long seqNo, long primaryTerm, Exception failure) {
+        NoOpResult(long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, seqNo);
         }
 

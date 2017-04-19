@@ -23,16 +23,19 @@ import org.gradle.api.Task
 
 class VagrantFixture extends VagrantCommandTask implements Fixture {
 
-    private final Task stopTask
+    private Task stopTask = null
 
     public VagrantFixture() {
-        stopTask = createStopTask()
-        finalizedBy(stopTask)
+        project.afterEvaluate {
+            // force the initialization of the stop task at the end
+            // of the project if it hasn't been yet.
+            getStopTask()
+        }
     }
 
     private Task createStopTask() {
         VagrantCommandTask halt = project.tasks.create(name: "${name}#stop", type: VagrantCommandTask) {
-            args 'halt', box
+            args 'halt', this.boxName
         }
         halt.boxName = this.boxName
         halt.environmentVars = this.environmentVars
@@ -41,6 +44,13 @@ class VagrantFixture extends VagrantCommandTask implements Fixture {
 
     @Override
     public Task getStopTask() {
+        // Lazy init the stop task since creating it in the constructor
+        // means that it captures variable names that may not be set in
+        // the task yet.
+        if (stopTask == null) {
+            stopTask = createStopTask()
+            finalizedBy(stopTask)
+        }
         return stopTask
     }
 }

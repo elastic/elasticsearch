@@ -1,12 +1,12 @@
 //lcawley Verified example output 2017-04-11
-[[ml-jobcounts]]
-==== Job Counts
+[[ml-jobstats]]
+==== Job Stats
 
 The get job statistics API provides information about the operational
 progress of a job.
 
-NOTE: Job count values are cumulative for the lifetime of a job. If a model snapshot is reverted
-or old results are deleted, the job counts are not reset.
+`assignment_explanation`::
+  (string) For open jobs only, contains messages relating to the selection of an executing node.
 
 `data_counts`::
   (object) An object that describes the number of records processed and any related error counts.
@@ -19,31 +19,36 @@ or old results are deleted, the job counts are not reset.
   (object) An object that provides information about the size and contents of the model.
   See <<ml-modelsizestats,model size stats objects>>
 
+`node`::
+  (object) For open jobs only, contains information about the executing node.
+  See <<ml-stats-node,node object>>.
+
+`open_time`::
+  (string) For open jobs only, the elapsed time for which the job has been open.
+  E.g. `28746386s`.
+
 `state`::
   (string) The status of the job, which can be one of the following values:
-  `closed`::: The job finished successfully with its model state persisted.
-  The job is still available to accept further data. +
-+
---
-NOTE: If you send data in a periodic cycle and close the job at the end of
-each transaction, the job is marked as closed in the intervals between
-when data is sent. For example, if data is sent every minute and it takes
-1 second to process, the job has a closed state for 59 seconds.
 
---
-  `closing`::: TBD. The job is in the process of closing?
+  `open`::: The job is available to receive and process data.
+  `closed`::: The job finished successfully with its model state persisted.
+  The job must be opened before it can accept further data.
+  `closing`::: The job close action is in progress and has not yet completed.
+  A closing job cannot accept further data.
   `failed`::: The job did not finish successfully due to an error.
-  This situation can occur due to invalid input data. In this case,
-  sending corrected data to a failed job re-opens the job and
-  resets it to an open state.
-  `open`::: The job is actively receiving and processing data.
+  This situation can occur due to invalid input data. 
+  If the job had irrevecobly failed, it must be force closed and then deleted.
+  If the datafeed can be corrected, the job can be closed and then re-opened.
 
 [float]
 [[ml-datacounts]]
 ===== Data Counts Objects
 
 The `data_counts` object describes the number of records processed
-and any related error counts. It has the following properties:
+and any related error counts. 
+
+The `data_count` values are cumulative for the lifetime of a job. If a model snapshot is reverted
+or old results are deleted, the job counts are not reset.
 
 `bucket_count`::
   (long) The number of bucket results produced by the job.
@@ -53,7 +58,9 @@ and any related error counts. It has the following properties:
   The datetime string is in ISO 8601 format.
 
 `empty_bucket_count`::
-  () TBD
+  (long) The number of buckets which did not contain any data. If your data contains many 
+  empty buckets, consider increasing your `bucket_span` or using functions that are tolerant  
+  to gaps in data such as `mean`, `non_null_sum` or `non_zero_count`.
 
 `input_bytes`::
   (long) The number of raw bytes read by the job.
@@ -72,16 +79,16 @@ and any related error counts. It has the following properties:
   (string) A numerical character string that uniquely identifies the job.
 
 `last_data_time`::
-  () TBD
+  (datetime) The timestamp at which data was last analyzed, according to server time. 
+
+`latest_empty_bucket_timestamp`::
+  (date) The timestamp of the last bucket that did not contain any data.
 
 `latest_record_timestamp`::
-  (string) The timestamp of the last chronologically ordered record.
-  If the records are not in strict chronological order, this value might not be
-  the same as the timestamp of the last record.
-  The datetime string is in ISO 8601 format.
+  (date) The timestamp of the last processed record.
 
 `latest_sparse_bucket_timestamp`::
-  () TBD
+  (date) The timestamp of the last bucket that was considered sparse.
 
 `missing_field_count`::
   (long) The number of records that are missing a field that the job is configured to analyze.
@@ -97,6 +104,7 @@ necessarily a cause for concern.
 
 `out_of_order_timestamp_count`::
   (long) The number of records that are out of time sequence and outside of the latency window.
+  This is only applicable when using the `_data` endpoint.
   These records are discarded, since jobs require time series data to be in ascending chronological order.
 
 `processed_field_count`::
@@ -108,13 +116,16 @@ necessarily a cause for concern.
   (long) The number of records that have been processed by the job.
   This value includes records with missing fields, since they are nonetheless analyzed.
   +
-  The following records are not processed:
+  When using datafeeds, the `processed_record_count` will differ from the `input_record_count`
+  if you are using aggregations in your search query.
+  +
+  When posting to the `/_data` endpoint, the following records are not processed:
   * Records not in chronological order and outside the latency window
   * Records with invalid timestamp
-  * Records filtered by an exclude transform
 
 `sparse_bucket_count`::
-  () TBD
+  (long) The number of buckets which contained few data points compared to the expected number
+  of data points. If your data contains many sparse buckets, consider using a longer `bucket_span`.
 
 [float]
 [[ml-modelsizestats]]
@@ -123,13 +134,14 @@ necessarily a cause for concern.
 The `model_size_stats` object has the following properties:
 
 `bucket_allocation_failures_count`::
-  () TBD
+  (long) The number of buckets for which new entites in incoming data was not processed due to a 
+  insufficient model memory as signified by a `hard_limit` `memory_status`.  
 
 `job_id`::
   (string) A numerical character string that uniquely identifies the job.
 
 `log_time`::
-  () TBD
+  (date) The timestamp of the `model_size_stats` according to server time.
 
 `memory_status`::
   (string) The status of the mathematical models. This property can have one of the following values:
@@ -142,24 +154,46 @@ The `model_size_stats` object has the following properties:
   last time the model was persisted. If the job is closed, this value indicates the latest size.
 
 `result_type`::
-  TBD
+  (string) For internal use. The type of result.
 
 `total_by_field_count`::
-  (long) The number of `by` field values that were analyzed by the models. +
+  (long) The number of `by` field values that were analyzed by the models.
 +
 --
 NOTE: The `by` field values are counted separately for each detector and partition.
-
 --
+
 `total_over_field_count`::
-  (long) The number of `over` field values that were analyzed by the models. +
+  (long) The number of `over` field values that were analyzed by the models.
 +
 --
 NOTE: The `over` field values are counted separately for each detector and partition.
-
 --
+
 `total_partition_field_count`::
   (long) The number of `partition` field values that were analyzed by the models.
 
 `timestamp`::
-  TBD
+  (date) The timestamp of the `model_size_stats` according to the timestamp of the data.
+
+[float]
+[[ml-stats-node]]
+===== Node Objects
+
+The `node` objects contains properties of the executing node and is only available for open jobs.
+
+`id`::
+  (string) The unique identifier of the executing node. 
+
+`name`::
+  (string) The node's name.
+
+`ephemeral_id`::
+
+
+`transport_address`::
+  (string) Host and port where transport HTTP connections are accepted.
+
+`attributes`::
+  (object) {ml} attributes.
+  `max_running_jobs`::: The maximum number of concurrently open jobs allowed per node.  

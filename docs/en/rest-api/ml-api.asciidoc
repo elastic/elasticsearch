@@ -91,7 +91,7 @@ include::ml/get-record.asciidoc[]
 * <<ml-datafeed-resource,Data feeds>>
 * <<ml-datafeed-counts,Data feed counts>>
 * <<ml-job-resource,Jobs>>
-* <<ml-jobcounts,Job counts>>
+* <<ml-jobstats,Job Stats>>
 * <<ml-snapshot-resource,Model snapshots>>
 * <<ml-results-resource,Results>>
 

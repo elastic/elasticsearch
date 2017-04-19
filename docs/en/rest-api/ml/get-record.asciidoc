@@ -27,10 +27,6 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
 `end`::
   (string) Returns records with timestamps earlier than this time.
 
-`expand`::
-  (boolean) TBD
-//This field did not work on older build.
-
 `from`::
   (integer) Skips the specified number of records.
 

@@ -29,7 +29,7 @@ The API returns the following information:
 
 `jobs`::
   (array) An array of job count objects.
-  For more information, see <<ml-jobcounts,Job Counts>>.
+  For more information, see <<ml-jobstats,Job Stats>>.
 
 ////
 ===== Responses

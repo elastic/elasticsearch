@@ -88,4 +88,4 @@ For example:
 }
 ----
 
-For more information about these properties, see <<ml-jobcounts,Job Counts>>.
+For more information about these properties, see <<ml-jobstats,Job Stats>>.

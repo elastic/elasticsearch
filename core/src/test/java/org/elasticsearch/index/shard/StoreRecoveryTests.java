@@ -20,8 +20,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -29,10 +27,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -53,27 +47,13 @@ public class StoreRecoveryTests extends ESTestCase {
     public void testAddIndices() throws IOException {
         Directory[] dirs = new Directory[randomIntBetween(1, 10)];
         final int numDocs = randomIntBetween(50, 100);
-        final Sort indexSort;
-        if (randomBoolean()) {
-            indexSort = new Sort(new SortedNumericSortField("num", SortField.Type.LONG, true));
-        } else {
-            indexSort = null;
-        }
         int id = 0;
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newFSDirectory(createTempDir());
-            IndexWriterConfig iwc = newIndexWriterConfig()
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-            if (indexSort != null) {
-                iwc.setIndexSort(indexSort);
-            }
-            IndexWriter writer = new IndexWriter(dirs[i], iwc);
+            IndexWriter writer = new IndexWriter(dirs[i], newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
             for (int j = 0; j < numDocs; j++) {
-                writer.addDocument(Arrays.asList(
-                    new StringField("id", Integer.toString(id++), Field.Store.YES),
-                    new SortedNumericDocValuesField("num", randomLong())
-                ));
+                writer.addDocument(Arrays.asList(new StringField("id", Integer.toString(id++), Field.Store.YES)));
             }
 
             writer.commit();
@@ -82,7 +62,7 @@ public class StoreRecoveryTests extends ESTestCase {
         StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
         RecoveryState.Index indexStats = new RecoveryState.Index();
         Directory target = newFSDirectory(createTempDir());
-        storeRecovery.addIndices(indexStats, target, indexSort, dirs);
+        storeRecovery.addIndices(indexStats, target, dirs);
         int numFiles = 0;
         Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false
             && f.startsWith("extra") == false;
@@ -100,11 +80,7 @@ public class StoreRecoveryTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(target);
         SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(target);
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
-            assertEquals("all sources must be flush",
-                info.info.getDiagnostics().get("source"), "flush");
-            if (indexSort != null) {
-                assertEquals(indexSort, info.info.getIndexSort());
-            }
+            assertEquals("all sources must be flush", info.info.getDiagnostics().get("source"), "flush");
         }
         assertEquals(reader.numDeletedDocs(), 0);
         assertEquals(reader.numDocs(), id);

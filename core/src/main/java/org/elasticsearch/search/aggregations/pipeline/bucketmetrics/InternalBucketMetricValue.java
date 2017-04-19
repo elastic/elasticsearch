@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue implements BucketMetricValue {
+public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue {
     public static final String NAME = "bucket_metric_value";
 
     private double value;
@@ -72,7 +72,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         return value;
     }
 
-    @Override
     public String[] keys() {
         return keys;
     }

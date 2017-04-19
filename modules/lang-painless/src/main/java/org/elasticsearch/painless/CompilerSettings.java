@@ -43,8 +43,7 @@ public final class CompilerSettings {
     public static final String PICKY = "picky";
 
     /**
-     * Hack to set the initial "depth" for the {@link DefBootstrap.PIC} and {@link DefBootstrap.MIC}. Only used for testing: do not
-     * overwrite.
+     * For testing: do not use.
      */
     public static final String INITIAL_CALL_SITE_DEPTH = "initialCallSiteDepth";
 

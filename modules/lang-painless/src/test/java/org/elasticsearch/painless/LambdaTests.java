@@ -204,7 +204,7 @@ public class LambdaTests extends ScriptTestCase {
 
     public void testWrongArity() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Optional.empty().orElseGet(x -> x);");
         });
         assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
@@ -220,7 +220,7 @@ public class LambdaTests extends ScriptTestCase {
 
     public void testWrongArityNotEnough() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = new ArrayList(); l.add(1); l.add(1); "
                + "return l.stream().mapToInt(() -> 5).sum();");
         });

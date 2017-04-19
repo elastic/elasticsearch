@@ -66,9 +66,6 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
         if (shrinkIndexRequest == null) {
             validationException = addValidationError("shrink index request is missing", validationException);
         }
-        if (shrinkIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
-            validationException = addValidationError("can't override index sort when shrinking index", validationException);
-        }
         return validationException;
     }
 

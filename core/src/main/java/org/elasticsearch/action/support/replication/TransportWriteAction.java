@@ -94,10 +94,8 @@ public abstract class TransportWriteAction<
 
     /**
      * Result of taking the action on the primary.
-     *
-     * NOTE: public for testing
      */
-    public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+    protected static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
             implements RespondingWriteResult {
         boolean finishedAsyncActions;

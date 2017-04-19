@@ -123,7 +123,7 @@ public class RefreshListenersTests extends ESTestCase {
                 store, new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), newMergePolicy(), iwc.getAnalyzer(),
                 iwc.getSimilarity(), new CodecService(null, logger), eventListener, translogHandler,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), listeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
+                TimeValue.timeValueMinutes(5), listeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }

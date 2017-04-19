@@ -100,13 +100,13 @@ public class DetectionRule extends ToXContentToBytes implements Writeable {
         builder.startObject();
         builder.field(RULE_ACTION_FIELD.getPreferredName(), ruleAction);
         builder.field(CONDITIONS_CONNECTIVE_FIELD.getPreferredName(), conditionsConnective);
+        builder.field(RULE_CONDITIONS_FIELD.getPreferredName(), ruleConditions);
         if (targetFieldName != null) {
             builder.field(TARGET_FIELD_NAME_FIELD.getPreferredName(), targetFieldName);
         }
         if (targetFieldValue != null) {
             builder.field(TARGET_FIELD_VALUE_FIELD.getPreferredName(), targetFieldValue);
         }
-        builder.field(RULE_CONDITIONS_FIELD.getPreferredName(), ruleConditions);
         builder.endObject();
         return builder;
     }

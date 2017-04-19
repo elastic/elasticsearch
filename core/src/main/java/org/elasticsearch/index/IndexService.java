@@ -20,8 +20,8 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
@@ -84,6 +84,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -119,6 +120,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
+    private Supplier<Sort> indexSortSupplier;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         NamedXContentRegistry xContentRegistry,
@@ -153,6 +155,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 throw new IllegalArgumentException("Percolator queries are not allowed to use the current timestamp");
             }));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
+        if (indexSettings.getIndexSortConfig().hasIndexSort()) {
+            // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
+            // The sort order is validated right after the merge of the mapping later in the process.
+            this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
+                mapperService::fullName,
+                indexFieldData::getForField
+            );
+        } else {
+            this.indexSortSupplier = () -> null;
+        }
         this.shardStoreDeleter = shardStoreDeleter;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
@@ -241,6 +253,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public SimilarityService similarityService() {
         return similarityService;
+    }
+
+    public Supplier<Sort> getIndexSortSupplier() {
+        return indexSortSupplier;
     }
 
     public synchronized void close(final String reason, boolean delete) throws IOException {
@@ -350,10 +366,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             };
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
-            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                    () -> globalCheckpointSyncer.accept(shardId),
-                    searchOperationListeners, indexingOperationListeners);
+            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
+                indexCache, mapperService, similarityService, indexFieldData, engineFactory,
+                eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
+                () -> globalCheckpointSyncer.accept(shardId), searchOperationListeners, indexingOperationListeners);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -401,7 +417,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug((org.apache.logging.log4j.util.Supplier<?>)
+                            () -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
                     }
                 }

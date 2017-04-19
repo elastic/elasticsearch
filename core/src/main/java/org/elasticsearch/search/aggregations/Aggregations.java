@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -37,7 +37,6 @@ public abstract class Aggregations implements Iterable<Aggregation> {
     protected Map<String, Aggregation> aggregationsAsMap;
 
     protected Aggregations() {
-
     }
 
     protected Aggregations(List<? extends Aggregation> aggregations) {
@@ -47,7 +46,6 @@ public abstract class Aggregations implements Iterable<Aggregation> {
     /**
      * Iterates over the {@link Aggregation}s.
      */
-
     @Override
     public final Iterator<Aggregation> iterator() {
         return aggregations.stream().map((p) -> (Aggregation) p).iterator();
@@ -57,7 +55,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
      * The list of {@link Aggregation}s.
      */
     public final List<Aggregation> asList() {
-        return aggregations.stream().map((p) -> p).collect(Collectors.toList());
+        return new ArrayList<>(aggregations);
     }
 
     /**
@@ -72,7 +70,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
      */
     public final Map<String, Aggregation> getAsMap() {
         if (aggregationsAsMap == null) {
-            Map<String, Aggregation> newAggregationsAsMap = new HashMap<>();
+            Map<String, Aggregation> newAggregationsAsMap = new HashMap<>(aggregations.size());
             for (Aggregation aggregation : aggregations) {
                 newAggregationsAsMap.put(aggregation.getName(), aggregation);
             }
@@ -94,7 +92,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        return aggregations.equals(((InternalAggregations) obj).aggregations);
+        return aggregations.equals(((Aggregations) obj).aggregations);
     }
 
     @Override

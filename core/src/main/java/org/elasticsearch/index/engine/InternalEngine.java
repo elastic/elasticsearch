@@ -128,6 +128,7 @@ public class InternalEngine extends Engine {
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
+    private static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
@@ -178,6 +179,7 @@ public class InternalEngine extends Engine {
                 }
                 logger.trace("recovered [{}]", seqNoStats);
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
+                updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 // norelease
                 /*
                  * We have no guarantees that all operations above the local checkpoint are in the Lucene commit or the translog. This means
@@ -224,6 +226,17 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    private void updateMaxUnsafeAutoIdTimestampFromWriter(IndexWriter writer) {
+        long commitMaxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
+        for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+            if (entry.getKey().equals(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)) {
+                commitMaxUnsafeAutoIdTimestamp = Long.parseLong(entry.getValue());
+                break;
+            }
+        }
+        maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), commitMaxUnsafeAutoIdTimestamp));
     }
 
     private static SequenceNumbersService sequenceNumberService(
@@ -500,7 +513,7 @@ public class InternalEngine extends Engine {
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
                     assert index.isRetry();
-                    return false; // even if retry is set we never optimize local recovery
+                    return true; // allow to optimize in order to update the max safe time stamp
                 default:
                     throw new IllegalArgumentException("unknown origin " + index.origin());
             }
@@ -601,10 +614,16 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing,
                         plan.currentNotFoundOrDeleted);
                 }
-                if (indexResult.hasFailure() == false &&
-                    index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                    Translog.Location location =
-                        translog.add(new Translog.Index(index, indexResult));
+                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                    final Translog.Location location;
+                    if (indexResult.hasFailure() == false) {
+                        location = translog.add(new Translog.Index(index, indexResult));
+                    } else if (indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                        // if we have document failure, record it as a no-op in the translog with the generated seq_no
+                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                    } else {
+                        location = null;
+                    }
                     indexResult.setTranslogLocation(location);
                 }
                 if (indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -736,7 +755,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, index.seqNo());
+                return new IndexResult(ex, Versions.MATCH_ANY, plan.seqNoForIndexing);
             } else {
                 throw ex;
             }
@@ -887,10 +906,16 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(plan.versionOfDeletion, plan.seqNoOfDeletion,
                     plan.currentlyDeleted == false);
             }
-            if (!deleteResult.hasFailure() &&
-                delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                Translog.Location location =
-                    translog.add(new Translog.Delete(delete, deleteResult));
+            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location location;
+                if (deleteResult.hasFailure() == false) {
+                    location = translog.add(new Translog.Delete(delete, deleteResult));
+                } else if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
+                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                } else {
+                    location = null;
+                }
                 deleteResult.setTranslogLocation(location);
             }
             if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -1770,6 +1795,7 @@ public class InternalEngine extends Engine {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
+                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });

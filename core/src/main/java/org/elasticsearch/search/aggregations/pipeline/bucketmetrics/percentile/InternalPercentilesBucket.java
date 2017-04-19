@@ -26,7 +26,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -136,7 +135,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percents[i], percentiles[i]);
+            final Percentile next = new Percentile(percents[i], percentiles[i]);
             ++i;
             return next;
         }

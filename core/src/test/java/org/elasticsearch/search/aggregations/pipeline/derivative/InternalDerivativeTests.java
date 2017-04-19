@@ -33,12 +33,10 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     @Override
     protected InternalDerivative createTestInstance(String name,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        DocValueFormat formatter = randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH,
-                DocValueFormat.IP, DocValueFormat.RAW);
+        DocValueFormat formatter = randomNumericDocValueFormat();
         double value = randomDoubleBetween(0, 100000, true);
         double normalizationFactor = randomDoubleBetween(0, 100000, true);
-        return new InternalDerivative(name, value, normalizationFactor, formatter,
-                pipelineAggregators, metaData);
+        return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
     }
 
     @Override

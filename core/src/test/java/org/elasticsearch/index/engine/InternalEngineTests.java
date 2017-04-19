@@ -2171,7 +2171,10 @@ public class InternalEngineTests extends ESTestCase {
             final Bits bits = leaf.getLiveDocs();
             for (int docID = 0; docID < leaf.maxDoc(); docID++) {
                 if (bits == null || bits.get(docID)) {
-                    final long seqNo = values.get(docID);
+                    if (values.advanceExact(docID) == false) {
+                        throw new AssertionError("Document does not have a seq number: " + docID);
+                    }
+                    final long seqNo = values.longValue();
                     assertFalse("should not have more than one document with the same seq_no[" + seqNo + "]", bitSet.get((int) seqNo));
                     bitSet.set((int) seqNo);
                 }
@@ -2854,10 +2857,13 @@ public class InternalEngineTests extends ESTestCase {
                 }
                 Engine.IndexResult indexResult = engine.index(indexForDoc(doc1));
                 assertNotNull(indexResult.getFailure());
-
+                // document failures should be recorded in translog
+                assertNotNull(indexResult.getTranslogLocation());
                 throwingIndexWriter.get().clearFailure();
                 indexResult = engine.index(indexForDoc(doc1));
                 assertNull(indexResult.getFailure());
+                // document failures should be recorded in translog
+                assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
 
                 // test failure while deleting
@@ -3220,11 +3226,40 @@ public class InternalEngineTests extends ESTestCase {
 
         }
 
-        long maxTimestamp = Math.abs(randomLong());
-        try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
-                 maxTimestamp, null))) {
-            assertEquals(maxTimestamp, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+        final long timestamp1 = Math.abs(randomLong());
+        final Path storeDir = createTempDir();
+        final Path translogDir = createTempDir();
+        try (Store store = createStore(newFSDirectory(storeDir));
+             Engine engine = new InternalEngine(
+                 config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, timestamp1, null))) {
+            assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+        }
+        final long timestamp2 = randomNonNegativeLong();
+        final long timestamp3 = randomNonNegativeLong();
+        final long maxTimestamp12 = Math.max(timestamp1, timestamp2);
+        final long maxTimestamp123 = Math.max(maxTimestamp12, timestamp3);
+        try (Store store = createStore(newFSDirectory(storeDir));
+             Engine engine = new InternalEngine(
+                 copy(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, timestamp2, null),
+                     randomFrom(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG)))) {
+            assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            if (engine.config().getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+                // recover from translog and commit maxTimestamp12
+                engine.recoverFromTranslog();
+                // force flush as the were no ops performed
+                engine.flush(true, false);
+            }
+            final ParsedDocument doc = testParsedDocument("1", "test", null, testDocumentWithTextField(),
+                new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+            engine.index(appendOnlyPrimary(doc, true, timestamp3));
+            assertEquals(maxTimestamp123, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+        }
+        try (Store store = createStore(newFSDirectory(storeDir));
+             Engine engine = new InternalEngine(
+                 config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+            assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            engine.recoverFromTranslog();
+            assertEquals(maxTimestamp123, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
     }
 
@@ -3640,12 +3675,9 @@ public class InternalEngineTests extends ESTestCase {
             final String reason = randomAlphaOfLength(16);
             noOpEngine.noOp(
                 new Engine.NoOp(
-                    null,
-                    maxSeqNo + 1,
+                        maxSeqNo + 1,
                     primaryTerm,
-                    0,
-                    VersionType.INTERNAL,
-                    randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
+                        randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
                     System.nanoTime(),
                     reason));
             assertThat(noOpEngine.seqNoService().getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));

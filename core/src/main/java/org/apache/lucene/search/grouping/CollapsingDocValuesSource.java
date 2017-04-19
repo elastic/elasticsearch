@@ -22,31 +22,32 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Utility class that ensures that a single collapse key is extracted per document.
  */
-abstract class CollapsingDocValuesSource<T> {
+abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
     protected final String field;
 
     CollapsingDocValuesSource(String field) throws IOException {
         this.field = field;
     }
 
-    abstract T get(int doc);
-
-    abstract T copy(T value, T reuse);
-
-    abstract void setNextReader(LeafReader reader) throws IOException;
+    @Override
+    public void setGroups(Collection<SearchGroup<T>> groups) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Implementation for {@link NumericDocValues} and {@link SortedNumericDocValues}.
@@ -54,35 +55,43 @@ abstract class CollapsingDocValuesSource<T> {
      */
     static class Numeric extends CollapsingDocValuesSource<Long> {
         private NumericDocValues values;
-        private Bits docsWithField;
+        private long value;
+        private boolean hasValue;
 
         Numeric(String field) throws IOException {
             super(field);
         }
 
         @Override
-        public Long get(int doc) {
-            if (docsWithField.get(doc)) {
-                return values.get(doc);
+        public State advanceTo(int doc) throws IOException {
+            if (values.advanceExact(doc)) {
+                hasValue = true;
+                value = values.longValue();
+                return State.ACCEPT;
             } else {
-                return null;
+                hasValue = false;
+                return State.SKIP;
             }
         }
 
         @Override
-        public Long copy(Long value, Long reuse) {
-            return value;
+        public Long currentValue() {
+            return hasValue ? value : null;
         }
 
         @Override
-        public void setNextReader(LeafReader reader) throws IOException {
+        public Long copyValue() {
+            return currentValue();
+        }
+
+        @Override
+        public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            LeafReader reader = readerContext.reader();
             DocValuesType type = getDocValuesType(reader, field);
             if (type == null || type == DocValuesType.NONE) {
                 values = DocValues.emptyNumeric();
-                docsWithField = new Bits.MatchNoBits(reader.maxDoc());
                 return ;
             }
-            docsWithField = DocValues.getDocsWithField(reader, field);
             switch (type) {
                 case NUMERIC:
                     values = DocValues.getNumeric(reader, field);
@@ -92,17 +101,34 @@ abstract class CollapsingDocValuesSource<T> {
                     final SortedNumericDocValues sorted = DocValues.getSortedNumeric(reader, field);
                     values = DocValues.unwrapSingleton(sorted);
                     if (values == null) {
-                        values = new NumericDocValues() {
+                        values = new AbstractNumericDocValues() {
+
+                            private long value;
+
                             @Override
-                            public long get(int docID) {
-                                sorted.setDocument(docID);
-                                assert sorted.count() > 0;
-                                if (sorted.count() > 1) {
-                                    throw new IllegalStateException("failed to collapse " + docID +
-                                        ", the collapse field must be single valued");
+                            public boolean advanceExact(int target) throws IOException {
+                                if (sorted.advanceExact(target)) {
+                                    if (sorted.docValueCount() > 1) {
+                                        throw new IllegalStateException("failed to collapse " + target +
+                                                ", the collapse field must be single valued");
+                                    }
+                                    value = sorted.nextValue();
+                                    return true;
+                                } else {
+                                    return false;
                                 }
-                                return sorted.valueAt(0);
                             }
+
+                            @Override
+                            public int docID() {
+                                return sorted.docID();
+                            }
+
+                            @Override
+                            public long longValue() throws IOException {
+                                return value;
+                            }
+
                         };
                     }
                     break;
@@ -119,47 +145,56 @@ abstract class CollapsingDocValuesSource<T> {
      * Fails with an {@link IllegalStateException} if a document contains multiple values for the specified field.
      */
     static class Keyword extends CollapsingDocValuesSource<BytesRef> {
-        private Bits docsWithField;
         private SortedDocValues values;
+        private int ord;
 
         Keyword(String field) throws IOException {
             super(field);
         }
 
         @Override
-        public BytesRef get(int doc) {
-            if (docsWithField.get(doc)) {
-                return values.get(doc);
+        public org.apache.lucene.search.grouping.GroupSelector.State advanceTo(int doc)
+                throws IOException {
+            if (values.advanceExact(doc)) {
+                ord = values.ordValue();
+                return State.ACCEPT;
             } else {
-                return null;
+                ord = -1;
+                return State.SKIP;
             }
         }
 
         @Override
-        public BytesRef copy(BytesRef value, BytesRef reuse) {
+        public BytesRef currentValue() {
+            if (ord == -1) {
+                return null;
+            } else {
+                try {
+                    return values.lookupOrd(ord);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        @Override
+        public BytesRef copyValue() {
+            BytesRef value = currentValue();
             if (value == null) {
                 return null;
-            }
-            if (reuse != null) {
-                reuse.bytes = ArrayUtil.grow(reuse.bytes, value.length);
-                reuse.offset = 0;
-                reuse.length = value.length;
-                System.arraycopy(value.bytes, value.offset, reuse.bytes, 0, value.length);
-                return reuse;
             } else {
                 return BytesRef.deepCopyOf(value);
             }
         }
 
         @Override
-        public void setNextReader(LeafReader reader) throws IOException {
+        public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            LeafReader reader = readerContext.reader();
             DocValuesType type = getDocValuesType(reader, field);
             if (type == null || type == DocValuesType.NONE) {
                 values = DocValues.emptySorted();
-                docsWithField = new Bits.MatchNoBits(reader.maxDoc());
                 return ;
             }
-            docsWithField = DocValues.getDocsWithField(reader, field);
             switch (type) {
                 case SORTED:
                     values = DocValues.getSorted(reader, field);
@@ -169,20 +204,36 @@ abstract class CollapsingDocValuesSource<T> {
                     final SortedSetDocValues sorted = DocValues.getSortedSet(reader, field);
                     values = DocValues.unwrapSingleton(sorted);
                     if (values == null) {
-                        values = new SortedDocValues() {
+                        values = new AbstractSortedDocValues() {
+
+                            private int ord;
+
                             @Override
-                            public int getOrd(int docID) {
-                                sorted.setDocument(docID);
-                                int ord = (int) sorted.nextOrd();
-                                if (sorted.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                    throw new IllegalStateException("failed to collapse " + docID +
-                                        ", the collapse field must be single valued");
+                            public boolean advanceExact(int target) throws IOException {
+                                if (sorted.advanceExact(target)) {
+                                    ord = (int) sorted.nextOrd();
+                                    if (sorted.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                                        throw new IllegalStateException("failed to collapse " + target +
+                                            ", the collapse field must be single valued");
+                                    }
+                                    return true;
+                                } else {
+                                    return false;
                                 }
+                            }
+
+                            @Override
+                            public int docID() {
+                                return sorted.docID();
+                            }
+
+                            @Override
+                            public int ordValue() {
                                 return ord;
                             }
 
                             @Override
-                            public BytesRef lookupOrd(int ord) {
+                            public BytesRef lookupOrd(int ord) throws IOException {
                                 return sorted.lookupOrd(ord);
                             }
 

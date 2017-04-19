@@ -2246,11 +2246,11 @@ public class TranslogTests extends ESTestCase {
         final long generation =
                 randomIntBetween(1, Math.toIntExact(translog.currentFileGeneration()));
         translog.commit(generation);
-        for (long i = 0; i < generation; i++) {
-            assertFileDeleted(translog, i);
+        for (long g = 0; g < generation; g++) {
+            assertFileDeleted(translog, g);
         }
-        for (long i = generation; i <= translog.currentFileGeneration(); i++) {
-            assertFileIsPresent(translog, i);
+        for (long g = generation; g <= translog.currentFileGeneration(); g++) {
+            assertFileIsPresent(translog, g);
         }
     }
 
@@ -2270,10 +2270,10 @@ public class TranslogTests extends ESTestCase {
                 final int committedGeneration = randomIntBetween(Math.max(1, Math.toIntExact(last)), Math.toIntExact(generation));
                 translog.commit(committedGeneration);
                 last = committedGeneration;
-                for (long g = 0; i < generation; g++) {
+                for (long g = 0; g < committedGeneration; g++) {
                     assertFileDeleted(translog, g);
                 }
-                for (long g = generation; g < translog.currentFileGeneration(); g++) {
+                for (long g = committedGeneration; g <= translog.currentFileGeneration(); g++) {
                     assertFileIsPresent(translog, g);
                 }
             }
@@ -2301,7 +2301,7 @@ public class TranslogTests extends ESTestCase {
                     }
                     // the view generation could be -1 if no commit has been performed
                     final long max = Math.max(1, Math.min(lastCommittedGeneration, viewGeneration));
-                    for (long g = max; g < translog.currentFileGeneration(); g++) {
+                    for (long g = max; g <= translog.currentFileGeneration(); g++) {
                         assertFileIsPresent(translog, g);
                     }
                 }

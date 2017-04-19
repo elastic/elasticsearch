@@ -569,12 +569,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
+    public Engine.NoOp prepareMarkingSeqNoAsNoOp(long seqNo, String reason) {
+        verifyReplicationTarget();
+        long startTime = System.nanoTime();
+        return new Engine.NoOp(seqNo, primaryTerm, Engine.Operation.Origin.REPLICA, startTime, reason);
+    }
+
+    public Engine.NoOpResult markSeqNoAsNoOp(Engine.NoOp noOp) throws IOException {
+        ensureWriteAllowed(noOp);
+        Engine engine = getEngine();
+        return engine.noOp(noOp);
+    }
+
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
         verifyPrimary();
-        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
-        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
-        final Term uid = MappedFieldType.extractTerm(uidQuery);
+        final Term uid = extractUid(type, id);
         return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, primaryTerm, version,
                 versionType, Engine.Operation.Origin.PRIMARY);
     }
@@ -582,15 +591,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long primaryTerm,
                                                 long version, VersionType versionType) {
         verifyReplicationTarget();
-        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
-        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
-        final Term uid = MappedFieldType.extractTerm(uidQuery);
+        final Term uid = extractUid(type, id);
         return prepareDelete(type, id, uid, seqNo, primaryTerm, version, versionType, Engine.Operation.Origin.REPLICA);
     }
 
-    static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
-                                       VersionType versionType, Engine.Operation.Origin origin) {
+    private static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
+                                               VersionType versionType, Engine.Operation.Origin origin) {
         long startTime = System.nanoTime();
         return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime);
     }
@@ -599,6 +605,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(delete);
         Engine engine = getEngine();
         return delete(engine, delete);
+    }
+
+    private Term extractUid(String type, String id) {
+        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
+        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
+        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
+        return MappedFieldType.extractTerm(uidQuery);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {

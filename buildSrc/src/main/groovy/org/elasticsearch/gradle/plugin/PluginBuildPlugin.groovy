@@ -63,13 +63,13 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.ext.set("nebulaPublish.maven.jar", false)
             }
 
-            project.integTest.dependsOn(project.bundlePlugin)
+            project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
-                project.integTest.clusterConfig.module(project)
+                project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
             } else {
-                project.integTest.clusterConfig.plugin(project.path)
+                project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
                 addZipPomGeneration(project)
                 addNoticeGeneration(project)

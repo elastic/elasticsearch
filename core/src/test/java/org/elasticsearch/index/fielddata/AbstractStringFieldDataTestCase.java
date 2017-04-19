@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
@@ -27,7 +28,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -48,8 +49,6 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
@@ -453,19 +452,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         searcher.getIndexReader().close();
     }
 
-    private void assertIteratorConsistentWithRandomAccess(RandomAccessOrds ords, int maxDoc) {
-        for (int doc = 0; doc < maxDoc; ++doc) {
-            ords.setDocument(doc);
-            final int cardinality = ords.cardinality();
-            for (int i = 0; i < cardinality; ++i) {
-                assertEquals(ords.nextOrd(), ords.ordAt(i));
-            }
-            for (int i = 0; i < 3; ++i) {
-                assertEquals(ords.nextOrd(), -1);
-            }
-        }
-    }
-
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
@@ -477,31 +463,29 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
         LeafReaderContext leaf = topLevelReader.leaves().get(0);
         AtomicOrdinalsFieldData afd = globalOrdinals.load(leaf);
-        RandomAccessOrds values = afd.getOrdinalsValues();
-        assertIteratorConsistentWithRandomAccess(values, leaf.reader().maxDoc());
-        values.setDocument(0);
-        assertThat(values.cardinality(), equalTo(2));
+        SortedSetDocValues values = afd.getOrdinalsValues();
+        assertTrue(values.advanceExact(0));
         long ord = values.nextOrd();
         assertThat(ord, equalTo(3L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("02"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
-        values.setDocument(1);
-        assertThat(values.cardinality(), equalTo(0));
-        values.setDocument(2);
-        assertThat(values.cardinality(), equalTo(1));
+        ord = values.nextOrd();
+        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertFalse(values.advanceExact(1));
+        assertTrue(values.advanceExact(2));
         ord = values.nextOrd();
         assertThat(ord, equalTo(4L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
+        ord = values.nextOrd();
+        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
 
         // Second segment
         leaf = topLevelReader.leaves().get(1);
         afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
-        assertIteratorConsistentWithRandomAccess(values, leaf.reader().maxDoc());
-        values.setDocument(0);
-        assertThat(values.cardinality(), equalTo(3));
+        assertTrue(values.advanceExact(0));
         ord = values.nextOrd();
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
@@ -511,8 +495,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
-        values.setDocument(1);
-        assertThat(values.cardinality(), equalTo(3));
+        ord = values.nextOrd();
+        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertTrue(values.advanceExact(1));
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
@@ -522,10 +507,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
-        values.setDocument(2);
-        assertThat(values.cardinality(), equalTo(0));
-        values.setDocument(3);
-        assertThat(values.cardinality(), equalTo(3));
+        ord = values.nextOrd();
+        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertFalse(values.advanceExact(2));
+        assertTrue(values.advanceExact(3));
         ord = values.nextOrd();
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
@@ -535,15 +520,14 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(11L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
+        ord = values.nextOrd();
+        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
 
         // Third segment
         leaf = topLevelReader.leaves().get(2);
         afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
-        assertIteratorConsistentWithRandomAccess(values, leaf.reader().maxDoc());
-        values.setDocument(0);
-        values.setDocument(0);
-        assertThat(values.cardinality(), equalTo(3));
+        assertTrue(values.advanceExact(0));
         ord = values.nextOrd();
         assertThat(ord, equalTo(0L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!08"));
@@ -553,6 +537,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(2L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
+        ord = values.nextOrd();
+        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
     }
 
     public void testTermsEnum() throws Exception {

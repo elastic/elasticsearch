@@ -86,7 +86,78 @@ must be a value between 0-100 inclusive):
 --------------------------------------------------
 <1> Use the `percents` parameter to specify particular percentiles to calculate
 
+==== Keyed Response
 
+By default the `keyed` flag is set to `true` which associates a unique string key with each bucket and returns the ranges as a hash rather than an array. Setting the `keyed` flag to `false` will disable this behavior:
+
+[source,js]
+--------------------------------------------------
+POST bank/account/_search?size=0
+{
+    "aggs": {
+        "balance_outlier": {
+            "percentiles": {
+                "field": "balance",
+                "keyed": false
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:bank]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "balance_outlier": {
+            "values": [
+                {
+                    "key": 1.0,
+                    "value": 1462.8400000000001
+                },
+                {
+                    "key": 5.0,
+                    "value": 3591.85
+                },
+                {
+                    "key": 25.0,
+                    "value": 13709.333333333334
+                },
+                {
+                    "key": 50.0,
+                    "value": 26020.11666666667
+                },
+                {
+                    "key": 75.0,
+                    "value": 38139.648148148146
+                },
+                {
+                    "key": 95.0,
+                    "value": 47551.549999999996
+                },
+                {
+                    "key": 99.0,
+                    "value": 49339.16
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+// TESTRESPONSE[s/1462.8400000000001/$body.aggregations.balance_outlier.values.0.value/]
+// TESTRESPONSE[s/3591.85/$body.aggregations.balance_outlier.values.1.value/]
+// TESTRESPONSE[s/13709.333333333334/$body.aggregations.balance_outlier.values.2.value/]
+// TESTRESPONSE[s/26020.11666666667/$body.aggregations.balance_outlier.values.3.value/]
+// TESTRESPONSE[s/38139.648148148146/$body.aggregations.balance_outlier.values.4.value/]
+// TESTRESPONSE[s/47551.549999999996/$body.aggregations.balance_outlier.values.5.value/]
+// TESTRESPONSE[s/49339.16/$body.aggregations.balance_outlier.values.6.value/]
 
 ==== Script
 

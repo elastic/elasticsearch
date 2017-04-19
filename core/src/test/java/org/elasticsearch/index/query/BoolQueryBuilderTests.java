@@ -54,9 +54,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             query.adjustPureNegative(randomBoolean());
         }
         if (randomBoolean()) {
-            query.disableCoord(randomBoolean());
-        }
-        if (randomBoolean()) {
             query.minimumShouldMatch(randomMinimumShouldMatch());
         }
         int mustClauses = randomIntBetween(0, 3);
@@ -95,7 +92,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             } else {
                 assertThat(query, instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) query;
-                assertThat(booleanQuery.isCoordDisabled(), equalTo(queryBuilder.disableCoord()));
                 if (queryBuilder.adjustPureNegative()) {
                     boolean isNegative = true;
                     for (BooleanClause clause : clauses) {
@@ -259,8 +255,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 boolQuery()
                         .should(termQuery("foo", "bar"))
                         .should(termQuery("foo2", "bar2"))
-                        .minimumShouldMatch("3")
-                        .disableCoord(true)).toQuery(createShardContext());
+                        .minimumShouldMatch("3")).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
@@ -310,7 +305,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "      }" +
                 "    }" +
                 "  } ]," +
-                "  \"disable_coord\" : false," +
                 "  \"adjust_pure_negative\" : true," +
                 "  \"minimum_should_match\" : \"23\"," +
                 "  \"boost\" : 42.0" +

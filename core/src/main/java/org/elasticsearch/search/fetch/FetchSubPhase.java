@@ -25,6 +25,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -79,8 +80,8 @@ public interface FetchSubPhase {
     /**
      * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
      */
-    default void hitExecute(SearchContext context, HitContext hitContext) {}
+    default void hitExecute(SearchContext context, HitContext hitContext) throws IOException {}
 
 
-    default void hitsExecute(SearchContext context, SearchHit[] hits) {}
+    default void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {}
 }

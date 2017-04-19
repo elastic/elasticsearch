@@ -23,6 +23,7 @@ import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
@@ -56,5 +57,10 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
     @Override
     protected Writeable.Reader<InternalHDRPercentiles> instanceReader() {
         return InternalHDRPercentiles::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedPercentiles> implementationClass() {
+        return ParsedHDRPercentiles.class;
     }
 }

@@ -22,9 +22,10 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesRanksTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -33,13 +34,12 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     @Override
     protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators,
                                                                 Map<String, Object> metadata,
-                                                                double[] cdfValues, boolean keyed, DocValueFormat format) {
-        TDigestState state = new TDigestState(100);
-        int numValues = randomInt(100);
-        for (int i = 0; i < numValues; ++i) {
-            state.add(randomDouble());
-        }
-        return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, aggregators, metadata);
+                                                                boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+        final TDigestState state = new TDigestState(100);
+        Arrays.stream(values).forEach(state::add);
+
+        assertEquals(state.centroidCount(), values.length);
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, aggregators, metadata);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     }
 
     @Override
-    protected Class<? extends ParsedPercentileRanks> parsedParsedPercentileRanksClass() {
+    protected Class<? extends ParsedPercentiles> implementationClass() {
         return ParsedTDigestPercentileRanks.class;
     }
 }

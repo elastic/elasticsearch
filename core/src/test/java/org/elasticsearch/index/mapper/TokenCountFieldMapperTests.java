@@ -102,6 +102,28 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", ""), equalTo(7));
     }
 
+    public void testCountTokens() throws IOException {
+        // We're looking to make sure that we:
+        Token t1 = new Token();      // Don't count tokens without an increment
+        t1.setPositionIncrement(0);
+        Token t2 = new Token();
+        t2.setPositionIncrement(1);  // Count normal tokens with one increment
+        Token t3 = new Token();
+        t2.setPositionIncrement(2);  // Count funny tokens with more than one increment
+        int finalTokenIncrement = 4; // Count the final token increment on the rare token streams that have them
+        Token[] tokens = new Token[] {t1, t2, t3};
+        Collections.shuffle(Arrays.asList(tokens), random());
+        final TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
+        // TODO: we have no CannedAnalyzer?
+        Analyzer analyzer = new Analyzer() {
+                @Override
+                public TokenStreamComponents createComponents(String fieldName) {
+                    return new TokenStreamComponents(new MockTokenizer(), tokenStream);
+                }
+            };
+        assertThat(TokenCountFieldMapper.countTokens(analyzer, "", ""), equalTo(3));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);

@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
@@ -47,10 +48,12 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        public static final boolean DEFAULT_POSITION_INCREMENTS = true;
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, TokenCountFieldMapper> {
         private NamedAnalyzer analyzer;
+        private boolean enablePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -66,11 +69,20 @@ public class TokenCountFieldMapper extends FieldMapper {
             return analyzer;
         }
 
+        public Builder enablePositionIncrements(boolean enablePositionIncrements) {
+            this.enablePositionIncrements = enablePositionIncrements;
+            return this;
+        }
+
+        public boolean enablePositionIncrements() {
+            return enablePositionIncrements;
+        }
+
         @Override
         public TokenCountFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new TokenCountFieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), analyzer, multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), analyzer, enablePositionIncrements, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -93,6 +105,9 @@ public class TokenCountFieldMapper extends FieldMapper {
                     }
                     builder.analyzer(analyzer);
                     iterator.remove();
+                } else if (propName.equals("enable_position_increments")) {
+                    builder.enablePositionIncrements(nodeBooleanValue(propNode));
+                    iterator.remove();
                 }
             }
             parseField(builder, name, node, parserContext);
@@ -104,11 +119,13 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     private NamedAnalyzer analyzer;
+    private boolean enablePositionIncrements;
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
+            Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
+        this.enablePositionIncrements = enablePositionIncrements;
     }
 
     @Override
@@ -123,8 +140,10 @@ public class TokenCountFieldMapper extends FieldMapper {
         final int tokenCount;
         if (value == null) {
             tokenCount = (Integer) fieldType().nullValue();
-        } else {
+        } else if (enablePositionIncrements) {
             tokenCount = countPositions(analyzer, name(), value);
+        } else {
+            tokenCount = countTokens(analyzer, name(), value);
         }
 
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
@@ -156,11 +175,39 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     /**
+     * Count tokens in a token stream. Package private for testing.
+     * @param analyzer analyzer to create token stream
+     * @param fieldName field name to pass to analyzer
+     * @param fieldValue field value to pass to analyzer
+     * @return number of tokens in a token stream
+     * @throws IOException if tokenStream throws it
+     */
+    static int countTokens(Analyzer analyzer, String fieldName, String fieldValue) throws IOException {
+        try (TokenStream tokenStream = analyzer.tokenStream(fieldName, fieldValue)) {
+            int count = 0;
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
+                count++;
+            }
+            tokenStream.end();
+            return count;
+        }
+    }
+
+    /**
      * Name of analyzer.
      * @return name of analyzer
      */
     public String analyzer() {
         return analyzer.name();
+    }
+
+    /**
+     * Indicates if position increments are counted.
+     * @return <code>true</code> if position increments are counted
+     */
+    public boolean enablePositionIncrements() {
+        return enablePositionIncrements;
     }
 
     @Override
@@ -172,12 +219,16 @@ public class TokenCountFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
+        this.enablePositionIncrements = ((TokenCountFieldMapper) mergeWith).enablePositionIncrements;
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("analyzer", analyzer());
+        if (includeDefaults || enablePositionIncrements() != Defaults.DEFAULT_POSITION_INCREMENTS) {
+            builder.field("enable_position_increments", enablePositionIncrements());
+        }
     }
 
 }

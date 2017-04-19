@@ -391,8 +391,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 } else {
                     // This can happen we the actual task in the node no longer exists,
                     // which means the job(s) have already been closed.
-                    // returning false, here because the current close request hasn't actually closed anything.
-                    return new Response(false);
+                    return new Response(true);
                 }
             }
 

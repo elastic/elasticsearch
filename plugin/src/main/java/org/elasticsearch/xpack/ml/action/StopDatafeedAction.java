@@ -400,9 +400,9 @@ public class StopDatafeedAction
                     throw org.elasticsearch.ExceptionsHelper
                             .convertToElastic(failedNodeExceptions.get(0));
                 } else {
-                    throw new IllegalStateException(
-                            "Expected [" + request.getResolvedDatafeedIds().length
-                                    + "] number of tasks but " + "got [" + tasks.size() + "]");
+                    // This can happen we the actual task in the node no longer exists,
+                    // which means the datafeed(s) have already been closed.
+                    return new Response(true);
                 }
             }
 

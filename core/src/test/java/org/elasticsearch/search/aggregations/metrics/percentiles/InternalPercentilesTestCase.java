@@ -23,13 +23,19 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 
 public abstract class InternalPercentilesTestCase<T extends InternalAggregation>  extends InternalAggregationTestCase<T> {
 
-    private final double[] percents = randomPercents();
+    private double[] percents;
+
+    @Before
+    public void init() {
+        percents = randomPercents();
+    }
 
     @Override
     protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

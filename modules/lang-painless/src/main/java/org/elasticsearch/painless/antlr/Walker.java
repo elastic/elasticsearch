@@ -29,7 +29,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -175,10 +174,8 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SSource buildPainlessTree(ScriptInterface mainMethod, String sourceName,
-            String sourceText, CompilerSettings settings, Definition definition,
-            Printer debugStream) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, definition,
-                debugStream).source;
+            String sourceText, CompilerSettings settings, Printer debugStream) {
+        return new Walker(mainMethod, sourceName, sourceText, settings, debugStream).source;
     }
 
     private final ScriptInterface scriptInterface;
@@ -187,27 +184,25 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Printer debugStream;
     private final String sourceName;
     private final String sourceText;
-    private final Definition definition;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
     private final Globals globals;
     private int syntheticCounter = 0;
 
     private Walker(ScriptInterface scriptInterface, String sourceName, String sourceText,
-            CompilerSettings settings, Definition definition, Printer debugStream) {
+            CompilerSettings settings, Printer debugStream) {
         this.scriptInterface = scriptInterface;
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
         this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
-        this.definition = definition;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, definition);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, settings.getDefinition());
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 

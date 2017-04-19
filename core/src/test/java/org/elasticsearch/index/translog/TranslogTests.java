@@ -2273,7 +2273,7 @@ public class TranslogTests extends ESTestCase {
                 for (long g = 0; g < committedGeneration; g++) {
                     assertFileDeleted(translog, g);
                 }
-                for (long g = committedGeneration; g < translog.currentFileGeneration(); g++) {
+                for (long g = committedGeneration; g <= translog.currentFileGeneration(); g++) {
                     assertFileIsPresent(translog, g);
                 }
             }

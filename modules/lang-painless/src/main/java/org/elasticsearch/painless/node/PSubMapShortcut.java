@@ -19,19 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a map load/store shortcut. (Internal only.)
@@ -58,15 +56,15 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        getter = struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = struct.methods.get(new Definition.MethodKey("put", 2));
+        getter = struct.getMethod("get", 1);
+        setter = struct.getMethod("put", 2);
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
-            throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.getName() + "]."));
         }
 
         if (setter != null && setter.arguments.size() != 2) {
-            throw createError(new IllegalArgumentException("Illegal map set shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map set shortcut for type [" + struct.getName() + "]."));
         }
 
         if (getter != null && setter != null &&
@@ -81,7 +79,7 @@ final class PSubMapShortcut extends AStoreable {
 
             actual = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + struct.getName() + "]."));
         }
     }
 

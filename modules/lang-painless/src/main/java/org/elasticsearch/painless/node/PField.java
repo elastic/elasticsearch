@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
@@ -71,21 +70,18 @@ public final class PField extends AStoreable {
             sub = new PSubDefField(location, value);
         } else {
             Struct struct = prefix.actual.struct;
-            Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            Field field = prefix instanceof EStatic ? struct.getStaticMember(value) : struct.getMember(value);
 
             if (field != null) {
                 sub = new PSubField(location, field);
             } else {
-                Method getter = struct.methods.get(
-                    new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                Method getter = struct.getMethod("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter == null) {
-                    getter = struct.methods.get(
-                        new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                    getter = struct.getMethod("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                Method setter = struct.methods.get(
-                    new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                Method setter = struct.getMethod("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1);
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, prefix.actual.name, getter, setter);

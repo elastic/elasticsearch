@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
@@ -67,14 +66,14 @@ public final class ENewObj extends AExpression {
         }
 
         Struct struct = type.struct;
-        constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
+        constructor = struct.getConstructor(arguments.size());
 
         if (constructor != null) {
             Type[] types = new Type[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
-                throw createError(new IllegalArgumentException("When calling constructor on type [" + struct.name + "]" +
+                throw createError(new IllegalArgumentException("When calling constructor on type [" + struct.getName() + "]" +
                     " expected [" + constructor.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
             }
 
@@ -90,7 +89,7 @@ public final class ENewObj extends AExpression {
             statement = true;
             actual = type;
         } else {
-            throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.getName() + "]."));
         }
     }
 
@@ -108,7 +107,7 @@ public final class ENewObj extends AExpression {
             argument.write(writer, globals);
         }
 
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(constructor.owner.getType(), constructor.method);
     }
 
     @Override

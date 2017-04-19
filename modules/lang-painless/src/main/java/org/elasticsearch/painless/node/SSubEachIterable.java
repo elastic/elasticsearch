@@ -24,7 +24,6 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -77,7 +76,7 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual.sort == Sort.DEF) {
             method = null;
         } else {
-            method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
+            method = expression.actual.struct.getMethod("iterator", 0);
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(

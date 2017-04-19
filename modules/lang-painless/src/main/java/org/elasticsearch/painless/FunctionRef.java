@@ -85,7 +85,7 @@ public class FunctionRef {
             tag = Opcodes.H_NEWINVOKESPECIAL;
         } else if (Modifier.isStatic(impl.modifiers)) {
             tag = Opcodes.H_INVOKESTATIC;
-        } else if (impl.owner.clazz.isInterface()) {
+        } else if (impl.owner.getClazz().isInterface()) {
             tag = Opcodes.H_INVOKEINTERFACE;
         } else {
             tag = Opcodes.H_INVOKEVIRTUAL;
@@ -100,8 +100,8 @@ public class FunctionRef {
             ownerIsInterface = false;
             owner = WriterConstants.AUGMENTATION_TYPE.getInternalName();
         } else {
-            ownerIsInterface = impl.owner.clazz.isInterface();
-            owner = impl.owner.type.getInternalName();
+            ownerIsInterface = impl.owner.getClazz().isInterface();
+            owner = impl.owner.getType().getInternalName();
         }
         implMethodASM = new Handle(tag, owner, impl.name, impl.method.getDescriptor(), ownerIsInterface);
         implMethod = impl.handle;
@@ -152,10 +152,10 @@ public class FunctionRef {
         final Definition.Method impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(new Definition.MethodKey("<init>", method.arguments.size()));
+            impl = struct.getConstructor(method.arguments.size());
         } else {
             // look for a static impl first
-            Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
+            Definition.Method staticImpl = struct.getStaticMethod(call, method.arguments.size());
             if (staticImpl == null) {
                 // otherwise a virtual impl
                 final int arity;
@@ -166,7 +166,7 @@ public class FunctionRef {
                     // receiver passed
                     arity = method.arguments.size() - 1;
                 }
-                impl = struct.methods.get(new Definition.MethodKey(call, arity));
+                impl = struct.getMethod(call, arity);
             } else {
                 impl = staticImpl;
             }

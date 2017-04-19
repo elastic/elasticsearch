@@ -63,9 +63,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, field.type.type);
+            writer.getStatic(field.owner.getType(), field.javaName, field.type.type);
         } else {
-            writer.getField(field.owner.type, field.javaName, field.type.type);
+            writer.getField(field.owner.getType(), field.javaName, field.type.type);
         }
     }
 
@@ -94,9 +94,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, field.type.type);
+            writer.getStatic(field.owner.getType(), field.javaName, field.type.type);
         } else {
-            writer.getField(field.owner.type, field.javaName, field.type.type);
+            writer.getField(field.owner.getType(), field.javaName, field.type.type);
         }
     }
 
@@ -105,9 +105,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.putStatic(field.owner.type, field.javaName, field.type.type);
+            writer.putStatic(field.owner.getType(), field.javaName, field.type.type);
         } else {
-            writer.putField(field.owner.type, field.javaName, field.type.type);
+            writer.putField(field.owner.getType(), field.javaName, field.type.type);
         }
     }
 

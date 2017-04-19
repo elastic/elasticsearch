@@ -87,7 +87,7 @@ public final class ENewArray extends AExpression {
 
         if (initialize) {
             writer.push(arguments.size());
-            writer.newArray(actual.struct.type);
+            writer.newArray(actual.struct.getType());
 
             for (int index = 0; index < arguments.size(); ++index) {
                 AExpression argument = arguments.get(index);
@@ -95,7 +95,7 @@ public final class ENewArray extends AExpression {
                 writer.dup();
                 writer.push(index);
                 argument.write(writer, globals);
-                writer.arrayStore(actual.struct.type);
+                writer.arrayStore(actual.struct.getType());
             }
         } else {
             for (AExpression argument : arguments) {
@@ -105,7 +105,7 @@ public final class ENewArray extends AExpression {
             if (arguments.size() > 1) {
                 writer.visitMultiANewArrayInsn(actual.type.getDescriptor(), actual.type.getDimensions());
             } else {
-                writer.newArray(actual.struct.type);
+                writer.newArray(actual.struct.getType());
             }
         }
     }

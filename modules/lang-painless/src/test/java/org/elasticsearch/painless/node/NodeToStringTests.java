@@ -24,15 +24,13 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.RuntimeClass;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
 
@@ -401,15 +399,14 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
-        RuntimeClass c = definition.getRuntimeClass(Integer.class);
-        Method m = c.methods.get(new MethodKey("toString", 0));
+        Method m = Definition.INT_OBJ_TYPE.struct.getMethod("toString", 0);
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubCallInvoke (EVariable a) toString)", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubCallInvoke (EVariable a) toString))", new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 1);
-        m = c.methods.get(new MethodKey("equals", 1));
+        m = Definition.INT_OBJ_TYPE.struct.getMethod("equals", 1);
         node = new PSubCallInvoke(l, m, null, singletonList(new EVariable(l, "b")));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubCallInvoke (EVariable a) equals (Args (EVariable b)))", node.toString());
@@ -457,7 +454,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
         Struct s = definition.getType(Boolean.class.getSimpleName()).struct;
-        Field f = s.staticMembers.get("TRUE");
+        Field f = s.getStaticMember("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
         assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());
@@ -499,8 +496,8 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
         Struct s = definition.getType(FeatureTest.class.getName()).struct;
-        Method getter = s.methods.get(new MethodKey("getX", 0));
-        Method setter = s.methods.get(new MethodKey("setX", 1));
+        Method getter = s.getMethod("getX", 0);
+        Method setter = s.getMethod("setX", 1);
         PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubShortcut (EVariable a) x)", node.toString());

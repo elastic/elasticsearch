@@ -345,15 +345,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Unknown plugin foo"));
     }
 
-    public void testPluginsDirMissing() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Files.delete(env.v2().pluginsFile());
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPlugin("fake", pluginDir);
-        installPlugin(pluginZip, env.v1());
-        assertPlugin("fake", pluginDir, env.v2());
-    }
-
     public void testPluginsDirReadOnly() throws Exception {
         assumeTrue("posix and filesystem", isPosix && isReal);
         Tuple<Path, Environment> env = createEnv(fs, temp);

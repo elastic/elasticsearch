@@ -53,7 +53,7 @@ public class ParsedAvg extends ParsedSingleValueNumericMetricsAggregation implem
     private static final ObjectParser<ParsedAvg, Void> PARSER = new ObjectParser<>(ParsedAvg.class.getSimpleName(), true, ParsedAvg::new);
 
     static {
-        declareSingeValueFields(PARSER, Double.POSITIVE_INFINITY);
+        declareSingleValueFields(PARSER, Double.POSITIVE_INFINITY);
     }
 
     public static ParsedAvg fromXContent(XContentParser parser, final String name) {

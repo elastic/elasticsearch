@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics.sum;
+package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,36 +26,33 @@ import org.elasticsearch.search.aggregations.metrics.ParsedSingleValueNumericMet
 
 import java.io.IOException;
 
-public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implements Sum {
-
-    @Override
-    public double getValue() {
-        return value();
-    }
+public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregation implements SimpleValue {
 
     @Override
     protected String getType() {
-        return SumAggregationBuilder.NAME;
+        return InternalSimpleValue.NAME;
+    }
+
+    private static final ObjectParser<ParsedSimpleValue, Void> PARSER = new ObjectParser<>(ParsedSimpleValue.class.getSimpleName(), true,
+            ParsedSimpleValue::new);
+
+    static {
+        declareSingleValueFields(PARSER, Double.NaN);
+    }
+
+    public static ParsedSimpleValue fromXContent(XContentParser parser, final String name) {
+        ParsedSimpleValue simpleValue = PARSER.apply(parser, null);
+        simpleValue.setName(name);
+        return simpleValue;
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE.getPreferredName(), value);
-        if (valueAsString != null) {
+        boolean hasValue = Double.isNaN(value) == false;
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
+        if (hasValue && valueAsString != null) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);
         }
         return builder;
-    }
-
-    private static final ObjectParser<ParsedSum, Void> PARSER = new ObjectParser<>(ParsedSum.class.getSimpleName(), true, ParsedSum::new);
-
-    static {
-        declareSingleValueFields(PARSER, Double.NEGATIVE_INFINITY);
-    }
-
-    public static ParsedSum fromXContent(XContentParser parser, final String name) {
-        ParsedSum sum = PARSER.apply(parser, null);
-        sum.setName(name);
-        return sum;
     }
 }

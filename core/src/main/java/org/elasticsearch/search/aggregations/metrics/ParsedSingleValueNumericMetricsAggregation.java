@@ -63,7 +63,7 @@ public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedA
             }
         }
 
-    protected static void declareSingeValueFields(ObjectParser<? extends ParsedSingleValueNumericMetricsAggregation, Void> objectParser,
+    protected static void declareSingleValueFields(ObjectParser<? extends ParsedSingleValueNumericMetricsAggregation, Void> objectParser,
             double defaultNullValue) {
         declareAggregationFields(objectParser);
         objectParser.declareField(ParsedSingleValueNumericMetricsAggregation::setValue,

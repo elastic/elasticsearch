@@ -128,7 +128,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
 
     protected void updateJob(String jobId, JobUpdate update) throws Exception {
         UpdateJobAction.Request request = new UpdateJobAction.Request(jobId, update);
-        client().execute(UpdateJobAction.INSTANCE, request);
+        client().execute(UpdateJobAction.INSTANCE, request).get();
     }
 
     protected void deleteJob(String jobId) throws Exception {

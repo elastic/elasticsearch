@@ -73,7 +73,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
                 Arrays.asList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        Job.Builder job = new Job.Builder("detectrion-rule-numeric-test");
+        Job.Builder job = new Job.Builder("detection-rule-numeric-test");
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 

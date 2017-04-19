@@ -363,7 +363,6 @@ public abstract class Engine implements Closeable {
 
         void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
-                assert failure == null : "failure has to be null to set translog location";
                 this.translogLocation = translogLocation;
             } else {
                 throw new IllegalStateException("result is already frozen");
@@ -432,7 +431,7 @@ public abstract class Engine implements Closeable {
 
     }
 
-    static class NoOpResult extends Result {
+    public static class NoOpResult extends Result {
 
         NoOpResult(long seqNo) {
             super(Operation.TYPE.NO_OP, 0, seqNo);
@@ -1154,21 +1153,28 @@ public abstract class Engine implements Closeable {
             return reason;
         }
 
-        public NoOp(
-            final Term uid,
-            final long seqNo,
-            final long primaryTerm,
-            final long version,
-            final VersionType versionType,
-            final Origin origin,
-            final long startTime,
-            final String reason) {
-            super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+        public NoOp(final long seqNo, final long primaryTerm, final Origin origin, final long startTime, final String reason) {
+            super(null, seqNo, primaryTerm, Versions.NOT_FOUND, null, origin, startTime);
             this.reason = reason;
         }
 
         @Override
+        public Term uid() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public String type() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long version() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public VersionType versionType() {
             throw new UnsupportedOperationException();
         }
 

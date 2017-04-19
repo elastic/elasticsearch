@@ -614,10 +614,16 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing,
                         plan.currentNotFoundOrDeleted);
                 }
-                if (indexResult.hasFailure() == false &&
-                    index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                    Translog.Location location =
-                        translog.add(new Translog.Index(index, indexResult));
+                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                    final Translog.Location location;
+                    if (indexResult.hasFailure() == false) {
+                        location = translog.add(new Translog.Index(index, indexResult));
+                    } else if (indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                        // if we have document failure, record it as a no-op in the translog with the generated seq_no
+                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                    } else {
+                        location = null;
+                    }
                     indexResult.setTranslogLocation(location);
                 }
                 if (indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -749,7 +755,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, index.seqNo());
+                return new IndexResult(ex, Versions.MATCH_ANY, plan.seqNoForIndexing);
             } else {
                 throw ex;
             }
@@ -900,10 +906,16 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(plan.versionOfDeletion, plan.seqNoOfDeletion,
                     plan.currentlyDeleted == false);
             }
-            if (!deleteResult.hasFailure() &&
-                delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                Translog.Location location =
-                    translog.add(new Translog.Delete(delete, deleteResult));
+            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location location;
+                if (deleteResult.hasFailure() == false) {
+                    location = translog.add(new Translog.Delete(delete, deleteResult));
+                } else if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
+                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                } else {
+                    location = null;
+                }
                 deleteResult.setTranslogLocation(location);
             }
             if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {

@@ -62,7 +62,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
-    private static final String JOB_ID = "foo";
+    private static final String JOB_ID = "autodetect-result-processor-it-job";
 
     private Renormalizer renormalizer;
     private JobResultsPersister jobResultsPersister;

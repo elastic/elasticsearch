@@ -43,8 +43,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
-        run(() -> {
-            GetJobsStatsAction.Request  request = new GetJobsStatsAction.Request("job_id");
+        run("fail-over-job", () -> {
+            GetJobsStatsAction.Request  request = new GetJobsStatsAction.Request("fail-over-job");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
             internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
@@ -67,7 +67,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 .put("node.master", false)
                 .build());
         ensureStableClusterOnAllNodes(2);
-        run(() -> {
+        run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
             internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.master", false));
             assertBusy(() -> {
@@ -88,14 +88,14 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
-        run(() -> {
+        run("full-cluster-restart-job", () -> {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
             logger.info("Restarted all nodes");
         });
     }
 
-    private void run(CheckedRunnable<Exception> disrupt) throws Exception {
+    private void run(String jobId, CheckedRunnable<Exception> disrupt) throws Exception {
         client().admin().indices().prepareCreate("data")
                 .addMapping("type", "time", "type=date")
                 .get();
@@ -105,7 +105,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         long twoWeeksAgo = weekAgo - 604800000;
         indexDocs(logger, "data", numDocs1, twoWeeksAgo, weekAgo);
 
-        Job.Builder job = createScheduledJob("job_id");
+        Job.Builder job = createScheduledJob(jobId);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
@@ -142,7 +142,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 assertFalse(task.needsReassignment(clusterState.nodes()));
             }
 
-            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request("job_id");
+            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
             JobStats jobStats = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet()
                     .getResponse().results().get(0);
             assertEquals(JobState.OPENED, jobStats.getState());

@@ -28,34 +28,34 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         startMlCluster(1, 1);
 
         // create and open first job, which succeeds:
-        Job.Builder job = createJob("1");
+        Job.Builder job = createJob("close-failed-job-1");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("1")).actionGet();
+                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("close-failed-job-1")).actionGet();
             assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
 
         // create and try to open second job, which fails:
-        job = createJob("2");
+        job = createJob("close-failed-job-2");
         putJobRequest = new PutJobAction.Request(job);
         putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         expectThrows(ElasticsearchStatusException.class,
-                () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("2")).actionGet());
+                () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("close-failed-job-2")).actionGet());
 
         // Ensure that the second job didn't even attempt to be opened and we still have 1 job open:
         GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("2")).actionGet();
+                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("close-failed-job-2")).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlMetadata.jobTaskId("1"));
+        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlMetadata.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskStatus) task.getStatus()).getState());
     }
 
@@ -71,7 +71,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         startMlCluster(numNodes, maxNumberOfJobsPerNode);
         int clusterWideMaxNumberOfJobs = numNodes * maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
-            Job.Builder job = createJob(Integer.toString(i));
+            Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
@@ -92,7 +92,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // close the first job and check if the latest job gets opened:
-                CloseJobAction.Request closeRequest = new CloseJobAction.Request("1");
+                CloseJobAction.Request closeRequest = new CloseJobAction.Request("max-number-of-jobs-limit-job-1");
                 closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
                 CloseJobAction.Response closeResponse = client().execute(CloseJobAction.INSTANCE, closeRequest).actionGet();
                 assertTrue(closeResponse.isClosed());

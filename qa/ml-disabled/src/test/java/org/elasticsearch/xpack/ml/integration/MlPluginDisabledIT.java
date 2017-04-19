@@ -26,7 +26,7 @@ public class MlPluginDisabledIT extends ESRestTestCase {
     public void testActionsFail() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder();
         xContentBuilder.startObject();
-        xContentBuilder.field("job_id", "foo");
+        xContentBuilder.field("actions-fail-job", "foo");
         xContentBuilder.field("description", "Analysis of response time by airline");
 
         xContentBuilder.startObject("analysis_config");

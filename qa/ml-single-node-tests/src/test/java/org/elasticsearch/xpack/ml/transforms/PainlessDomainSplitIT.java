@@ -273,9 +273,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "      }\n" +
                 "  }";
 
-        client().performRequest("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/painless", Collections.emptyMap(),
+        client().performRequest("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job", Collections.emptyMap(),
                 new StringEntity(job, ContentType.APPLICATION_JSON));
-        client().performRequest("POST", MachineLearning.BASE_PATH + "anomaly_detectors/painless/_open");
+        client().performRequest("POST", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/_open");
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
@@ -318,7 +318,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         // Create and start datafeed
         String body = "{\n" +
-                "         \"job_id\":\"painless\",\n" +
+                "         \"job_id\":\"hrd-split-job\",\n" +
                 "         \"indexes\":[\"painless\"],\n" +
                 "         \"types\":[\"test\"],\n" +
                 "         \"script_fields\": {\n" +
@@ -328,16 +328,16 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "         }\n" +
                 "      }";
 
-        client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/painless", Collections.emptyMap(),
+        client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed", Collections.emptyMap(),
                 new StringEntity(body, ContentType.APPLICATION_JSON));
-        client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/painless/_start");
+        client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
 
         boolean passed = awaitBusy(() -> {
             try {
                 client().performRequest("POST", "/_refresh");
 
                 Response response = client().performRequest("GET",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/painless/results/records");
+                        MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records");
                 String responseBody = EntityUtils.toString(response.getEntity());
 
                 if (responseBody.contains("\"count\":2")) {

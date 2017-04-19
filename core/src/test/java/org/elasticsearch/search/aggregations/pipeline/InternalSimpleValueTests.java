@@ -31,8 +31,8 @@ import java.util.Map;
 public class InternalSimpleValueTests extends InternalAggregationTestCase<InternalSimpleValue>{
 
     @Override
-    protected InternalSimpleValue createTestInstance(String name,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalSimpleValue createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         double value = frequently() ? randomDoubleBetween(0, 100000, true)
                 : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
@@ -59,12 +59,12 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
     protected void assertFromXContent(InternalSimpleValue simpleValue, ParsedAggregation parsedAggregation) {
         ParsedSimpleValue parsed = ((ParsedSimpleValue) parsedAggregation);
         if (Double.isInfinite(simpleValue.getValue()) == false && Double.isNaN(simpleValue.getValue()) == false) {
-            assertEquals(simpleValue.getValue(), parsed.value(), Double.MIN_VALUE);
+            assertEquals(simpleValue.getValue(), parsed.value(), 0);
             assertEquals(simpleValue.getValueAsString(), parsed.getValueAsString());
         } else {
             // we write Double.NEGATIVE_INFINITY, Double.POSITIVE amd Double.NAN to xContent as 'null', so we
             // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.NaN, Double.MIN_VALUE);
+            assertEquals(parsed.value(), Double.NaN, 0);
         }
     }
 }

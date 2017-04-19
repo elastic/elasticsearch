@@ -37,18 +37,18 @@ public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregatio
             ParsedSimpleValue::new);
 
     static {
-        declareSingeValueFields(PARSER, Double.NaN);
+        declareSingleValueFields(PARSER, Double.NaN);
     }
 
     public static ParsedSimpleValue fromXContent(XContentParser parser, final String name) {
-        ParsedSimpleValue min = PARSER.apply(parser, null);
-        min.setName(name);
-        return min;
+        ParsedSimpleValue simpleValue = PARSER.apply(parser, null);
+        simpleValue.setName(name);
+        return simpleValue;
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
+        boolean hasValue = Double.isNaN(value) == false;
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
         if (hasValue && valueAsString != null) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);

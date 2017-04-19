@@ -50,7 +50,7 @@ public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implem
     private static final ObjectParser<ParsedSum, Void> PARSER = new ObjectParser<>(ParsedSum.class.getSimpleName(), true, ParsedSum::new);
 
     static {
-        declareSingeValueFields(PARSER, Double.NEGATIVE_INFINITY);
+        declareSingleValueFields(PARSER, Double.NEGATIVE_INFINITY);
     }
 
     public static ParsedSum fromXContent(XContentParser parser, final String name) {

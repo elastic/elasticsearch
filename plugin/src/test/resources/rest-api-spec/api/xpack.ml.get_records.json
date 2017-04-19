@@ -13,9 +13,6 @@
         }
       },
       "params": {
-        "expand": {
-          "type": "boolean"
-        },
         "include_interim": {
           "type": "boolean",
           "description": "Include interim results"

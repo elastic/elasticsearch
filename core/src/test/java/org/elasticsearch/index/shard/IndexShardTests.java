@@ -85,8 +85,9 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
+import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -1226,20 +1227,33 @@ public class IndexShardTests extends IndexShardTestCase {
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoveryShardFromStore(primary);
-
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+        IndexShard replica1 = newShard(primary.shardId(), false, "n2", metaData, null);
+        recoverReplica(replica1, primary, (shard, sourceNode) -> {
+            shard.prepareForIndexRecovery();
+            return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
                     super.indexTranslogOperations(operations, totalTranslogOps);
-                    assertFalse(replica.getTranslog().syncNeeded());
+                    assertFalse(replica1.getTranslog().syncNeeded());
                 }
-            }, true);
+            };
+        }, true);
+        indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
+        IndexShard replica2 = reinitShard(replica1);
+        recoverReplica(replica2, primary, (shard, sourceNode) -> {
+            shard.prepareForIndexRecovery();
+            shard.skipTranslogRecovery(-1);
+            return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                    super.indexTranslogOperations(operations, totalTranslogOps);
+                    assertFalse(replica2.getTranslog().syncNeeded());
+                }
+            };
+        }, true);
 
-        closeShards(primary, replica);
+        closeShards(primary, replica2);
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {
@@ -1272,19 +1286,17 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryShardFromStore(primary);
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        IndexShard replica1 = newShard(primary.shardId(), false, "n2", metaData, null);
         // Shard is still inactive since we haven't started recovering yet
-        assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+        assertFalse(replica1.isActive());
+        recoverReplica(replica1, primary, (shard, sourceNode) -> {
+            shard.prepareForIndexRecovery();
+            return new FileAndOpsRecoveryTarget(shard, sourceNode, recoveryListener) {
                 @Override
                 public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
                     super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
                     // Shard is still inactive since we haven't started recovering yet
-                    assertFalse(replica.isActive());
+                    assertFalse(shard.isActive());
 
                 }
 
@@ -1292,11 +1304,25 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
                     super.indexTranslogOperations(operations, totalTranslogOps);
                     // Shard should now be active since we did recover:
-                    assertTrue(replica.isActive());
+                    assertTrue(replica1.isActive());
                 }
-            }, false);
+            };
+        }, true);
+        IndexShard replica2 = reinitShard(replica1);
+        recoverReplica(replica2, primary, (shard, sourceNode) -> {
+            shard.prepareForIndexRecovery();
+            shard.skipTranslogRecovery(-1);
+            return new OpsRecoveryTarget(shard, sourceNode, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
+                    super.indexTranslogOperations(operations, totalTranslogOps);
+                    // Shard should now be active since we did recover:
+                    assertTrue(replica1.isActive());
+                }
+            };
+        }, true);
 
-        closeShards(primary, replica);
+        closeShards(primary, replica2);
     }
 
     public void testRecoverFromLocalShard() throws IOException {

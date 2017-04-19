@@ -1697,6 +1697,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public boolean isAllocationIDInSync(String aID) {
+        return getEngine().seqNoService().isAllocationIDInSync(aID);
+    }
+
     class ShardEventListener implements Engine.EventListener {
         private final CopyOnWriteArrayList<Callback<ShardFailure>> delegates = new CopyOnWriteArrayList<>();
 

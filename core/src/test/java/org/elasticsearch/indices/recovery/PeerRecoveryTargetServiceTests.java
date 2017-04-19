@@ -26,17 +26,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 
+import static org.elasticsearch.indices.recovery.PeerRecoveryTargetService.shouldTryOpsRecovery;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         IndexShard replica = newShard(false);
-        RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+        OpsRecoveryTarget recoveryTarget = null;
         try {
             recoveryEmptyReplica(replica);
             int docs = randomIntBetween(1, 10);
@@ -53,30 +53,37 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
             }
 
+            recoveryTarget = new OpsRecoveryTarget(replica, null, null);
+
             final long maxSeqNo = replica.seqNoStats().getMaxSeqNo();
             final long localCheckpoint = replica.getLocalCheckpoint();
 
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertFalse("shard is not ready for ops recovery, global checkpoint is not known", shouldTryOpsRecovery(replica));
 
             replica.updateGlobalCheckpointOnReplica(maxSeqNo - 1);
             replica.getTranslog().sync();
 
             // commit is enough, global checkpoint is below max *committed* which is NO_OPS_PERFORMED
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
+            assertTrue("shard is should be ready for ops recovery", shouldTryOpsRecovery(replica));
+            assertThat(
+                ((StartOpsRecoveryRequest)recoveryTarget.createStartRecoveryRequest(null, null)).getStartingSeqNo(),
+                equalTo(localCheckpoint + 1));
 
             replica.flush(new FlushRequest());
 
-            // commit is still not good enough, global checkpoint is below max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertFalse("commit is still not good enough, global checkpoint is below max", shouldTryOpsRecovery(replica));
 
             replica.updateGlobalCheckpointOnReplica(maxSeqNo);
             replica.getTranslog().sync();
-            // commit is enough, global checkpoint is below max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));
+            assertTrue("commit is enough, global checkpoint is below max", shouldTryOpsRecovery(replica));
+            assertThat(
+                ((StartOpsRecoveryRequest)recoveryTarget.createStartRecoveryRequest(null, null)).getStartingSeqNo(),
+                equalTo(localCheckpoint + 1));
         } finally {
             closeShards(replica);
-            recoveryTarget.decRef();
+            if (recoveryTarget != null) {
+                recoveryTarget.decRef();
+            }
         }
     }
-
 }

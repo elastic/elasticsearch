@@ -22,7 +22,6 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -216,4 +215,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         return UNASSIGNED_SEQ_NO;
     }
 
+    public synchronized boolean isAllocationIDInSync(String aID) {
+        return inSyncLocalCheckpoints.containsKey(aID);
+    }
 }

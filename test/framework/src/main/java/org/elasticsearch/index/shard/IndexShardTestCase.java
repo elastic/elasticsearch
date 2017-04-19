@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
@@ -56,17 +55,24 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTarget;
+import org.elasticsearch.indices.recovery.FileAndOpsRecoveryTargetHandler;
+import org.elasticsearch.indices.recovery.FileRecoverySourceHandler;
+import org.elasticsearch.indices.recovery.OpsRecoverySourceHandler;
+import org.elasticsearch.indices.recovery.OpsRecoveryTarget;
+import org.elasticsearch.indices.recovery.OpsRecoveryTargetHandler;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.StartFileRecoveryRequest;
+import org.elasticsearch.indices.recovery.StartOpsRecoveryRequest;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.DummyShardLock;
@@ -81,7 +87,6 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -191,7 +196,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                   @Nullable IndexSearcherWrapper searcherWrapper) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-        return newShard(shardRouting, indexMetaData, searcherWrapper, () -> {}, null);
+        return newShard(shardRouting, indexMetaData, searcherWrapper, () -> {
+        }, null);
     }
 
     /**
@@ -221,7 +227,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData, IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(routing, indexMetaData, null, () -> {}, null, listeners);
+        return newShard(routing, indexMetaData, null, () -> {
+        }, null, listeners);
     }
 
     /**
@@ -378,69 +385,95 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary) throws IOException {
-        recoverReplica(replica, primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {
-            }),
-            true);
+        boolean opsRecoverySuccessful = false;
+        markReplicaAsRecovering(replica, primary.routingEntry());
+        if (PeerRecoveryTargetService.shouldTryOpsRecovery(replica)) {
+            try {
+                recoverReplica(replica, primary,
+                    (r, sourceNode) -> {
+                        r.prepareForIndexRecovery();
+                        // nocommit: think of a cleaner way to deal with these instances of
+                        replica.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+
+                        return new OpsRecoveryTarget(replica, sourceNode, recoveryListener);
+                    }, false);
+                opsRecoverySuccessful = true;
+            } catch (RecoveryFailedException e) {
+                logger.debug("ops based recovery failed, falling back to file based recovery", e);
+                replica.performRecoveryRestart();
+            }
+        }
+        if (opsRecoverySuccessful == false) {
+            recoverReplica(replica, primary,
+                (r, sourceNode) -> {
+                    r.prepareForIndexRecovery();
+                    return new FileAndOpsRecoveryTarget(r, sourceNode, recoveryListener);
+                }, false);
+        }
     }
 
     /**
-     * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
-     * target is to assert things in the various stages of recovery.
-     * @param replica                the recovery target shard
-     * @param primary                the recovery source shard
-     * @param targetSupplier         supplies an instance of {@link RecoveryTarget}
-     * @param markAsRecovering       set to {@code false} if the replica is marked as recovering
+     * Recovers a replica from the give primary, allow the user to supply a custom recovery target.
+     * A typical usage of a custom recovery target is to assert things in the various stages of
+     * recovery.
+     *
+     * @param replica          the recovery target shard
+     * @param primary          the recovery source shard
+     * @param prepareShardForRecovery  prepares the shard for the relevant recovery and returns an instance of {@link RecoveryTarget}
+     * @param markAsRecovering true if the replica should be marked as recovering as well.
      */
     protected final void recoverReplica(final IndexShard replica,
                                         final IndexShard primary,
-                                        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+                                        final ReplicaRecoveryPreparer prepareShardForRecovery,
                                         final boolean markAsRecovering) throws IOException {
-        final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
-        final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         if (markAsRecovering) {
-            replica.markAsRecovering("remote", new RecoveryState(replica.routingEntry(), pNode, rNode));
-        } else {
-            assertEquals(replica.state(), IndexShardState.RECOVERING);
+            markReplicaAsRecovering(replica, primary.routingEntry());
         }
-        replica.prepareForIndexRecovery();
-        final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-
-        final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
-        final long startingSeqNo;
-        if (snapshot.size() > 0) {
-            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget);
+        assertNotNull(replica.recoveryState());
+        assertEquals("shard state is [" + replica.state() + "] but should be recovering", replica.state(), IndexShardState.RECOVERING);
+        final DiscoveryNode pNode = replica.recoveryState().getSourceNode();
+        final DiscoveryNode rNode = replica.recoveryState().getTargetNode();
+        final RecoveryTarget recoveryTarget = prepareShardForRecovery.prepare(replica, pNode);
+        final StartRecoveryRequest request = recoveryTarget.createStartRecoveryRequest(logger, rNode);
+        final Settings nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build();
+        final RecoverySourceHandler sourceHandler;
+        if (request instanceof StartOpsRecoveryRequest) {
+            sourceHandler = new OpsRecoverySourceHandler(primary,
+                (OpsRecoveryTargetHandler) recoveryTarget, (StartOpsRecoveryRequest) request,
+                (int) ByteSizeUnit.MB.toBytes(1), nodeSettings);
+        } else if (request instanceof StartFileRecoveryRequest) {
+            sourceHandler = new FileRecoverySourceHandler(primary,
+                (FileAndOpsRecoveryTargetHandler) recoveryTarget, (StartFileRecoveryRequest) request,
+                (int) ByteSizeUnit.MB.toBytes(1), nodeSettings);
         } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            throw new UnsupportedOperationException("recovery type [" +
+                recoveryTarget.getClass().getName() + "] is not yet supported");
         }
-
-        final StartRecoveryRequest request =
-            new StartRecoveryRequest(replica.shardId(), pNode, rNode, snapshot, false, 0, startingSeqNo);
-        final RecoverySourceHandler recovery = new RecoverySourceHandler(
-            primary,
-            recoveryTarget,
-            request,
-            () -> 0L,
-            e -> () -> {},
-            (int) ByteSizeUnit.MB.toBytes(1),
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
-        recovery.recoverToTarget();
+        sourceHandler.recoverToTarget();
         recoveryTarget.markAsDone();
+        replica.postRecovery("peer recovery done");
         replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
     }
 
-    private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
-        Store.MetadataSnapshot result;
-        try {
-            result = replica.snapshotStoreMetadata();
-        } catch (IndexNotFoundException e) {
-            // OK!
-            result = Store.MetadataSnapshot.EMPTY;
-        } catch (IOException e) {
-            logger.warn("failed read store, treating as empty", e);
-            result = Store.MetadataSnapshot.EMPTY;
-        }
-        return result;
+    protected void markReplicaAsRecovering(IndexShard replica, ShardRouting primaryRouting) {
+        final DiscoveryNode pNode = getFakeDiscoNode(primaryRouting.currentNodeId());
+        final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        replica.markAsRecovering("peer_ops", new RecoveryState(replica.shardRouting, rNode, pNode));
+    }
+
+    protected interface ReplicaRecoveryPreparer {
+
+        /**
+         * prepares the shard for the peer recovery and returns the desired {@link RecoveryTarget}.
+         * When done, the shard should be in the {@link IndexShardState#RECOVERING} and {@link IndexShard#recoveryState()}
+         * should be set.
+         *
+         * @param replica    replica to be prepared
+         * @param sourceNode {@link DiscoveryNode} of the primary
+         * @return {@link RecoveryTarget} for this shard.
+         */
+        RecoveryTarget prepare(IndexShard replica, DiscoveryNode sourceNode) throws IOException;
     }
 
     protected Set<Uid> getShardDocUIDs(final IndexShard shard) throws IOException {

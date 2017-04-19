@@ -27,10 +27,6 @@
           "type": "boolean",
           "description" : "Include interim results"
         },
-        "partition_value": {
-          "type": "string",
-          "description": "If expand is true filter anomaly records by the partitionFieldValue"
-        },
         "from": {
           "type": "int",
           "description": "skips a number of buckets"

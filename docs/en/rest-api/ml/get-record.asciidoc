@@ -37,10 +37,6 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
 `include_interim`::
   (boolean) If true, the output includes interim results.
 
-`partition_value`::
-  (string) If `expand` is true, the records are filtered by this
-  partition value.
-
 `record_score`::
   (double) Returns records with anomaly scores higher than this value.
 

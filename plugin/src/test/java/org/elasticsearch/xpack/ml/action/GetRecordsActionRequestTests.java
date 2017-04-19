@@ -29,9 +29,6 @@ public class GetRecordsActionRequestTests extends AbstractStreamableXContentTest
             request.setEnd(end);
         }
         if (randomBoolean()) {
-            request.setPartitionValue(randomAlphaOfLengthBetween(1, 20));
-        }
-        if (randomBoolean()) {
             request.setSort(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {

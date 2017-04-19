@@ -45,10 +45,6 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
 `include_interim`::
   (boolean) If true, the output includes interim results.
 
-`partition_value`::
-  (string) If `expand` is true, the anomaly records are filtered by this
-  partition value.
-
 `size`::
   (integer) Specifies the maximum number of buckets to obtain.
 

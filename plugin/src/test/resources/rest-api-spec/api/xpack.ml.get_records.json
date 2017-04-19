@@ -36,10 +36,6 @@
         "record_score": {
           "type": "double"
         },
-        "partition_value": {
-          "type": "string",
-          "description": "Filter anomaly records by the partitionFieldValue"
-        },
         "sort": {
           "type": "string",
           "description": "Sort records by a particular field"

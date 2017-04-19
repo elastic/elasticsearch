@@ -69,7 +69,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         public static final ParseField RECORD_SCORE_FILTER = new ParseField("record_score");
         public static final ParseField SORT = new ParseField("sort");
         public static final ParseField DESCENDING = new ParseField("desc");
-        public static final ParseField PARTITION_VALUE = new ParseField("partition_value");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -77,7 +76,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareStringOrNull(Request::setStart, START);
             PARSER.declareStringOrNull(Request::setEnd, END);
-            PARSER.declareString(Request::setPartitionValue, PARTITION_VALUE);
             PARSER.declareString(Request::setSort, SORT);
             PARSER.declareBoolean(Request::setDecending, DESCENDING);
             PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
@@ -101,7 +99,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private double recordScoreFilter = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean decending = false;
-        private String partitionValue;
 
         Request() {
         }
@@ -169,14 +166,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             this.sort = ExceptionsHelper.requireNonNull(sort, SORT.getPreferredName());
         }
 
-        public String getPartitionValue() {
-            return partitionValue;
-        }
-
-        public void setPartitionValue(String partitionValue) {
-            this.partitionValue = ExceptionsHelper.requireNonNull(partitionValue, PARTITION_VALUE.getPreferredName());
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -193,7 +182,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             sort = in.readOptionalString();
             decending = in.readBoolean();
             recordScoreFilter = in.readDouble();
-            partitionValue = in.readOptionalString();
         }
 
         @Override
@@ -207,7 +195,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             out.writeOptionalString(sort);
             out.writeBoolean(decending);
             out.writeDouble(recordScoreFilter);
-            out.writeOptionalString(partitionValue);
         }
 
         @Override
@@ -221,17 +208,13 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             builder.field(RECORD_SCORE_FILTER.getPreferredName(), recordScoreFilter);
             builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
-            if (partitionValue != null) {
-                builder.field(PARTITION_VALUE.getPreferredName(), partitionValue);
-            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, start, end, sort, decending, recordScoreFilter, includeInterim,
-                    pageParams, partitionValue);
+            return Objects.hash(jobId, start, end, sort, decending, recordScoreFilter, includeInterim, pageParams);
         }
 
         @Override
@@ -250,8 +233,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     Objects.equals(decending, other.decending) &&
                     Objects.equals(recordScoreFilter, other.recordScoreFilter) &&
                     Objects.equals(includeInterim, other.includeInterim) &&
-                    Objects.equals(pageParams, other.pageParams) &&
-                    Objects.equals(partitionValue, other.partitionValue);
+                    Objects.equals(pageParams, other.pageParams);
         }
     }
 

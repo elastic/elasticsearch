@@ -20,9 +20,6 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
             request.setTimestamp(String.valueOf(randomLong()));
         } else {
             if (randomBoolean()) {
-                request.setPartitionValue(randomAlphaOfLengthBetween(1, 20));
-            }
-            if (randomBoolean()) {
                 request.setStart(String.valueOf(randomLong()));
             }
             if (randomBoolean()) {
@@ -33,9 +30,6 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
             }
             if (randomBoolean()) {
                 request.setAnomalyScore(randomDouble());
-            }
-            if (randomBoolean()) {
-                request.setPartitionValue(randomAlphaOfLengthBetween(1, 20));
             }
             if (randomBoolean()) {
                 int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);

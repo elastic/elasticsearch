@@ -50,10 +50,6 @@ public class RestGetRecordsAction extends BaseRestHandler {
             request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
                     AnomalyRecord.RECORD_SCORE.getPreferredName()));
             request.setDecending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), true));
-            String partitionValue = restRequest.param(GetRecordsAction.Request.PARTITION_VALUE.getPreferredName());
-            if (partitionValue != null) {
-                request.setPartitionValue(partitionValue);
-            }
         }
 
         return channel -> client.execute(GetRecordsAction.INSTANCE, request, new RestToXContentListener<>(channel));

@@ -394,7 +394,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
         BulkItemResultHolder failedResults = new BulkItemResultHolder(null, indexResult,
                 replicaRequest);
 
@@ -432,7 +432,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Exception err = new VersionConflictEngineException(shardId, "type", "id",
                 "I'm conflicted <(;_;)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
         BulkItemResultHolder failedResults = new BulkItemResultHolder(null, indexResult,
                 replicaRequest);
 

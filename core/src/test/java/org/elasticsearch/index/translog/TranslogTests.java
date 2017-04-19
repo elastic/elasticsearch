@@ -2301,7 +2301,7 @@ public class TranslogTests extends ESTestCase {
                     }
                     // the view generation could be -1 if no commit has been performed
                     final long max = Math.max(1, Math.min(lastCommittedGeneration, viewGeneration));
-                    for (long g = max; g < translog.currentFileGeneration(); g++) {
+                    for (long g = max; g <= translog.currentFileGeneration(); g++) {
                         assertFileIsPresent(translog, g);
                     }
                 }

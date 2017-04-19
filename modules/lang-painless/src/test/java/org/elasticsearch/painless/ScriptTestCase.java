@@ -128,9 +128,12 @@ public abstract class ScriptTestCase extends ESTestCase {
             if (e instanceof ScriptException) {
                 boolean hasEmptyScriptStack = ((ScriptException) e).getScriptStack().isEmpty();
                 if (shouldHaveScriptStack && hasEmptyScriptStack) {
-                    AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
-                    assertion.initCause(e);
-                    throw assertion;
+                    if (0 != e.getCause().getStackTrace().length) {
+                        // Without -XX:-OmitStackTraceInFastThrow the jvm can eat the stack trace which causes us to ignore script_stack
+                        AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
+                        assertion.initCause(e);
+                        throw assertion;
+                    }
                 } else if (false == shouldHaveScriptStack && false == hasEmptyScriptStack) {
                     AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
                     assertion.initCause(e);

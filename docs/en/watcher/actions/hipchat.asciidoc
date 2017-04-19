@@ -2,8 +2,8 @@
 === HipChat Action
 
 Use the `hipchat` action to send messages to https://www.hipchat.com[HipChat]
-rooms or users. To send HipChat messages, you must <<<<configuring-hipchat, 
-configure at least one HipChat account>> in `elasticsearch.yml`. 
+rooms or users. To send HipChat messages, you must
+<<configuring-hipchat, configure at least one HipChat account>> in `elasticsearch.yml`. 
 
 [[configuring-hipchat-actions]]
 ==== Configuring HipChat Actions
@@ -136,16 +136,16 @@ For example, the following action is configured to send messages to the
 [[configuring-hipchat]]
 ==== Configuring HipChat Accounts
 
-You configure the accounts {watcher} can use to communicate with HipChat in the 
-`xpack.notification.hipchat` namespace in `elasticsearch.yml`. Both 
+You configure the accounts {watcher} can use to communicate with HipChat in the
+`xpack.notification.hipchat` namespace in `elasticsearch.yml`. Both
 https://www.hipchat.com/docs/api[v1] and
-https://www.hipchat.com/docs/apiv2[v2] HipChat APIs are supported. 
+https://www.hipchat.com/docs/apiv2[v2] HipChat APIs are supported.
 
 {watcher} provides three HipChat API profiles:
 
 <<hipchat-api-integration,integration>>::
-Sends messages to a specific room using HipChat's v2 API 
-https://www.hipchat.com/docs/apiv2/method/send_room_notification[Send room 
+Sends messages to a specific room using HipChat's v2 API
+https://www.hipchat.com/docs/apiv2/method/send_room_notification[Send room
 notification].
 
 <<hipchat-api-user, user>>::
@@ -163,18 +163,18 @@ NOTE: The `v1` profile is provided because it is simple to set up and this API
 
 If you configure multiple HipChat accounts, you either need to set a default
 HipChat account or specify which account the notification should be sent with
-in the <<actions-hipchat, hipchat>> action. 
+in the <<actions-hipchat, hipchat>> action.
 
 [source,yaml]
 --------------------------------------------------
 xpack.notification.hipchat:
-  default_account: team1 
-  account:  
+  default_account: team1
+  account:
     team1:
       ...
     team2:
       ...
---------------------------------------------------     
+--------------------------------------------------
 
 
 [[hipchat-api-integration]]
@@ -195,8 +195,8 @@ NOTE: The `integration` profile only supports sending messages to rooms, it does
       not support sending private messages. Use the <<hipchat-api-user, `user`>>
       profile to notify a particular HipChat user.
 
-You need a room-specific authentication token to configure an `integration` 
-account. To generate an authentication token: 
+You need a room-specific authentication token to configure an `integration`
+account. To generate an authentication token:
 
 . Log in to http://hipchat.com[hipchat.com] or your HipChat server as a group
   administrator.
@@ -232,7 +232,7 @@ xpack.notification.hipchat:
       room: monitoring
 --------------------------------------------------
 
-You can also specify defaults for the <<hipchat-account-attributes, 
+You can also specify defaults for the <<hipchat-account-attributes,
 message attributes>>:
 
 [source,yaml]
@@ -247,7 +247,7 @@ xpack.notification.hipchat:
         format: text
         color: blue
         notify: true
--------------------------------------------------- 
+--------------------------------------------------
 
 
 [[hipchat-api-user]]
@@ -295,7 +295,7 @@ xpack.notification.hipchat:
       auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
-You can also specify defaults for the <<hipchat-account-attributes, 
+You can also specify defaults for the <<hipchat-account-attributes,
 message attributes>>:
 
 [source,yaml]
@@ -360,8 +360,8 @@ xpack.notification.hipchat:
       auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
-You can also specify defaults for the <<hipchat-account-attributes, 
-message attributes>>. 
+You can also specify defaults for the <<hipchat-account-attributes,
+message attributes>>.
 
 [source,yaml]
 --------------------------------------------------

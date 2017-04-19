@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import junit.framework.AssertionFailedError;
+
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.script.ScriptException;
 
@@ -45,14 +47,14 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
      * numbers are really 1 based character numbers.
      */
     public void testScriptStack() {
-        for (String type : new String[] {
-                "String",
-                "def   "}) {
+        for (String type : new String[] {"String", "def   "}) {
             // trigger NPE at line 1 of the script
             ScriptException exception = expectThrows(ScriptException.class, () -> {
                 exec(type + " x = null; boolean y = x.isEmpty();\n" +
                      "return y;");
             });
+            // null deref at x.isEmpty(), the '.' is offset 30
+            assertScriptElementColumn(30, exception);
             assertScriptStack(exception,
                     "y = x.isEmpty();\n",
                     "     ^---- HERE");
@@ -63,6 +65,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 exec(type + " x = null;\n" +
                      "return x.isEmpty();");
             });
+            // null deref at x.isEmpty(), the '.' is offset 25
+            assertScriptElementColumn(25, exception);
             assertScriptStack(exception,
                     "return x.isEmpty();",
                     "        ^---- HERE");
@@ -71,9 +75,11 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             // trigger NPE at line 3 of the script
             exception = expectThrows(ScriptException.class, () -> {
                 exec(type + " x = null;\n" +
-                     "String y = x;\n" +
+                     type + " y = x;\n" +
                      "return y.isEmpty();");
             });
+            // null deref at y.isEmpty(), the '.' is offset 39
+            assertScriptElementColumn(39, exception);
             assertScriptStack(exception,
                     "return y.isEmpty();",
                     "        ^---- HERE");
@@ -88,11 +94,29 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                      "}\n" +
                      "return y;");
             });
+            // null deref at x.isEmpty(), the '.' is offset 53
+            assertScriptElementColumn(53, exception);
             assertScriptStack(exception,
                     "y = x.isEmpty();\n}\n",
                     "     ^---- HERE");
             assertThat(exception.getCause(), instanceOf(NullPointerException.class));
         }
+    }
+
+    private void assertScriptElementColumn(int expectedColumn, ScriptException exception) {
+        StackTraceElement[] stackTrace = exception.getCause().getStackTrace();
+        for (int i = 0; i < stackTrace.length; i++) {
+            if (WriterConstants.CLASS_NAME.equals(stackTrace[i].getClassName())) {
+                if (expectedColumn + 1 != stackTrace[i].getLineNumber()) {
+                    AssertionFailedError assertion = new AssertionFailedError("Expected column to be [" + expectedColumn + "] but was ["
+                            + stackTrace[i].getLineNumber() + "]");
+                    assertion.initCause(exception);
+                    throw assertion;
+                }
+                return;
+            }
+        }
+        fail("didn't find script stack element");
     }
 
     public void testInvalidShift() {

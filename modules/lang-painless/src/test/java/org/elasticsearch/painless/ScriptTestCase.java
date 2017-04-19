@@ -127,18 +127,14 @@ public abstract class ScriptTestCase extends ESTestCase {
         } catch (Throwable e) {
             if (e instanceof ScriptException) {
                 boolean hasEmptyScriptStack = ((ScriptException) e).getScriptStack().isEmpty();
-                if (shouldHaveScriptStack) {
-                    if (hasEmptyScriptStack) {
-                        AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
-                        assertion.initCause(e);
-                        throw assertion;
-                    }
-                } else {
-                    if (false == hasEmptyScriptStack) {
-                        AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
-                        assertion.initCause(e);
-                        throw assertion;
-                    }
+                if (shouldHaveScriptStack && hasEmptyScriptStack) {
+                    AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
+                    assertion.initCause(e);
+                    throw assertion;
+                } else if (false == shouldHaveScriptStack && false == hasEmptyScriptStack) {
+                    AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
+                    assertion.initCause(e);
+                    throw assertion;
                 }
                 e = e.getCause();
                 if (expectedType.isInstance(e)) {

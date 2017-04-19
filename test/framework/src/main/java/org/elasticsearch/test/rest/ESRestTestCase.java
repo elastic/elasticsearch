@@ -125,6 +125,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         wipeCluster();
+        waitForClusterStateUpdatesToFinish();
         logIfThereAreRunningTasks();
     }
 
@@ -251,6 +252,22 @@ public abstract class ESRestTestCase extends ESTestCase {
          * could determine that some tasks are run by the user we'd fail the tests if those tasks were running and ignore any background
          * tasks.
          */
+    }
+
+    /**
+     * Waits for the cluster state updates to have been processed, so that no cluster
+     * state updates are still in-progress when the next test starts.
+     */
+    private void waitForClusterStateUpdatesToFinish() throws Exception {
+        assertBusy(() -> {
+            try {
+                Response response = adminClient().performRequest("GET", "_cluster/pending_tasks");
+                List<Object> tasks = (List<Object>) entityAsMap(response).get("tasks");
+                assertTrue(tasks.isEmpty());
+            } catch (IOException e) {
+                fail("cannot get cluster's pending tasks: " + e.getMessage());
+            }
+        });
     }
 
     /**

@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -320,9 +321,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     case INDEX:
                         assert result instanceof Engine.IndexResult : result.getClass();
                         IndexRequest updateIndexRequest = translate.action();
-                        final IndexResponse indexResponse =
-                                new IndexResponse(primary.shardId(), updateIndexRequest.type(), updateIndexRequest.id(), result.getSeqNo(), primary.getPrimaryTerm(),
-                            result.getVersion(), ((Engine.IndexResult) result).isCreated());
+                        final IndexResponse indexResponse = new IndexResponse(
+                                primary.shardId(),
+                                updateIndexRequest.type(),
+                                updateIndexRequest.id(),
+                                result.getSeqNo(),
+                                primary.getPrimaryTerm(),
+                                result.getVersion(),
+                                ((Engine.IndexResult) result).isCreated());
                         BytesReference indexSourceAsBytes = updateIndexRequest.source();
                         updateResponse = new UpdateResponse(
                                 indexResponse.getShardInfo(),
@@ -346,9 +352,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     case DELETE:
                         assert result instanceof Engine.DeleteResult : result.getClass();
                         DeleteRequest updateDeleteRequest = translate.action();
-                        DeleteResponse deleteResponse = new DeleteResponse(primary.shardId(),
-                            updateDeleteRequest.type(), updateDeleteRequest.id(), result.getSeqNo(), primary.getPrimaryTerm(),
-                            result.getVersion(), ((Engine.DeleteResult) result).isFound());
+                        DeleteResponse deleteResponse = new DeleteResponse(
+                                primary.shardId(),
+                                updateDeleteRequest.type(),
+                                updateDeleteRequest.id(),
+                                result.getSeqNo(),
+                                primary.getPrimaryTerm(),
+                                result.getVersion(),
+                                ((Engine.DeleteResult) result).isFound());
                         updateResponse = new UpdateResponse(
                                 deleteResponse.getShardInfo(),
                                 deleteResponse.getShardId(),
@@ -358,9 +369,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 deleteResponse.getPrimaryTerm(),
                                 deleteResponse.getVersion(),
                                 deleteResponse.getResult());
-                        updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest,
-                            request.index(), deleteResponse.getVersion(), translate.updatedSourceAsMap(),
-                            translate.updateSourceContentType(), null));
+                        final GetResult getResult = updateHelper.extractGetResult(
+                                updateRequest,
+                                request.index(),
+                                deleteResponse.getVersion(),
+                                translate.updatedSourceAsMap(),
+                                translate.updateSourceContentType(),
+                                null);
+                        updateResponse.setGetResult(getResult);
                         // set translated request as replica request
                         replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateDeleteRequest);
                         break;

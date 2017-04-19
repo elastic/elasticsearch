@@ -129,6 +129,10 @@
 ---
 "Multiple alias names":
 
+  - skip:
+      version: " - 5.99.99"
+      reason:  multiple aliases are supported only from 6.0.0 on
+
   - do:
         indices.create:
             index: test
@@ -166,7 +170,6 @@
 
   - match:
       $body: /(^|\n)[^bar\s+test3] /
-
 
 ---
 "Column headers":

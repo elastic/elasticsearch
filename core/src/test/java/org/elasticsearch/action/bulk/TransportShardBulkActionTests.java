@@ -470,7 +470,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult indexResult = new FakeResult(1, 1, 17, created, resultLocation);
+        Engine.IndexResult indexResult = new FakeResult(1, 1, created, resultLocation);
         DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         BulkItemResultHolder goodResults =
                 new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
@@ -652,7 +652,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeResult(long version, long seqNo, long primaryTerm, boolean created, Translog.Location location) {
+        protected FakeResult(long version, long seqNo, boolean created, Translog.Location location) {
             super(version, seqNo, created);
             this.location = location;
         }

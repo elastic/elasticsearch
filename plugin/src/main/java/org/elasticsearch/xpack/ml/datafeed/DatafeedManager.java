@@ -379,6 +379,20 @@ public class DatafeedManager extends AbstractComponent {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> PersistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
+                    /*
+                        Enforces that for the close job api call the current node is the coordinating node.
+                        If we are in this callback then the local node's cluster state doesn't contain a persistent task
+                        for the datafeed and therefor the datafeed is stopped, so there is no need for the master node to
+                        be to coordinating node.
+
+                        Normally close job and stop datafeed are both executed via master node and both apis use master
+                        node's local cluster state for validation purposes. In case of auto close this isn't the case and
+                        if the job runs on a regular node then it may see the update before the close job api does in
+                        the master node's local cluster state. This can cause the close job api the fail with a validation
+                        error that the datafeed isn't stopped. To avoid this we use the current node as coordinating node
+                        for the close job api call.
+                    */
+                    closeJobRequest.setLocal(true);
                     client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
 
                         @Override

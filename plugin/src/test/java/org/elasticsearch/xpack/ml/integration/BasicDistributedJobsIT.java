@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -139,6 +140,49 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                     client().execute(GetDatafeedsStatsAction.INSTANCE, new GetDatafeedsStatsAction.Request(config.getId())).actionGet();
             assertEquals(1, statsResponse.getResponse().results().size());
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
+        });
+    }
+
+    public void testJobAutoClose() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
+
+        client().admin().indices().prepareCreate("data")
+                .addMapping("type", "time", "type=date")
+                .get();
+
+        IndexRequest indexRequest = new IndexRequest("data", "type");
+        indexRequest.source("time", 1407081600L);
+        client().index(indexRequest).get();
+        indexRequest = new IndexRequest("data", "type");
+        indexRequest.source("time", 1407082600L);
+        client().index(indexRequest).get();
+        indexRequest = new IndexRequest("data", "type");
+        indexRequest.source("time", 1407083600L);
+        client().index(indexRequest).get();
+        refresh();
+
+        Job.Builder job = createScheduledJob("job_id");
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
+        assertTrue(putJobResponse.isAcknowledged());
+
+        DatafeedConfig config = createDatafeed("data_feed_id", job.getId(), Collections.singletonList("data"));
+        PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
+        PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest)
+                .actionGet();
+        assertTrue(putDatadeedResponse.isAcknowledged());
+
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
+
+        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
+        startDatafeedRequest.getParams().setEndTime(1492616844L);
+        client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
+        assertBusy(() -> {
+            GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId());
+            assertEquals(3L, jobStats.getDataCounts().getProcessedRecordCount());
+            assertEquals(JobState.CLOSED, jobStats.getState());
         });
     }
 

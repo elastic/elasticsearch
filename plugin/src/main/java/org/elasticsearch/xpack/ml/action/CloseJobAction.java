@@ -117,7 +117,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT;
 
-        String[] resolvedJobIds;
+        private String[] resolvedJobIds;
+
+        private boolean local;
 
         Request() {}
 
@@ -152,6 +154,10 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             this.force = force;
         }
 
+        public void setLocal(boolean local) {
+            this.local = local;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
@@ -159,6 +165,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             timeout = new TimeValue(in);
             force = in.readBoolean();
             resolvedJobIds = in.readStringArray();
+            local = in.readBoolean();
         }
 
         @Override
@@ -168,6 +175,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             timeout.writeTo(out);
             out.writeBoolean(force);
             out.writeStringArray(resolvedJobIds);
+            out.writeBoolean(local);
         }
 
         @Override
@@ -296,7 +304,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState state = clusterService.state();
             final DiscoveryNodes nodes = state.nodes();
-            if (nodes.isLocalNodeElectedMaster() == false) {
+            if (request.local == false && nodes.isLocalNodeElectedMaster() == false) {
                 // Delegates close job to elected master node, so it becomes the coordinating node.
                 // See comment in OpenJobAction.Transport class for more information.
                 if (nodes.getMasterNode() == null) {

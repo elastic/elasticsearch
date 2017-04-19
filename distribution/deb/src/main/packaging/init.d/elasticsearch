@@ -70,6 +70,10 @@ if [ -f "$DEFAULT" ]; then
 	. "$DEFAULT"
 fi
 
+if [ "$ES_USER" != "elasticsearch" ] || [ "$ES_GROUP" != "elasticsearch" ]; then
+    echo "WARNING: ES_USER and ES_GROUP are deprecated and will be removed in the next major version of Elasticsearch, got: [$ES_USER:$ES_GROUP]"
+fi
+
 # CONF_FILE setting was removed
 if [ ! -z "$CONF_FILE" ]; then
     echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."

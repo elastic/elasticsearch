@@ -51,7 +51,7 @@ public class ParsedMax extends ParsedSingleValueNumericMetricsAggregation implem
     private static final ObjectParser<ParsedMax, Void> PARSER = new ObjectParser<>(ParsedMax.class.getSimpleName(), true, ParsedMax::new);
 
     static {
-        declareSingeValueFields(PARSER, Double.NEGATIVE_INFINITY);
+        declareSingleValueFields(PARSER, Double.NEGATIVE_INFINITY);
     }
 
     public static ParsedMax fromXContent(XContentParser parser, final String name) {

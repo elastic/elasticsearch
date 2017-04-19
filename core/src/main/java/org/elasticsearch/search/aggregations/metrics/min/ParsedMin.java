@@ -51,7 +51,7 @@ public class ParsedMin extends ParsedSingleValueNumericMetricsAggregation implem
     private static final ObjectParser<ParsedMin, Void> PARSER = new ObjectParser<>(ParsedMin.class.getSimpleName(), true, ParsedMin::new);
 
     static {
-        declareSingeValueFields(PARSER, Double.POSITIVE_INFINITY);
+        declareSingleValueFields(PARSER, Double.POSITIVE_INFINITY);
     }
 
     public static ParsedMin fromXContent(XContentParser parser, final String name) {

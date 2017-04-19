@@ -543,8 +543,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         try {
             operation = prepareIndexOperationOnReplica(primaryResponse, request, replica);
         } catch (MapperParsingException e) {
-            return new Engine.IndexResult(e, primaryResponse.getVersion()
-            );
+            return new Engine.IndexResult(e, primaryResponse.getVersion(), primaryResponse.getSeqNo());
         }
 
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();

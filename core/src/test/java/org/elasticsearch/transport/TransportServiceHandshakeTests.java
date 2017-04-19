@@ -166,7 +166,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
         DiscoveryNode discoveryNode = new DiscoveryNode(
-            randomAsciiOfLength(10),
+            randomAlphaOfLength(10),
             handleB.discoveryNode.getAddress(),
             emptyMap(),
             emptySet(),

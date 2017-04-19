@@ -39,6 +39,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -73,8 +74,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -393,9 +396,20 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
+    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> sendListener.run());
+        future.addListener(f -> {
+            if (f.isSuccess()) {
+                listener.onResponse(channel);
+            } else {
+                Throwable cause = f.cause();
+                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
+                // going to cause that to bubble up and kill the process.
+                if (cause instanceof Exception) {
+                    listener.onFailure((Exception) cause);
+                }
+            }
+        });
     }
 
     @Override

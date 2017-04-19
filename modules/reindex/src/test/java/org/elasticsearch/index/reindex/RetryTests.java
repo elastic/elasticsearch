@@ -30,6 +30,7 @@ import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.bulk.byscroll.BulkIndexByScrollResponseMatcher;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -76,8 +77,9 @@ public class RetryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < DOC_COUNT; i++) {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
-        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
-        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
+
+        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), client().threadPool());
+        BulkResponse response = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
         assertFalse(response.buildFailureMessage(), response.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
     }

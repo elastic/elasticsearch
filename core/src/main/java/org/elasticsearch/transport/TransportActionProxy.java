@@ -134,11 +134,12 @@ public final class TransportActionProxy {
             true, false, new ProxyRequestHandler<>(service, action, responseSupplier));
     }
 
+    private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";
     /**
      * Returns the corresponding proxy action for the given action
      */
     public static String getProxyAction(String action) {
-        return "internal:transport/proxy/" + action;
+        return  PROXY_ACTION_PREFIX + action;
     }
 
     /**
@@ -146,5 +147,15 @@ public final class TransportActionProxy {
      */
     public static TransportRequest wrapRequest(DiscoveryNode node, TransportRequest request) {
         return new ProxyRequest<>(request, node);
+    }
+
+    /**
+     * Unwraps a proxy request and returns the original request
+     */
+    public static TransportRequest unwrapRequest(TransportRequest request) {
+        if (request instanceof ProxyRequest) {
+            return ((ProxyRequest)request).wrapped;
+        }
+        return request;
     }
 }

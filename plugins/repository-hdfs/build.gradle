@@ -88,7 +88,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 }
 
 if (fixtureSupported) {
-  integTest.dependsOn hdfsFixture
+  integTestCluster.dependsOn hdfsFixture
 } else {
   logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
   // just tests that the plugin loads

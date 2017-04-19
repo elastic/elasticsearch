@@ -47,7 +47,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -56,7 +55,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -87,9 +86,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
+                fields.put(randomAlphaOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
@@ -197,7 +196,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
                 "      \"query\" : \"" + query + "\"" +
@@ -244,9 +243,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 Map.Entry<String, Float> field = fieldsIterator.next();
                 assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-            if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
+            /**
+             * TODO:
+             * Test disabled because we cannot check min should match consistently:
+             * https://github.com/elastic/elasticsearch/issues/23966
+             *
+                if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
                 assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-            }
+                }
+             *
+             **/
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
             assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
@@ -331,6 +337,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
+    @AwaitsFix(bugUrl = "Waiting on fix for minimumShouldMatch https://github.com/elastic/elasticsearch/issues/23966")
     public void testMinimumShouldMatch() throws IOException {
         QueryShardContext shardContext = createShardContext();
         int numberOfTerms = randomIntBetween(1, 4);
@@ -357,7 +364,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
-            if (numberOfTerms == 1 || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
+            if (numberOfTerms == 1
+                    || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
                 expectedMinimumShouldMatch = 0;
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());

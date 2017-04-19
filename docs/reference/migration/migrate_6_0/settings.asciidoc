@@ -1,6 +1,32 @@
 [[breaking_60_settings_changes]]
 === Settings changes
 
+==== Duplicate keys in configuration file
+
+In previous versions of Elasticsearch, the configuration file was allowed to
+contain duplicate keys. For example:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: my-node
+
+node
+  attr:
+    rack: my-rack
+--------------------------------------------------
+
+In Elasticsearch 6.0.0, this is no longer permitted. Instead, this must be
+specified in a single key as:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: my-node
+  attr:
+    rack: my-rack
+--------------------------------------------------
+
 ==== Coercion of boolean settings
 
 Previously, Elasticsearch recognized the strings `true`, `false`, `on`, `off`, `yes`, `no`, `0`, `1` as booleans. Elasticsearch 6.0
@@ -34,3 +60,9 @@ The blocking TCP client, blocking TCP server, and blocking HTTP server have been
 As a consequence, the `network.tcp.blocking_server`, `network.tcp.blocking_client`,
 `network.tcp.blocking`,`transport.tcp.blocking_client`, `transport.tcp.blocking_server`,
 and `http.tcp.blocking_server` settings are not recognized anymore.
+
+==== Similarity settings
+
+The `base` similarity is now ignored as coords and query normalization have
+been removed. If provided, this setting will be ignored and issue a
+deprecation warning.

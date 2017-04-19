@@ -32,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -205,7 +206,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("idx", "type", "" + i).setSource(
-                    jsonBuilder().startObject().field("value", randomAsciiOfLengthBetween(5, 15))
+                    jsonBuilder().startObject().field("value", randomAlphaOfLengthBetween(5, 15))
                             .field("l_value", i).endObject()));
         }
         indexRandom(true, builders);
@@ -600,10 +601,9 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Number.class));
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
-        assertThat((ScriptedMetric) global.getProperty("scripted"), sameInstance(scriptedMetricAggregation));
-        assertThat((List) global.getProperty("scripted.value"), sameInstance((List) aggregationList));
-        assertThat((List) scriptedMetricAggregation.getProperty("value"), sameInstance((List) aggregationList));
-
+        assertThat(((InternalAggregation)global).getProperty("scripted"), sameInstance(scriptedMetricAggregation));
+        assertThat((List) ((InternalAggregation)global).getProperty("scripted.value"), sameInstance((List) aggregationList));
+        assertThat((List) ((InternalAggregation)scriptedMetricAggregation).getProperty("value"), sameInstance((List) aggregationList));
     }
 
     public void testMapCombineReduceWithParams() {

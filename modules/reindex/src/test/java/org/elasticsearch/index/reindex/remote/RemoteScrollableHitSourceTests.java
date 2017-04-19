@@ -144,7 +144,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/2_3_3.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.V_2_3_3, v);
+            assertEquals(Version.fromId(2030399), v);
             called.set(true);
         });
         assertTrue(called.get());
@@ -370,7 +370,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testThreadContextRestored() throws Exception {
-        String header = randomAsciiOfLength(5);
+        String header = randomAlphaOfLength(5);
         threadPool.getThreadContext().putHeader("test", header);
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {

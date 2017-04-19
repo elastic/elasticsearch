@@ -302,6 +302,60 @@ documents into buckets starting at 6am:
 NOTE: The start `offset` of each bucket is calculated after the `time_zone`
 adjustments have been made.
 
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sales_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "1M",
+                "format" : "yyyy-MM-dd",
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "sales_over_time": {
+            "buckets": {
+                "2015-01-01": {
+                    "key_as_string": "2015-01-01",
+                    "key": 1420070400000,
+                    "doc_count": 3
+                },
+                "2015-02-01": {
+                    "key_as_string": "2015-02-01",
+                    "key": 1422748800000,
+                    "doc_count": 2
+                },
+                "2015-03-01": {
+                    "key_as_string": "2015-03-01",
+                    "key": 1425168000000,
+                    "doc_count": 2
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 ==== Scripts
 
 Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and

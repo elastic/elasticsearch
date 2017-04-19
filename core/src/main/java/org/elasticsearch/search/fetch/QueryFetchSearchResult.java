@@ -21,22 +21,21 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.io.IOException;
 
 import static org.elasticsearch.search.fetch.FetchSearchResult.readFetchSearchResult;
 import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
 
-public class QueryFetchSearchResult extends QuerySearchResultProvider {
+public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     private QuerySearchResult queryResult;
     private FetchSearchResult fetchResult;
 
     public QueryFetchSearchResult() {
-
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -45,19 +44,27 @@ public class QueryFetchSearchResult extends QuerySearchResultProvider {
     }
 
     @Override
-    public long id() {
-        return queryResult.id();
+    public long getRequestId() {
+        return queryResult.getRequestId();
     }
 
     @Override
-    public SearchShardTarget shardTarget() {
-        return queryResult.shardTarget();
+    public SearchShardTarget getSearchShardTarget() {
+        return queryResult.getSearchShardTarget();
     }
 
     @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        queryResult.shardTarget(shardTarget);
-        fetchResult.shardTarget(shardTarget);
+    public void setSearchShardTarget(SearchShardTarget shardTarget) {
+        super.setSearchShardTarget(shardTarget);
+        queryResult.setSearchShardTarget(shardTarget);
+        fetchResult.setSearchShardTarget(shardTarget);
+    }
+
+    @Override
+    public void setShardIndex(int requestIndex) {
+        super.setShardIndex(requestIndex);
+        queryResult.setShardIndex(requestIndex);
+        fetchResult.setShardIndex(requestIndex);
     }
 
     @Override

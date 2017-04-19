@@ -77,24 +77,25 @@ public class LongTermsAggregator extends TermsAggregator {
             @Override
             public void collect(int doc, long owningBucketOrdinal) throws IOException {
                 assert owningBucketOrdinal == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                long previous = Long.MAX_VALUE;
-                for (int i = 0; i < valuesCount; ++i) {
-                    final long val = values.valueAt(i);
-                    if (previous != val || i == 0) {
-                        if ((longFilter == null) || (longFilter.accept(val))) {
-                            long bucketOrdinal = bucketOrds.add(val);
-                            if (bucketOrdinal < 0) { // already seen
-                                bucketOrdinal = - 1 - bucketOrdinal;
-                                collectExistingBucket(sub, doc, bucketOrdinal);
-                            } else {
-                                collectBucket(sub, doc, bucketOrdinal);
+                    long previous = Long.MAX_VALUE;
+                    for (int i = 0; i < valuesCount; ++i) {
+                        final long val = values.nextValue();
+                        if (previous != val || i == 0) {
+                            if ((longFilter == null) || (longFilter.accept(val))) {
+                                long bucketOrdinal = bucketOrds.add(val);
+                                if (bucketOrdinal < 0) { // already seen
+                                    bucketOrdinal = -1 - bucketOrdinal;
+                                    collectExistingBucket(sub, doc, bucketOrdinal);
+                                } else {
+                                    collectBucket(sub, doc, bucketOrdinal);
+                                }
                             }
-                        }
 
-                        previous = val;
+                            previous = val;
+                        }
                     }
                 }
             }
@@ -110,12 +111,13 @@ public class LongTermsAggregator extends TermsAggregator {
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedNumericDocValues values = getValues(valuesSource, ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    values.setDocument(docId);
-                    final int valueCount = values.count();
-                    for (int i = 0; i < valueCount; ++i) {
-                        long value = values.valueAt(i);
-                        if (longFilter == null || longFilter.accept(value)) {
-                            bucketOrds.add(value);
+                    if (values.advanceExact(docId)) {
+                        final int valueCount = values.docValueCount();
+                        for (int i = 0; i < valueCount; ++i) {
+                            long value = values.nextValue();
+                            if (longFilter == null || longFilter.accept(value)) {
+                                bucketOrds.add(value);
+                            }
                         }
                     }
                 }

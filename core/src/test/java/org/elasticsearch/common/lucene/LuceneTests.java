@@ -28,7 +28,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
@@ -375,7 +374,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             IndexSearcher searcher = newSearcher(reader);
-            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false);
+            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false, 1f);
             assertEquals(1, reader.leaves().size());
             LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
             Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorer(leafReaderContext));

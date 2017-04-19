@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
@@ -45,11 +44,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -269,6 +266,26 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
+        /*
+         * If path.data and default.path.data are set, we need read access to the paths in default.path.data to check for the existence of
+         * index directories there that could have arisen from a bug in the handling of simultaneous configuration of path.data and
+         * default.path.data that was introduced in Elasticsearch 5.3.0.
+         *
+         * If path.data is not set then default.path.data would take precedence in setting the data paths for the environment and
+         * permissions would have been granted above.
+         *
+         * If path.data is not set and default.path.data is not set, then we would fallback to the default data directory under
+         * Elasticsearch home and again permissions would have been granted above.
+         *
+         * If path.data is set and default.path.data is not set, there is nothing to do here.
+         */
+        if (Environment.PATH_DATA_SETTING.exists(environment.settings())
+                && Environment.DEFAULT_PATH_DATA_SETTING.exists(environment.settings())) {
+            for (final String path : Environment.DEFAULT_PATH_DATA_SETTING.get(environment.settings())) {
+                // write permissions are not needed here, we are not going to be writing to any paths here
+                addPath(policy, Environment.DEFAULT_PATH_DATA_SETTING.getKey(), getPath(path), "read,readlink");
+            }
+        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
@@ -276,6 +293,11 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
+    }
+
+    @SuppressForbidden(reason = "read path that is not configured in environment")
+    private static Path getPath(final String path) {
+        return PathUtils.get(path);
     }
 
     /**

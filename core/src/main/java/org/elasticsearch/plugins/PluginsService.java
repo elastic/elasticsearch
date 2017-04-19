@@ -270,9 +270,6 @@ public class PluginsService extends AbstractComponent {
         Set<Bundle> bundles = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
             for (Path module : stream) {
-                if (FileSystemUtils.isHidden(module)) {
-                    continue; // skip over .DS_Store etc
-                }
                 PluginInfo info = PluginInfo.readFromProperties(module);
                 Set<URL> urls = new LinkedHashSet<>();
                 // gather urls for jar files
@@ -305,10 +302,6 @@ public class PluginsService extends AbstractComponent {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
-                if (FileSystemUtils.isHidden(plugin)) {
-                    logger.trace("--- skip hidden plugin file[{}]", plugin.toAbsolutePath());
-                    continue;
-                }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
                 final PluginInfo info;
                 try {

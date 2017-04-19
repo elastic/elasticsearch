@@ -36,7 +36,7 @@ public class GsubProcessorTests extends ESTestCase {
     public void testGsub() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), fieldName, Pattern.compile("\\."), "-");
+        Processor processor = new GsubProcessor(randomAlphaOfLength(10), fieldName, Pattern.compile("\\."), "-");
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo("127-0-0-1"));
     }
@@ -45,7 +45,7 @@ public class GsubProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, 123);
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), fieldName, Pattern.compile("\\."), "-");
+        Processor processor = new GsubProcessor(randomAlphaOfLength(10), fieldName, Pattern.compile("\\."), "-");
         try {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");
@@ -58,7 +58,7 @@ public class GsubProcessorTests extends ESTestCase {
     public void testGsubFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), fieldName, Pattern.compile("\\."), "-");
+        Processor processor = new GsubProcessor(randomAlphaOfLength(10), fieldName, Pattern.compile("\\."), "-");
         try {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");
@@ -69,7 +69,7 @@ public class GsubProcessorTests extends ESTestCase {
 
     public void testGsubNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), "field", Pattern.compile("\\."), "-");
+        Processor processor = new GsubProcessor(randomAlphaOfLength(10), "field", Pattern.compile("\\."), "-");
         try {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");

@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -76,7 +75,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         nqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             nqb.innerHit(new InnerHitBuilder()
-                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
                     .addSort(new FieldSortBuilder(INT_FIELD_NAME).order(SortOrder.ASC)), nqb.ignoreUnmapped());
         }
@@ -153,7 +152,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "            }\n" +
                 "          }\n" +
                 "        } ],\n" +
-                "        \"disable_coord\" : false,\n" +
                 "        \"adjust_pure_negative\" : true,\n" +
                 "        \"boost\" : 1.0\n" +
                 "      }\n" +

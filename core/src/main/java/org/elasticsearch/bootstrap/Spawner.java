@@ -21,8 +21,8 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.Closeable;
 import java.io.IOException;

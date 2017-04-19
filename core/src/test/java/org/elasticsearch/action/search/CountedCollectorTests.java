@@ -46,7 +46,7 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(results::set, numResultsExpected,
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(r -> results.set(r.getShardIndex(), r), numResultsExpected,
             latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;
@@ -57,8 +57,12 @@ public class CountedCollectorTests extends ESTestCase {
                     break;
                 case 1:
                     state.add(1);
-                    executor.execute(() -> collector.onResult(shardID, new DfsSearchResult(shardID, null), new SearchShardTarget("foo",
-                        new Index("bar", "baz"), shardID)));
+                    executor.execute(() -> {
+                        DfsSearchResult dfsSearchResult = new DfsSearchResult(shardID, null);
+                        dfsSearchResult.setShardIndex(shardID);
+                        dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
+                            new Index("bar", "baz"), shardID));
+                        collector.onResult(dfsSearchResult);});
                     break;
                 case 2:
                     state.add(2);
@@ -79,7 +83,7 @@ public class CountedCollectorTests extends ESTestCase {
                     break;
                 case 1:
                     assertNotNull(results.get(i));
-                    assertEquals(i, results.get(i).id());
+                    assertEquals(i, results.get(i).getRequestId());
                     break;
                 case 2:
                     final int shardId = i;

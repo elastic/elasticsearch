@@ -132,49 +132,47 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
-            bytesValues.setDocument(0);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+            assertTrue(bytesValues.advanceExact(0));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
 
-            bytesValues.setDocument(1);
-            assertThat(bytesValues.count(), equalTo(2));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
-            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("2"));
+            assertTrue(bytesValues.advanceExact(1));
+            assertThat(bytesValues.docValueCount(), equalTo(2));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
 
-            bytesValues.setDocument(2);
-            assertThat(bytesValues.count(), equalTo(2));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
-            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("3"));
+            assertTrue(bytesValues.advanceExact(2));
+            assertThat(bytesValues.docValueCount(), equalTo(2));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("3"));
 
-            bytesValues.setDocument(3);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+            assertTrue(bytesValues.advanceExact(3));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
 
-            bytesValues.setDocument(4);
-            assertThat(bytesValues.count(), equalTo(2));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
-            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("4"));
+            assertTrue(bytesValues.advanceExact(4));
+            assertThat(bytesValues.docValueCount(), equalTo(2));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("4"));
 
-            bytesValues.setDocument(5);
-            assertThat(bytesValues.count(), equalTo(2));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
-            assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("5"));
+            assertTrue(bytesValues.advanceExact(5));
+            assertThat(bytesValues.docValueCount(), equalTo(2));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("5"));
 
-            bytesValues.setDocument(6);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+            assertTrue(bytesValues.advanceExact(6));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
 
-            bytesValues.setDocument(7);
-            assertThat(bytesValues.count(), equalTo(0));
+            assertFalse(bytesValues.advanceExact(7));
         }
     }
 
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(parentType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
-
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, false)));
+        SortField sortField = indexFieldData.sortField("_last", MultiValueMode.MIN, null, false);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -194,7 +192,8 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(null));
 
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, true)));
+        sortField = indexFieldData.sortField("_last", MultiValueMode.MIN, null, true);
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));
@@ -236,7 +235,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
                     ids[j] = BytesRef.deepCopyOf(id);
                 }
             }
-            expected.put(context.reader().getCoreCacheKey(), ids);
+            expected.put(context.reader().getCoreCacheHelper().getKey(), ids);
         }
 
         for (int i = 0; i < numThreads; ++i) {
@@ -249,7 +248,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
                             for (LeafReaderContext context : reader.leaves()) {
                                 AtomicParentChildFieldData leafData = global.load(context);
                                 SortedDocValues parentIds = leafData.getOrdinalsValues(parentType);
-                                final BytesRef[] expectedIds = expected.get(context.reader().getCoreCacheKey());
+                                final BytesRef[] expectedIds = expected.get(context.reader().getCoreCacheHelper().getKey());
                                 for (int j = 0; j < parentIds.getValueCount(); ++j) {
                                     final BytesRef id = parentIds.lookupOrd(j);
                                     assertEquals(expectedIds[j], id);

@@ -26,7 +26,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -85,13 +84,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.operator(randomFrom(Operator.values()));
         }
-        if (randomBoolean()) {
-            if (fieldName.equals(DATE_FIELD_NAME)) {
-                // tokenized dates would trigger parse errors
-                query.analyzer("keyword");
-            } else {
-                query.analyzer(randomAnalyzer());
-            }
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+            query.analyzer(randomAnalyzer());
         }
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
@@ -151,7 +145,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(LegacyNumericRangeQuery.class))
                 .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
     }
 
@@ -276,7 +269,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
-    public void testQueryParameterArrayException() throws IOException {
+    public void testQueryParameterArrayException() {
         String json =
                 "{\n" +
                 "  \"multi_match\" : {\n" +
@@ -287,6 +280,16 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[multi_match] unknown token [START_ARRAY] after [query]", e.getMessage());
+    }
+
+    public void testExceptionUsingAnalyzerOnNumericField() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder(6.075210893508043E-4);
+        multiMatchQueryBuilder.field(DOUBLE_FIELD_NAME);
+        multiMatchQueryBuilder.analyzer("simple");
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> multiMatchQueryBuilder.toQuery(shardContext));
+        assertEquals("For input string: \"e\"", e.getMessage());
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {

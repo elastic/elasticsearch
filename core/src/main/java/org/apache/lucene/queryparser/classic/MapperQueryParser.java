@@ -20,13 +20,12 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryparser.analyzing.AnalyzingQueryParser;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -43,12 +42,14 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +57,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -68,7 +68,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  */
-public class MapperQueryParser extends AnalyzingQueryParser {
+public class MapperQueryParser extends QueryParser {
 
     public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
@@ -101,14 +101,13 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         setAnalyzer(settings.analyzer());
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
+        setSplitOnWhitespace(settings.splitOnWhitespace());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
-        setLowercaseExpandedTerms(false);
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
-        setSplitOnWhitespace(settings.splitOnWhitespace());
     }
 
     /**
@@ -173,7 +172,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getFieldQuerySingle(field, queryText, quoted);
@@ -275,7 +274,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return super.getFieldQuery(field, queryText, slop);
@@ -326,7 +325,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                 }
             }
             if (clauses.isEmpty()) return null; // happens for stopwords
-            return getBooleanQueryCoordDisabled(clauses);
+            return getBooleanQuery(clauses);
         }
     }
 
@@ -384,7 +383,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getFuzzyQuerySingle(field, termStr, minSimilarity);
@@ -448,7 +447,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getPrefixQuerySingle(field, termStr);
@@ -557,7 +556,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token),
                         BooleanClause.Occur.SHOULD));
                 }
-                posQuery = getBooleanQueryCoordDisabled(innerClauses);
+                posQuery = getBooleanQuery(innerClauses);
             }
             clauses.add(new BooleanClause(posQuery,
                 getDefaultOperator() == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD));
@@ -568,7 +567,11 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (termStr.equals("*") && field != null) {
-            if ("*".equals(field)) {
+            /**
+             * We rewrite _all:* to a match all query.
+             * TODO: We can remove this special case when _all is completely removed.
+             */
+            if ("*".equals(field) || AllFieldMapper.NAME.equals(field)) {
                 return newMatchAllDocsQuery();
             }
             String actualField = field;
@@ -606,7 +609,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getWildcardQuerySingle(field, termStr);
@@ -670,7 +673,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getRegexpQuerySingle(field, termStr);
@@ -705,19 +708,6 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         } finally {
             setAnalyzer(oldAnalyzer);
         }
-    }
-
-    /**
-     * @deprecated review all use of this, don't rely on coord
-     */
-    @Deprecated
-    protected Query getBooleanQueryCoordDisabled(List<BooleanClause> clauses) throws ParseException {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.setDisableCoord(true);
-        for (BooleanClause clause : clauses) {
-            builder.add(clause);
-        }
-        return fixNegativeQueryIfNeeded(builder.build());
     }
 
 
@@ -804,5 +794,31 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             return new MatchNoDocsQuery();
         }
         return super.parse(query);
+    }
+
+    /**
+     * Checks if graph analysis should be enabled for the field depending
+     * on the provided {@link Analyzer}
+     */
+    protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
+                                     String queryText, boolean quoted, int phraseSlop) {
+        assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+        // Use the analyzer to get all the tokens, and then build an appropriate
+        // query based on the analysis chain.
+        try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+            if (source.hasAttribute(DisableGraphAttribute.class)) {
+                /**
+                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                 * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                 */
+                setEnableGraphQueries(false);
+            }
+            Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+            setEnableGraphQueries(true);
+            return query;
+        } catch (IOException e) {
+            throw new RuntimeException("Error analyzing query text", e);
+        }
     }
 }

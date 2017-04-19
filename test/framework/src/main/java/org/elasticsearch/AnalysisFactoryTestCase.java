@@ -285,6 +285,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("fingerprint",               Void.class)
         // for tee-sinks
         .put("daterecognizer",            Void.class)
+        // for token filters that generate bad offsets, which are now rejected since Lucene 7
+        .put("fixbrokenoffsets",          Void.class)
 
         .immutableMap();
 

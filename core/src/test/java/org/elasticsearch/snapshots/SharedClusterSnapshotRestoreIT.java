@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -657,7 +658,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_control_io_exception_rate", 0.2))
                 .setVerify(false));
 
@@ -707,7 +708,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
 
         createIndex("test-idx");
@@ -792,7 +793,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
 
         // Test restore after index deletion
@@ -833,7 +834,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setType("mock").setSettings(
                 Settings.builder()
                     .put("location", repositoryLocation)
-                    .put("random", randomAsciiOfLength(10))
+                    .put("random", randomAlphaOfLength(10))
                     .put("use_lucene_corruption", true)
                     .put("max_failure_number", 10000000L)
                     .put("random_data_file_io_exception_rate", 1.0)));
@@ -879,7 +880,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("random_data_file_io_exception_rate", 1.0) // Fail completely
                 ));
 
@@ -1312,7 +1313,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)));
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
@@ -1373,7 +1374,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -1569,7 +1570,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repositoryLocation)
-                                .put("random", randomAsciiOfLength(10))
+                                .put("random", randomAlphaOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -2533,7 +2534,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> take {} snapshot(s)", numSnapshots - 1);
         final String[] snapshotNames = new String[numSnapshots];
         for (int i = 0; i < numSnapshots - 1; i++) {
-            final String snapshotName = randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+            final String snapshotName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
             CreateSnapshotResponse createSnapshotResponse = client.admin()
                                                                   .cluster()
                                                                   .prepareCreateSnapshot(repositoryName, snapshotName)
@@ -2550,7 +2551,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
         refresh();
 
-        final String inProgressSnapshot = randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        final String inProgressSnapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         snapshotNames[numSnapshots - 1] = inProgressSnapshot;
         // block a node so the create snapshot operation can remain in progress
         final String blockedNode = blockNodeWithIndex(repositoryName, indexName);
@@ -2644,7 +2645,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         PutRepositoryResponse putRepositoryResponse =
             client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
-                .put("random", randomAsciiOfLength(10))
+                .put("random", randomAlphaOfLength(10))
                 .put("wait_after_unblock", 200)
             ).get();
         assertTrue(putRepositoryResponse.isAcknowledged());
@@ -2688,7 +2689,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
                     // test that we can take a snapshot after a failed one, even if a partial index-N was written
                     .put("atomic_move", false)
-                    .put("random", randomAsciiOfLength(10))));
+                    .put("random", randomAlphaOfLength(10))));
 
         logger.info("--> indexing some data");
         assertAcked(prepareCreate("test-idx").setSettings(
@@ -2737,4 +2738,74 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals(SnapshotState.SUCCESS, getSnapshotsResponse.getSnapshots().get(0).state());
     }
 
+    public void testSnapshotStatusOnFailedIndex() throws Exception {
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        final Client client = client();
+        assertAcked(client.admin().cluster()
+            .preparePutRepository("test-repo")
+            .setType("fs")
+            .setVerify(false)
+            .setSettings(Settings.builder().put("location", repoPath)));
+
+        logger.info("--> creating good index");
+        assertAcked(prepareCreate("test-idx-good")
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        ensureGreen();
+        final int numDocs = randomIntBetween(1, 5);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-idx-good", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> creating bad index");
+        assertAcked(prepareCreate("test-idx-bad")
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                // set shard allocation to none so the primary cannot be
+                // allocated - simulates a "bad" index that fails to snapshot
+                .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                     "none")));
+
+        logger.info("--> snapshot bad index and get status");
+        client.admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap1")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-bad")
+            .get();
+        SnapshotsStatusResponse snapshotsStatusResponse = client.admin().cluster()
+            .prepareSnapshotStatus("test-repo")
+            .setSnapshots("test-snap1")
+            .get();
+        assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+        assertEquals(State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+
+        logger.info("--> snapshot both good and bad index and get status");
+        client.admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap2")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-good", "test-idx-bad")
+            .get();
+        snapshotsStatusResponse = client.admin().cluster()
+            .prepareSnapshotStatus("test-repo")
+            .setSnapshots("test-snap2")
+            .get();
+        assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+        // verify a FAILED status is returned instead of a 500 status code
+        // see https://github.com/elastic/elasticsearch/issues/23716
+        SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(State.FAILED, snapshotStatus.getState());
+        for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getShards()) {
+            assertEquals(SnapshotIndexShardStage.FAILURE, shardStatus.getStage());
+            if (shardStatus.getIndex().equals("test-idx-good")) {
+                assertEquals("skipped", shardStatus.getFailure());
+            } else {
+                assertEquals("primary shard is not allocated", shardStatus.getFailure());
+            }
+        }
+    }
 }

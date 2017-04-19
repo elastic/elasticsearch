@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but do not exercise important portion of the stack like transport and task management.
  */
+@TestLogging("org.elasticsearch.action.bulk.byscroll:DEBUG,org.elasticsearch.index.reindex:DEBUG")
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
@@ -161,7 +163,14 @@ public class CancelTests extends ReindexTestCase {
         });
 
         // And check the status of the response
-        BulkByScrollResponse response = future.get();
+        BulkByScrollResponse response;
+        try {
+            response = future.get(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            String tasks = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
+                        .setDetailed(true).get().toString();
+            throw new RuntimeException("Exception while waiting for the response. Running tasks: " + tasks, e);
+        }
         assertThat(response.getReasonCancelled(), equalTo("by user request"));
         assertThat(response.getBulkFailures(), emptyIterable());
         assertThat(response.getSearchFailures(), emptyIterable());

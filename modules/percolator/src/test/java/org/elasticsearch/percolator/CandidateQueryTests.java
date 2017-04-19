@@ -79,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -245,7 +246,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         addQuery(commonTermsQuery, documents);
 
         BlendedTermQuery blendedTermQuery = BlendedTermQuery.booleanBlendedQuery(new Term[]{new Term("field", "quick"),
-                new Term("field", "brown"), new Term("field", "fox")}, false);
+                new Term("field", "brown"), new Term("field", "fox")});
         addQuery(blendedTermQuery, documents);
 
         SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("field", true)
@@ -360,10 +361,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) {
-            return new ConstantScoreWeight(this) {
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) {
+            return new Weight(this) {
 
                 float _score;
+
+                @Override
+                public void extractTerms(Set<Term> terms) {}
 
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
@@ -406,7 +410,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             }
                         }
                     };
-                    return new FilterScorer(new ConstantScoreScorer(this, score(), memoryIndexIterator)) {
+                    return new FilterScorer(new ConstantScoreScorer(this, 1f, memoryIndexIterator)) {
 
                         @Override
                         public float score() throws IOException {

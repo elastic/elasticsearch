@@ -19,8 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.Bits.MatchAllBits;
+import java.io.IOException;
 
 /**
  * Exposes multi-valued view over a single-valued instance.
@@ -29,43 +28,30 @@ import org.apache.lucene.util.Bits.MatchAllBits;
  * that works for single or multi-valued types.
  */
 final class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues {
-  private final NumericDoubleValues in;
-  private final Bits docsWithField;
-  private double value;
-  private int count;
+    private final NumericDoubleValues in;
 
-  SingletonSortedNumericDoubleValues(NumericDoubleValues in, Bits docsWithField) {
-    this.in = in;
-    this.docsWithField = docsWithField instanceof MatchAllBits ? null : docsWithField;
-  }
-
-  /** Return the wrapped {@link NumericDoubleValues} */
-  public NumericDoubleValues getNumericDoubleValues() {
-    return in;
-  }
-
-  /** Return the wrapped {@link Bits} */
-  public Bits getDocsWithField() {
-    return docsWithField;
-  }
-
-  @Override
-  public void setDocument(int doc) {
-    value = in.get(doc);
-    if (docsWithField != null && value == 0 && docsWithField.get(doc) == false) {
-      count = 0;
-    } else {
-      count = 1;
+    SingletonSortedNumericDoubleValues(NumericDoubleValues in) {
+        this.in = in;
     }
-  }
 
-  @Override
-  public double valueAt(int index) {
-    return value;
-  }
+    /** Return the wrapped {@link NumericDoubleValues} */
+    public NumericDoubleValues getNumericDoubleValues() {
+        return in;
+    }
 
-  @Override
-  public int count() {
-    return count;
-  }
+    @Override
+    public boolean advanceExact(int target) throws IOException {
+        return in.advanceExact(target);
+    }
+
+    @Override
+    public int docValueCount() {
+        return 1;
+    }
+
+    @Override
+    public double nextValue() throws IOException {
+        return in.doubleValue();
+    }
+
 }

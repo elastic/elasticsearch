@@ -183,12 +183,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
 
-        index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
         //set some random types to be queried as part the search request, before each test
@@ -248,7 +248,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * make sure query names are unique by suffixing them with increasing counter
      */
     private static String createUniqueRandomName() {
-        String queryName = randomAsciiOfLengthBetween(1, 10) + queryNameId;
+        String queryName = randomAlphaOfLengthBetween(1, 10) + queryNameId;
         queryNameId++;
         return queryName;
     }
@@ -597,8 +597,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB secondQuery = copyQuery(firstQuery);
             // query _name never should affect the result of toQuery, we randomly set it to make sure
             if (randomBoolean()) {
-                secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
-                        + randomAsciiOfLengthBetween(1, 10));
+                secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
+                        + randomAlphaOfLengthBetween(1, 10));
             }
             searchContext = getSearchContext(randomTypes, context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
@@ -733,8 +733,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private QB changeNameOrBoost(QB original) throws IOException {
         QB secondQuery = copyQuery(original);
         if (randomBoolean()) {
-            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
-                    + randomAsciiOfLengthBetween(1, 10));
+            secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
+                    + randomAlphaOfLengthBetween(1, 10));
         } else {
             secondQuery.boost(original.boost() + 1f + randomFloat());
         }
@@ -773,7 +773,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
                     value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 } else {
-                    value = randomAsciiOfLengthBetween(1, 10);
+                    value = randomAlphaOfLengthBetween(1, 10);
                 }
                 break;
             case INT_FIELD_NAME:
@@ -789,7 +789,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
                 break;
             default:
-                value = randomAsciiOfLengthBetween(1, 10);
+                value = randomAlphaOfLengthBetween(1, 10);
         }
         return value;
     }
@@ -798,7 +798,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         int terms = randomIntBetween(0, 3);
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < terms; i++) {
-            builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+            builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
         }
         return builder.toString().trim();
     }
@@ -809,7 +809,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static String getRandomFieldName() {
         // if no type is set then return a random field name
         if (currentTypes.length == 0 || randomBoolean()) {
-            return randomAsciiOfLengthBetween(1, 10);
+            return randomAlphaOfLengthBetween(1, 10);
         }
         return randomFrom(MAPPED_LEAF_FIELD_NAMES);
     }

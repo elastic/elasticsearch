@@ -22,7 +22,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             'oel-7',
             'opensuse-13',
             'sles-12',
-            'ubuntu-1204',
             'ubuntu-1404',
             'ubuntu-1604'
     ]
@@ -477,10 +476,10 @@ class VagrantTestPlugin implements Plugin<Project> {
                     }
                 }
             }
-            packaging.doFirst {
+            platform.doFirst {
                 project.gradle.addListener(platformReproListener)
             }
-            packaging.doLast {
+            platform.doLast {
                 project.gradle.removeListener(platformReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {

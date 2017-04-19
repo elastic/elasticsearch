@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -33,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
@@ -50,8 +52,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, pipelineAggregators, metaData);
     }
 
-    public final void testReduceRandom() {
-        String name = randomAsciiOfLength(5);
+    public void testReduceRandom() {
+        String name = randomAlphaOfLength(5);
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();
         int toReduceSize = between(1, 200);
@@ -63,15 +65,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
+            // sometimes do an incremental reduce
             Collections.shuffle(toReduce, random());
-            // we leave at least one element in the list
-            int r = Math.max(1, randomIntBetween(0, toReduceSize - 2));
+            int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
             InternalAggregation.ReduceContext context =
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
-            toReduce = toReduce.subList(r, toReduceSize);
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
         InternalAggregation.ReduceContext context =
@@ -92,7 +94,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @Override
     protected final T createTestInstance() {
-        return createTestInstance(randomAsciiOfLength(5));
+        return createTestInstance(randomAlphaOfLength(5));
     }
 
     private T createTestInstance(String name) {
@@ -101,7 +103,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         Map<String, Object> metaData = new HashMap<>();
         int metaDataCount = randomBoolean() ? 0 : between(1, 10);
         while (metaData.size() < metaDataCount) {
-            metaData.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createTestInstance(name, pipelineAggregators, metaData);
     }
@@ -113,7 +115,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         Map<String, Object> metaData = new HashMap<>();
         int metaDataCount = randomBoolean() ? 0 : between(1, 10);
         while (metaData.size() < metaDataCount) {
-            metaData.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createUnmappedInstance(name, pipelineAggregators, metaData);
     }
@@ -121,5 +123,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    /**
+     * @return a random {@link DocValueFormat} that can be used in aggregations which
+     * compute numbers.
+     */
+    protected static DocValueFormat randomNumericDocValueFormat() {
+        final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
+        formats.add(() -> DocValueFormat.RAW);
+        formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
+        return randomFrom(formats).get();
     }
 }

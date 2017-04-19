@@ -40,7 +40,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
-                new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
+                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
                         null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
@@ -51,7 +51,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testReindexFromRemoteDoesNotSupportWorkers() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
-                new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
+                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
                         null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
@@ -71,11 +71,11 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     @Override
     protected void extraRandomizationForSlice(ReindexRequest original) {
         if (randomBoolean()) {
-            original.setScript(new Script(randomAsciiOfLength(5)));
+            original.setScript(new Script(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
-            original.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, 10000),
-                    new BytesArray(randomAsciiOfLength(5)), null, null, emptyMap(),
+            original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000),
+                    new BytesArray(randomAlphaOfLength(5)), null, null, emptyMap(),
                     parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
                     parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }

@@ -74,9 +74,9 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false);
-        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false, boost);
+        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false, boost);
         return new Weight(this) {
             @Override
             public void extractTerms(Set<Term> set) {
@@ -102,16 +102,6 @@ final class PercolateQuery extends Query implements Accountable {
                     }
                 }
                 return Explanation.noMatch("PercolateQuery");
-            }
-
-            @Override
-            public float getValueForNormalization() throws IOException {
-                return candidateMatchesWeight.getValueForNormalization();
-            }
-
-            @Override
-            public void normalize(float v, float v1) {
-                candidateMatchesWeight.normalize(v, v1);
             }
 
             @Override
@@ -192,25 +182,19 @@ final class PercolateQuery extends Query implements Accountable {
         return queryStore;
     }
 
+    // Comparing identity here to avoid being cached
+    // Note that in theory if the same instance gets used multiple times it could still get cached,
+    // however since we create a new query instance each time we this query this shouldn't happen and thus
+    // this risk neglectable.
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (sameClassAs(o) == false) return false;
-
-        PercolateQuery that = (PercolateQuery) o;
-
-        if (!documentType.equals(that.documentType)) return false;
-        return documentSource.equals(that.documentSource);
-
+        return this == o;
     }
 
+    // Computing hashcode based on identity to avoid caching.
     @Override
     public int hashCode() {
-        int result = classHash();
-        result = 31 * result + documentType.hashCode();
-        result = 31 * result + documentSource.hashCode();
-        return result;
+        return System.identityHashCode(this);
     }
 
     @Override

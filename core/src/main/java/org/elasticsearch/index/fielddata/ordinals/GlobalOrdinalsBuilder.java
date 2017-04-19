@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -52,12 +52,12 @@ public enum GlobalOrdinalsBuilder {
      */
     public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData,
             IndexSettings indexSettings, CircuitBreakerService breakerService, Logger logger,
-            Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) throws IOException {
+            Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 
         final AtomicOrdinalsFieldData[] atomicFD = new AtomicOrdinalsFieldData[indexReader.leaves().size()];
-        final RandomAccessOrds[] subs = new RandomAccessOrds[indexReader.leaves().size()];
+        final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
             atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
             subs[i] = atomicFD[i].getOrdinalsValues();
@@ -83,11 +83,11 @@ public enum GlobalOrdinalsBuilder {
         assert indexReader.leaves().size() > 1;
 
         final AtomicOrdinalsFieldData[] atomicFD = new AtomicOrdinalsFieldData[indexReader.leaves().size()];
-        final RandomAccessOrds[] subs = new RandomAccessOrds[indexReader.leaves().size()];
+        final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
             atomicFD[i] = new AbstractAtomicOrdinalsFieldData(AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION) {
                 @Override
-                public RandomAccessOrds getOrdinalsValues() {
+                public SortedSetDocValues getOrdinalsValues() {
                     return DocValues.emptySortedSet();
                 }
 

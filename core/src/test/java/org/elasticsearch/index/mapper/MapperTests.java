@@ -49,7 +49,7 @@ public class MapperTests extends ESTestCase {
         XContentBuilder mapping = createMappingWithIncludeInAll();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        final MapperService currentMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings);
+        final MapperService currentMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
         Exception e = expectThrows(MapperParsingException.class, () ->
                 currentMapperService.parse("type", new CompressedXContent(mapping.string()), true));
         assertEquals("[include_in_all] is not allowed for indices created on or after version 6.0.0 as [_all] is deprecated. " +
@@ -59,7 +59,7 @@ public class MapperTests extends ESTestCase {
         settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_3_0_UNRELEASED).build();
 
         // Create the mapping service with an older index creation version
-        final MapperService oldMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings);
+        final MapperService oldMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
         // Should not throw an exception now
         oldMapperService.parse("type", new CompressedXContent(mapping.string()), true);
     }

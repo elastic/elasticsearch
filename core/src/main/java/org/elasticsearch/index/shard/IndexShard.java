@@ -221,10 +221,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final AtomicBoolean active = new AtomicBoolean();
     /**
-     * Allows for the registration of listeners that are called when a change becomes visible for search. This is nullable because
-     * {@linkplain ShadowIndexShard} doesn't support this.
+     * Allows for the registration of listeners that are called when a change becomes visible for search.
      */
-    @Nullable
     private final RefreshListeners refreshListeners;
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
@@ -416,6 +414,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // active primaries.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
+                state == IndexShardState.CLOSED :
+                "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             this.shardRouting = newRouting;
             persistMetadata(newRouting, currentRouting);
         }
@@ -498,6 +499,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the previous shard state
      */
     private IndexShardState changeState(IndexShardState newState, String reason) {
+        assert Thread.holdsLock(mutex);
         logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;
@@ -567,12 +569,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
+    public Engine.NoOp prepareMarkingSeqNoAsNoOp(long seqNo, String reason) {
+        verifyReplicationTarget();
+        long startTime = System.nanoTime();
+        return new Engine.NoOp(seqNo, primaryTerm, Engine.Operation.Origin.REPLICA, startTime, reason);
+    }
+
+    public Engine.NoOpResult markSeqNoAsNoOp(Engine.NoOp noOp) throws IOException {
+        ensureWriteAllowed(noOp);
+        Engine engine = getEngine();
+        return engine.noOp(noOp);
+    }
+
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
         verifyPrimary();
-        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
-        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
-        final Term uid = MappedFieldType.extractTerm(uidQuery);
+        final Term uid = extractUid(type, id);
         return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, primaryTerm, version,
                 versionType, Engine.Operation.Origin.PRIMARY);
     }
@@ -580,15 +591,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long primaryTerm,
                                                 long version, VersionType versionType) {
         verifyReplicationTarget();
-        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
-        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
-        final Term uid = MappedFieldType.extractTerm(uidQuery);
+        final Term uid = extractUid(type, id);
         return prepareDelete(type, id, uid, seqNo, primaryTerm, version, versionType, Engine.Operation.Origin.REPLICA);
     }
 
-    static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
-                                       VersionType versionType, Engine.Operation.Origin origin) {
+    private static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
+                                               VersionType versionType, Engine.Operation.Origin origin) {
         long startTime = System.nanoTime();
         return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime);
     }
@@ -597,6 +605,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(delete);
         Engine engine = getEngine();
         return delete(engine, delete);
+    }
+
+    private Term extractUid(String type, String id) {
+        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
+        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
+        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
+        return MappedFieldType.extractTerm(uidQuery);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
@@ -1921,9 +1936,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Build {@linkplain RefreshListeners} for this shard. Protected so {@linkplain ShadowIndexShard} can override it to return null.
+     * Build {@linkplain RefreshListeners} for this shard.
      */
-    protected RefreshListeners buildRefreshListeners() {
+    private RefreshListeners buildRefreshListeners() {
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),

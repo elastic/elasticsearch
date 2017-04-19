@@ -56,11 +56,6 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-    }
-
-    @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global

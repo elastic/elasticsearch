@@ -33,7 +33,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -485,10 +484,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 return docId -> null;
             }
 
-            Bits bits = leafReader.getDocsWithField(fieldType.queryBuilderField.name());
             return docId -> {
-                if (bits.get(docId)) {
-                    BytesRef qbSource = binaryDocValues.get(docId);
+                if (binaryDocValues.advanceExact(docId)) {
+                    BytesRef qbSource = binaryDocValues.binaryValue();
                     if (qbSource.length > 0) {
                         XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
                         try (XContentParser sourceParser = xContent.createParser(context.getXContentRegistry(), qbSource.bytes,

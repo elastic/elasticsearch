@@ -54,7 +54,7 @@ public class MainActionTests extends ESTestCase {
     public void testMainResponseSerialization() throws IOException {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
-        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
@@ -73,7 +73,7 @@ public class MainActionTests extends ESTestCase {
     }
 
     public void testMainResponseXContent() throws IOException {
-        String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final MainResponse mainResponse = new MainResponse("node1", Version.CURRENT, new ClusterName("cluster1"), clusterUUID,
                 Build.CURRENT, false);
         final String expected = "{" +

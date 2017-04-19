@@ -311,16 +311,9 @@ class BuildPlugin implements Plugin<Project> {
     /**
      * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
      *
-     * <ul>
-     *     <li>Remove transitive dependencies. We currently exclude all artifacts explicitly instead of using wildcards
-     *         as Ivy incorrectly translates POMs with * excludes to Ivy XML with * excludes which results in the main artifact
-     *         being excluded as well (see https://issues.apache.org/jira/browse/IVY-1531). Note that Gradle 2.14+ automatically
-     *         translates non-transitive dependencies to * excludes. We should revisit this when upgrading Gradle.</li>
-     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)</li>
-     * </ul>
+     * The current fixup is to set compile time deps back to compile from runtime (known issue with maven-publish plugin).
      */
     private static Closure fixupDependencies(Project project) {
-        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')
@@ -328,45 +321,14 @@ class BuildPlugin implements Plugin<Project> {
                 return
             }
 
-            // check each dependency for any transitive deps
+            // fix deps incorrectly marked as runtime back to compile time deps
+            // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
             for (Node depNode : depsNodes.get(0).children()) {
-                String groupId = depNode.get('groupId').get(0).text()
-                String artifactId = depNode.get('artifactId').get(0).text()
-                String version = depNode.get('version').get(0).text()
-
-                // fix deps incorrectly marked as runtime back to compile time deps
-                // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
                 boolean isCompileDep = project.configurations.compile.allDependencies.find { dep ->
                     dep.name == depNode.artifactId.text()
                 }
                 if (depNode.scope.text() == 'runtime' && isCompileDep) {
                     depNode.scope*.value = 'compile'
-                }
-
-                // collect the transitive deps now that we know what this dependency is
-                String depConfig = transitiveDepConfigName(groupId, artifactId, version)
-                Configuration configuration = project.configurations.findByName(depConfig)
-                if (configuration == null) {
-                    continue // we did not make this dep non-transitive
-                }
-                Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
-                if (artifacts.size() <= 1) {
-                    // this dep has no transitive deps (or the only artifact is itself)
-                    continue
-                }
-
-                // we now know we have something to exclude, so add exclusions for all artifacts except the main one
-                Node exclusions = depNode.appendNode('exclusions')
-                for (ResolvedArtifact artifact : artifacts) {
-                    ModuleVersionIdentifier moduleVersionIdentifier = artifact.moduleVersion.id;
-                    String depGroupId = moduleVersionIdentifier.group
-                    String depArtifactId = moduleVersionIdentifier.name
-                    // add exclusions for all artifacts except the main one
-                    if (depGroupId != groupId || depArtifactId != artifactId) {
-                        Node exclusion = exclusions.appendNode('exclusion')
-                        exclusion.appendNode('groupId', depGroupId)
-                        exclusion.appendNode('artifactId', depArtifactId)
-                    }
                 }
             }
         }

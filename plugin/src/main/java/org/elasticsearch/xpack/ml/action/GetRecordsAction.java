@@ -77,7 +77,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             PARSER.declareStringOrNull(Request::setStart, START);
             PARSER.declareStringOrNull(Request::setEnd, END);
             PARSER.declareString(Request::setSort, SORT);
-            PARSER.declareBoolean(Request::setDecending, DESCENDING);
+            PARSER.declareBoolean(Request::setDescending, DESCENDING);
             PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
             PARSER.declareDouble(Request::setRecordScore, RECORD_SCORE_FILTER);
@@ -98,7 +98,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private PageParams pageParams = new PageParams();
         private double recordScoreFilter = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
-        private boolean decending = false;
+        private boolean descending = false;
 
         Request() {
         }
@@ -127,12 +127,12 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             this.end = end;
         }
 
-        public boolean isDecending() {
-            return decending;
+        public boolean isDescending() {
+            return descending;
         }
 
-        public void setDecending(boolean decending) {
-            this.decending = decending;
+        public void setDescending(boolean descending) {
+            this.descending = descending;
         }
 
         public boolean isIncludeInterim() {
@@ -180,7 +180,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             start = in.readOptionalString();
             end = in.readOptionalString();
             sort = in.readOptionalString();
-            decending = in.readBoolean();
+            descending = in.readBoolean();
             recordScoreFilter = in.readDouble();
         }
 
@@ -193,7 +193,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             out.writeOptionalString(start);
             out.writeOptionalString(end);
             out.writeOptionalString(sort);
-            out.writeBoolean(decending);
+            out.writeBoolean(descending);
             out.writeDouble(recordScoreFilter);
         }
 
@@ -204,7 +204,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             builder.field(START.getPreferredName(), start);
             builder.field(END.getPreferredName(), end);
             builder.field(SORT.getPreferredName(), sort);
-            builder.field(DESCENDING.getPreferredName(), decending);
+            builder.field(DESCENDING.getPreferredName(), descending);
             builder.field(RECORD_SCORE_FILTER.getPreferredName(), recordScoreFilter);
             builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
@@ -214,7 +214,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, start, end, sort, decending, recordScoreFilter, includeInterim, pageParams);
+            return Objects.hash(jobId, start, end, sort, descending, recordScoreFilter, includeInterim, pageParams);
         }
 
         @Override
@@ -230,7 +230,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     Objects.equals(start, other.start) &&
                     Objects.equals(end, other.end) &&
                     Objects.equals(sort, other.sort) &&
-                    Objects.equals(decending, other.decending) &&
+                    Objects.equals(descending, other.descending) &&
                     Objects.equals(recordScoreFilter, other.recordScoreFilter) &&
                     Objects.equals(includeInterim, other.includeInterim) &&
                     Objects.equals(pageParams, other.pageParams);
@@ -331,7 +331,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     .size(request.pageParams.getSize())
                     .recordScore(request.recordScoreFilter)
                     .sortField(request.sort)
-                    .sortDescending(request.decending)
+                    .sortDescending(request.descending)
                     .build();
             jobProvider.records(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);
         }

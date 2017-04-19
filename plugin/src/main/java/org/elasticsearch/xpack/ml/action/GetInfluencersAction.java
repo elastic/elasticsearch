@@ -80,7 +80,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
             PARSER.declareDouble(Request::setAnomalyScore, ANOMALY_SCORE);
             PARSER.declareString(Request::setSort, SORT_FIELD);
-            PARSER.declareBoolean(Request::setDecending, DESCENDING_SORT);
+            PARSER.declareBoolean(Request::setDescending, DESCENDING_SORT);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -98,7 +98,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         private PageParams pageParams = new PageParams();
         private double anomalyScoreFilter = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
-        private boolean decending = false;
+        private boolean descending = false;
 
         Request() {
         }
@@ -127,12 +127,12 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             this.end = end;
         }
 
-        public boolean isDecending() {
-            return decending;
+        public boolean isDescending() {
+            return descending;
         }
 
-        public void setDecending(boolean decending) {
-            this.decending = decending;
+        public void setDescending(boolean descending) {
+            this.descending = descending;
         }
 
         public boolean isIncludeInterim() {
@@ -181,7 +181,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             start = in.readOptionalString();
             end = in.readOptionalString();
             sort = in.readOptionalString();
-            decending = in.readBoolean();
+            descending = in.readBoolean();
             anomalyScoreFilter = in.readDouble();
         }
 
@@ -194,7 +194,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             out.writeOptionalString(start);
             out.writeOptionalString(end);
             out.writeOptionalString(sort);
-            out.writeBoolean(decending);
+            out.writeBoolean(descending);
             out.writeDouble(anomalyScoreFilter);
         }
 
@@ -207,7 +207,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             builder.field(START.getPreferredName(), start);
             builder.field(END.getPreferredName(), end);
             builder.field(SORT_FIELD.getPreferredName(), sort);
-            builder.field(DESCENDING_SORT.getPreferredName(), decending);
+            builder.field(DESCENDING_SORT.getPreferredName(), descending);
             builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScoreFilter);
             builder.endObject();
             return builder;
@@ -215,7 +215,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, includeInterim, pageParams, start, end, sort, decending, anomalyScoreFilter);
+            return Objects.hash(jobId, includeInterim, pageParams, start, end, sort, descending, anomalyScoreFilter);
         }
 
         @Override
@@ -227,9 +227,12 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(start, other.start) && Objects.equals(end, other.end)
-                    && Objects.equals(includeInterim, other.includeInterim) && Objects.equals(pageParams, other.pageParams)
-                    && Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) && Objects.equals(decending, other.decending)
+            return Objects.equals(jobId, other.jobId) && Objects.equals(start, other.start)
+                    && Objects.equals(end, other.end)
+                    && Objects.equals(includeInterim, other.includeInterim)
+                    && Objects.equals(pageParams, other.pageParams)
+                    && Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter)
+                    && Objects.equals(descending, other.descending)
                     && Objects.equals(sort, other.sort);
         }
     }
@@ -320,7 +323,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
             InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().includeInterim(request.includeInterim)
                     .start(request.start).end(request.end).from(request.pageParams.getFrom()).size(request.pageParams.getSize())
-                    .anomalyScoreThreshold(request.anomalyScoreFilter).sortField(request.sort).sortDescending(request.decending).build();
+                    .anomalyScoreThreshold(request.anomalyScoreFilter).sortField(request.sort).sortDescending(request.descending).build();
             jobProvider.influencers(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);
         }
     }

@@ -32,7 +32,7 @@ public class GetRecordsActionRequestTests extends AbstractStreamableXContentTest
             request.setSort(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setDecending(randomBoolean());
+            request.setDescending(randomBoolean());
         }
         if (randomBoolean()) {
             request.setRecordScore(randomDouble());

@@ -49,7 +49,7 @@ public class RestGetRecordsAction extends BaseRestHandler {
                     Double.parseDouble(restRequest.param(GetRecordsAction.Request.RECORD_SCORE_FILTER.getPreferredName(), "0.0")));
             request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
                     AnomalyRecord.RECORD_SCORE.getPreferredName()));
-            request.setDecending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), true));
+            request.setDescending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), true));
         }
 
         return channel -> client.execute(GetRecordsAction.INSTANCE, request, new RestToXContentListener<>(channel));

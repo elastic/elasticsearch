@@ -38,7 +38,7 @@ public class GetInfluencersActionRequestTests extends AbstractStreamableXContent
             request.setSort(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setDecending(randomBoolean());
+            request.setDescending(randomBoolean());
         }
         if (randomBoolean()) {
             int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);

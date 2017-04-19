@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.After;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -659,7 +658,7 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     @After
-    public void clearMlState() throws IOException {
+    public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 }

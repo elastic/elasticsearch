@@ -38,7 +38,7 @@ import static java.util.Collections.singletonMap;
 public class XPackRestIT extends XPackRestTestCase {
 
     @After
-    public void clearMlState() throws IOException {
+    public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 

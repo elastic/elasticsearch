@@ -27,7 +27,7 @@ def vagrantEnvVars = [
 
 def box = "krb5kdc"
 
-def defaultPrincipals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
+def defaultPrincipals = [ "elasticsearch" ]
 
 task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
     boxName box
@@ -67,6 +67,5 @@ task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
     args = [ "destroy", box, "-f"]
     dependsOn halt
 }
-clean.dependsOn destroy
 
 thirdPartyAudit.enabled = false

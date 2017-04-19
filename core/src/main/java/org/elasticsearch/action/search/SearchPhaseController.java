@@ -328,15 +328,15 @@ public final class SearchPhaseController extends AbstractComponent {
                             continue;
                         }
                         FetchSearchResult fetchResult = searchResultProvider.fetchResult();
-                        int fetchResultIndex = fetchResult.counterGetAndIncrement();
-                        if (fetchResultIndex < fetchResult.hits().internalHits().length) {
-                            SearchHit hit = fetchResult.hits().internalHits()[fetchResultIndex];
-                            CompletionSuggestion.Entry.Option suggestOption =
-                                suggestionOptions.get(scoreDocIndex - currentOffset);
-                            hit.score(shardDoc.score);
-                            hit.shard(fetchResult.getSearchShardTarget());
-                            suggestOption.setHit(hit);
-                        }
+                        final int index = fetchResult.counterGetAndIncrement();
+                        assert index < fetchResult.hits().internalHits().length : "not enough hits fetched. index [" + index + "] length: "
+                            + fetchResult.hits().internalHits().length;
+                        SearchHit hit = fetchResult.hits().internalHits()[index];
+                        CompletionSuggestion.Entry.Option suggestOption =
+                            suggestionOptions.get(scoreDocIndex - currentOffset);
+                        hit.score(shardDoc.score);
+                        hit.shard(fetchResult.getSearchShardTarget());
+                        suggestOption.setHit(hit);
                     }
                     currentOffset += suggestionOptions.size();
                 }
@@ -380,20 +380,20 @@ public final class SearchPhaseController extends AbstractComponent {
                     continue;
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
-                int index = fetchResult.counterGetAndIncrement();
-                if (index < fetchResult.hits().internalHits().length) {
-                    SearchHit searchHit = fetchResult.hits().internalHits()[index];
-                    searchHit.score(shardDoc.score);
-                    searchHit.shard(fetchResult.getSearchShardTarget());
-                    if (sorted) {
-                        FieldDoc fieldDoc = (FieldDoc) shardDoc;
-                        searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
-                        if (sortScoreIndex != -1) {
-                            searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
-                        }
+                final int index = fetchResult.counterGetAndIncrement();
+                assert index < fetchResult.hits().internalHits().length : "not enough hits fetched. index [" + index + "] length: "
+                    + fetchResult.hits().internalHits().length;
+                SearchHit searchHit = fetchResult.hits().internalHits()[index];
+                searchHit.score(shardDoc.score);
+                searchHit.shard(fetchResult.getSearchShardTarget());
+                if (sorted) {
+                    FieldDoc fieldDoc = (FieldDoc) shardDoc;
+                    searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
+                    if (sortScoreIndex != -1) {
+                        searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                     }
-                    hits.add(searchHit);
                 }
+                hits.add(searchHit);
             }
         }
         return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits,

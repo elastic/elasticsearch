@@ -374,7 +374,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                             BooleanClause.Occur.SHOULD))
                         .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")),
                             BooleanClause.Occur.SHOULD))
-                        .setDisableCoord(true)
                         .build(), defaultOp)
                     .build(), defaultOp)
                 .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "last"),
@@ -463,7 +462,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                         new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
                     .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
                     .build(), Occur.SHOULD)
-                .setDisableCoord(true)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
@@ -481,7 +479,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .setSlop(2)
                     .build(),
                     Occur.SHOULD)
-                .setDisableCoord(true)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }

@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReader.CoreClosedListener;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
@@ -41,7 +40,7 @@ public final class VersionsAndSeqNoResolver {
         ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
-    private static final CoreClosedListener removeLookupState = key -> {
+    private static final IndexReader.ClosedListener removeLookupState = key -> {
         CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.remove(key);
         if (ctl != null) {
             ctl.close();
@@ -49,15 +48,15 @@ public final class VersionsAndSeqNoResolver {
     };
 
     private static PerThreadIDVersionAndSeqNoLookup getLookupState(LeafReader reader) throws IOException {
-        Object key = reader.getCoreCacheKey();
-        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.get(key);
+        IndexReader.CacheHelper cacheHelper = reader.getCoreCacheHelper();
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {
             // First time we are seeing this reader's core; make a new CTL:
             ctl = new CloseableThreadLocal<>();
-            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> other = lookupStates.putIfAbsent(key, ctl);
+            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> other = lookupStates.putIfAbsent(cacheHelper.getKey(), ctl);
             if (other == null) {
                 // Our CTL won, we must remove it when the core is closed:
-                reader.addCoreClosedListener(removeLookupState);
+                cacheHelper.addClosedListener(removeLookupState);
             } else {
                 // Another thread beat us to it: just use their CTL:
                 ctl = other;
@@ -161,7 +160,7 @@ public final class VersionsAndSeqNoResolver {
     public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo) throws IOException {
         LeafReader leaf = docIdAndSeqNo.context.reader();
         PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
-        long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId);
+        long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId, leaf);
         assert result > 0 : "should always resolve a primary term for a resolved sequence number. primary_term [" + result + "]"
             + " docId [" + docIdAndSeqNo.docId + "] seqNo [" + docIdAndSeqNo.seqNo + "]";
         return result;

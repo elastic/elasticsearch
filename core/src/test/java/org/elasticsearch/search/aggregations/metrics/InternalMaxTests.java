@@ -35,7 +35,7 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
     @Override
     protected InternalMax createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         double value = frequently() ? randomDouble() : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY });
-        DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.BOOLEAN, DocValueFormat.RAW);
+        DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalMax(name, value, formatter, pipelineAggregators, metaData);
     }
 

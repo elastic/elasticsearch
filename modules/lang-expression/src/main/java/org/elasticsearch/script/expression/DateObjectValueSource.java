@@ -58,12 +58,16 @@ class DateObjectValueSource extends FieldDataValueSource {
         MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
         return new DoubleDocValues(this) {
-          @Override
-          public double doubleVal(int docId) {
-            long millis = (long)docValues.get(docId);
-            joda.setMillis(millis);
-            return function.applyAsInt(joda);
-          }
+            @Override
+            public double doubleVal(int docId) throws IOException {
+                if (docValues.advanceExact(docId)) {
+                    long millis = (long)docValues.doubleValue();
+                    joda.setMillis(millis);
+                    return function.applyAsInt(joda);
+                } else {
+                    return 0;
+                }
+            }
         };
     }
 

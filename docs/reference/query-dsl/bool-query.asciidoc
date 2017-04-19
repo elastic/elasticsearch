@@ -37,11 +37,6 @@ If this query is used in a filter context and it has `should`
 clauses then at least one `should` clause is required to match.
 ========================================================================
 
-The bool query also supports `disable_coord` parameter (defaults to
-`false`). Basically the coord similarity computes a score factor based
-on the fraction of all query terms that a document contains. See Lucene
-`BooleanQuery` for more details.
-
 The `bool` query takes a _more-matches-is-better_ approach, so the score from
 each matching `must` or `should` clause will be added together to provide the
 final `_score` for each document.

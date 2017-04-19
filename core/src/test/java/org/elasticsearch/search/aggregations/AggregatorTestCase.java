@@ -236,7 +236,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         List<InternalAggregation> aggs = new ArrayList<> ();
         Query rewritten = searcher.rewrite(query);
-        Weight weight = searcher.createWeight(rewritten, true);
+        Weight weight = searcher.createWeight(rewritten, true, 1f);
         C root = createAggregator(builder, searcher, fieldTypes);
         try {
             for (ShardSearcher subSearcher : subSearchers) {

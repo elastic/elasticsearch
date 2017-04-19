@@ -25,9 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryparser.analyzing.AnalyzingQueryParser;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -70,7 +68,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  */
-public class MapperQueryParser extends AnalyzingQueryParser {
+public class MapperQueryParser extends QueryParser {
 
     public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
@@ -103,14 +101,13 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         setAnalyzer(settings.analyzer());
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
+        setSplitOnWhitespace(settings.splitOnWhitespace());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
-        setLowercaseExpandedTerms(false);
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
-        setSplitOnWhitespace(settings.splitOnWhitespace());
     }
 
     /**
@@ -175,7 +172,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getFieldQuerySingle(field, queryText, quoted);
@@ -277,7 +274,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return super.getFieldQuery(field, queryText, slop);
@@ -328,7 +325,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                 }
             }
             if (clauses.isEmpty()) return null; // happens for stopwords
-            return getBooleanQueryCoordDisabled(clauses);
+            return getBooleanQuery(clauses);
         }
     }
 
@@ -386,7 +383,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getFuzzyQuerySingle(field, termStr, minSimilarity);
@@ -450,7 +447,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getPrefixQuerySingle(field, termStr);
@@ -559,7 +556,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token),
                         BooleanClause.Occur.SHOULD));
                 }
-                posQuery = getBooleanQueryCoordDisabled(innerClauses);
+                posQuery = getBooleanQuery(innerClauses);
             }
             clauses.add(new BooleanClause(posQuery,
                 getDefaultOperator() == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD));
@@ -612,7 +609,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getWildcardQuerySingle(field, termStr);
@@ -676,7 +673,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getRegexpQuerySingle(field, termStr);
@@ -711,19 +708,6 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         } finally {
             setAnalyzer(oldAnalyzer);
         }
-    }
-
-    /**
-     * @deprecated review all use of this, don't rely on coord
-     */
-    @Deprecated
-    protected Query getBooleanQueryCoordDisabled(List<BooleanClause> clauses) throws ParseException {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.setDisableCoord(true);
-        for (BooleanClause clause : clauses) {
-            builder.add(clause);
-        }
-        return fixNegativeQueryIfNeeded(builder.build());
     }
 
 

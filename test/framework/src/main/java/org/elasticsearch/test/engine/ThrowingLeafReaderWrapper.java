@@ -195,4 +195,15 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         thrower.maybeThrow(Flags.Norms);
         return super.getNormValues(field);
     }
+
+
+    @Override
+    public CacheHelper getCoreCacheHelper() {
+        return in.getCoreCacheHelper();
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
+    }
 }

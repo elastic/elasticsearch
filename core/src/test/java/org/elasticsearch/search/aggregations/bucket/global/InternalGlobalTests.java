@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.List;
 import java.util.Map;
 
-public class InternalGlogbalTests extends InternalSingleBucketAggregationTestCase<InternalGlobal> {
+public class InternalGlobalTests extends InternalSingleBucketAggregationTestCase<InternalGlobal> {
     @Override
     protected InternalGlobal createTestInstance(String name, long docCount, InternalAggregations aggregations,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

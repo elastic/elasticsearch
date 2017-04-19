@@ -32,7 +32,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
     @Override
     protected InternalAvg createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.BOOLEAN, DocValueFormat.RAW);
+        DocValueFormat formatter = randomNumericDocValueFormat();
         long count = frequently() ? randomNonNegativeLong() % 100000 : 0;
         return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, pipelineAggregators, metaData);
     }

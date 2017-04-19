@@ -91,16 +91,16 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false && minScore == null) {
-            return subQuery.createWeight(searcher, needsScores);
+            return subQuery.createWeight(searcher, needsScores, boost);
         }
 
         boolean subQueryNeedsScores =
                 combineFunction != CombineFunction.REPLACE // if we don't replace we need the original score
                 || function == null // when the function is null, we just multiply the score, so we need it
                 || function.needsScores(); // some scripts can replace with a script that returns eg. 1/_score
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores, boost);
         return new CustomBoostFactorWeight(this, subQueryWeight, subQueryNeedsScores);
     }
 
@@ -118,16 +118,6 @@ public class FunctionScoreQuery extends Query {
         @Override
         public void extractTerms(Set<Term> terms) {
             subQueryWeight.extractTerms(terms);
-        }
-
-        @Override
-        public float getValueForNormalization() throws IOException {
-            return subQueryWeight.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float boost) {
-            subQueryWeight.normalize(norm, boost);
         }
 
         private FunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -87,7 +88,7 @@ public class ScriptValuesTests extends ESTestCase {
 
     }
 
-    public void testLongs() {
+    public void testLongs() throws IOException {
         final Object[][] values = new Long[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Long[] longs = new Long[randomInt(8)];
@@ -100,15 +101,17 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j));
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], scriptValues.nextValue());
+                }
             }
         }
     }
 
-    public void testBooleans() {
+    public void testBooleans() throws IOException {
         final Object[][] values = new Boolean[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Boolean[] booleans = new Boolean[randomInt(8)];
@@ -121,15 +124,17 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j) == 1L);
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], scriptValues.nextValue() == 1L);
+                }
             }
         }
     }
 
-    public void testDoubles() {
+    public void testDoubles() throws IOException {
         final Object[][] values = new Double[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Double[] doubles = new Double[randomInt(8)];
@@ -142,15 +147,17 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptDoubleValues scriptValues = new ScriptDoubleValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j));
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], scriptValues.nextValue());
+                }
             }
         }
     }
 
-    public void testBytes() {
+    public void testBytes() throws IOException {
         final String[][] values = new String[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             String[] strings = new String[randomInt(8)];
@@ -163,10 +170,12 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptBytesValues scriptValues = new ScriptBytesValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(new BytesRef(values[i][j]), scriptValues.valueAt(j));
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(new BytesRef(values[i][j]), scriptValues.nextValue());
+                }
             }
         }
     }

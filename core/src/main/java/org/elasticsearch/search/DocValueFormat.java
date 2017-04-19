@@ -395,11 +395,6 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(pattern);
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) {
                 return true;
@@ -409,6 +404,11 @@ public interface DocValueFormat extends NamedWriteable {
             }
             Decimal that = (Decimal) o;
             return Objects.equals(pattern, that.pattern);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern);
         }
     }
 }

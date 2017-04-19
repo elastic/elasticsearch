@@ -1,13 +1,15 @@
 [[index-modules-index-sorting]]
 == Index Sorting
 
+experimental[]
+
 When creating a new index in elasticsearch it is possible to configure how the Segments
-inside each Shard will be sorted. By default Lucene does not apply any sort and uses the
-internal _doc_id_ to do the ordering.
+inside each Shard will be sorted. By default Lucene does not apply any sort.
 The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
 
 [WARNING]
-nested fields are not compatible with index sorting because they rely on the default doc_id sorting.
+nested fields are not compatible with index sorting because they rely on the assumption
+that nested documents are stored in contiguous doc ids, which can be broken by index sorting.
 An error will be thrown if index sorting is activated on an index that contains nested fields.
 
 For instance the following example shows how to define a sort on a single field:
@@ -71,7 +73,7 @@ PUT twitter
 <2> ... in ascending order for the `username` field and in descending order for the `date` field.
 
 
-Index sorting supports the following setting:
+Index sorting supports the following settings:
 
 `index.sort.field`::
 

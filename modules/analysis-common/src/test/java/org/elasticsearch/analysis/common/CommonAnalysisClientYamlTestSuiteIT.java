@@ -16,11 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.analysis.common;
 
-package org.elasticsearch.index.analysis;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-public class AnalysisFactoryTests extends AnalysisFactoryTestCase {
-    // tests are inherited and nothing needs to be defined here
+public class CommonAnalysisClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public CommonAnalysisClientYamlTestSuiteIT(@Name("yaml")ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }

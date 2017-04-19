@@ -41,13 +41,13 @@ public class IndexResponseTests extends ESTestCase {
 
     public void testToXContent() {
         {
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 5, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 17, 5, true);
             String output = Strings.toString(indexResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":5,\"result\":\"created\",\"_shards\":null," +
-                    "\"_seq_no\":3,\"created\":true}", output);
+                    "\"_seq_no\":3,\"_primary_term\":17,\"created\":true}", output);
         }
         {
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", -1, 7, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
             indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
             String output = Strings.toString(indexResponse);
@@ -102,17 +102,19 @@ public class IndexResponseTests extends ESTestCase {
         String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
         long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
+        long primaryTerm = seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 10000);
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean created = randomBoolean();
         boolean forcedRefresh = randomBoolean();
 
         Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
-        IndexResponse actual = new IndexResponse(new ShardId(index, indexUUid, shardId), type, id, seqNo, version, created);
+        IndexResponse actual = new IndexResponse(new ShardId(index, indexUUid, shardId), type, id, seqNo, primaryTerm, version, created);
         actual.setForcedRefresh(forcedRefresh);
         actual.setShardInfo(shardInfos.v1());
 
-        IndexResponse expected = new IndexResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), type, id, seqNo, version, created);
+        IndexResponse expected =
+                new IndexResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), type, id, seqNo, primaryTerm, version, created);
         expected.setForcedRefresh(forcedRefresh);
         expected.setShardInfo(shardInfos.v2());
 

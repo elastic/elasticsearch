@@ -85,7 +85,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Successful index request should be replicated
         DocWriteRequest writeRequest = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 1, randomBoolean());
+        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 17, 1, randomBoolean());
         BulkItemRequest request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, response));
         assertThat(replicaItemExecutionMode(request, 0),
@@ -471,7 +471,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult indexResult = new FakeResult(1, 1, created, resultLocation);
-        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 1, created);
+        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         BulkItemResultHolder goodResults =
                 new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
 
@@ -509,10 +509,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 equalTo(original));
 
         boolean created = randomBoolean();
-        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 1, created);
+        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         Translog.Location newLocation = new Translog.Location(1, 1, 1);
-        Engine.IndexResult indexResult = new IndexResultWithLocation(randomNonNegativeLong(),
-                randomNonNegativeLong(), created, newLocation);
+        final long version = randomNonNegativeLong();
+        final long seqNo = randomNonNegativeLong();
+        final long primaryTerm = randomIntBetween(1, 16);
+        Engine.IndexResult indexResult = new IndexResultWithLocation(version, seqNo, primaryTerm, created, newLocation);
         results = new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
         assertThat(TransportShardBulkAction.calculateTranslogLocation(original, results),
                 equalTo(newLocation));
@@ -614,8 +616,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
-        public IndexResultWithLocation(long version, long seqNo, boolean created,
-                                       Translog.Location newLocation) {
+        public IndexResultWithLocation(long version, long seqNo, long primaryTerm, boolean created, Translog.Location newLocation) {
             super(version, seqNo, created);
             this.location = newLocation;
         }
@@ -630,8 +631,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(false);
 
-        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id",
-                1, 1, randomBoolean());
+        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, randomBoolean());
         IndexRequest request = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
@@ -652,8 +652,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeResult(long version, long seqNo, boolean created,
-                             Translog.Location location) {
+        protected FakeResult(long version, long seqNo, boolean created, Translog.Location location) {
             super(version, seqNo, created);
             this.location = location;
         }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -55,7 +54,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
      * The list of {@link Aggregation}s.
      */
     public final List<Aggregation> asList() {
-        return new ArrayList<>(aggregations);
+        return Collections.unmodifiableList(aggregations);
     }
 
     /**

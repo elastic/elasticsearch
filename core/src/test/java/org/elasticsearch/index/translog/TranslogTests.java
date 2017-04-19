@@ -2246,11 +2246,11 @@ public class TranslogTests extends ESTestCase {
         final long generation =
                 randomIntBetween(1, Math.toIntExact(translog.currentFileGeneration()));
         translog.commit(generation);
-        for (long i = 0; i < generation; i++) {
-            assertFileDeleted(translog, i);
+        for (long g = 0; g < generation; g++) {
+            assertFileDeleted(translog, g);
         }
-        for (long i = generation; i <= translog.currentFileGeneration(); i++) {
-            assertFileIsPresent(translog, i);
+        for (long g = generation; g <= translog.currentFileGeneration(); g++) {
+            assertFileIsPresent(translog, g);
         }
     }
 

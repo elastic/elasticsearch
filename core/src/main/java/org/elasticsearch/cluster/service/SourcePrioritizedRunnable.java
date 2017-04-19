@@ -16,26 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster.service;
 
-import java.util.List;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 
-public interface BatchedTasksDescription<T> {
-    /**
-     * Builds a concise description of a list of tasks (to be used in logging etc.).
-     *
-     * This method can be called multiple times with different lists before execution.
-     * This allows groupd task description but the submitting source.
-     */
-    default String describeTasks(List<T> tasks) {
-        return tasks.stream().map(T::toString).reduce((s1, s2) -> {
-            if (s1.isEmpty()) {
-                return s2;
-            } else if (s2.isEmpty()) {
-                return s1;
-            } else {
-                return s1 + ", " + s2;
-            }
-        }).orElse("");
+public abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
+    protected final String source;
+
+    public SourcePrioritizedRunnable(Priority priority, String source) {
+        super(priority);
+        this.source = source;
+    }
+
+    public String source() {
+        return source;
+    }
+
+    @Override
+    public String toString() {
+        return "[" + source + "]";
     }
 }

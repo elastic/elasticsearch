@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Nullable;
@@ -51,7 +50,6 @@ public class SingleTaskExecutorTests extends ESTestCase {
 
     protected static ThreadPool threadPool;
     protected PrioritizedEsThreadPoolExecutor threadExecutor;
-    protected SingleTestTaskExecutor singleTaskExecutor;
 
     @BeforeClass
     public static void createThreadPool() {
@@ -70,7 +68,6 @@ public class SingleTaskExecutorTests extends ESTestCase {
     public void setUpExecutor() {
         threadExecutor = EsExecutors.newSinglePrioritizing("test_thread",
             daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext());
-        singleTaskExecutor = new SingleTestTaskExecutor(logger, threadExecutor, threadPool);
     }
 
     @After
@@ -86,12 +83,12 @@ public class SingleTaskExecutorTests extends ESTestCase {
         }
     }
 
-    protected interface TestExecutor<T> extends BatchedTasksDescription<T> {
+    protected interface TestExecutor<T> extends TaskBatching.BatchingKey<T> {
         void execute(List<T> tasks);
     }
 
     /**
-     * Task class that works for single tasks as well as batching (see {@link BatchingTaskExecutorTests})
+     * Task class that works for single tasks as well as batching (see {@link TaskBatchingTests})
      */
     protected abstract static class TestTask implements TestExecutor<TestTask>, TestListener, ClusterStateTaskConfig {
 
@@ -114,38 +111,34 @@ public class SingleTaskExecutorTests extends ESTestCase {
         public abstract void run();
     }
 
-    class SingleTestTaskExecutor extends SingleTaskExecutor {
+    class UpdateTask extends SourcePrioritizedRunnable {
+        final TestTask testTask;
 
-        SingleTestTaskExecutor(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {
-            super(logger, threadExecutor, threadPool);
+        UpdateTask(String source, TestTask testTask) {
+            super(testTask.priority(), source);
+            this.testTask = testTask;
         }
 
         @Override
-        protected void run(SingleTask task) {
-            UpdateTask updateTask = (UpdateTask) task;
-            updateTask.testTask.execute(Collections.singletonList(updateTask.testTask));
-            updateTask.testTask.processed(updateTask.source);
+        public void run() {
+            logger.trace("will process {}", source);
+            testTask.execute(Collections.singletonList(testTask));
+            testTask.processed(source);
         }
-
-        @Override
-        protected void onTimeout(SingleTask task, TimeValue timeout) {
-            ((UpdateTask) task).testTask.onFailure(task.source, new ProcessClusterEventTimeoutException(timeout, task.source));
-        }
-
-        class UpdateTask extends SingleTask {
-            final TestTask testTask;
-
-            UpdateTask(String source, TestTask testTask) {
-                super(testTask.priority(), source);
-                this.testTask = testTask;
-            }
-        }
-
     }
 
-    // can be overridden by BatchingTaskExecutorTests
+    // can be overridden by TaskBatchingTests
     protected void submitTask(String source, TestTask testTask) {
-        singleTaskExecutor.submitTask(singleTaskExecutor.new UpdateTask(source, testTask), testTask.timeout());
+        SourcePrioritizedRunnable task = new UpdateTask(source, testTask);
+        TimeValue timeout = testTask.timeout();
+        if (timeout != null) {
+            threadExecutor.execute(task, threadPool.scheduler(), timeout, () -> threadPool.generic().execute(() -> {
+                logger.debug("task [{}] timed out after [{}]", task, timeout);
+                testTask.onFailure(source, new ProcessClusterEventTimeoutException(timeout, source));
+            }));
+        } else {
+            threadExecutor.execute(task);
+        }
     }
 
 

@@ -50,47 +50,39 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class BatchingTaskExecutorTests extends SingleTaskExecutorTests {
+public class TaskBatchingTests extends SingleTaskExecutorTests {
 
-    protected BatchingTestTaskExecutor batchingTaskExecutor;
+    protected TestTaskBatching taskBatching;
 
     @Before
     public void setUpBatchingTaskExecutor() throws Exception {
-        batchingTaskExecutor = new BatchingTestTaskExecutor(logger, threadExecutor, threadPool);
+        taskBatching = new TestTaskBatching(logger, threadExecutor, threadPool);
     }
 
-    class BatchingTestTaskExecutor extends BatchingTaskExecutor {
+    class TestTaskBatching extends TaskBatching {
 
-        BatchingTestTaskExecutor(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {
+        TestTaskBatching(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {
             super(logger, threadExecutor, threadPool);
         }
 
         @Override
-        protected void run(Object executor, List<? extends BatchingTask> tasks, String tasksSummary) {
+        protected void run(Object batchingKey, List<? extends BatchingTask> tasks, String tasksSummary) {
             List<UpdateTask> updateTasks = (List) tasks;
-            ((TestExecutor) executor).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
+            ((TestExecutor) batchingKey).execute(updateTasks.stream().map(t -> t.taskIdentity).collect(Collectors.toList()));
             updateTasks.forEach(updateTask -> updateTask.listener.processed(updateTask.source));
         }
 
         @Override
-        protected void onTimeout(SingleTask task, TimeValue timeout) {
+        protected void onTimeout(BatchingTask task, TimeValue timeout) {
             ((UpdateTask) task).listener.onFailure(task.source, new ProcessClusterEventTimeoutException(timeout, task.source));
         }
 
         class UpdateTask extends BatchingTask {
-            final Object task;
             final TestListener listener;
 
             UpdateTask(Priority priority, String source, Object task, TestListener listener, TestExecutor<?> executor) {
                 super(priority, source, executor, task);
-                this.task = task;
                 this.listener = listener;
-            }
-
-            @Override
-            public String describeTasks(List<? extends BatchingTask> tasks) {
-                return ((TestExecutor<Object>) executor).describeTasks(
-                    tasks.stream().map(BatchingTask::getWrappedTask).collect(Collectors.toList()));
             }
         }
 
@@ -109,18 +101,18 @@ public class BatchingTaskExecutorTests extends SingleTaskExecutorTests {
     private <T> void submitTasks(final String source,
                                 final Map<T, TestListener> tasks, final ClusterStateTaskConfig config,
                                 final TestExecutor<T> executor) {
-        List<BatchingTestTaskExecutor.UpdateTask> safeTasks = tasks.entrySet().stream()
-            .map(e -> batchingTaskExecutor.new UpdateTask(config.priority(), source, e.getKey(), e.getValue(), executor))
+        List<TestTaskBatching.UpdateTask> safeTasks = tasks.entrySet().stream()
+            .map(e -> taskBatching.new UpdateTask(config.priority(), source, e.getKey(), e.getValue(), executor))
             .collect(Collectors.toList());
-        batchingTaskExecutor.submitTasks(safeTasks, config.timeout());
+        taskBatching.submitTasks(safeTasks, config.timeout());
     }
 
     @Override
     public void testTimedOutTaskCleanedUp() throws Exception {
         super.testTimedOutTaskCleanedUp();
-        synchronized (batchingTaskExecutor.tasksPerExecutor) {
-            assertTrue("expected empty map but was " + batchingTaskExecutor.tasksPerExecutor,
-                batchingTaskExecutor.tasksPerExecutor.isEmpty());
+        synchronized (taskBatching.tasksPerExecutor) {
+            assertTrue("expected empty map but was " + taskBatching.tasksPerExecutor,
+                taskBatching.tasksPerExecutor.isEmpty());
         }
     }
 

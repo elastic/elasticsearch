@@ -34,18 +34,25 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Task executor that supports batching for tasks that share the same executor (see {@link BatchingTask#executor})
+ * Batching support for {@link PrioritizedEsThreadPoolExecutor}
+ * Tasks that share the same batching key are batched (see {@link BatchingTask#batchingKey})
  */
-public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
+public abstract class TaskBatching {
 
+    protected final Logger logger;
+    protected final ThreadPool threadPool;
+    protected final PrioritizedEsThreadPoolExecutor threadExecutor;
     final Map<Object, LinkedHashSet<BatchingTask>> tasksPerExecutor = new HashMap<>();
 
-    protected BatchingTaskExecutor(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {
-        super(logger, threadExecutor, threadPool);
+    public TaskBatching(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {
+        this.logger = logger;
+        this.threadExecutor = threadExecutor;
+        this.threadPool = threadPool;
     }
 
     public void submitTasks(List<? extends BatchingTask> tasks, @Nullable TimeValue timeout) throws EsRejectedExecutionException {
@@ -53,21 +60,21 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
             return;
         }
         final BatchingTask firstTask = tasks.get(0);
-        assert tasks.stream().allMatch(t -> t.executor == firstTask.executor) :
-            "tasks submitted in a batch should share the same executor: " + tasks;
-        // convert to an identity map to check for dups based on identity of wrapped task
+        assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey) :
+            "tasks submitted in a batch should share the same batching key: " + tasks;
+        // convert to an identity map to check for dups based on task identity
         final Map<Object, BatchingTask> tasksIdentity = tasks.stream().collect(Collectors.toMap(
-            BatchingTask::getWrappedTask,
+            BatchingTask::getTaskIdentity,
             Function.identity(),
             (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
             IdentityHashMap::new));
 
         synchronized (tasksPerExecutor) {
-            LinkedHashSet<BatchingTask> existingTasks = tasksPerExecutor.computeIfAbsent(firstTask.executor,
+            LinkedHashSet<BatchingTask> existingTasks = tasksPerExecutor.computeIfAbsent(firstTask.batchingKey,
                 k -> new LinkedHashSet<>(tasks.size()));
             for (BatchingTask existing : existingTasks) {
-                // check that there won't be two tasks with the same identity for the same executor
-                BatchingTask duplicateTask = tasksIdentity.get(existing.getWrappedTask());
+                // check that there won't be two tasks with the same identity for the same batching key
+                BatchingTask duplicateTask = tasksIdentity.get(existing.getTaskIdentity());
                 if (duplicateTask != null) {
                     throw new IllegalStateException("task [" + duplicateTask.describeTasks(
                         Collections.singletonList(existing)) + "] with source [" + duplicateTask.source + "] is already queued");
@@ -83,11 +90,6 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
         }
     }
 
-    @Override
-    public void submitTask(SingleTask task, @Nullable TimeValue timeout) throws EsRejectedExecutionException {
-        throw new UnsupportedOperationException();
-    }
-
     private void onTimeoutInternal(List<? extends BatchingTask> updateTasks, TimeValue timeout) {
         threadPool.generic().execute(() -> {
             final ArrayList<BatchingTask> toRemove = new ArrayList<>();
@@ -98,7 +100,7 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
                 }
             }
             if (toRemove.isEmpty() == false) {
-                Object batchingExecutor = toRemove.get(0).executor;
+                Object batchingExecutor = toRemove.get(0).batchingKey;
                 synchronized (tasksPerExecutor) {
                     LinkedHashSet<BatchingTask> existingTasks = tasksPerExecutor.get(batchingExecutor);
                     if (existingTasks != null) {
@@ -115,6 +117,11 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
         });
     }
 
+    /**
+     * Action to be implemented by the specific batching implementation
+     */
+    protected abstract void onTimeout(BatchingTask task, TimeValue timeout);
+
     void runIfNotProcessed(BatchingTask updateTask) {
         // if this task is already processed, the executor shouldn't execute other tasks (that arrived later),
         // to give other executors a chance to execute their tasks.
@@ -122,7 +129,7 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
             final List<BatchingTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchingTask>> processTasksBySource = new HashMap<>();
             synchronized (tasksPerExecutor) {
-                LinkedHashSet<BatchingTask> pending = tasksPerExecutor.remove(updateTask.executor);
+                LinkedHashSet<BatchingTask> pending = tasksPerExecutor.remove(updateTask.batchingKey);
                 if (pending != null) {
                     for (BatchingTask task : pending) {
                         if (task.processed.getAndSet(true) == false) {
@@ -142,39 +149,39 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
                 }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
-                run(updateTask.executor, toExecute, tasksSummary);
+                run(updateTask.batchingKey, toExecute, tasksSummary);
             }
         }
     }
 
-    @Override
-    protected void run(SingleTask task) {
-        throw new UnsupportedOperationException();
-    }
-
     /**
-     * Action to be implemented by the specific task executor
+     * Action to be implemented by the specific batching implementation
      */
-    protected abstract void run(Object executor, List<? extends BatchingTask> tasks, String tasksSummary);
+    protected abstract void run(Object batchingKey, List<? extends BatchingTask> tasks, String tasksSummary);
 
     /**
      * Represents a runnable task that supports batching.
-     * Implementors of BatchingTaskExecutor can subclass this to add a payload to the task.
+     * Implementors of TaskBatching can subclass this to add a payload to the task.
      */
-    protected abstract class BatchingTask extends SingleTask {
+    protected abstract class BatchingTask extends SourcePrioritizedRunnable {
         /**
-         * the executor object that is used as batching key
+         * whether the task has been processed already
          */
-        protected final Object executor;
+        protected final AtomicBoolean processed = new AtomicBoolean();
+
+        /**
+         * the object that is used as batching key
+         */
+        protected final BatchingKey<?> batchingKey;
         /**
          * the task object that is wrapped
          */
-        protected final Object wrappedTask;
+        protected final Object taskIdentity;
 
-        protected BatchingTask(Priority priority, String source, Object executor, Object wrappedTask) {
+        protected BatchingTask(Priority priority, String source, BatchingKey<?> batchingKey, Object taskIdentity) {
             super(priority, source);
-            this.executor = executor;
-            this.wrappedTask = wrappedTask;
+            this.batchingKey = batchingKey;
+            this.taskIdentity = taskIdentity;
         }
 
         @Override
@@ -192,10 +199,34 @@ public abstract class BatchingTaskExecutor extends SingleTaskExecutor {
             }
         }
 
-        public abstract String describeTasks(List<? extends BatchingTask> tasks);
+        @SuppressWarnings("unchecked")
+        public String describeTasks(List<? extends BatchingTask> tasks) {
+            return ((BatchingKey) batchingKey).describeTasks(
+                tasks.stream().map(BatchingTask::getTaskIdentity).collect(Collectors.toList()));
+        }
 
-        public Object getWrappedTask() {
-            return wrappedTask;
+        public Object getTaskIdentity() {
+            return taskIdentity;
+        }
+    }
+
+    public interface BatchingKey<T> {
+        /**
+         * Builds a concise description of a list of tasks (to be used in logging etc.).
+         *
+         * This method can be called multiple times with different lists before execution.
+         * This allows groupd task description but the submitting source.
+         */
+        default String describeTasks(List<T> tasks) {
+            return tasks.stream().map(T::toString).reduce((s1, s2) -> {
+                if (s1.isEmpty()) {
+                    return s2;
+                } else if (s2.isEmpty()) {
+                    return s1;
+                } else {
+                    return s1 + ", " + s2;
+                }
+            }).orElse("");
         }
     }
 }

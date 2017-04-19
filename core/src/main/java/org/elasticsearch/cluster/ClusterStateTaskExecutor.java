@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.service.BatchedTasksDescription;
+import org.elasticsearch.cluster.service.TaskBatching;
 import org.elasticsearch.common.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-public interface ClusterStateTaskExecutor<T> extends BatchedTasksDescription<T> {
+public interface ClusterStateTaskExecutor<T> extends TaskBatching.BatchingKey<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.

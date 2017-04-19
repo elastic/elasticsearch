@@ -240,7 +240,10 @@ Based on the above definition, users owning the `clicks_admin` role can:
 TIP:  For a complete list of available <<security-privileges, cluster and indices privileges>>
 
 There are two available mechanisms to define roles: using the _Role Management APIs_
-or in local files on the Elasticsearch nodes.
+or in local files on the Elasticsearch nodes.  {security} also supports implementing
+custom roles providers.  If you need to integrate with another system to retrieve
+user roles, you can build a custom roles provider plugin. For more information,
+see <<custom-roles-provider, Custom Roles Provider Extension>>.
 
 [float]
 [[roles-management-ui]]
@@ -404,3 +407,6 @@ include::authorization/mapping-roles.asciidoc[]
 include::authorization/field-and-document-access-control.asciidoc[]
 
 include::authorization/run-as-privilege.asciidoc[]
+
+include::authorization/custom-roles-provider.asciidoc[]
+

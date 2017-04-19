@@ -22,10 +22,6 @@
 # under the License.
 
 Vagrant.configure(2) do |config|
-  config.vm.define "ubuntu-1204" do |config|
-    config.vm.box = "elastic/ubuntu-12.04-x86_64"
-    ubuntu_common config
-  end
   config.vm.define "ubuntu-1404" do |config|
     config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config

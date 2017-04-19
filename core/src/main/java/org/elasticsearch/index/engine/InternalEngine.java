@@ -612,7 +612,7 @@ public class InternalEngine extends Engine {
                     indexResult = indexIntoLucene(index, plan);
                 } else {
                     indexResult = new IndexResult(
-                            plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+                            plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm(), plan.currentNotFoundOrDeleted);
                 }
                 if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                     final Translog.Location location;
@@ -738,7 +738,7 @@ public class InternalEngine extends Engine {
             }
             versionMap.putUnderLock(index.uid().bytes(),
                 new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
-            return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+            return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm(), plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 /* There is no tragic event recorded so this must be a document failure.

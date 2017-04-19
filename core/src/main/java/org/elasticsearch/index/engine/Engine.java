@@ -387,7 +387,7 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long seqNo, long primaryTerm, boolean created) {
+        public IndexResult(long version, long seqNo, boolean created) {
             super(Operation.TYPE.INDEX, version, seqNo);
             this.created = created;
         }

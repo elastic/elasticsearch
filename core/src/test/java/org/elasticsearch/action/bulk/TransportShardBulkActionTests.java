@@ -617,7 +617,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
         public IndexResultWithLocation(long version, long seqNo, long primaryTerm, boolean created, Translog.Location newLocation) {
-            super(version, seqNo, primaryTerm, created);
+            super(version, seqNo, created);
             this.location = newLocation;
         }
 
@@ -653,7 +653,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         private final Translog.Location location;
 
         protected FakeResult(long version, long seqNo, long primaryTerm, boolean created, Translog.Location location) {
-            super(version, seqNo, primaryTerm, created);
+            super(version, seqNo, created);
             this.location = location;
         }
 

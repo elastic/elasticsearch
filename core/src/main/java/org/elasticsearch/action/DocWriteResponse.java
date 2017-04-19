@@ -351,7 +351,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
                 context.setSeqNo(parser.longValue());
             } else if (_PRIMARY_TERM.equals(currentFieldName)) {
                 context.setPrimaryTerm(parser.longValue());
-            } else{
+            } else {
                 throwUnknownField(currentFieldName, parser.getTokenLocation());
             }
         } else if (token == XContentParser.Token.START_OBJECT) {

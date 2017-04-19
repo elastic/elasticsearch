@@ -307,20 +307,22 @@ public abstract class Engine implements Closeable {
         private final Operation.TYPE operationType;
         private final long version;
         private final long seqNo;
+        private final long primaryTerm;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo, long primaryTerm) {
             this.operationType = operationType;
             this.failure = failure;
             this.version = version;
             this.seqNo = seqNo;
+            this.primaryTerm = primaryTerm;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long seqNo) {
-            this(operationType, null, version, seqNo);
+        protected Result(Operation.TYPE operationType, long version, long seqNo, long primaryTerm) {
+            this(operationType, null, version, seqNo, primaryTerm);
         }
 
         /** whether the operation had failure */
@@ -340,6 +342,15 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        /**
+         * Get the primary term.
+         *
+         * @return the primary term
+         */
+        public long getPrimaryTerm() {
+            return primaryTerm;
         }
 
         /** get the translog location after executing the operation */
@@ -389,7 +400,7 @@ public abstract class Engine implements Closeable {
         private final boolean created;
 
         public IndexResult(long version, long seqNo, long primaryTerm, boolean created) {
-            super(Operation.TYPE.INDEX, version, seqNo);
+            super(Operation.TYPE.INDEX, version, seqNo, primaryTerm);
             this.created = created;
         }
 
@@ -397,12 +408,12 @@ public abstract class Engine implements Closeable {
          * use in case of index operation failed before getting to internal engine
          * (e.g while preparing operation or updating mappings)
          * */
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, long primaryTerm) {
+            this(failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO, primaryTerm);
         }
 
-        public IndexResult(Exception failure, long version, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, seqNo);
+        public IndexResult(Exception failure, long version, long seqNo, long primaryTerm) {
+            super(Operation.TYPE.INDEX, failure, version, seqNo, primaryTerm);
             this.created = false;
         }
 
@@ -416,13 +427,13 @@ public abstract class Engine implements Closeable {
 
         private final boolean found;
 
-        public DeleteResult(long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, seqNo);
+        public DeleteResult(long version, long seqNo, long primaryTerm, boolean found) {
+            super(Operation.TYPE.DELETE, version, seqNo, primaryTerm);
             this.found = found;
         }
 
-        public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, seqNo);
+        public DeleteResult(Exception failure, long version, long seqNo, long primaryTerm, boolean found) {
+            super(Operation.TYPE.DELETE, failure, version, seqNo, primaryTerm);
             this.found = found;
         }
 
@@ -434,12 +445,12 @@ public abstract class Engine implements Closeable {
 
     static class NoOpResult extends Result {
 
-        NoOpResult(long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, seqNo);
+        NoOpResult(long seqNo, long primaryTerm) {
+            super(Operation.TYPE.NO_OP, 0, seqNo, primaryTerm);
         }
 
-        NoOpResult(long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, seqNo);
+        NoOpResult(long seqNo, long primaryTerm, Exception failure) {
+            super(Operation.TYPE.NO_OP, failure, 0, seqNo, primaryTerm);
         }
 
     }

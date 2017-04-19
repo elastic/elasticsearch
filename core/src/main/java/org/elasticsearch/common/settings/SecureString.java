@@ -51,20 +51,14 @@ public final class SecureString implements CharSequence, Closeable, Writeable {
      * Constructs a new SecureString from a StreamInput.
      */
     public SecureString(StreamInput in) throws IOException {
-        BytesRef ref = null;
-        char[] chars = null;
+        final BytesRef ref = in.readBytesRef();
+        final char[] chars = new char[ref.length];
         try {
-            ref = in.readBytesRef();
-            chars = new char[ref.length];
             final int charsLength = UnicodeUtil.UTF8toUTF16(ref.bytes, 0, ref.length, chars);
             this.chars = Arrays.copyOfRange(chars, 0, charsLength);
         } finally {
-            if (ref != null) {
-                Arrays.fill(ref.bytes, (byte) 0);
-            }
-            if (chars != null) {
-                Arrays.fill(chars, (char) 0);
-            }
+            Arrays.fill(ref.bytes, (byte) 0);
+            Arrays.fill(chars, (char) 0);
         }
     }
 
@@ -180,16 +174,13 @@ public final class SecureString implements CharSequence, Closeable, Writeable {
     @Override
     public synchronized void writeTo(StreamOutput out) throws IOException {
         ensureNotClosed();
-        byte[] bytes = null;
+        final int utf8Size = UnicodeUtil.calcUTF16toUTF8Length(new CharsRef(chars, 0, chars.length), 0, chars.length);
+        final byte[] bytes = new byte[utf8Size];;
         try {
-            final int utf8Size = UnicodeUtil.calcUTF16toUTF8Length(new CharsRef(chars, 0, chars.length), 0, chars.length);
-            bytes = new byte[utf8Size];
             UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, bytes);
             out.writeBytesRef(new BytesRef(bytes));
         } finally {
-            if (bytes != null) {
-                Arrays.fill(bytes, (byte) 0);
-            }
+            Arrays.fill(bytes, (byte) 0);
         }
     }
 }

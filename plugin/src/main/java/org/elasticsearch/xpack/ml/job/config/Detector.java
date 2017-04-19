@@ -98,7 +98,8 @@ public class Detector extends ToXContentToBytes implements Writeable {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareObjectArray(Builder::setDetectorRules, DetectionRule.PARSER, DETECTOR_RULES_FIELD);
+        PARSER.declareObjectArray(Builder::setDetectorRules,
+                (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), DETECTOR_RULES_FIELD);
     }
 
     public static final String COUNT = "count";

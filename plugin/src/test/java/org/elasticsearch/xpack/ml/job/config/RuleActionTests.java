@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class RuleActionTests extends ESTestCase {
 
@@ -17,5 +21,14 @@ public class RuleActionTests extends ESTestCase {
 
     public void testToString() {
         assertEquals("filter_results", RuleAction.FILTER_RESULTS.toString());
+    }
+
+    public void testReadFrom() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(0);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.FILTER_RESULTS));
+            }
+        }
     }
 }

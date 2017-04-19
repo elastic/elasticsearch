@@ -323,7 +323,8 @@ public class JobUpdate implements Writeable, ToXContent {
         static {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), DetectionRule.PARSER, RULES);
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
+                    (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), RULES);
         }
 
         private int index;

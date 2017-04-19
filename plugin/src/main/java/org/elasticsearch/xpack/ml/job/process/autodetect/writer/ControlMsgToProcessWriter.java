@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.StringWriter;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -22,11 +13,20 @@ import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * A writer for sending control messages to the C++ autodetect process.
  * The data written to outputIndex is length encoded.
  */
 public class ControlMsgToProcessWriter {
+
     /**
      * This should be the same size as the buffer in the C++ autodetect process.
      */
@@ -56,10 +56,6 @@ public class ControlMsgToProcessWriter {
      * This must match the code defined in the api::CAnomalyDetector C++ class.
      */
     public static final String UPDATE_MESSAGE_CODE = "u";
-
-
-    private static final String EQUALS = " = ";
-    private static final char NEW_LINE = '\n';
 
     /**
      * An number to uniquely identify each flush so that subsequent code can

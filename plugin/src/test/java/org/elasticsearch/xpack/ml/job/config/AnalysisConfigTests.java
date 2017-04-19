@@ -410,10 +410,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testExtractReferencedLists() {
-        DetectionRule rule1 =
-                new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "filter1")));
-        DetectionRule rule2 =
-                new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "filter2")));
+        DetectionRule rule1 = new DetectionRule.Builder(Arrays.asList(RuleCondition.createCategorical("foo", "filter1"))).build();
+        DetectionRule rule2 = new DetectionRule.Builder(Arrays.asList(RuleCondition.createCategorical("foo", "filter2"))).build();
         Detector.Builder detector1 = new Detector.Builder("count", null);
         detector1.setByFieldName("foo");
         detector1.setDetectorRules(Arrays.asList(rule1));

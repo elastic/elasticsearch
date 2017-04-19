@@ -5,17 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.IntStream;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.Connective;
@@ -24,12 +13,23 @@ import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.IntStream;
+
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ControlMsgToProcessWriterTests extends ESTestCase {
     private LengthEncodedWriter lengthEncodedWriter;
@@ -163,19 +163,21 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     public void testWriteUpdateDetectorRulesMessage() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
 
-        DetectionRule rule1 = new DetectionRule("targetField1", "targetValue", Connective.AND, createRule("5"));
-        DetectionRule rule2 = new DetectionRule("targetField2", "targetValue", Connective.AND, createRule("5"));
+        DetectionRule rule1 = new DetectionRule.Builder(createRule("5")).setTargetFieldName("targetField1")
+                .setTargetFieldValue("targetValue").setConditionsConnective(Connective.AND).build();
+        DetectionRule rule2 = new DetectionRule.Builder(createRule("5")).setTargetFieldName("targetField2")
+                .setTargetFieldValue("targetValue").setConditionsConnective(Connective.AND).build();
         writer.writeUpdateDetectorRulesMessage(2, Arrays.asList(rule1, rule2));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("u[detectorRules]\ndetectorIndex=2\n" +
-                            "rulesJson=[{\"conditions_connective\":\"and\",\"rule_conditions\":" +
+                            "rulesJson=[{\"rule_action\":\"filter_results\",\"conditions_connective\":\"and\",\"rule_conditions\":" +
                 "[{\"condition_type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
                 "\"target_field_name\":\"targetField1\",\"target_field_value\":\"targetValue\"}," +
-                "{\"conditions_connective\":\"and\",\"rule_conditions\":[{\"condition_type\":\"numerical_actual\"," +
-                "\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
+                "{\"rule_action\":\"filter_results\",\"conditions_connective\":\"and\",\"rule_conditions\":[" +
+                "{\"condition_type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
                 "\"target_field_name\":\"targetField2\",\"target_field_value\":\"targetValue\"}]");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }

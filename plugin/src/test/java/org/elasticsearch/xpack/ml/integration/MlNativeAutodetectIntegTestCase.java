@@ -26,10 +26,12 @@ import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
@@ -124,6 +126,11 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         client().execute(FlushJobAction.INSTANCE, request).get();
     }
 
+    protected void updateJob(String jobId, JobUpdate update) throws Exception {
+        UpdateJobAction.Request request = new UpdateJobAction.Request(jobId, update);
+        client().execute(UpdateJobAction.INSTANCE, request);
+    }
+
     protected void deleteJob(String jobId) throws Exception {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         client().execute(DeleteJobAction.INSTANCE, request).get();
@@ -170,6 +177,10 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
 
     protected List<AnomalyRecord> getRecords(String jobId) throws Exception {
         GetRecordsAction.Request request = new GetRecordsAction.Request(jobId);
+        return getRecords(request);
+    }
+
+    protected List<AnomalyRecord> getRecords(GetRecordsAction.Request request) throws Exception {
         GetRecordsAction.Response response = client().execute(GetRecordsAction.INSTANCE, request).get();
         return response.getRecords().results();
     }

@@ -5,9 +5,23 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.config.Operator;
+import org.elasticsearch.xpack.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
+import org.ini4j.Config;
+import org.ini4j.Ini;
+import org.ini4j.Profile.Section;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -21,25 +35,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.config.Connective;
-import org.ini4j.Config;
-import org.ini4j.Ini;
-import org.ini4j.Profile.Section;
-import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.Condition;
-import org.elasticsearch.xpack.ml.job.config.Operator;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.RuleCondition;
-import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 
 public class FieldConfigWriterTests extends ESTestCase {
@@ -180,7 +178,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         detector.setPartitionFieldName("instance");
         RuleCondition ruleCondition =
                 new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "metricName", "metricValue", new Condition(Operator.LT, "5"), null);
-        DetectionRule rule = new DetectionRule("instance", null, Connective.OR, Arrays.asList(ruleCondition));
+        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(ruleCondition)).setTargetFieldName("instance").build();
         detector.setDetectorRules(Arrays.asList(rule));
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(detector.build()));

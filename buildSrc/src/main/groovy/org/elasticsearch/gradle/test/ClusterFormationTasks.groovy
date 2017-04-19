@@ -549,7 +549,7 @@ class ClusterFormationTasks {
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
-            ant.waitfor(maxwait: '60', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
+            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
                         resourceexists {
@@ -576,7 +576,7 @@ class ClusterFormationTasks {
                 anyNodeFailed |= node.failedMarker.exists()
             }
             if (ant.properties.containsKey("failed${name}".toString()) || anyNodeFailed) {
-                waitFailed(nodes, logger, 'Failed to start elasticsearch')
+                waitFailed(project, nodes, logger, 'Failed to start elasticsearch')
             }
 
             // go through each node checking the wait condition
@@ -593,14 +593,14 @@ class ClusterFormationTasks {
                 }
 
                 if (success == false) {
-                    waitFailed(nodes, logger, 'Elasticsearch cluster failed to pass wait condition')
+                    waitFailed(project, nodes, logger, 'Elasticsearch cluster failed to pass wait condition')
                 }
             }
         }
         return wait
     }
 
-    static void waitFailed(List<NodeInfo> nodes, Logger logger, String msg) {
+    static void waitFailed(Project project, List<NodeInfo> nodes, Logger logger, String msg) {
         for (NodeInfo node : nodes) {
             if (logger.isInfoEnabled() == false) {
                 // We already log the command at info level. No need to do it twice.
@@ -619,6 +619,17 @@ class ClusterFormationTasks {
             if (node.startLog.exists()) {
                 logger.error("|\n|  [log]")
                 node.startLog.eachLine { line -> logger.error("|    ${line}") }
+            }
+            if (node.pidFile.exists() && node.failedMarker.exists() == false &&
+                (node.httpPortsFile.exists() == false || node.transportPortsFile.exists() == false)) {
+                logger.error("|\n|  [jstack]")
+                String pid = node.pidFile.getText('UTF-8')
+                ByteArrayOutputStream output = new ByteArrayOutputStream()
+                project.exec {
+                    commandLine = ["${project.javaHome}/bin/jstack", pid]
+                    standardOutput = output
+                }
+                output.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
             }
             logger.error("|-----------------------------------------")
         }

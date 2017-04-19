@@ -86,6 +86,7 @@ import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LengthTokenFilterFactory;
 import org.elasticsearch.index.analysis.LetterTokenizerFactory;
+import org.elasticsearch.index.analysis.CharGroupTokenizerFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
@@ -276,6 +277,7 @@ public final class AnalysisModule {
         tokenizers.register("PathHierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.register("keyword", KeywordTokenizerFactory::new);
         tokenizers.register("letter", LetterTokenizerFactory::new);
+        tokenizers.register("char_group", CharGroupTokenizerFactory::new);
         tokenizers.register("lowercase", LowerCaseTokenizerFactory::new);
         tokenizers.register("whitespace", WhitespaceTokenizerFactory::new);
         tokenizers.register("nGram", NGramTokenizerFactory::new);

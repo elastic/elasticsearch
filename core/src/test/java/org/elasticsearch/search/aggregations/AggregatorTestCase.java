@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
@@ -31,8 +32,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
@@ -48,6 +51,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -288,5 +292,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         public String toString() {
             return "ShardSearcher(" + ctx.get(0) + ")";
         }
+    }
+
+    protected static DirectoryReader wrap(DirectoryReader directoryReader) throws IOException {
+        return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
     }
 }

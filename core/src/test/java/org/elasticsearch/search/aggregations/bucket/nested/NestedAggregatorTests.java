@@ -65,7 +65,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
@@ -112,7 +112,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
@@ -160,7 +160,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT + "." + NESTED_OBJECT2);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
@@ -213,7 +213,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.addDocuments(documents);
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT);
                 SumAggregationBuilder sumAgg = new SumAggregationBuilder(SUM_AGG_NAME)
@@ -292,7 +292,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
                 iw.close();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
 
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     "nested_field");

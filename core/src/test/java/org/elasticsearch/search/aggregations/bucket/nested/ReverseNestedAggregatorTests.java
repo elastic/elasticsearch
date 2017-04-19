@@ -54,7 +54,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -117,7 +117,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder

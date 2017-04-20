@@ -19,25 +19,29 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    public CommonAnalysisFactoryTests() {
+        super(new CommonAnalysisPlugin());
+    }
+
     @Override
     protected Map<String, Class<?>> getTokenizers() {
-        Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());
+        Map<String, Class<?>> tokenizers = new TreeMap<>(super.getTokenizers());
         return tokenizers;
     }
 
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
-        Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
+        Map<String, Class<?>> filters = new TreeMap<>(super.getTokenFilters());
         filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
         filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
         filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
@@ -46,7 +50,21 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, Class<?>> getCharFilters() {
-        Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
+        Map<String, Class<?>> filters = new TreeMap<>(super.getCharFilters());
+        return filters;
+    }
+
+    @Override
+    protected Map<String, Class<?>> getPreBuiltTokenFilters() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreBuiltTokenFilters());
+        filters.put("classic", null);
+        filters.put("common_grams", null);
+        filters.put("edge_ngram", null);
+        filters.put("edgeNGram", null);
+        filters.put("ngram", null);
+        filters.put("nGram", null);
+        filters.put("truncate", null);
+        filters.put("unique", Void.class);
         return filters;
     }
 

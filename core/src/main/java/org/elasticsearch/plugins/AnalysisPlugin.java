@@ -22,14 +22,18 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 
@@ -65,6 +69,10 @@ public interface AnalysisPlugin {
         return emptyMap();
     }
 
+    default Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
+        return emptyMap();
+    }
+
     /**
      * Override to add additional {@link Tokenizer}s.
      */
@@ -84,5 +92,36 @@ public interface AnalysisPlugin {
      */
     default Map<String, org.apache.lucene.analysis.hunspell.Dictionary> getHunspellDictionaries() {
         return emptyMap();
+    }
+
+    class PreBuiltTokenFilterSpec {
+        private final boolean useFilterForMultitermQueries;
+        private final PreBuiltCacheFactory.CachingStrategy cachingStrategy; 
+        private final BiFunction<TokenStream, Version, TokenStream> create;
+
+        /**
+         * Setup the spec.
+         * @param useFilterForMultitermQueries use the pre-built token filter for multiterm queries.
+         * @param cachingStrategy caching strategy the pre-built token filter should use
+         * @param create function to create the token filter
+         */
+        public PreBuiltTokenFilterSpec(boolean useFilterForMultitermQueries, PreBuiltCacheFactory.CachingStrategy cachingStrategy,
+                BiFunction<TokenStream, Version, TokenStream> create) {
+            this.useFilterForMultitermQueries = useFilterForMultitermQueries;
+            this.cachingStrategy = cachingStrategy;
+            this.create = create;
+        }
+
+        public boolean shouldUseFilterForMultitermQueries() {
+            return useFilterForMultitermQueries;
+        }
+
+        public PreBuiltCacheFactory.CachingStrategy getCachingStrategy() {
+            return cachingStrategy;
+        }
+
+        public BiFunction<TokenStream, Version, TokenStream> getCreate() {
+            return create;
+        }
     }
 }

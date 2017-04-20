@@ -19,21 +19,54 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
+import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
+import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.NGramTokenFilter;
+import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-        Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
+        Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
+        return filters;
+    }
+
+    @Override
+    public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
+        Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
+        filters.put("classic", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                new ClassicFilter(input)));
+        filters.put("common_grams", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
+        filters.put("edge_ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
+        // NOCOMMIT deprecate edgeNGram
+        filters.put("edgeNGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) -> 
+                new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
+        filters.put("ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new NGramTokenFilter(input)));
+        // NOCOMMIT deprecate nGram
+        filters.put("nGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new NGramTokenFilter(input)));
+        filters.put("truncate", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                new TruncateTokenFilter(input, 10)));
+        filters.put("unique", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                new UniqueTokenFilter(input)));
+
         return filters;
     }
 }

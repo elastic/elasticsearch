@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
@@ -141,10 +142,14 @@ import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Sets up {@link AnalysisRegistry}.
@@ -170,8 +175,11 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
+
+        Map<String, PreBuiltTokenFilterSpec> preBuiltTokenFilters = setupPreBuiltTokenFilters(plugins);
+
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry());
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preBuiltTokenFilters);
     }
 
     HunspellService getHunspellService() {
@@ -260,6 +268,20 @@ public final class AnalysisModule {
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreBuiltTokenFilterSpec> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreBuiltTokenFilterSpec> preBuiltTokenFilters = new NamedRegistry<>("pre built token_filter");
+        preBuiltTokenFilters.register("standard", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (inputs, version) ->
+                    new StandardFilter(inputs)));
+        for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
+            preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT), new PreBuiltTokenFilterSpec( // NOCOMMIT remove this shim
+                    preBuilt.isMultiTermAware(),
+                    CachingStrategy.ELASTICSEARCH, // This is the most granular/safest/whatever
+                    preBuilt::create));
+        }
+        preBuiltTokenFilters.extractAndRegister(plugins, AnalysisPlugin::getPreBuiltTokenFilters);
+        return preBuiltTokenFilters.getRegistry();
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {

@@ -139,13 +139,6 @@ public enum PreBuiltTokenFilters {
         }
     },
 
-    COMMON_GRAMS(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new CommonGramsFilter(tokenStream, CharArraySet.EMPTY_SET);
-        }
-    },
-
     LOWERCASE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
@@ -179,48 +172,6 @@ public enum PreBuiltTokenFilters {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new PorterStemFilter(tokenStream);
-        }
-    },
-
-    STANDARD(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new StandardFilter(tokenStream);
-        }
-    },
-
-    CLASSIC(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new ClassicFilter(tokenStream);
-        }
-    },
-
-    NGRAM(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new NGramTokenFilter(tokenStream);
-        }
-    },
-
-    EDGE_NGRAM(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
-        }
-    },
-
-    UNIQUE(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new UniqueTokenFilter(tokenStream);
-        }
-    },
-
-    TRUNCATE(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new TruncateTokenFilter(tokenStream, 10);
         }
     },
 

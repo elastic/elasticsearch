@@ -19,8 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
+import org.elasticsearch.plugins.AnalysisPlugin;
 
-public class AnalysisFactoryTests extends AnalysisFactoryTestCase {
-    // tests are inherited and nothing needs to be defined here
+public class BuiltInAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    public BuiltInAnalysisFactoryTests() {
+        // Use an empty plugin that doesn't define anything so the test doesn't need a ton of null checks.
+        super(new AnalysisPlugin() {});
+    }
 }

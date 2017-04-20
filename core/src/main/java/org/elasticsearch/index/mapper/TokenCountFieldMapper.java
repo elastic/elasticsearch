@@ -140,10 +140,8 @@ public class TokenCountFieldMapper extends FieldMapper {
         final int tokenCount;
         if (value == null) {
             tokenCount = (Integer) fieldType().nullValue();
-        } else if (enablePositionIncrements) {
-            tokenCount = countPositions(analyzer, name(), value);
         } else {
-            tokenCount = countTokens(analyzer, name(), value);
+            tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
@@ -157,39 +155,26 @@ public class TokenCountFieldMapper extends FieldMapper {
      * @param analyzer analyzer to create token stream
      * @param fieldName field name to pass to analyzer
      * @param fieldValue field value to pass to analyzer
+     * @param enablePositionIncrements should we count position increments ?
      * @return number of position increments in a token stream
      * @throws IOException if tokenStream throws it
      */
-    static int countPositions(Analyzer analyzer, String fieldName, String fieldValue) throws IOException {
+    static int countPositions(Analyzer analyzer, String fieldName, String fieldValue, boolean enablePositionIncrements) throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, fieldValue)) {
             int count = 0;
             PositionIncrementAttribute position = tokenStream.addAttribute(PositionIncrementAttribute.class);
             tokenStream.reset();
             while (tokenStream.incrementToken()) {
+                if (enablePositionIncrements) {
+                    count += position.getPositionIncrement();
+                } else {
+                    count += Math.min(1, position.getPositionIncrement());
+                }
+            }
+            tokenStream.end();
+            if (enablePositionIncrements) {
                 count += position.getPositionIncrement();
             }
-            tokenStream.end();
-            count += position.getPositionIncrement();
-            return count;
-        }
-    }
-
-    /**
-     * Count tokens in a token stream. Package private for testing.
-     * @param analyzer analyzer to create token stream
-     * @param fieldName field name to pass to analyzer
-     * @param fieldValue field value to pass to analyzer
-     * @return number of tokens in a token stream
-     * @throws IOException if tokenStream throws it
-     */
-    static int countTokens(Analyzer analyzer, String fieldName, String fieldValue) throws IOException {
-        try (TokenStream tokenStream = analyzer.tokenStream(fieldName, fieldValue)) {
-            int count = 0;
-            tokenStream.reset();
-            while (tokenStream.incrementToken()) {
-                count++;
-            }
-            tokenStream.end();
             return count;
         }
     }

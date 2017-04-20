@@ -23,12 +23,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XLRUQueryCache;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Setting;
@@ -57,7 +57,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
 
-    private final LRUQueryCache cache;
+    private final XLRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -221,7 +221,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         shardStats.remove(shardId);
     }
 
-    private class ElasticsearchLRUQueryCache extends LRUQueryCache {
+    private class ElasticsearchLRUQueryCache extends XLRUQueryCache {
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache) {
             super(maxSize, maxRamBytesUsed, leavesToCache);

@@ -37,7 +37,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
     private static final String TEST_ADMIN_PASSWORD = "changeme";
 
     @After
-    public void clearMlState() throws IOException {
+    public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 

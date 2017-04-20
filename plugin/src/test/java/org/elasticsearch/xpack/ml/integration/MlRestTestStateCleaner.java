@@ -24,12 +24,6 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
-/*
- * NOTE: a copy if this file resides in :x-pack-elasticsearch:qa:smoke-test-ml-with-security
- *
- * Therefore any changes here, have to be transfered there, too.
- * (Or eventually fix it by introducing a common test infrastructure package)
- */
 
 public class MlRestTestStateCleaner {
 

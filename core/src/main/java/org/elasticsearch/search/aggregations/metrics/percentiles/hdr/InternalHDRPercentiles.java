@@ -99,7 +99,9 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percents[i], state.getValueAtPercentile(percents[i]));
+            double percent = percents[i];
+            double value = (state.getTotalCount() == 0) ? Double.NaN : state.getValueAtPercentile(percent);
+            final Percentile next = new InternalPercentile(percent, value);
             ++i;
             return next;
         }

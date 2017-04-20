@@ -259,6 +259,12 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(null, d.getLatestEmptyBucketTime());
     }
 
+    public void testFlushAfterZeroRecords() {
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        d.flush();
+        assertEquals(0, d.getBucketCount());
+    }
+
     private void sendManyDataPoints(DataStreamDiagnostics d, long recordTimestampInMsMin, long recordTimestampInMsMax, long howMuch) {
 
         long range = recordTimestampInMsMax - recordTimestampInMsMin;

@@ -81,7 +81,9 @@ public class DataStreamDiagnostics {
      */
     public void flush() {
         // flush all we know
-        flush(movingBucketHistogram.lastKey() + 1);
+        if (movingBucketHistogram.isEmpty() == false) {
+            flush(movingBucketHistogram.lastKey() + 1);
+        }
     }
 
     /**

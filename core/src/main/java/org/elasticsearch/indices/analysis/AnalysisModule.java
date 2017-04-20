@@ -273,12 +273,17 @@ public final class AnalysisModule {
 
     static Map<String, PreBuiltTokenFilterSpec> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<PreBuiltTokenFilterSpec> preBuiltTokenFilters = new NamedRegistry<>("pre built token_filter");
+
+        // Add filters available in lucene-core
         preBuiltTokenFilters.register("lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.LUCENE, (inputs, version) ->
                 new LowerCaseFilter(inputs)));
         preBuiltTokenFilters.register("standard", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (inputs, version) ->
                 new StandardFilter(inputs)));
+        /* Note that "stop" is available in lucene-core but it's pre-built version uses a set of English stop words that are in
+         * lucene-analyzers-common so "stop" is defined in the analysis-common module. */
+        
+        // Add token filers declared in PreBuiltTokenFilters until they have all been migrated
         for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
-            // TODO remove this temporary shim when there are no more PreBuiltTokenFilters
             switch (preBuilt) {
             case LOWERCASE:
                 // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
@@ -290,6 +295,7 @@ public final class AnalysisModule {
                         preBuilt::create));
             }
         }
+
         preBuiltTokenFilters.extractAndRegister(plugins, AnalysisPlugin::getPreBuiltTokenFilters);
         return preBuiltTokenFilters.getRegistry();
     }

@@ -84,7 +84,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new PorterStemFilter(input)));
         filters.put("reverse", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new ReverseStringFilter(input)));
-        // The stop filter is in lucene-core but the english stop words set is in lucene-analyzers-common
+        // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.put("stop", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         filters.put("trim", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->

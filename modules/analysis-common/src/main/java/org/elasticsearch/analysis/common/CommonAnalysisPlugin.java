@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
@@ -67,6 +68,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         // NOCOMMIT deprecate edgeNGram
         filters.put("edgeNGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) -> 
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
+        filters.put("length", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new LengthFilter(input, 0, Integer.MAX_VALUE)));
         filters.put("ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new NGramTokenFilter(input)));
         // NOCOMMIT deprecate nGram
@@ -74,6 +77,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new NGramTokenFilter(input)));
         filters.put("reverse", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new ReverseStringFilter(input)));
+        // The stop filter is in lucene-core but the english stop words set is in lucene-analyzers-common
         filters.put("stop", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         filters.put("trim", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->

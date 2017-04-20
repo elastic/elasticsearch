@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
-import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
@@ -93,9 +92,6 @@ import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
-import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
-import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 import org.elasticsearch.test.ESTestCase;
@@ -343,13 +339,16 @@ public class AnalysisFactoryTestCase extends ESTestCase {
      * be {@link Void}.
      */
     protected Map<String, Class<?>> getPreBuiltTokenFilters() {
-        // NOCOMMIT use this:
-//        return singletonMap("standard", null);
-        // Temporary builtin list until I remove them all
         Map<String, Class<?>> filters = new HashMap<>();
+        filters.put("standard", null);
+        filters.put("lowercase", null);
+        // NOCOMMIT drop this Temporary builtin list until I remove them all
         for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
             Class<?> luceneFactoryClass;
             switch (tokenizer) {
+            case LOWERCASE:
+                // This has been migrated but has to stick around until PreBuiltAnalyzers is removed.
+                continue;
             case SNOWBALL:
             case DUTCH_STEM:
             case FRENCH_STEM:

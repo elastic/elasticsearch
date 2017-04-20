@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -272,13 +273,22 @@ public final class AnalysisModule {
 
     static Map<String, PreBuiltTokenFilterSpec> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<PreBuiltTokenFilterSpec> preBuiltTokenFilters = new NamedRegistry<>("pre built token_filter");
+        preBuiltTokenFilters.register("lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.LUCENE, (inputs, version) ->
+                new LowerCaseFilter(inputs)));
         preBuiltTokenFilters.register("standard", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (inputs, version) ->
-                    new StandardFilter(inputs)));
+                new StandardFilter(inputs)));
         for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
-            preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT), new PreBuiltTokenFilterSpec( // NOCOMMIT remove this shim
-                    preBuilt.isMultiTermAware(),
-                    CachingStrategy.ELASTICSEARCH, // This is the most granular/safest/whatever
-                    preBuilt::create));
+            // NOCOMMIT remove this shim
+            switch (preBuilt) {
+            case LOWERCASE:
+                // This has been migrated but has to stick around until PreBuiltAnalyzers is removed.
+                continue;
+            default:
+                preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT), new PreBuiltTokenFilterSpec(
+                        preBuilt.isMultiTermAware(),
+                        CachingStrategy.ELASTICSEARCH, // This is the most granular/safest/whatever
+                        preBuilt::create));
+            }
         }
         preBuiltTokenFilters.extractAndRegister(plugins, AnalysisPlugin::getPreBuiltTokenFilters);
         return preBuiltTokenFilters.getRegistry();

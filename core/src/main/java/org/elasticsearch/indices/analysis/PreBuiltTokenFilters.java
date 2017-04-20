@@ -37,15 +37,12 @@ import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
 import org.apache.lucene.analysis.in.IndicNormalizationFilter;
-import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
-import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianNormalizationFilter;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
-import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
@@ -62,13 +59,6 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 import java.util.Locale;
 
 public enum PreBuiltTokenFilters {
-    LENGTH(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new LengthFilter(tokenStream, 0, Integer.MAX_VALUE);
-        }
-    },
-
     LOWERCASE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {

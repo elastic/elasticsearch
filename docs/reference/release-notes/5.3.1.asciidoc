@@ -1,0 +1,96 @@
+[[release-notes-5.3.1]]
+== 5.3.1 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.3>>.
+
+[[breaking-5.3.1]]
+[float]
+=== Breaking changes
+
+Settings::
+* Remove support for default settings {pull}24093[#24093] (issues: {issue}23981[#23981], {issue}24052[#24052], {issue}24074[#24074])
+
+
+
+[[enhancement-5.3.1]]
+[float]
+=== Enhancements
+
+Core::
+* Detect remnants of path.data/default.path.data bug {pull}24099[#24099] (issues: {issue}23981[#23981], {issue}24052[#24052], {issue}24074[#24074], {issue}24093[#24093])
+
+Network::
+* Adjust default Netty receive predictor size to 64k {pull}23542[#23542] (issue: {issue}23185[#23185])
+
+REST::
+* Cluster stats should not render empty http/transport types {pull}23735[#23735]
+
+
+
+[[bug-5.3.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* The `filter` and `significant_terms` aggregations should parse the `filter` as a filter, not a query. {pull}23797[#23797]
+* Restore support for the `include/pattern` syntax. {pull}23140[#23140] (issue: {issue}22933[#22933])
+
+Bulk::
+* Reject empty IDs {pull}24118[#24118] (issue: {issue}24116[#24116])
+
+Core::
+* Improve performance of extracting warning value {pull}24114[#24114] (issue: {issue}24018[#24018])
+* Restrict build info loading to ES jar, not any jar {pull}24049[#24049] (issue: {issue}21955[#21955])
+
+Discovery::
+* ZenDiscovery - only validate min_master_nodes values if local node is master {pull}23915[#23915] (issue: {issue}23695[#23695])
+
+Index APIs::
+* Honor update request timeout {pull}23825[#23825]
+
+Inner Hits::
+* Replace `NestedChildrenQuery` with `ParentChildrenBlockJoinQuery` {pull}24039[#24039] (issue: {issue}24016[#24016])
+
+Internal::
+* Add infrastructure to mark contexts as system contexts {pull}23830[#23830]
+
+Java REST Client::
+* Make buffer limit configurable in HeapBufferedConsumerFactory {pull}23970[#23970] (issue: {issue}23958[#23958])
+
+Mapping::
+* Preserve response headers when creating an index {pull}23950[#23950] (issue: {issue}23947[#23947])
+* Fix NPE with scaled floats stats when field is not indexed {pull}23528[#23528] (issue: {issue}23487[#23487])
+
+Network::
+* Fix possible hang in local transport when nodes get concurrently disconnected {pull}23962[#23962] (issue: {issue}23942[#23942])
+
+Plugin Repository Azure::
+* Azure blob store's readBlob() method first checks if the blob exists {pull}23483[#23483] (issue: {issue}23480[#23480])
+
+Reindex API::
+* Fix reindex with a remote source on a version before 2.0.0 {pull}23805[#23805]
+
+Search::
+* Disable graph analysis at query time for shingle and cjk filters producing tokens of different size {pull}23920[#23920] (issue: {issue}23918[#23918])
+* Fix cross-cluster remote node gateway attributes {pull}23863[#23863]
+* Use a fixed seed for computing term hashCode in TermsSliceQuery {pull}23795[#23795]
+
+Settings::
+* Do not set path.data in environment if not set {pull}24132[#24132] (issue: {issue}24099[#24099])
+* Correct handling of default and array settings {pull}24074[#24074] (issues: {issue}23981[#23981], {issue}24052[#24052])
+
+Stats::
+* Handle existence of cgroup version 2 hierarchy {pull}23493[#23493] (issue: {issue}23486[#23486])
+
+
+
+[[upgrade-5.3.1]]
+[float]
+=== Upgrades
+
+Internal::
+* upgrade to Lucene 6.4.2 {pull}23933[#23933]
+
+

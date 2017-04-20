@@ -19,6 +19,7 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.test.Fixture
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -96,10 +97,9 @@ Fixture krb5kdcFixture = project.tasks.create("krb5kdcFixture", org.elasticsearc
 
 task krb5AddPrincipals {
   dependsOn krb5kdcFixture
-  finalizedBy krb5kdcFixture.getStopTask()
 }
 
-def principals = [ "elasticsearch", "hdfs/hdfs.build.elasticsearch.co" ]
+def principals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
 def realm = "BUILD.ELASTIC.CO"
 
 for (String principal : principals) {
@@ -123,8 +123,6 @@ task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
           baseDir,
           "hdfs/hdfs.build.elastic.co@${realm}",
           "${keytabPath}"
-
-  finalizedBy krb5kdcFixture.getStopTask()
 }
 
 boolean fixtureSupported = false;
@@ -148,6 +146,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 
 if (fixtureSupported) {
   integTestCluster.dependsOn hdfsFixture
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
 } else {
   logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
   // just tests that the plugin loads
@@ -176,8 +175,29 @@ if (fixtureSupported) {
   }
 }
 
+// Create a Integration Test suite just for security based tests
 if (secureFixtureSupported) {
-  // TODO: configure secure integTest suite
+  // This must execute before the after evaluate block from integTestSecure
+  project.afterEvaluate {
+    def elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
+    def krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+
+    project.integTestSecure.dependsOn(project.integTest)
+    project.integTestSecure.clusterConfig.plugin(project.path)
+    project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
+    project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Djava.security.krb5.conf=${krb5conf}" +
+            " " + System.getProperty('tests.jvm.argline', '')
+  }
+  RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
+    description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
+  }
+  integTestSecure.mustRunAfter(project.integTest)
+  project.check.dependsOn(integTestSecure)
+  // Fixture dependencies
+  integTestSecure.dependsOn secureHdfsFixture, krb5kdcFixture
+  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 } else {
   logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")
 }

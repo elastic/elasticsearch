@@ -32,13 +32,12 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     @Override
     protected InternalStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
                                                Map<String, Object> metaData) {
-        long count = randomIntBetween(1, 50);
-        double[] minMax = new double[2];
-        minMax[0] = randomDouble();
-        minMax[0] = randomDouble();
-        double sum = randomDoubleBetween(0, 100, true);
-        return new InternalStats(name, count, sum, minMax[0], minMax[1], DocValueFormat.RAW,
-            pipelineAggregators, Collections.emptyMap());
+        long count = randomIntBetween(0, 50);
+        double min = randomDoubleBetween(-1000, 1000, false);
+        double max = randomDoubleBetween(-1000, 1000, false);
+        double sum = randomDoubleBetween(-1000, 1000, false);
+        DocValueFormat format = randomNumericDocValueFormat();
+        return new InternalStats(name, count, sum, min, max, format, pipelineAggregators, Collections.emptyMap());
     }
 
     @Override

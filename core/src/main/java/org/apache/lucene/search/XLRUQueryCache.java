@@ -82,7 +82,6 @@ import org.apache.lucene.util.RoaringDocIdSet;
  * they are called synchronously and under a lock.
  *
  * @see QueryCachingPolicy
- * @lucene.experimental
  */
 public class XLRUQueryCache implements QueryCache, Accountable {
 

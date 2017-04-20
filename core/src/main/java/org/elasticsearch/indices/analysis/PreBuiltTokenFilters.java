@@ -62,24 +62,6 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 import java.util.Locale;
 
 public enum PreBuiltTokenFilters {
-    REVERSE(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new ReverseStringFilter(tokenStream);
-        }
-    },
-
-    ASCIIFOLDING(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new ASCIIFoldingFilter(tokenStream);
-        }
-        @Override
-        protected boolean isMultiTermAware() {
-            return true;
-        }
-    },
-
     LENGTH(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {

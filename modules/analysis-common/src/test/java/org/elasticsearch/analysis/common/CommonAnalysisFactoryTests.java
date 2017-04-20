@@ -19,6 +19,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -57,12 +58,16 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getPreBuiltTokenFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getPreBuiltTokenFilters());
+        filters.put("asciifolding", null);
         filters.put("classic", null);
         filters.put("common_grams", null);
         filters.put("edge_ngram", null);
         filters.put("edgeNGram", null);
         filters.put("ngram", null);
         filters.put("nGram", null);
+        filters.put("reverse", ReverseStringFilterFactory.class);
+        filters.put("stop", null);
+        filters.put("trim", null);
         filters.put("truncate", null);
         filters.put("unique", Void.class);
         filters.put("word_delimiter", null);

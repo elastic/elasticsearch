@@ -350,9 +350,6 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
             Class<?> luceneFactoryClass;
             switch (tokenizer) {
-            case REVERSE:
-                luceneFactoryClass = ReverseStringFilterFactory.class;
-                break;
             case SNOWBALL:
             case DUTCH_STEM:
             case FRENCH_STEM:

@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
@@ -30,6 +31,7 @@ import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
+import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -54,6 +56,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
         // TODO we should revisit the caching strategies.
         Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
+        filters.put("asciifolding", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
+                new ASCIIFoldingFilter(input)));
         filters.put("classic", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new ClassicFilter(input)));
         filters.put("common_grams", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
@@ -68,6 +72,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         // NOCOMMIT deprecate nGram
         filters.put("nGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new NGramTokenFilter(input)));
+        filters.put("reverse", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new ReverseStringFilter(input)));
         filters.put("stop", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         filters.put("trim", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->

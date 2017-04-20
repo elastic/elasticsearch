@@ -31,7 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public abstract class AbstractParsedPercentiles extends ParsedAggregation implements Iterable<Percentile>  {
+public abstract class ParsedPercentiles extends ParsedAggregation implements Iterable<Percentile>  {
 
     private final Map<Double, Double> percentiles = new LinkedHashMap<>();
     private final Map<Double, String> percentilesAsString = new HashMap<>();
@@ -46,14 +46,14 @@ public abstract class AbstractParsedPercentiles extends ParsedAggregation implem
         percentilesAsString.put(key, valueAsString);
     }
 
-    Double getPercentile(double percent) {
+    protected Double getPercentile(double percent) {
         if (percentiles.isEmpty()) {
             return Double.NaN;
         }
         return percentiles.get(percent);
     }
 
-    String getPercentileAsString(double percent) {
+    protected String getPercentileAsString(double percent) {
         String valueAsString = percentilesAsString.get(percent);
         if (valueAsString != null) {
             return valueAsString;
@@ -119,7 +119,7 @@ public abstract class AbstractParsedPercentiles extends ParsedAggregation implem
         return builder;
     }
 
-    protected static void declarePercentilesFields(ObjectParser<? extends AbstractParsedPercentiles, Void> objectParser) {
+    protected static void declarePercentilesFields(ObjectParser<? extends ParsedPercentiles, Void> objectParser) {
         ParsedAggregation.declareAggregationFields(objectParser);
 
         objectParser.declareField((parser, aggregation, context) -> {

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesRanksTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -29,21 +29,22 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
+public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase<InternalTDigestPercentiles> {
 
     @Override
-    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators,
-                                                                Map<String, Object> metadata,
-                                                                boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+    protected InternalTDigestPercentiles createTestInstance(String name,
+                                                            List<PipelineAggregator> pipelineAggregators,
+                                                            Map<String, Object> metaData,
+                                                            boolean keyed, DocValueFormat format, double[] percents, double[] values) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
         assertEquals(state.centroidCount(), values.length);
-        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, aggregators, metadata);
+        return new InternalTDigestPercentiles(name, percents, state, keyed, format, pipelineAggregators, metaData);
     }
 
     @Override
     protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentileRanks.class;
+        return ParsedTDigestPercentiles.class;
     }
 }

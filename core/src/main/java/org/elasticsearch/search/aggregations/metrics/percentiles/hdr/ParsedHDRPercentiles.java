@@ -22,44 +22,35 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 
 import java.io.IOException;
-import java.util.Iterator;
 
-public class ParsedHDRPercentileRanks extends ParsedPercentileRanks {
+public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentiles {
 
     @Override
     protected String getType() {
-        return InternalHDRPercentileRanks.NAME;
+        return InternalHDRPercentiles.NAME;
     }
 
     @Override
-    public Iterator<Percentile> iterator() {
-        final Iterator<Percentile> iterator = super.iterator();
-        return new Iterator<Percentile>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public Percentile next() {
-                Percentile percentile = iterator.next();
-                return new Percentile(percentile.getValue(), percentile.getPercent());
-            }
-        };
+    public double percentile(double percent) {
+        return getPercentile(percent);
     }
 
-    private static ObjectParser<ParsedHDRPercentileRanks, Void> PARSER =
-            new ObjectParser<>(ParsedHDRPercentileRanks.class.getSimpleName(), true, ParsedHDRPercentileRanks::new);
+    @Override
+    public String percentileAsString(double percent) {
+        return getPercentileAsString(percent);
+    }
+
+    private static ObjectParser<ParsedHDRPercentiles, Void> PARSER =
+            new ObjectParser<>(ParsedHDRPercentiles.class.getSimpleName(), true, ParsedHDRPercentiles::new);
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }
 
-    public static ParsedHDRPercentileRanks fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedHDRPercentileRanks aggregation = PARSER.parse(parser, null);
+    public static ParsedHDRPercentiles fromXContent(XContentParser parser, String name) throws IOException {
+        ParsedHDRPercentiles aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         return aggregation;
     }

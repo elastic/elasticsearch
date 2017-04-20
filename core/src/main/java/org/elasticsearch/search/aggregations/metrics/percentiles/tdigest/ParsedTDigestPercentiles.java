@@ -22,44 +22,35 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 
 import java.io.IOException;
-import java.util.Iterator;
 
-public class ParsedTDigestPercentileRanks extends ParsedPercentileRanks {
+public class ParsedTDigestPercentiles extends ParsedPercentiles implements Percentiles {
 
     @Override
     protected String getType() {
-        return InternalTDigestPercentileRanks.NAME;
+        return InternalTDigestPercentiles.NAME;
     }
 
     @Override
-    public Iterator<Percentile> iterator() {
-        final Iterator<Percentile> iterator = super.iterator();
-        return new Iterator<Percentile>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public Percentile next() {
-                Percentile percentile = iterator.next();
-                return new Percentile(percentile.getValue(), percentile.getPercent());
-            }
-        };
+    public double percentile(double percent) {
+        return getPercentile(percent);
     }
 
-    private static ObjectParser<ParsedTDigestPercentileRanks, Void> PARSER =
-            new ObjectParser<>(ParsedTDigestPercentileRanks.class.getSimpleName(), true, ParsedTDigestPercentileRanks::new);
+    @Override
+    public String percentileAsString(double percent) {
+        return getPercentileAsString(percent);
+    }
+
+    private static ObjectParser<ParsedTDigestPercentiles, Void> PARSER =
+            new ObjectParser<>(ParsedTDigestPercentiles.class.getSimpleName(), true, ParsedTDigestPercentiles::new);
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }
 
-    public static ParsedTDigestPercentileRanks fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedTDigestPercentileRanks aggregation = PARSER.parse(parser, null);
+    public static ParsedTDigestPercentiles fromXContent(XContentParser parser, String name) throws IOException {
+        ParsedTDigestPercentiles aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         return aggregation;
     }

@@ -32,10 +32,10 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     @Override
     protected InternalStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
                                                Map<String, Object> metaData) {
-        long count = randomIntBetween(0, 50);
-        double min = randomDoubleBetween(-1000, 1000, false);
-        double max = randomDoubleBetween(-1000, 1000, false);
-        double sum = randomDoubleBetween(-1000, 1000, false);
+        long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;
+        double min = randomDoubleBetween(-1000000, 1000000, true);
+        double max = randomDoubleBetween(-1000000, 1000000, true);
+        double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
         return new InternalStats(name, count, sum, min, max, format, pipelineAggregators, Collections.emptyMap());
     }
@@ -57,7 +57,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             expectedSum += stats.getSum();
         }
         assertEquals(expectedCount, reduced.getCount());
-        assertEquals(expectedSum, reduced.getSum(), 1e-10);
+        assertEquals(expectedSum, reduced.getSum(), 1e-7);
         assertEquals(expectedMin, reduced.getMin(), 0d);
         assertEquals(expectedMax, reduced.getMax(), 0d);
     }

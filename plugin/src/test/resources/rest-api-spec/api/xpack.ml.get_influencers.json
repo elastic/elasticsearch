@@ -11,9 +11,9 @@
         }
       },
       "params": {
-        "include_interim": {
+        "exclude_interim": {
           "type": "boolean",
-          "description" : "Include interim results"
+          "description" : "Exclude interim results"
         },
         "from": {
           "type": "int",

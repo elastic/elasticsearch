@@ -65,7 +65,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
+        public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField RECORD_SCORE_FILTER = new ParseField("record_score");
         public static final ParseField SORT = new ParseField("sort");
         public static final ParseField DESCENDING = new ParseField("desc");
@@ -78,7 +78,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             PARSER.declareStringOrNull(Request::setEnd, END);
             PARSER.declareString(Request::setSort, SORT);
             PARSER.declareBoolean(Request::setDescending, DESCENDING);
-            PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
+            PARSER.declareBoolean(Request::setExcludeInterim, EXCLUDE_INTERIM);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
             PARSER.declareDouble(Request::setRecordScore, RECORD_SCORE_FILTER);
         }
@@ -94,7 +94,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private String jobId;
         private String start;
         private String end;
-        private boolean includeInterim = false;
+        private boolean excludeInterim = false;
         private PageParams pageParams = new PageParams();
         private double recordScoreFilter = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
@@ -135,12 +135,12 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             this.descending = descending;
         }
 
-        public boolean isIncludeInterim() {
-            return includeInterim;
+        public boolean isExcludeInterim() {
+            return excludeInterim;
         }
 
-        public void setIncludeInterim(boolean includeInterim) {
-            this.includeInterim = includeInterim;
+        public void setExcludeInterim(boolean excludeInterim) {
+            this.excludeInterim = excludeInterim;
         }
 
         public void setPageParams(PageParams pageParams) {
@@ -175,7 +175,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            includeInterim = in.readBoolean();
+            excludeInterim = in.readBoolean();
             pageParams = new PageParams(in);
             start = in.readOptionalString();
             end = in.readOptionalString();
@@ -188,7 +188,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeBoolean(includeInterim);
+            out.writeBoolean(excludeInterim);
             pageParams.writeTo(out);
             out.writeOptionalString(start);
             out.writeOptionalString(end);
@@ -206,7 +206,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             builder.field(SORT.getPreferredName(), sort);
             builder.field(DESCENDING.getPreferredName(), descending);
             builder.field(RECORD_SCORE_FILTER.getPreferredName(), recordScoreFilter);
-            builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);
+            builder.field(EXCLUDE_INTERIM.getPreferredName(), excludeInterim);
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             builder.endObject();
             return builder;
@@ -214,7 +214,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, start, end, sort, descending, recordScoreFilter, includeInterim, pageParams);
+            return Objects.hash(jobId, start, end, sort, descending, recordScoreFilter, excludeInterim, pageParams);
         }
 
         @Override
@@ -232,7 +232,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     Objects.equals(sort, other.sort) &&
                     Objects.equals(descending, other.descending) &&
                     Objects.equals(recordScoreFilter, other.recordScoreFilter) &&
-                    Objects.equals(includeInterim, other.includeInterim) &&
+                    Objects.equals(excludeInterim, other.excludeInterim) &&
                     Objects.equals(pageParams, other.pageParams);
         }
     }
@@ -324,7 +324,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
             RecordsQueryBuilder.RecordsQuery query = new RecordsQueryBuilder()
-                    .includeInterim(request.includeInterim)
+                    .includeInterim(request.excludeInterim == false)
                     .epochStart(request.start)
                     .epochEnd(request.end)
                     .from(request.pageParams.getFrom())

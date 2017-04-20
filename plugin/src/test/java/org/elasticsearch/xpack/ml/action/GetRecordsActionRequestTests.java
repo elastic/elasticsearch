@@ -38,7 +38,7 @@ public class GetRecordsActionRequestTests extends AbstractStreamableXContentTest
             request.setRecordScore(randomDouble());
         }
         if (randomBoolean()) {
-            request.setIncludeInterim(randomBoolean());
+            request.setExcludeInterim(randomBoolean());
         }
         if (randomBoolean()) {
             int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);

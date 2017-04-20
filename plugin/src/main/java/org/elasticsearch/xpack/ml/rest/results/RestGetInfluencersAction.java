@@ -44,7 +44,7 @@ public class RestGetInfluencersAction extends BaseRestHandler {
             request = new GetInfluencersAction.Request(jobId);
             request.setStart(start);
             request.setEnd(end);
-            request.setIncludeInterim(restRequest.paramAsBoolean(GetInfluencersAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
+            request.setExcludeInterim(restRequest.paramAsBoolean(GetInfluencersAction.Request.EXCLUDE_INTERIM.getPreferredName(), false));
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
             request.setAnomalyScore(

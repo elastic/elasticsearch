@@ -65,7 +65,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
+        public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
         public static final ParseField SORT_FIELD = new ParseField("sort");
         public static final ParseField DESCENDING_SORT = new ParseField("desc");
@@ -76,7 +76,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareStringOrNull(Request::setStart, START);
             PARSER.declareStringOrNull(Request::setEnd, END);
-            PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
+            PARSER.declareBoolean(Request::setExcludeInterim, EXCLUDE_INTERIM);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
             PARSER.declareDouble(Request::setAnomalyScore, ANOMALY_SCORE);
             PARSER.declareString(Request::setSort, SORT_FIELD);
@@ -94,7 +94,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         private String jobId;
         private String start;
         private String end;
-        private boolean includeInterim = false;
+        private boolean excludeInterim = false;
         private PageParams pageParams = new PageParams();
         private double anomalyScoreFilter = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
@@ -135,12 +135,12 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             this.descending = descending;
         }
 
-        public boolean isIncludeInterim() {
-            return includeInterim;
+        public boolean isExcludeInterim() {
+            return excludeInterim;
         }
 
-        public void setIncludeInterim(boolean includeInterim) {
-            this.includeInterim = includeInterim;
+        public void setExcludeInterim(boolean excludeInterim) {
+            this.excludeInterim = excludeInterim;
         }
 
         public void setPageParams(PageParams pageParams) {
@@ -176,7 +176,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            includeInterim = in.readBoolean();
+            excludeInterim = in.readBoolean();
             pageParams = new PageParams(in);
             start = in.readOptionalString();
             end = in.readOptionalString();
@@ -189,7 +189,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeBoolean(includeInterim);
+            out.writeBoolean(excludeInterim);
             pageParams.writeTo(out);
             out.writeOptionalString(start);
             out.writeOptionalString(end);
@@ -202,7 +202,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
-            builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);
+            builder.field(EXCLUDE_INTERIM.getPreferredName(), excludeInterim);
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             builder.field(START.getPreferredName(), start);
             builder.field(END.getPreferredName(), end);
@@ -215,7 +215,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, includeInterim, pageParams, start, end, sort, descending, anomalyScoreFilter);
+            return Objects.hash(jobId, excludeInterim, pageParams, start, end, sort, descending, anomalyScoreFilter);
         }
 
         @Override
@@ -229,7 +229,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) && Objects.equals(start, other.start)
                     && Objects.equals(end, other.end)
-                    && Objects.equals(includeInterim, other.includeInterim)
+                    && Objects.equals(excludeInterim, other.excludeInterim)
                     && Objects.equals(pageParams, other.pageParams)
                     && Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter)
                     && Objects.equals(descending, other.descending)
@@ -321,7 +321,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         protected void doExecute(Request request, ActionListener<Response> listener) {
             jobManager.getJobOrThrowIfUnknown(request.jobId);
 
-            InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().includeInterim(request.includeInterim)
+            InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().includeInterim(request.excludeInterim == false)
                     .start(request.start).end(request.end).from(request.pageParams.getFrom()).size(request.pageParams.getSize())
                     .anomalyScoreThreshold(request.anomalyScoreFilter).sortField(request.sort).sortDescending(request.descending).build();
             jobProvider.influencers(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);

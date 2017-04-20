@@ -74,7 +74,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
 
             // single and multiple bucket options
             request.setExpand(restRequest.paramAsBoolean(GetBucketsAction.Request.EXPAND.getPreferredName(), false));
-            request.setIncludeInterim(restRequest.paramAsBoolean(GetBucketsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
+            request.setExcludeInterim(restRequest.paramAsBoolean(GetBucketsAction.Request.EXCLUDE_INTERIM.getPreferredName(), false));
         }
 
         return channel -> client.execute(GetBucketsAction.INSTANCE, request, new RestToXContentListener<>(channel));

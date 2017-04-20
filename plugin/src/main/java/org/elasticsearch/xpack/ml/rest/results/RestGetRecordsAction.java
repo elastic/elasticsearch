@@ -42,7 +42,7 @@ public class RestGetRecordsAction extends BaseRestHandler {
             request = new GetRecordsAction.Request(jobId);
             request.setStart(restRequest.param(GetRecordsAction.Request.START.getPreferredName()));
             request.setEnd(restRequest.param(GetRecordsAction.Request.END.getPreferredName()));
-            request.setIncludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
+            request.setExcludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.EXCLUDE_INTERIM.getPreferredName(), false));
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
             request.setRecordScore(

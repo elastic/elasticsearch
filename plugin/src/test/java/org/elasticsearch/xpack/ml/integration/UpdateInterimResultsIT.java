@@ -123,7 +123,6 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
     private List<Bucket> getInterimResults(String jobId) throws Exception {
         GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
-        request.setIncludeInterim(true);
         request.setExpand(true);
         request.setPageParams(new PageParams(0, 1500));
         GetBucketsAction.Response response = client().execute(GetBucketsAction.INSTANCE, request).get();

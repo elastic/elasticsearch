@@ -64,7 +64,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
     public static class Request extends ActionRequest implements ToXContent {
 
         public static final ParseField EXPAND = new ParseField("expand");
-        public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
+        public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
         public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
@@ -76,7 +76,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString(Request::setTimestamp, Result.TIMESTAMP);
             PARSER.declareBoolean(Request::setExpand, EXPAND);
-            PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
+            PARSER.declareBoolean(Request::setExcludeInterim, EXCLUDE_INTERIM);
             PARSER.declareStringOrNull(Request::setStart, START);
             PARSER.declareStringOrNull(Request::setEnd, END);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
@@ -94,7 +94,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         private String jobId;
         private String timestamp;
         private boolean expand = false;
-        private boolean includeInterim = false;
+        private boolean excludeInterim = false;
         private String start;
         private String end;
         private PageParams pageParams;
@@ -135,12 +135,12 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             this.expand = expand;
         }
 
-        public boolean isIncludeInterim() {
-            return includeInterim;
+        public boolean isExcludeInterim() {
+            return excludeInterim;
         }
 
-        public void setIncludeInterim(boolean includeInterim) {
-            this.includeInterim = includeInterim;
+        public void setExcludeInterim(boolean excludeInterim) {
+            this.excludeInterim = excludeInterim;
         }
 
         public String getStart() {
@@ -202,7 +202,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             jobId = in.readString();
             timestamp = in.readOptionalString();
             expand = in.readBoolean();
-            includeInterim = in.readBoolean();
+            excludeInterim = in.readBoolean();
             start = in.readOptionalString();
             end = in.readOptionalString();
             anomalyScore = in.readOptionalDouble();
@@ -215,7 +215,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             out.writeString(jobId);
             out.writeOptionalString(timestamp);
             out.writeBoolean(expand);
-            out.writeBoolean(includeInterim);
+            out.writeBoolean(excludeInterim);
             out.writeOptionalString(start);
             out.writeOptionalString(end);
             out.writeOptionalDouble(anomalyScore);
@@ -230,7 +230,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
                 builder.field(Result.TIMESTAMP.getPreferredName(), timestamp);
             }
             builder.field(EXPAND.getPreferredName(), expand);
-            builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);
+            builder.field(EXCLUDE_INTERIM.getPreferredName(), excludeInterim);
             if (start != null) {
                 builder.field(START.getPreferredName(), start);
             }
@@ -249,7 +249,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, timestamp, expand, includeInterim, anomalyScore, pageParams, start, end);
+            return Objects.hash(jobId, timestamp, expand, excludeInterim, anomalyScore, pageParams, start, end);
         }
 
         @Override
@@ -264,7 +264,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(timestamp, other.timestamp) &&
                     Objects.equals(expand, other.expand) &&
-                    Objects.equals(includeInterim, other.includeInterim) &&
+                    Objects.equals(excludeInterim, other.excludeInterim) &&
                     Objects.equals(anomalyScore, other.anomalyScore) &&
                     Objects.equals(pageParams, other.pageParams) &&
                     Objects.equals(start, other.start) &&
@@ -359,7 +359,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
             BucketsQueryBuilder query =
                     new BucketsQueryBuilder().expand(request.expand)
-                            .includeInterim(request.includeInterim)
+                            .includeInterim(request.excludeInterim == false)
                             .start(request.start)
                             .end(request.end)
                             .anomalyScoreThreshold(request.anomalyScore);

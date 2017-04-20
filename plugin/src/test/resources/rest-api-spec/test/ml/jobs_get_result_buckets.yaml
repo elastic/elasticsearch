@@ -18,14 +18,27 @@ setup:
         index:  .ml-anomalies-farequote
         type:   result
         id:     "farequote_1464739200000_1"
-        body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucket_span":1 }
+        body:
+          {
+            "job_id": "farequote",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "bucket_span":1
+          }
 
   - do:
       index:
         index:  .ml-anomalies-farequote
         type:   result
         id:     "farequote_1464739200000_2"
-        body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-08-01T00:00:00Z", "bucket_span":1 }
+        body:
+          {
+            "job_id": "farequote",
+            "result_type": "bucket",
+            "timestamp": "2016-08-01T00:00:00Z",
+            "bucket_span":1,
+            "is_interim": true
+          }
 
   - do:
       indices.refresh:
@@ -57,6 +70,26 @@ setup:
   - match: { buckets.1.timestamp: 1470009600000 }
   - match: { buckets.1.job_id: farequote}
   - match: { buckets.1.result_type: bucket}
+
+---
+"Test get buckets given exclude_interim is false":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        exclude_interim: false
+
+  - match: { count: 2 }
+
+---
+"Test get buckets given exclude_interim is true":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        exclude_interim: true
+
+  - match: { count: 1 }
+  - match: { buckets.0.timestamp: 1464739200000 }
+  - match: { buckets.0.is_interim: false }
 
 ---
 "Test result single bucket api":

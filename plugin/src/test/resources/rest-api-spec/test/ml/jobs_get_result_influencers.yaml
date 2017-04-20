@@ -44,7 +44,8 @@ setup:
             "influencer_score": 50.0,
             "result_type" : "influencer",
             "bucket_span" : 1,
-            "sequence_num" : 2
+            "sequence_num" : 2,
+            "is_interim": true
           }
   - do:
       indices.refresh:
@@ -59,6 +60,26 @@ setup:
   - match: { count: 2 }
   - match: { influencers.0.timestamp: 1464739200000 }
   - match: { influencers.1.timestamp: 1464825600000 }
+
+---
+"Test get influencers given exclude_interim false":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "farequote"
+        exclude_interim: false
+
+  - match: { count: 2 }
+
+---
+"Test get influencers given exclude_interim true":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "farequote"
+        exclude_interim: true
+
+  - match: { count: 1 }
+  - match: { influencers.0.timestamp: 1464739200000 }
+  - match: { influencers.0.is_interim: false }
 
 ---
 "Test result influencers api with time range":

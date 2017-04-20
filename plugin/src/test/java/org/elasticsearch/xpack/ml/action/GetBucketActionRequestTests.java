@@ -26,7 +26,7 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
                 request.setEnd(String.valueOf(randomLong()));
             }
             if (randomBoolean()) {
-                request.setIncludeInterim(randomBoolean());
+                request.setExcludeInterim(randomBoolean());
             }
             if (randomBoolean()) {
                 request.setAnomalyScore(randomDouble());
@@ -42,7 +42,7 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
             request.setExpand(randomBoolean());
         }
         if (randomBoolean()) {
-            request.setIncludeInterim(randomBoolean());
+            request.setExcludeInterim(randomBoolean());
         }
         return request;
     }

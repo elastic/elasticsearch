@@ -134,8 +134,8 @@ appender.rolling.policies.time.modulate = true <6>
     hours)
 
 NOTE: Log4j's configuration parsing gets confused by any extraneous whitespace;
-if you copy and paste the above settings, or enter any Log4j configuration in
-general, be sure to trim any leading and trailing whitespace.
+if you copy and paste any Log4j settings on this page, or enter any Log4j
+configuration in general, be sure to trim any leading and trailing whitespace.
 
 If you append `.gz` or `.zip` to `appender.rolling.filePattern`, then the logs
 will be compressed as they are rolled.

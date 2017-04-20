@@ -2911,27 +2911,36 @@ public class InternalEngineTests extends ESTestCase {
                 } else {
                     throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
                 }
+                // test index with document failure
                 Engine.IndexResult indexResult = engine.index(indexForDoc(doc1));
                 assertNotNull(indexResult.getFailure());
-                // document failures should be recorded in translog
+                assertThat(indexResult.getSeqNo(), equalTo(0L));
+                assertThat(indexResult.getVersion(), equalTo(Versions.MATCH_ANY));
                 assertNotNull(indexResult.getTranslogLocation());
+
                 throwingIndexWriter.get().clearFailure();
                 indexResult = engine.index(indexForDoc(doc1));
+                assertThat(indexResult.getSeqNo(), equalTo(1L));
+                assertThat(indexResult.getVersion(), equalTo(1L));
                 assertNull(indexResult.getFailure());
-                // document failures should be recorded in translog
                 assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
 
                 // test failure while deleting
                 // all these simulated exceptions are not fatal to the IW so we treat them as document failures
+                final Engine.DeleteResult deleteResult;
                 if (randomBoolean()) {
                     throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    assertThat(engine.delete(new Engine.Delete("test", "1", newUid(doc1))).getFailure(), instanceOf(IOException.class));
+                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
+                    assertThat(deleteResult.getFailure(), instanceOf(IOException.class));
                 } else {
                     throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    assertThat(engine.delete(new Engine.Delete("test", "1", newUid(doc1))).getFailure(),
+                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
+                    assertThat(deleteResult.getFailure(),
                         instanceOf(IllegalArgumentException.class));
                 }
+                assertThat(deleteResult.getVersion(), equalTo(2L));
+                assertThat(deleteResult.getSeqNo(), equalTo(3L));
 
                 // test non document level failure is thrown
                 if (randomBoolean()) {

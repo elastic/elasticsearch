@@ -342,7 +342,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         Map<String, Class<?>> filters = new HashMap<>();
         filters.put("standard", null);
         filters.put("lowercase", null);
-        // NOCOMMIT drop this Temporary builtin list once these are all migrated
+        // TODO remove the loop below once all the tokenizers are migrated out of PreBuiltTokenFilters
         for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
             Class<?> luceneFactoryClass;
             switch (tokenizer) {

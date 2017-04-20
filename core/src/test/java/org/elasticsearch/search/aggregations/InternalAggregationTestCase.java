@@ -203,15 +203,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         assumeTrue("This test does not support the aggregation type yet",
                 getNamedXContents().stream().filter(entry -> entry.name.match(aggregation.getType())).count() > 0);
 
-        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        final boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        final BytesReference originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
-
-        final Aggregation parsedAggregation = parse(aggregation, xContentType, humanReadable, randomBoolean());
-
-        final BytesReference parsedBytes = toXContent((ToXContent) parsedAggregation, xContentType, params, humanReadable);
-        assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean());
         assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
     }
 
@@ -220,12 +212,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     @SuppressWarnings("unchecked")
-    protected <P extends ParsedAggregation> P parse(final InternalAggregation aggregation,
-                                                    final XContentType xContentType,
-                                                    final boolean humanReadable,
-                                                    final boolean shuffled) throws IOException {
+    protected <P extends ParsedAggregation> P parseAndAssert(final InternalAggregation aggregation,
+                                                             final boolean shuffled) throws IOException {
 
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final boolean humanReadable = randomBoolean();
+
         final BytesReference originalBytes;
         if (shuffled) {
             originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
@@ -255,6 +248,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertTrue(parsedAggregation instanceof ParsedAggregation);
             assertEquals(aggregation.getType(), ((ParsedAggregation) parsedAggregation).getType());
         }
+
+        BytesReference parsedBytes = toXContent((ToXContent) parsedAggregation, xContentType, params, humanReadable);
+        assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+
         return (P) parsedAggregation;
     }
 

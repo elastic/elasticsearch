@@ -117,6 +117,10 @@ public class WatchStatus implements ToXContentObject, Streamable {
         lastChecked = timestamp;
         if (metCondition) {
             lastMetCondition = timestamp;
+        } else {
+            for (ActionStatus status : actions.values()) {
+                status.resetAckStatus(timestamp);
+            }
         }
     }
 

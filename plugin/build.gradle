@@ -101,8 +101,8 @@ Closure setAwsCreds = {
   LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
   project.ext.mlAwsAccessKey = secret.data.get('access_key')
   project.ext.mlAwsSecretKey = secret.data.get('secret_key')
-  // Retrying 10 times to give AWS a chance to propagate the credentials
-  int retries = 60
+  // Retry for up to 1 minute to give AWS a chance to propagate the credentials
+  int retries = 120
   while (retries > 0) {
     AWSCredentials creds = new BasicAWSCredentials(project.mlAwsAccessKey, project.mlAwsSecretKey)
 

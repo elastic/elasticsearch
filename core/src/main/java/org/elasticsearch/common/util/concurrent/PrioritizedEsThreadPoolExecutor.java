@@ -44,11 +44,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
-    private AtomicLong insertionOrder = new AtomicLong();
-    private Queue<Runnable> current = ConcurrentCollections.newQueue();
+    private final AtomicLong insertionOrder = new AtomicLong();
+    private final Queue<Runnable> current = ConcurrentCollections.newQueue();
+    private final ScheduledExecutorService timer;
 
-    PrioritizedEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    PrioritizedEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                    ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
+        this.timer = timer;
     }
 
     public Pending[] getPending() {
@@ -111,7 +114,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         current.remove(r);
     }
 
-    public void execute(Runnable command, final ScheduledExecutorService timer, final TimeValue timeout, final Runnable timeoutCallback) {
+    public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
         command = wrapRunnable(command);
         doExecute(command);
         if (timeout.nanos() >= 0) {

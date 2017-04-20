@@ -9,35 +9,8 @@ using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
 In practice, the plugin adds the `attachment` type when mapping properties so that documents can be populated with
 file attachment contents (encoded as `base64`).
 
-[[mapper-attachments-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install mapper-attachments
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/mapper-attachments/mapper-attachments-{version}.zip.
-
-[[mapper-attachments-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove mapper-attachments
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: mapper-attachments
+include::install_remove.asciidoc[]
 
 [[mapper-attachments-helloworld]]
 ==== Hello, world

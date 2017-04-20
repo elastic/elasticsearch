@@ -62,7 +62,7 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
 
     public void testPercentilesIterators() throws IOException {
         final T aggregation = createTestInstance();
-        final Iterable<Percentile> parsedAggregation = parse(aggregation, randomFrom(XContentType.values()), randomBoolean(), false);
+        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false);
 
         Iterator<Percentile> it = aggregation.iterator();
         Iterator<Percentile> parsedIt = parsedAggregation.iterator();

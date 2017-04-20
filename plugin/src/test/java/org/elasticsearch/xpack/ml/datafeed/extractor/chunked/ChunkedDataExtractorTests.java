@@ -16,6 +16,7 @@ import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -395,7 +397,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createErrorResponse());
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testDataSummaryRequestHasShardFailures() {
@@ -404,7 +406,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithShardFailures());
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
@@ -414,14 +416,17 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchHits searchHits = new SearchHits(hits, totalHits, 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
-        Aggregations aggs = mock(Aggregations.class);
+        List<Aggregation> aggs = new ArrayList<>();
         Min min = mock(Min.class);
         when(min.getValue()).thenReturn((double) earliestTime);
-        when(aggs.get("earliest_time")).thenReturn(min);
+        when(min.getName()).thenReturn("earliest_time");
+        aggs.add(min);
         Max max = mock(Max.class);
         when(max.getValue()).thenReturn((double) latestTime);
-        when(aggs.get("latest_time")).thenReturn(max);
-        when(searchResponse.getAggregations()).thenReturn(aggs);
+        when(max.getName()).thenReturn("latest_time");
+        aggs.add(max);
+        Aggregations aggregations = new Aggregations(aggs) {};
+        when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
 
@@ -450,9 +455,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         StubSubExtractor() {}
 
         StubSubExtractor(InputStream... streams) {
-            for (InputStream stream : streams) {
-                this.streams.add(stream);
-            }
+            Collections.addAll(this.streams, streams);
         }
 
         @Override

@@ -14,10 +14,8 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
-import org.joda.time.DateTime;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -38,22 +36,10 @@ public final class AggregationTestUtils {
     }
 
     static Aggregations createAggs(List<Aggregation> aggsList) {
-        Aggregations aggs = mock(Aggregations.class);
-        when(aggs.asList()).thenReturn(aggsList);
-        for (Aggregation agg: aggsList) {
-            when(aggs.get(agg.getName())).thenReturn(agg);
-        }
-        return aggs;
+        return new Aggregations(aggsList) {};
     }
 
     static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {
-        Histogram.Bucket bucket = mock(Histogram.Bucket.class);
-        when(bucket.getKey()).thenReturn(timestamp);
-        when(bucket.getDocCount()).thenReturn(docCount);
-        return bucket;
-    }
-
-    static Histogram.Bucket createDateHistogramBucket(DateTime timestamp, long docCount) {
         Histogram.Bucket bucket = mock(Histogram.Bucket.class);
         when(bucket.getKey()).thenReturn(timestamp);
         when(bucket.getDocCount()).thenReturn(docCount);

@@ -47,8 +47,8 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenNonMaxTimeAgg() throws IOException {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-                createHistogramBucket(1000L, 3, Arrays.asList(createTerms("time"))),
-                createHistogramBucket(2000L, 5, Arrays.asList(createTerms("time")))
+                createHistogramBucket(1000L, 3, Collections.singletonList(createTerms("time"))),
+                createHistogramBucket(2000L, 5, Collections.singletonList(createTerms("time")))
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString("time", histogramBuckets));
@@ -57,8 +57,8 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenHistogramOnly() throws IOException {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-                createHistogramBucket(1000L, 3, Arrays.asList(createMax("timestamp", 1200))),
-                createHistogramBucket(2000L, 5, Arrays.asList(createMax("timestamp", 2800)))
+                createHistogramBucket(1000L, 3, Collections.singletonList(createMax("timestamp", 1200))),
+                createHistogramBucket(2000L, 5, Collections.singletonList(createMax("timestamp", 2800)))
         );
 
         String json = aggToString("timestamp", histogramBuckets);
@@ -69,8 +69,8 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenHistogramOnlyAndNoDocCount() throws IOException {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-                createHistogramBucket(1000L, 3, Arrays.asList(createMax("time", 1000))),
-                createHistogramBucket(2000L, 5, Arrays.asList(createMax("time", 2000)))
+                createHistogramBucket(1000L, 3, Collections.singletonList(createMax("time", 1000))),
+                createHistogramBucket(2000L, 5, Collections.singletonList(createMax("time", 2000)))
         );
 
         String json = aggToString("time", false, histogramBuckets);
@@ -100,7 +100,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5, Arrays.asList(
                         createMax("time", 2200),
                         createTerms("my_field", new Term("a", 5), new Term("b", 2)))),
-                createHistogramBucket(3000L, 0, Arrays.asList(createMax("time", -1))),
+                createHistogramBucket(3000L, 0, Collections.singletonList(createMax("time", -1))),
                 createHistogramBucket(4000L, 7, Arrays.asList(
                         createMax("time", 4400),
                         createTerms("my_field", new Term("c", 4), new Term("b", 3))))
@@ -126,7 +126,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5, Arrays.asList(
                         createMax("time", 2000),
                         createTerms("my_field", new Term("a", 5, "my_value", 21.0), new Term("b", 2, "my_value", 22.0)))),
-                createHistogramBucket(3000L, 0, Arrays.asList(createMax("time", 3000))),
+                createHistogramBucket(3000L, 0, Collections.singletonList(createMax("time", 3000))),
                 createHistogramBucket(4000L, 7, Arrays.asList(
                         createMax("time", 4000),
                         createTerms("my_field", new Term("c", 4, "my_value", 41.0), new Term("b", 3, "my_value", 42.0))))
@@ -173,7 +173,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5, Arrays.asList(
                         createMax("time", 2000),
                         createTerms("my_field", new Term("a", 5, a2NumericAggs), new Term("b", 2, b2NumericAggs)))),
-                createHistogramBucket(3000L, 0, Arrays.asList(createMax("time", 3000))),
+                createHistogramBucket(3000L, 0, Collections.singletonList(createMax("time", 3000))),
                 createHistogramBucket(4000L, 7, Arrays.asList(
                         createMax("time", 4000),
                         createTerms("my_field", new Term("c", 4, c4NumericAggs), new Term("b", 3, b4NumericAggs))))

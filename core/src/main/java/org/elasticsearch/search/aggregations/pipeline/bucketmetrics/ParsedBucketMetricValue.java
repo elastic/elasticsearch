@@ -25,12 +25,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class ParsedBucketMetricValue extends ParsedSingleValueNumericMetricsAggregation implements BucketMetricValue {
 
-    private List<String> keys = new ArrayList<>();
+    private List<String> keys = Collections.emptyList();
 
     @Override
     public String[] keys() {

@@ -71,6 +71,5 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
             // cannot differentiate between them. Also we cannot recreate the exact String representation
             assertEquals(parsed.value(), Double.NEGATIVE_INFINITY, 0);
         }
-
     }
 }

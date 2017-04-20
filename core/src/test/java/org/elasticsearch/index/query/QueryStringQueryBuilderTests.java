@@ -688,13 +688,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryWildcardNonExistingFields() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        for (boolean b : new boolean[] {true, false}) {
-            QueryStringQueryBuilder queryStringQueryBuilder =
-                new QueryStringQueryBuilder("foo bar").field("invalid*");
-            Query query = queryStringQueryBuilder.toQuery(createShardContext());
-            assertThat(query, equalTo(new BooleanQuery.Builder().build()));
-        }
-
+        QueryStringQueryBuilder queryStringQueryBuilder =
+            new QueryStringQueryBuilder("foo bar").field("invalid*");
+        Query query = queryStringQueryBuilder.toQuery(createShardContext());
+        assertThat(query, equalTo(new BooleanQuery.Builder().build()));
     }
 
     public void testToQuerySplitOnWhitespace() throws IOException {

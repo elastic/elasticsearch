@@ -19,28 +19,44 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class CustomNormalizerTests extends ESTokenStreamTestCase {
+    private static final AnalysisPlugin MOCK_ANALYSIS_PLUGIN = new AnalysisPlugin() {
+        @Override
+        public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
+            Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
+            filters.put("mock_lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
+                    new MockLowerCaseFilter(input)));
+            filters.put("mock_forbidden", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                    new MockLowerCaseFilter(input)));
+            return filters;
+        }
+    };
 
     public void testBasics() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase", "asciifolding")
+                .putArray("index.analysis.normalizer.my_normalizer.filter", "mock_lowercase")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
         assertNull(analysis.indexAnalyzers.get("my_normalizer"));
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);
         assertEquals("my_normalizer", normalizer.name());
-        assertTokenStreamContents(normalizer.tokenStream("foo", "Cet été-là"), new String[] {"cet ete-la"});
-        assertEquals(new BytesRef("cet ete-la"), normalizer.normalize("foo", "Cet été-là"));
+        assertTokenStreamContents(normalizer.tokenStream("foo", "Cet été-là"), new String[] {"cet été-là"});
+        assertEquals(new BytesRef("cet été-là"), normalizer.normalize("foo", "Cet été-là"));
     }
 
     public void testUnknownType() {
@@ -82,12 +98,12 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     public void testIllegalFilters() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "porter_stem")
+                .putArray("index.analysis.normalizer.my_normalizer.filter", "mock_forbidden")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings));
-        assertEquals("Custom normalizer [my_normalizer] may not use filter [porter_stem]", e.getMessage());
+                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN));
+        assertEquals("Custom normalizer [my_normalizer] may not use filter [mock_forbidden]", e.getMessage());
     }
 
     public void testIllegalCharFilters() throws IOException {

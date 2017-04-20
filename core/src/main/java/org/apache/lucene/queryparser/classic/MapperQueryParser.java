@@ -91,7 +91,8 @@ public class MapperQueryParser extends QueryParser {
 
     public void reset(QueryParserSettings settings) {
         this.settings = settings;
-        if (settings.fieldsAndWeights().isEmpty()) {
+        if (settings.fieldsAndWeights() == null) {
+            // this query has no explicit fields to query so we fallback to the default field
             this.field = settings.defaultField();
         } else if (settings.fieldsAndWeights().size() == 1) {
             this.field = settings.fieldsAndWeights().keySet().iterator().next();
@@ -721,7 +722,7 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private Query applyBoost(String field, Query q) {
-        Float fieldBoost = settings.fieldsAndWeights().get(field);
+        Float fieldBoost = settings.fieldsAndWeights() == null ? null : settings.fieldsAndWeights().get(field);
         if (fieldBoost != null && fieldBoost != 1f) {
             return new BoostQuery(q, fieldBoost);
         }
@@ -780,7 +781,8 @@ public class MapperQueryParser extends QueryParser {
         if (field != null) {
             fields = context.simpleMatchToIndexNames(field);
         } else {
-            fields = settings.fieldsAndWeights().keySet();
+            fields =
+                settings.fieldsAndWeights() == null ? Collections.emptyList() : settings.fieldsAndWeights().keySet();
         }
         return fields;
     }

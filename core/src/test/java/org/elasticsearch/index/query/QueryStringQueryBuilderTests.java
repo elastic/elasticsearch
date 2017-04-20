@@ -324,7 +324,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
             QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
             settings.defaultField(STRING_FIELD_NAME);
-            settings.fieldsAndWeights(Collections.emptyMap());
             settings.analyzeWildcard(true);
             settings.fuzziness(Fuzziness.AUTO);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
@@ -352,7 +351,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
             QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
             settings.defaultField(STRING_FIELD_NAME);
-            settings.fieldsAndWeights(Collections.emptyMap());
             settings.analyzeWildcard(true);
             settings.fuzziness(Fuzziness.AUTO);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
@@ -390,7 +388,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
             QueryParserSettings settings = new QueryParserSettings("");
             settings.defaultField(STRING_FIELD_NAME);
-            settings.fieldsAndWeights(Collections.emptyMap());
             settings.fuzziness(Fuzziness.AUTO);
             settings.analyzeWildcard(true);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
@@ -687,6 +684,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         PhraseQuery phraseQuery = (PhraseQuery) boostQuery.getQuery();
         assertThat(phraseQuery.getSlop(), Matchers.equalTo(2));
         assertThat(phraseQuery.getTerms().length, equalTo(2));
+    }
+
+    public void testToQueryWildcardNonExistingFields() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        for (boolean b : new boolean[] {true, false}) {
+            QueryStringQueryBuilder queryStringQueryBuilder =
+                new QueryStringQueryBuilder("foo bar").field("invalid*");
+            Query query = queryStringQueryBuilder.toQuery(createShardContext());
+            assertThat(query, equalTo(new BooleanQuery.Builder().build()));
+        }
+
     }
 
     public void testToQuerySplitOnWhitespace() throws IOException {

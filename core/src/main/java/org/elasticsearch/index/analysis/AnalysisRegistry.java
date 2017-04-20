@@ -426,16 +426,6 @@ public final class AnalysisRegistry implements Closeable {
                 tokenFilterFactories.put(preBuiltTokenFilter.getKey(),
                         new PreBuiltTokenFilterFactoryProvider(preBuiltTokenFilter.getKey(), preBuiltTokenFilter.getValue()));
             }
-            // Token filter aliases
-            // NOCOMMIT move the aliases to the module and deprecate
-            AnalysisProvider<TokenFilterFactory> toAlias = tokenFilterFactories.get("ngram");
-            if (toAlias != null) {
-                tokenFilterFactories.put("nGram", toAlias);
-            }
-            toAlias = tokenFilterFactories.get("edge_ngram");
-            if (toAlias != null) {
-                tokenFilterFactories.put("edgeNGram", toAlias);
-            }
 
             // Char Filters
             for (PreBuiltCharFilters preBuiltCharFilter : PreBuiltCharFilters.values()) {

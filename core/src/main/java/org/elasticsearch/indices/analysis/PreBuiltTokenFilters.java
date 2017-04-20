@@ -75,31 +75,6 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 import java.util.Locale;
 
 public enum PreBuiltTokenFilters {
-
-    WORD_DELIMITER(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new WordDelimiterFilter(tokenStream,
-                       WordDelimiterFilter.GENERATE_WORD_PARTS |
-                       WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-                       WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
-                       WordDelimiterFilter.SPLIT_ON_NUMERICS |
-                       WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
-        }
-    },
-
-    WORD_DELIMITER_GRAPH(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new WordDelimiterGraphFilter(tokenStream,
-                WordDelimiterGraphFilter.GENERATE_WORD_PARTS |
-                    WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS |
-                    WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE |
-                    WordDelimiterGraphFilter.SPLIT_ON_NUMERICS |
-                    WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null);
-        }
-    },
-
     STOP(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {

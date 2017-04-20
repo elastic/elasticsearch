@@ -65,6 +65,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("nGram", null);
         filters.put("truncate", null);
         filters.put("unique", Void.class);
+        filters.put("word_delimiter", null);
+        filters.put("word_delimiter_graph", null);
         return filters;
     }
 

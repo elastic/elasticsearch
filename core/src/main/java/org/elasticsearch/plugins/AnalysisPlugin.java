@@ -96,7 +96,7 @@ public interface AnalysisPlugin {
 
     class PreBuiltTokenFilterSpec {
         private final boolean useFilterForMultitermQueries;
-        private final PreBuiltCacheFactory.CachingStrategy cachingStrategy; 
+        private final PreBuiltCacheFactory.CachingStrategy cachingStrategy;
         private final BiFunction<TokenStream, Version, TokenStream> create;
 
         /**

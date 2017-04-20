@@ -339,8 +339,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
     /**
      * Map containing pre-built token filters that should be available after installing this plugin. The map is from the name of the token
      * filter to the class of the Lucene {@link TokenFilterFactory} that it is emulating. If the Lucene filter factory is {@code null} then
-     * the test will look it up for you using {@link TokenFilterFactory#lookupClass(String)}. If there is no Lucene
-     * {@linkplain TokenFilterFactory} then the right hand side should be {@link Void}.
+     * the test will look it up for you from the name. If there is no Lucene {@linkplain TokenFilterFactory} then the right hand side should
+     * be {@link Void}.
      */
     protected Map<String, Class<?>> getPreBuiltTokenFilters() {
         // NOCOMMIT use this:
@@ -369,8 +369,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
                 luceneFactoryClass = org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory.class;
                 break;
             default:
-                luceneFactoryClass = org.apache.lucene.analysis.util.TokenFilterFactory.lookupClass(
-                        toCamelCase(tokenizer.getTokenFilterFactory(Version.CURRENT).name()));
+                luceneFactoryClass = null;
             }
             filters.put(tokenizer.name().toLowerCase(Locale.ROOT), luceneFactoryClass);
         }
@@ -477,7 +476,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
                 continue;
             }
             if (luceneFactory == null) {
-                luceneFactory = TokenFilterFactory.lookupClass(name);
+                luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
             }
             assertTrue(TokenFilterFactory.class.isAssignableFrom(luceneFactory));
             PreBuiltTokenFilterSpec spec = preBuiltTokenFilters.get(name);

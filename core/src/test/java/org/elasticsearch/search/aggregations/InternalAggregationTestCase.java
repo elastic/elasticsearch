@@ -33,7 +33,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
@@ -44,9 +43,13 @@ import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.ParsedMin;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.ParsedHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.ParsedHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.ParsedTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.ParsedTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ParsedValueCount;
@@ -82,7 +85,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     static List<NamedXContentRegistry.Entry> getNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> namedXContents = new HashMap<>();
         namedXContents.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
+        namedXContents.put(InternalHDRPercentiles.NAME, (p, c) -> ParsedHDRPercentiles.fromXContent(p, (String) c));
         namedXContents.put(InternalHDRPercentileRanks.NAME, (p, c) -> ParsedHDRPercentileRanks.fromXContent(p, (String) c));
+        namedXContents.put(InternalTDigestPercentiles.NAME, (p, c) -> ParsedTDigestPercentiles.fromXContent(p, (String) c));
         namedXContents.put(InternalTDigestPercentileRanks.NAME, (p, c) -> ParsedTDigestPercentileRanks.fromXContent(p, (String) c));
         namedXContents.put(MinAggregationBuilder.NAME, (p, c) -> ParsedMin.fromXContent(p, (String) c));
         namedXContents.put(MaxAggregationBuilder.NAME, (p, c) -> ParsedMax.fromXContent(p, (String) c));
@@ -189,7 +194,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     public final void testFromXContent() throws IOException {
-        final NamedXContentRegistry xContentRegistry = xContentRegistry();
         final T aggregation = createTestInstance();
 
         //norelease Remove this assumption when all aggregations can be parsed back.
@@ -201,8 +205,33 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
 
+        final Aggregation parsedAggregation = parse(aggregation, xContentType, humanReadable, randomBoolean());
+
+        final BytesReference parsedBytes = toXContent((ToXContent) parsedAggregation, xContentType, params, humanReadable);
+        assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+        assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
+    }
+
+    //norelease TODO make abstract
+    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <P extends ParsedAggregation> P parse(final InternalAggregation aggregation,
+                                                    final XContentType xContentType,
+                                                    final boolean humanReadable,
+                                                    final boolean shuffled) throws IOException {
+
+        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        final BytesReference originalBytes;
+        if (shuffled) {
+            originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
+        } else {
+            originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+        }
+
         Aggregation parsedAggregation;
-        try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
 
@@ -222,15 +251,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
             assertTrue(parsedAggregation instanceof ParsedAggregation);
             assertEquals(aggregation.getType(), ((ParsedAggregation) parsedAggregation).getType());
-
-            final BytesReference parsedBytes = toXContent((ToXContent) parsedAggregation, xContentType, params, humanReadable);
-            assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
-            assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
         }
-    }
-
-    //norelease TODO make abstract
-    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
+        return (P) parsedAggregation;
     }
 
     /**

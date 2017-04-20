@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-public abstract class ParsedPercentileRanks extends AbstractParsedPercentiles implements PercentileRanks {
+public abstract class ParsedPercentileRanks extends ParsedPercentiles implements PercentileRanks {
 
     @Override
     public double percent(double value) {

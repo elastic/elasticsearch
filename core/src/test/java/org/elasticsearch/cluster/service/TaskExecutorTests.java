@@ -67,7 +67,7 @@ public class TaskExecutorTests extends ESTestCase {
     @Before
     public void setUpExecutor() {
         threadExecutor = EsExecutors.newSinglePrioritizing("test_thread",
-            daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext());
+            daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext(), threadPool.scheduler());
     }
 
     @After
@@ -83,12 +83,24 @@ public class TaskExecutorTests extends ESTestCase {
         }
     }
 
-    protected interface TestExecutor<T> extends TaskBatching.BatchingKey<T> {
+    protected interface TestExecutor<T> {
         void execute(List<T> tasks);
+
+        default String describeTasks(List<T> tasks) {
+            return tasks.stream().map(T::toString).reduce((s1,s2) -> {
+                if (s1.isEmpty()) {
+                    return s2;
+                } else if (s2.isEmpty()) {
+                    return s1;
+                } else {
+                    return s1 + ", " + s2;
+                }
+            }).orElse("");
+        }
     }
 
     /**
-     * Task class that works for single tasks as well as batching (see {@link TaskBatchingTests})
+     * Task class that works for single tasks as well as batching (see {@link TaskBatcherTests})
      */
     protected abstract static class TestTask implements TestExecutor<TestTask>, TestListener, ClusterStateTaskConfig {
 
@@ -127,12 +139,12 @@ public class TaskExecutorTests extends ESTestCase {
         }
     }
 
-    // can be overridden by TaskBatchingTests
+    // can be overridden by TaskBatcherTests
     protected void submitTask(String source, TestTask testTask) {
         SourcePrioritizedRunnable task = new UpdateTask(source, testTask);
         TimeValue timeout = testTask.timeout();
         if (timeout != null) {
-            threadExecutor.execute(task, threadPool.scheduler(), timeout, () -> threadPool.generic().execute(() -> {
+            threadExecutor.execute(task, timeout, () -> threadPool.generic().execute(() -> {
                 logger.debug("task [{}] timed out after [{}]", task, timeout);
                 testTask.onFailure(source, new ProcessClusterEventTimeoutException(timeout, source));
             }));

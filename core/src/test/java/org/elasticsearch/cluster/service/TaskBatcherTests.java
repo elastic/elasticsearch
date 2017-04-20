@@ -29,7 +29,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -50,39 +49,48 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class TaskBatchingTests extends TaskExecutorTests {
+public class TaskBatcherTests extends TaskExecutorTests {
 
     protected TestTaskBatching taskBatching;
 
     @Before
     public void setUpBatchingTaskExecutor() throws Exception {
-        taskBatching = new TestTaskBatching(logger, threadExecutor, threadPool);
+        taskBatching = new TestTaskBatching(logger, threadExecutor);
     }
 
-    class TestTaskBatching extends TaskBatching {
+    class TestTaskBatching extends TaskBatcher {
 
-        TestTaskBatching(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor, ThreadPool threadPool) {
-            super(logger, threadExecutor, threadPool);
+        TestTaskBatching(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+            super(logger, threadExecutor);
         }
 
         @Override
-        protected void run(Object batchingKey, List<? extends BatchingTask> tasks, String tasksSummary) {
+        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
             List<UpdateTask> updateTasks = (List) tasks;
-            ((TestExecutor) batchingKey).execute(updateTasks.stream().map(t -> t.taskIdentity).collect(Collectors.toList()));
+            ((TestExecutor) batchingKey).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
             updateTasks.forEach(updateTask -> updateTask.listener.processed(updateTask.source));
         }
 
         @Override
-        protected void onTimeout(BatchingTask task, TimeValue timeout) {
-            ((UpdateTask) task).listener.onFailure(task.source, new ProcessClusterEventTimeoutException(timeout, task.source));
+        protected void onTimeout(List<? extends BatchedTask> tasks, TimeValue timeout) {
+            threadPool.generic().execute(
+                () -> tasks.forEach(
+                    task -> ((UpdateTask) task).listener.onFailure(task.source,
+                        new ProcessClusterEventTimeoutException(timeout, task.source))));
         }
 
-        class UpdateTask extends BatchingTask {
+        class UpdateTask extends BatchedTask {
             final TestListener listener;
 
             UpdateTask(Priority priority, String source, Object task, TestListener listener, TestExecutor<?> executor) {
                 super(priority, source, executor, task);
                 this.listener = listener;
+            }
+
+            @Override
+            public String describeTasks(List<? extends BatchedTask> tasks) {
+                return ((TestExecutor<Object>) batchingKey).describeTasks(
+                    tasks.stream().map(BatchedTask::getTask).collect(Collectors.toList()));
             }
         }
 

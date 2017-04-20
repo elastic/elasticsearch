@@ -32,6 +32,7 @@ The result of the above index operation is:
     "_version" : 1,
     "created" : true,
     "_seq_no" : 0,
+    "_primary_term" : 1,
     "result" : created
 }
 --------------------------------------------------
@@ -230,6 +231,7 @@ The result of the above index operation is:
     "_version" : 1,
     "created" : true,
     "_seq_no" : 0,
+    "_primary_term" : 1,
     "result": "created"
 }
 --------------------------------------------------

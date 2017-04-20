@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
@@ -26,20 +26,22 @@ import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.util.List;
 import java.util.Set;
 
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_ALL;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_NUMBERS;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_WORDS;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.GENERATE_NUMBER_PARTS;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.GENERATE_WORD_PARTS;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.PRESERVE_ORIGINAL;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT_ON_CASE_CHANGE;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT_ON_NUMERICS;
-import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE;
-import static org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory.parseTypes;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_ALL;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_NUMBERS;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_WORDS;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.GENERATE_WORD_PARTS;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.PRESERVE_ORIGINAL;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.SPLIT_ON_NUMERICS;
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE;
+import static org.elasticsearch.analysis.common.WordDelimiterTokenFilterFactory.parseTypes;
 
 public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -47,7 +49,8 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     private final int flags;
     private final CharArraySet protoWords;
 
-    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
+            String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:
@@ -82,7 +85,8 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         // If set, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
         flags |= getFlag(STEM_ENGLISH_POSSESSIVE, settings, "stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
-        Set<?> protectedWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, "protected_words");
+        Set<?> protectedWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(),
+                settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
     }

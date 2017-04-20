@@ -205,11 +205,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (pluginId == null) {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
-        // TODO: remove this leniency!! is it needed anymore?
-        if (Files.exists(env.pluginsFile()) == false) {
-            terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");
-            Files.createDirectory(env.pluginsFile());
-        }
 
         Path pluginZip = download(terminal, pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());

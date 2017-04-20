@@ -23,6 +23,9 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.core.UpperCaseFilter;
+import org.apache.lucene.analysis.en.KStemFilter;
+import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
@@ -68,6 +71,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         // NOCOMMIT deprecate edgeNGram
         filters.put("edgeNGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) -> 
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
+        filters.put("kstem", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                new KStemFilter(input)));
         filters.put("length", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new LengthFilter(input, 0, Integer.MAX_VALUE)));
         filters.put("ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
@@ -75,6 +80,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         // NOCOMMIT deprecate nGram
         filters.put("nGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new NGramTokenFilter(input)));
+        filters.put("porter_stem", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                new PorterStemFilter(input)));
         filters.put("reverse", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new ReverseStringFilter(input)));
         // The stop filter is in lucene-core but the english stop words set is in lucene-analyzers-common
@@ -86,6 +93,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new TruncateTokenFilter(input, 10)));
         filters.put("unique", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new UniqueTokenFilter(input)));
+        filters.put("uppercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.LUCENE, (input, version) ->
+                new UpperCaseFilter(input)));
         filters.put("word_delimiter", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new WordDelimiterFilter(input,
                         WordDelimiterFilter.GENERATE_WORD_PARTS

@@ -347,7 +347,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
             Class<?> luceneFactoryClass;
             switch (tokenizer) {
             case LOWERCASE:
-                // This has been migrated but has to stick around until PreBuiltAnalyzers is removed.
+                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
             case SNOWBALL:
             case DUTCH_STEM:

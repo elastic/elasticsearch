@@ -278,10 +278,10 @@ public final class AnalysisModule {
         preBuiltTokenFilters.register("standard", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (inputs, version) ->
                 new StandardFilter(inputs)));
         for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
-            // NOCOMMIT remove this shim
+            // TODO remove this temporary shim when there are no more PreBuiltTokenFilters
             switch (preBuilt) {
             case LOWERCASE:
-                // This has been migrated but has to stick around until PreBuiltAnalyzers is removed.
+                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
             default:
                 preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT), new PreBuiltTokenFilterSpec(

@@ -30,24 +30,21 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.TreeMap;
+
+import static java.util.Collections.singletonMap;
 
 public class CustomNormalizerTests extends ESTokenStreamTestCase {
     private static final AnalysisPlugin MOCK_ANALYSIS_PLUGIN = new AnalysisPlugin() {
         @Override
         public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
-            Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
-            filters.put("mock_lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
+            return singletonMap("mock_forbidden", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                     new MockLowerCaseFilter(input)));
-            filters.put("mock_forbidden", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                    new MockLowerCaseFilter(input)));
-            return filters;
         }
     };
 
     public void testBasics() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "mock_lowercase")
+                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);

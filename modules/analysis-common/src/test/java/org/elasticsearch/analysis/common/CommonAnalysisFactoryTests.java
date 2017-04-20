@@ -63,14 +63,17 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("common_grams", null);
         filters.put("edge_ngram", null);
         filters.put("edgeNGram", null);
+        filters.put("kstem", null);
         filters.put("length", null);
         filters.put("ngram", null);
         filters.put("nGram", null);
+        filters.put("porter_stem", null);
         filters.put("reverse", ReverseStringFilterFactory.class);
         filters.put("stop", null);
         filters.put("trim", null);
         filters.put("truncate", null);
         filters.put("unique", Void.class);
+        filters.put("uppercase", null);
         filters.put("word_delimiter", null);
         filters.put("word_delimiter_graph", null);
         return filters;

@@ -27,11 +27,9 @@ import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
-import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
-import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
@@ -59,6 +57,7 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 import java.util.Locale;
 
 public enum PreBuiltTokenFilters {
+    // TODO remove this entire class when PreBuiltTokenizers no longer needs it.....
     LOWERCASE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
@@ -67,31 +66,6 @@ public enum PreBuiltTokenFilters {
         @Override
         protected boolean isMultiTermAware() {
             return true;
-        }
-    },
-
-    UPPERCASE(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new UpperCaseFilter(tokenStream);
-        }
-        @Override
-        protected boolean isMultiTermAware() {
-            return true;
-        }
-    },
-
-    KSTEM(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new KStemFilter(tokenStream);
-        }
-    },
-
-    PORTER_STEM(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new PorterStemFilter(tokenStream);
         }
     },
 
@@ -384,18 +358,5 @@ public enum PreBuiltTokenFilters {
         }
 
         return factory;
-    }
-
-    /**
-     * Get a pre built TokenFilter by its name or fallback to the default one
-     * @param name TokenFilter name
-     * @param defaultTokenFilter default TokenFilter if name not found
-     */
-    public static PreBuiltTokenFilters getOrDefault(String name, PreBuiltTokenFilters defaultTokenFilter) {
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return defaultTokenFilter;
-        }
     }
 }

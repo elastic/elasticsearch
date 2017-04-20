@@ -110,7 +110,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     private TimeValue slowTaskLoggingThreshold;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
-    private volatile ClusterServiceTaskBatcher taskBatching;
+    private volatile ClusterServiceTaskBatcher taskBatcher;
 
     /**
      * Those 3 state listeners are changing infrequently - CopyOnWriteArrayList is just fine
@@ -217,7 +217,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         });
         this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME,
             daemonThreadFactory(settings, UPDATE_THREAD_NAME), threadPool.getThreadContext(), threadPool.scheduler());
-        this.taskBatching = new ClusterServiceTaskBatcher(logger, threadPoolExecutor);
+        this.taskBatcher = new ClusterServiceTaskBatcher(logger, threadPoolExecutor);
     }
 
     @Override
@@ -470,9 +470,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
         try {
             List<ClusterServiceTaskBatcher.UpdateTask> safeTasks = tasks.entrySet().stream()
-                .map(e -> taskBatching.new UpdateTask(config.priority(), source, e.getKey(), safe(e.getValue(), logger), executor))
+                .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e.getKey(), safe(e.getValue(), logger), executor))
                 .collect(Collectors.toList());
-            taskBatching.submitTasks(safeTasks, config.timeout());
+            taskBatcher.submitTasks(safeTasks, config.timeout());
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...

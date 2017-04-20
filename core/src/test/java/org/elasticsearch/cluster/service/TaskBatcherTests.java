@@ -51,16 +51,16 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class TaskBatcherTests extends TaskExecutorTests {
 
-    protected TestTaskBatching taskBatching;
+    protected TestTaskBatcher taskBatcher;
 
     @Before
     public void setUpBatchingTaskExecutor() throws Exception {
-        taskBatching = new TestTaskBatching(logger, threadExecutor);
+        taskBatcher = new TestTaskBatcher(logger, threadExecutor);
     }
 
-    class TestTaskBatching extends TaskBatcher {
+    class TestTaskBatcher extends TaskBatcher {
 
-        TestTaskBatching(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+        TestTaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
             super(logger, threadExecutor);
         }
 
@@ -109,18 +109,18 @@ public class TaskBatcherTests extends TaskExecutorTests {
     private <T> void submitTasks(final String source,
                                 final Map<T, TestListener> tasks, final ClusterStateTaskConfig config,
                                 final TestExecutor<T> executor) {
-        List<TestTaskBatching.UpdateTask> safeTasks = tasks.entrySet().stream()
-            .map(e -> taskBatching.new UpdateTask(config.priority(), source, e.getKey(), e.getValue(), executor))
+        List<TestTaskBatcher.UpdateTask> safeTasks = tasks.entrySet().stream()
+            .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e.getKey(), e.getValue(), executor))
             .collect(Collectors.toList());
-        taskBatching.submitTasks(safeTasks, config.timeout());
+        taskBatcher.submitTasks(safeTasks, config.timeout());
     }
 
     @Override
     public void testTimedOutTaskCleanedUp() throws Exception {
         super.testTimedOutTaskCleanedUp();
-        synchronized (taskBatching.tasksPerExecutor) {
-            assertTrue("expected empty map but was " + taskBatching.tasksPerExecutor,
-                taskBatching.tasksPerExecutor.isEmpty());
+        synchronized (taskBatcher.tasksPerBatchingKey) {
+            assertTrue("expected empty map but was " + taskBatcher.tasksPerBatchingKey,
+                taskBatcher.tasksPerBatchingKey.isEmpty());
         }
     }
 

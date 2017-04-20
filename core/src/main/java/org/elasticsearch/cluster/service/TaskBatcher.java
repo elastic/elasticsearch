@@ -46,7 +46,7 @@ public abstract class TaskBatcher {
     private final Logger logger;
     private final PrioritizedEsThreadPoolExecutor threadExecutor;
     // package visible for tests
-    final Map<Object, LinkedHashSet<BatchedTask>> tasksPerExecutor = new HashMap<>();
+    final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new HashMap<>();
 
     public TaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
         this.logger = logger;
@@ -67,8 +67,8 @@ public abstract class TaskBatcher {
             (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
             IdentityHashMap::new));
 
-        synchronized (tasksPerExecutor) {
-            LinkedHashSet<BatchedTask> existingTasks = tasksPerExecutor.computeIfAbsent(firstTask.batchingKey,
+        synchronized (tasksPerBatchingKey) {
+            LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(firstTask.batchingKey,
                 k -> new LinkedHashSet<>(tasks.size()));
             for (BatchedTask existing : existingTasks) {
                 // check that there won't be two tasks with the same identity for the same batching key
@@ -98,15 +98,15 @@ public abstract class TaskBatcher {
         }
         if (toRemove.isEmpty() == false) {
             BatchedTask firstTask = toRemove.get(0);
-            assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey) :
+            Object batchingKey = firstTask.batchingKey;
+            assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey) :
                 "tasks submitted in a batch should share the same batching key: " + tasks;
-            Object batchingExecutor = firstTask.batchingKey;
-            synchronized (tasksPerExecutor) {
-                LinkedHashSet<BatchedTask> existingTasks = tasksPerExecutor.get(batchingExecutor);
+            synchronized (tasksPerBatchingKey) {
+                LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.get(batchingKey);
                 if (existingTasks != null) {
                     existingTasks.removeAll(toRemove);
                     if (existingTasks.isEmpty()) {
-                        tasksPerExecutor.remove(batchingExecutor);
+                        tasksPerBatchingKey.remove(batchingKey);
                     }
                 }
             }
@@ -121,13 +121,13 @@ public abstract class TaskBatcher {
     protected abstract void onTimeout(List<? extends BatchedTask> tasks, TimeValue timeout);
 
     void runIfNotProcessed(BatchedTask updateTask) {
-        // if this task is already processed, the executor shouldn't execute other tasks (that arrived later),
-        // to give other executors a chance to execute their tasks.
+        // if this task is already processed, it shouldn't execute other tasks with same batching key that arrived later,
+        // to give other tasks with different batching key a chance to execute.
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
-            synchronized (tasksPerExecutor) {
-                LinkedHashSet<BatchedTask> pending = tasksPerExecutor.remove(updateTask.batchingKey);
+            synchronized (tasksPerBatchingKey) {
+                LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
                 if (pending != null) {
                     for (BatchedTask task : pending) {
                         if (task.processed.getAndSet(true) == false) {

@@ -231,7 +231,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
 
         Aggregation parsedAggregation;
-        try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
 

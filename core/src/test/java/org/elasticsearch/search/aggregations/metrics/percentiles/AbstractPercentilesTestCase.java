@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -60,12 +61,11 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
 
     protected abstract Class<? extends ParsedPercentiles> implementationClass();
 
+    @Repeat(iterations = 1000)
     public void testPercentilesIterators() throws IOException {
         final T aggregation = createTestInstance();
-        assertIterators(aggregation, parse(aggregation, randomFrom(XContentType.values()), randomBoolean(), false));
-    }
+        final Iterable<Percentile> parsedAggregation = parse(aggregation, randomFrom(XContentType.values()), randomBoolean(), false);
 
-    private void assertIterators(Iterable<Percentile> aggregation, Iterable<Percentile> parsedAggregation) {
         Iterator<Percentile> it = aggregation.iterator();
         Iterator<Percentile> parsedIt = parsedAggregation.iterator();
         while (it.hasNext()) {

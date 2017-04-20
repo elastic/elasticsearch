@@ -35,8 +35,10 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
     @Override
     protected InternalHDRPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators, Map<String, Object> metadata,
                                                             boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
+
         return new InternalHDRPercentileRanks(name, percents, state, keyed, format, aggregators, metadata);
     }
 

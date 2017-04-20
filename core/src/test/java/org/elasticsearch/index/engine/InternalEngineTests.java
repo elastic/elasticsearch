@@ -114,6 +114,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -191,7 +192,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends ESTestCase {
 
-    protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
+    protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
@@ -1961,7 +1962,7 @@ public class InternalEngineTests extends ESTestCase {
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][1] ")) {
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0] ")) {
                 if (event.getLoggerName().endsWith(".IW") &&
                     formattedMessage.contains("IW: apply all deletes during flush")) {
                     sawIndexWriterMessage = true;
@@ -2341,7 +2342,7 @@ public class InternalEngineTests extends ESTestCase {
 
     private Engine.Index replicaIndexForDoc(ParsedDocument doc, long version, long seqNo,
                                             boolean isRetry) {
-        return  new Engine.Index(newUid(doc), doc, seqNo, 1, version,  VersionType.EXTERNAL,
+        return new Engine.Index(newUid(doc), doc, seqNo, 1, version,  VersionType.EXTERNAL,
             Engine.Operation.Origin.REPLICA, System.nanoTime(),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry);
     }
@@ -3853,4 +3854,67 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    public void testFillUpSequenceIdGapsOnRecovery() throws IOException {
+        final int docs = randomIntBetween(1, 32);
+        int numDocsOnReplica = 0;
+        long maxSeqIDOnReplica = -1;
+        long checkpointOnReplica;
+        try {
+            for (int i = 0; i < docs; i++) {
+                final String docId = Integer.toString(i);
+                final ParsedDocument doc =
+                    testParsedDocument(docId, "test", null, testDocumentWithTextField(), SOURCE, null);
+                Engine.Index primaryResponse = indexForDoc(doc);
+                Engine.IndexResult indexResult = engine.index(primaryResponse);
+                if (randomBoolean()) {
+                    doc.updateSeqID(indexResult.getSeqNo(), 1);
+                    numDocsOnReplica++;
+                    maxSeqIDOnReplica = indexResult.getSeqNo();
+                    replicaEngine.index(replicaIndexForDoc(doc, 1, indexResult.getSeqNo(), false));
+                }
+            }
+            checkpointOnReplica = replicaEngine.seqNoService().getLocalCheckpoint();
+        } finally {
+            IOUtils.close(replicaEngine);
+        }
+
+
+        boolean flushed = false;
+        Engine recoveringEngine = null;
+        try {
+            assertEquals(docs-1, engine.seqNoService().getMaxSeqNo());
+            assertEquals(docs-1, engine.seqNoService().getLocalCheckpoint());
+            assertEquals(maxSeqIDOnReplica, replicaEngine.seqNoService().getMaxSeqNo());
+            assertEquals(checkpointOnReplica, replicaEngine.seqNoService().getLocalCheckpoint());
+            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().totalOperations());
+            recoveringEngine.recoverFromTranslog();
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
+            assertEquals(checkpointOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
+            assertEquals((maxSeqIDOnReplica+1) - numDocsOnReplica, recoveringEngine.fillSequenceNumberHistory(2));
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
+            if ((flushed = randomBoolean())) {
+                recoveringEngine.flush(true, true);
+            }
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
+
+        // now do it again to make sure we preserve values etc.
+        try {
+            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            if (flushed) {
+                assertEquals(0, recoveringEngine.getTranslog().totalOperations());
+            }
+            recoveringEngine.recoverFromTranslog();
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
+            assertEquals(0, recoveringEngine.fillSequenceNumberHistory(3));
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
+    }
 }

@@ -1416,6 +1416,14 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
+     * Fills up the local checkpoints history with no-ops until the local checkpoint
+     * and the max seen sequence ID are identical.
+     * @param primaryTerm the shards primary term this engine was created for
+     * @return the number of no-ops added
+     */
+    public abstract int fillSequenceNumberHistory(long primaryTerm) throws IOException;
+
+    /**
      * Performs recovery from the transaction log.
      * This operation will close the engine if the recovery fails.
      */

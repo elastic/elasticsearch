@@ -228,6 +228,27 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
+    @Override
+    public int fillSequenceNumberHistory(long primaryTerm) throws IOException {
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            final long localCheckpoint = seqNoService.getLocalCheckpoint();
+            final long maxSeqId = seqNoService.getMaxSeqNo();
+            int numNoOpsAdded = 0;
+            for (long i = localCheckpoint + 1; i <= maxSeqId;
+                 // the local checkpoint might have been advanced so we are leap-frogging
+                 // to the next seq ID we need to process and create a noop for
+                 i = Math.max(seqNoService.getLocalCheckpoint(), i) + 1) {
+                final NoOp noOp = new NoOp(null, i, primaryTerm, 0, VersionType.INTERNAL, Operation.Origin.PRIMARY, System.nanoTime(),
+                    "filling up seqNo history");
+                innerNoOp(noOp);
+                numNoOpsAdded++;
+
+            }
+            return numNoOpsAdded;
+        }
+    }
+
     private void updateMaxUnsafeAutoIdTimestampFromWriter(IndexWriter writer) {
         long commitMaxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
         for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
@@ -1074,6 +1095,7 @@ public class InternalEngine extends Engine {
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbersService.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try {

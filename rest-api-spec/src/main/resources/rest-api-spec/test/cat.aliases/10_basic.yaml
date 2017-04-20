@@ -161,15 +161,21 @@
   - do:
         cat.aliases:
             name: foo,bar
+            v: true
+            h: [alias, index]
+            s: [index]
 
   - match:
-      $body: /(^|\n)foo\s+test /
-
-  - match:
-      $body: /(^|\n)bar\s+test2 /
-
-  - match:
-      $body: /(^|\n)[^bar\s+test3] /
+      $body: |
+               /^  alias           \s+
+                   index
+                   \n
+                   foo             \s+
+                   test
+                   \n
+                   bar             \s+
+                   test2
+               $/
 
 ---
 "Column headers":

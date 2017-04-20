@@ -91,7 +91,13 @@ public class MiniHDFS {
         UserGroupInformation.setConfiguration(cfg);
 
         // TODO: remove hardcoded port!
-        MiniDFSCluster dfs = new MiniDFSCluster.Builder(cfg).nameNodePort(9999).build();
+        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
+        if (secure) {
+            builder.nameNodePort(9998);
+        } else {
+            builder.nameNodePort(9999);
+        }
+        MiniDFSCluster dfs = builder.build();
 
         // Set the elasticsearch user directory up
         if (UserGroupInformation.isSecurityEnabled()) {

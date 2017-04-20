@@ -24,30 +24,42 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class InternalHistogramTests extends InternalAggregationTestCase<InternalHistogram> {
+public class InternalHistogramTests extends InternalMultiBucketAggregationTestCase<InternalHistogram> {
+
+    private boolean keyed;
+    private DocValueFormat format;
+
+    @Before
+    public void init() {
+        keyed = randomBoolean();
+        format = randomNumericDocValueFormat();
+    }
 
     @Override
-    protected InternalHistogram createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        final boolean keyed = randomBoolean();
-        final DocValueFormat format = DocValueFormat.RAW;
+    protected InternalHistogram createTestInstance(String name,
+                                                   List<PipelineAggregator> pipelineAggregators,
+                                                   Map<String, Object> metaData,
+                                                   InternalAggregations aggregations) {
         final int base = randomInt(50) - 30;
         final int numBuckets = randomInt(10);
         final int interval = randomIntBetween(1, 3);
         List<InternalHistogram.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < numBuckets; ++i) {
             final int docCount = TestUtil.nextInt(random(), 1, 50);
-            buckets.add(new InternalHistogram.Bucket(base + i * interval, docCount, keyed, format, InternalAggregations.EMPTY));
+            buckets.add(new InternalHistogram.Bucket(base + i * interval, docCount, keyed, format, aggregations));
         }
-        return new InternalHistogram(name, buckets, (InternalOrder) InternalHistogram.Order.KEY_ASC,
-                1, null, format, keyed, pipelineAggregators, metaData);
+        InternalOrder order = (InternalOrder) randomFrom(InternalHistogram.Order.KEY_ASC, InternalHistogram.Order.KEY_DESC);
+        return new InternalHistogram(name, buckets, order, 1, null, format, keyed, pipelineAggregators, metaData);
     }
 
     @Override
@@ -72,4 +84,8 @@ public class InternalHistogramTests extends InternalAggregationTestCase<Internal
         return InternalHistogram::new;
     }
 
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedHistogram.class;
+    }
 }

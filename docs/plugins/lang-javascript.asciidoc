@@ -7,35 +7,8 @@ The JavaScript language plugin enables the use of JavaScript in Elasticsearch
 scripts, via Mozilla's
 https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Rhino[Rhino JavaScript] engine.
 
-[[lang-javascript-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install lang-javascript
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/lang-javascript/lang-javascript-{version}.zip.
-
-[[lang-javascript-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove lang-javascript
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: lang-javascript
+include::install_remove.asciidoc[]
 
 [[lang-javascript-usage]]
 ==== Using JavaScript in Elasticsearch

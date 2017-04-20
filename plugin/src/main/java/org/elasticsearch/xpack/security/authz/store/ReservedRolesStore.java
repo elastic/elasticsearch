@@ -40,7 +40,7 @@ public class ReservedRolesStore {
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("kibana_user", new RoleDescriptor("kibana_user", new String[] { "monitor" }, new RoleDescriptor.IndicesPrivileges[] {
+                .put("kibana_user", new RoleDescriptor("kibana_user", null, new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete")
                                 .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user", null, new RoleDescriptor.IndicesPrivileges[] {

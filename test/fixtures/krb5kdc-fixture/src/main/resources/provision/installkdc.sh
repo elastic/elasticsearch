@@ -34,16 +34,19 @@ LOGDIR=/var/log/krb5
 
 MARKER_FILE=/etc/marker
 
-if [ -f $MARKER_FILE ]; then
-  echo "Already provisioned..."
-  exit 0;
-fi
-
 # Output location for our rendered configuration files and keytabs
 mkdir -p $BUILD_DIR
 rm -rf $BUILD_DIR/*
 mkdir -p $CONF_DIR
 mkdir -p $KEYTAB_DIR
+
+if [ -f $MARKER_FILE ]; then
+  echo "Already provisioned..."
+  echo "Recopying configuration files..."
+  cp $LOCALSTATEDIR/krb5.conf $CONF_DIR/krb5.conf
+  cp $LOCALSTATEDIR/krb5kdc/kdc.conf $CONF_DIR/kdc.conf
+  exit 0;
+fi
 
 # Pull environment information
 REALM_NAME=$(cat $ENVPROP_FILE | grep realm= | cut -d '=' -f 2)

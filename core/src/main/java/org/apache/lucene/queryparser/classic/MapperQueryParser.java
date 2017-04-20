@@ -25,15 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
@@ -149,6 +141,11 @@ public class MapperQueryParser extends QueryParser {
         if (fields != null) {
             if (fields.size() == 1) {
                 return getFieldQuerySingle(fields.iterator().next(), queryText, quoted);
+            } else if (fields.isEmpty()) {
+                // the requested fields do not match any field in the mapping
+                // happens for wildcard fields only since we cannot expand to a valid field name
+                // if there is no match in the mappings.
+                return new MatchNoDocsQuery("empty fields");
             }
             if (settings.useDisMax()) {
                 List<Query> queries = new ArrayList<>();

@@ -691,7 +691,22 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryStringQueryBuilder =
             new QueryStringQueryBuilder("foo bar").field("invalid*");
         Query query = queryStringQueryBuilder.toQuery(createShardContext());
-        assertThat(query, equalTo(new BooleanQuery.Builder().build()));
+        Query expectedQuery = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .build();
+        assertThat(expectedQuery, equalTo(query));
+
+        queryStringQueryBuilder =
+            new QueryStringQueryBuilder("field:foo bar").field("invalid*");
+        query = queryStringQueryBuilder.toQuery(createShardContext());
+        expectedQuery = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("field", "foo")), Occur.SHOULD)
+            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .build();
+        assertThat(expectedQuery, equalTo(query));
+
+
     }
 
     public void testToQuerySplitOnWhitespace() throws IOException {

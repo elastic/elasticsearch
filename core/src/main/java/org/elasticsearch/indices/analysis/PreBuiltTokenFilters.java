@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
@@ -28,9 +26,7 @@ import org.apache.lucene.analysis.br.BrazilianStemFilter;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
-import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
-import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
@@ -47,20 +43,11 @@ import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianNormalizationFilter;
-import org.apache.lucene.analysis.miscellaneous.TrimFilter;
-import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
-import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.ClassicFilter;
-import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.Version;
@@ -75,20 +62,6 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 import java.util.Locale;
 
 public enum PreBuiltTokenFilters {
-    STOP(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new StopFilter(tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-        }
-    },
-
-    TRIM(CachingStrategy.LUCENE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new TrimFilter(tokenStream);
-        }
-    },
-
     REVERSE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {

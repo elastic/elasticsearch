@@ -20,7 +20,10 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
+import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
@@ -49,6 +52,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
+        // TODO we should revisit the caching strategies.
         Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
         filters.put("classic", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new ClassicFilter(input)));
@@ -64,6 +68,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         // NOCOMMIT deprecate nGram
         filters.put("nGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new NGramTokenFilter(input)));
+        filters.put("stop", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
+        filters.put("trim", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+                new TrimFilter(input)));
         filters.put("truncate", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new TruncateTokenFilter(input, 10)));
         filters.put("unique", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->

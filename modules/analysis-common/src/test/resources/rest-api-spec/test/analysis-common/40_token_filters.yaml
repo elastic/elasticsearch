@@ -10,6 +10,18 @@
     - length: { tokens: 1 }
     - match:  { tokens.0.token: Musee d'Orsay }
 
+    - do:
+        indices.analyze:
+          body:
+            text:      Musée d'Orsay
+            tokenizer: keyword
+            filter:
+              - type: asciifolding
+                preserve_original: true
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Musee d'Orsay }
+    - match:  { tokens.1.token: Musée d'Orsay }
+
 ---
 "lowercase":
     - do:

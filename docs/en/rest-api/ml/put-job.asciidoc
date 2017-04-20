@@ -41,7 +41,9 @@ For more information, see <<privileges-list-cluster>>.
   Older snapshots are deleted. The default value is 1 day.
 
 `results_index_name`::
-  (string) TBD.  For example, `shared`.
+  (string) The name of the index in which to store the {ml} results.
+  The default value is `shared`, which corresponds to the index name
+  `.ml-anomalies-shared`.
 
 ////
 ===== Responses

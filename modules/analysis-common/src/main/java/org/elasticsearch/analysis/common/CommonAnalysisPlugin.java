@@ -68,8 +68,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
         filters.put("edge_ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
-        // NOCOMMIT deprecate edgeNGram
-        filters.put("edgeNGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) -> 
+        // TODO deprecate edgeNGram
+        filters.put("edgeNGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
         filters.put("kstem", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new KStemFilter(input)));
@@ -77,7 +77,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new LengthFilter(input, 0, Integer.MAX_VALUE)));
         filters.put("ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new NGramTokenFilter(input)));
-        // NOCOMMIT deprecate nGram
+        // TODO deprecate nGram
         filters.put("nGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
                 new NGramTokenFilter(input)));
         filters.put("porter_stem", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->

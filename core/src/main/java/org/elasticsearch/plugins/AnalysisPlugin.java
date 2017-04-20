@@ -94,6 +94,9 @@ public interface AnalysisPlugin {
         return emptyMap();
     }
 
+    /**
+     * Specification for a pre-built token filter that is shared between multiple indices.
+     */
     class PreBuiltTokenFilterSpec {
         private final boolean useFilterForMultitermQueries;
         private final PreBuiltCacheFactory.CachingStrategy cachingStrategy;

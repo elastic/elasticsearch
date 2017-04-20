@@ -289,10 +289,8 @@ public final class AnalysisModule {
                 // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
             default:
-                preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT), new PreBuiltTokenFilterSpec(
-                        preBuilt.isMultiTermAware(),
-                        CachingStrategy.ELASTICSEARCH, // This is the most granular/safest/whatever
-                        preBuilt::create));
+                preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT),
+                        new PreBuiltTokenFilterSpec(preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
             }
         }
 

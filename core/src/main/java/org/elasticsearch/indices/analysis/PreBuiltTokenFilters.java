@@ -314,8 +314,14 @@ public enum PreBuiltTokenFilters {
     protected final PreBuiltCacheFactory.PreBuiltCache<TokenFilterFactory> cache;
 
 
+    private final CachingStrategy cachingStrategy;
     PreBuiltTokenFilters(CachingStrategy cachingStrategy) {
+        this.cachingStrategy = cachingStrategy;
         cache = PreBuiltCacheFactory.getCache(cachingStrategy);
+    }
+
+    public CachingStrategy getCachingStrategy() {
+        return cachingStrategy;
     }
 
     private interface MultiTermAwareTokenFilterFactory extends TokenFilterFactory, MultiTermAwareComponent {}

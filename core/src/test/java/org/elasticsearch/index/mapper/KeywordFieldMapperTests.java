@@ -44,19 +44,19 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
+    /**
+     * Creates a copy of the lowercase token filter which we use for testing merge errors.
+     */
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
         @Override
         public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
-            Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
-            filters.put("mock_lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
+            return singletonMap("mock_other_lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
                     new MockLowerCaseFilter(input)));
-            filters.put("mock_other_lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
-                    new MockLowerCaseFilter(input)));
-            return filters;
         }
     };
 
@@ -72,7 +72,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test", Settings.builder()
                 .put("index.analysis.normalizer.my_lowercase.type", "custom")
-                .putArray("index.analysis.normalizer.my_lowercase.filter", "mock_lowercase")
+                .putArray("index.analysis.normalizer.my_lowercase.filter", "lowercase")
                 .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
                 .putArray("index.analysis.normalizer.my_other_lowercase.filter", "mock_other_lowercase").build());
         parser = indexService.mapperService().documentMapperParser();

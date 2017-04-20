@@ -104,11 +104,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                       | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
         filters.put("word_delimiter_graph", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
                 new WordDelimiterGraphFilter(input,
-                          WordDelimiterGraphFilter.GENERATE_WORD_PARTS
-                        | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
-                        | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
-                        | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
-                        | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null)));
+                        WordDelimiterGraphFilter.GENERATE_WORD_PARTS
+                      | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
+                      | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
+                      | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
+                      | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null)));
 
         return filters;
     }

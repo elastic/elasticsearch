@@ -786,8 +786,8 @@ public class MapperQueryParser extends QueryParser {
         if (field != null) {
             fields = context.simpleMatchToIndexNames(field);
         } else {
-            fields =
-                settings.fieldsAndWeights() == null ? Collections.emptyList() : settings.fieldsAndWeights().keySet();
+            Map<String, Float> fieldsAndWeights = settings.fieldsAndWeights();
+            fields = fieldsAndWeights == null ? Collections.emptyList() : settings.fieldsAndWeights().keySet();
         }
         return fields;
     }

@@ -176,7 +176,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
    * Implementing this method is typically useful in order to compute more
    * fine-grained statistics about the query cache.
    * @see #onMiss
-   * @lucene.experimental
    */
   protected void onHit(Object readerCoreKey, Query query) {
     assert lock.isHeldByCurrentThread();
@@ -186,7 +185,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
   /**
    * Expert: callback when there is a cache miss on a given query.
    * @see #onHit
-   * @lucene.experimental
    */
   protected void onMiss(Object readerCoreKey, Query query) {
     assert lock.isHeldByCurrentThread();
@@ -199,7 +197,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
    * Implementing this method is typically useful in order to compute more
    * fine-grained statistics about the query cache.
    * @see #onQueryEviction
-   * @lucene.experimental
    */
   protected void onQueryCache(Query query, long ramBytesUsed) {
     assert lock.isHeldByCurrentThread();
@@ -209,7 +206,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
   /**
    * Expert: callback when a query is evicted from this cache.
    * @see #onQueryCache
-   * @lucene.experimental
    */
   protected void onQueryEviction(Query query, long ramBytesUsed) {
     assert lock.isHeldByCurrentThread();
@@ -221,7 +217,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
    * Implementing this method is typically useful in order to compute more
    * fine-grained statistics about the query cache.
    * @see #onDocIdSetEviction
-   * @lucene.experimental
    */
   protected void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
     assert lock.isHeldByCurrentThread();
@@ -234,7 +229,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
    * Expert: callback when one or more {@link DocIdSet}s are removed from this
    * cache.
    * @see #onDocIdSetCache
-   * @lucene.experimental
    */
   protected void onDocIdSetEviction(Object readerCoreKey, int numEntries, long sumRamBytesUsed) {
     assert lock.isHeldByCurrentThread();
@@ -244,7 +238,6 @@ public class XLRUQueryCache implements QueryCache, Accountable {
 
   /**
    * Expert: callback when the cache is completely cleared.
-   * @lucene.experimental
    */
   protected void onClear() {
     assert lock.isHeldByCurrentThread();

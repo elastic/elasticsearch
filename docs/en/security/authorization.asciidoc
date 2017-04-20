@@ -59,25 +59,25 @@ to users. These roles have a fixed set of privileges and cannot be updated.
 
 [[built-in-roles-superuser]]
 `superuser`::
-Grants full access to the cluster, including all indices and data. A user with 
+Grants full access to the cluster, including all indices and data. A user with
 the `superuser` role can also manage users and roles and <<run-as-privilege, impersonate>> any other user in the system. Due to the permissive nature of
 this role, take extra care when assigning it to a user.
 
 [[built-in-roles-transport-client]]
-`transport_client`::                
-Grants the privileges required to access the cluster through the Java Transport Client. The Java Transport Client fetches information about the nodes in the 
-cluster using the _Node Liveness API_ and the _Cluster State API_ (when 
+`transport_client`::
+Grants the privileges required to access the cluster through the Java Transport Client. The Java Transport Client fetches information about the nodes in the
+cluster using the _Node Liveness API_ and the _Cluster State API_ (when
 sniffing is enabled). Assign your users this role if they use the
 Transport Client.
 +
-NOTE: Using the Transport Client effectively means the users are granted access 
+NOTE: Using the Transport Client effectively means the users are granted access
 to the cluster state. This means users can view the metadata over all indices,
-index templates, mappings, node and basically everything about the cluster. 
+index templates, mappings, node and basically everything about the cluster.
 However, this role does not grant permission to view the data in all indices.
 
 [[built-in-roles-kibana-user]]
-`kibana_user` ::                        
-Grants the minimum privileges required for any user of Kibana. This role grants 
+`kibana_user` ::
+Grants the minimum privileges required for any user of Kibana. This role grants
 access to the Kibana indices and grants  monitoring privileges for the cluster.
 
 [[built-in-roles-monitoring-user]]
@@ -131,6 +131,17 @@ stats.
 +
 Grants write access to the `.watches` index, read access to the watch history and
 the triggered watches index and allows to execute all watcher actions.
+
+[[built-in-roles-ml-admin]]
+`machine_learning_admin`::
+Grants `manage_ml` cluster privileges and read access to the `.ml-*` indices.
+
+[[built-in-roles-ml-user]]
+`machine_learning_user`::
+Grants the minimum privileges required to view {xpack} {ml} configuration,
+status, and results. This role grants `monitor_ml` cluster privileges and
+read access to the `.ml-notifications` and `.ml-anomalies*` indices,
+which store {ml} results.
 
 [[defining-roles]]
 === Defining Roles
@@ -258,7 +269,7 @@ log in to Kibana and go to *Management / Elasticsearch / Roles*.
 === Role Management API
 
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
-dynamically. When you use the APIs to manage roles in the `native` realm, the 
+dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal Elasticsearch index.
 
 [[roles-api-add]]
@@ -409,4 +420,3 @@ include::authorization/field-and-document-access-control.asciidoc[]
 include::authorization/run-as-privilege.asciidoc[]
 
 include::authorization/custom-roles-provider.asciidoc[]
-

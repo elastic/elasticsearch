@@ -47,7 +47,8 @@ public class MlRestTestStateCleaner {
     private void waitForPendingTasks() throws Exception {
         ESTestCase.assertBusy(() -> {
             try {
-                Response response = adminClient.performRequest("GET", "/_cat/tasks");
+                Response response = adminClient.performRequest("GET", "/_cat/tasks",
+                        Collections.singletonMap("detailed", "true"));
                 // Check to see if there are tasks still active. We exclude the
                 // list tasks
                 // actions tasks form this otherwise we will always fail
@@ -58,10 +59,10 @@ public class MlRestTestStateCleaner {
                         String line;
                         StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
-                            tasksListString.append(line);
-                            tasksListString.append('\n');
                             if (line.startsWith(ListTasksAction.NAME) == false) {
                                 activeTasks++;
+                                tasksListString.append(line);
+                                tasksListString.append('\n');
                             }
                         }
                         assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);

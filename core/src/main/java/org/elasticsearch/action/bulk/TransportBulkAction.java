@@ -173,11 +173,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
                 for (String index : autoCreateIndices) {
-                    CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-                    createIndexRequest.index(index);
-                    createIndexRequest.cause("auto(bulk api)");
-                    createIndexRequest.masterNodeTimeout(bulkRequest.timeout());
-                    createIndexAction.execute(createIndexRequest, new ActionListener<CreateIndexResponse>() {
+                    createIndex(index, bulkRequest.timeout(), new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
@@ -188,7 +184,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onFailure(Exception e) {
                             if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
-                                // fail all requests involving this index, if create didnt work
+                                // fail all requests involving this index, if create didn't work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                     DocWriteRequest request = bulkRequest.requests.get(i);
                                     if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
@@ -217,6 +213,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     boolean shouldAutoCreate(String index, ClusterState state) {
         return autoCreateIndex.shouldAutoCreate(index, state);
+    }
+
+    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+        createIndexRequest.index(index);
+        createIndexRequest.cause("auto(bulk api)");
+        createIndexRequest.masterNodeTimeout(timeout);
+        createIndexAction.execute(createIndexRequest, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest request, String index, Exception e) {

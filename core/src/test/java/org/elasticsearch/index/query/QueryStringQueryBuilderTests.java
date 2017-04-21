@@ -85,8 +85,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.defaultField(randomBoolean() ?
                 STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10));
-        }
-        if (randomBoolean()) {
+        } else {
             int numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
                 String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);

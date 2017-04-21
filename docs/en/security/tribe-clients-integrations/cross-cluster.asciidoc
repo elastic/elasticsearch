@@ -59,3 +59,97 @@ PUT _cluster/settings
   that exists on the remote clusters.  On the remote clusters, use that role
   to define which indices the user may access.  (See <<authorization>>).
 
+==== Example Configuration of Cross Cluster Search
+
+In the following example, we will configure the user `alice` to have permissions
+to search any index starting with `logs-` in cluster `two` from cluster `one`.
+
+First, enable cluster `one` to perform cross cluster search on remote cluster
+`two` by running the following request as the superuser on cluster `one`:
+
+[source,js]
+-----------------------------------------------------------
+PUT _cluster_settings
+{
+  "persistent": {
+    "search.remote.two.seeds": [ "10.0.2.1:9300" ]
+  }
+}
+-----------------------------------------------------------
+
+Next, set up a role called `cluster_two_logs` on both cluster `one` and
+cluster `two`.
+
+On cluster `one`, this role allows the user to query indices called `logs-` on
+cluster `two`:
+
+[source,js]
+-----------------------------------------------------------
+POST /_xpack/security/role/cluster_two_logs
+{
+  "indices": [
+    {
+      "names": [
+        "two:logs-*"
+      ],
+      "privileges": [
+        "read"
+      ]
+    }
+  ]
+}
+-----------------------------------------------------------
+
+On cluster `two`, this role allows the user to query local indices called
+`logs-` from a remote cluster:
+
+[source,js]
+-----------------------------------------------------------
+POST /_xpack/security/role/cluster_two_logs
+{
+  "cluster": [
+    "transport_client"
+  ],
+  "indices": [
+    {
+      "names": [
+        "two:logs-*", <1>
+        "logs-*" <1>
+      ],
+      "privileges": [
+        "read",
+        "read_cross_cluster",
+        "manage"
+      ]
+    }
+  ]
+}
+-----------------------------------------------------------
+<1> The index pattern needs to be specified with and without the cluster alias.
+
+Finally, create a user on cluster `one` and apply the `cluster_two_logs` role:
+
+[source,js]
+-----------------------------------------------------------
+POST /_xpack/security/user/alice
+{
+  "password" : "somepassword",
+  "roles" : [ "cluster_two_logs" ],
+  "full_name" : "Alice",
+  "email" : "alice@example.com",
+  "enabled": true
+}
+-----------------------------------------------------------
+
+With all of the above setup, the user `alice` is able to search indices in
+cluster `two` as follows:
+
+[source,js]
+-----------------------------------------------------------
+GET two:logs-*/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+-----------------------------------------------------------

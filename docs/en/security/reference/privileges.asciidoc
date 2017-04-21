@@ -45,7 +45,8 @@ cache clearing.
 All watcher operations, such as putting watches, executing, activate or acknowledging.
 
 `transport_client`::
-All privileges necessary for a transport client to connect.
+All privileges necessary for a transport client to connect.  Required by the remote
+cluster to enable <<cross-cluster-configuring,Cross Cluster Search>>.
 
 [[privileges-list-indices]]
 ==== Indices Privileges
@@ -73,6 +74,9 @@ Read only access to actions (count, explain, get, mget, get indexed scripts,
 more like this, multi percolate/search/termvector, percolate, scroll,
 clear_scroll, search, tv). Also grants access to the update mapping
 action.
+
+`read_cross_cluster`::
+Read only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
 
 `index`::
 Privilege to index and update documents. Also grants access to the update

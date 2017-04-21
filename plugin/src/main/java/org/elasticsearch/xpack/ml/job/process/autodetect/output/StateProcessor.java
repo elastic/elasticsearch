@@ -87,7 +87,9 @@ public class StateProcessor extends AbstractComponent {
         logger.trace("[{}] ES API CALL: bulk index", jobId);
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bytes, null, null, XContentType.JSON);
-        client.bulk(bulkRequest).actionGet();
+        if (bulkRequest.numberOfActions() > 0) {
+            client.bulk(bulkRequest).actionGet();
+        }
     }
 
     private static int findNextZeroByte(BytesReference bytesRef, int searchFrom, int splitFrom) {

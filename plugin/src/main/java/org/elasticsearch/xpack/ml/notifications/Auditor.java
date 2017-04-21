@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.ml.notifications;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -46,19 +48,20 @@ public class Auditor {
     }
 
     private void indexDoc(String type, ToXContent toXContent) {
-        client.prepareIndex(NOTIFICATIONS_INDEX, type)
-                .setSource(toXContentBuilder(toXContent))
-                .execute(new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        LOGGER.trace("Successfully persisted {}", type);
-                    }
+        IndexRequest indexRequest = new IndexRequest(NOTIFICATIONS_INDEX, type);
+        indexRequest.source(toXContentBuilder(toXContent));
+        indexRequest.timeout(TimeValue.timeValueSeconds(5));
+        client.index(indexRequest, new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    LOGGER.trace("Successfully persisted {}", type);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        LOGGER.debug(new ParameterizedMessage("Error writing {}", new Object[]{type}, e));
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    LOGGER.debug(new ParameterizedMessage("Error writing {}", new Object[]{type}, e));
+                }
+            });
     }
 
     private XContentBuilder toXContentBuilder(ToXContent toXContent) {

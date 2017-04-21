@@ -1076,23 +1076,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
         }
 
-        boolean assertionsEnabled = false;
-        assert assertionsEnabled = true;
-        // TODO: add this for shrinked indices.
-        if (assertionsEnabled && indexExists) {
-            final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-            if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
-                // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
-                // This should have baked into the commit by the primary we recover from, regardless of the index age.
-                assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
-                    "recovery from remote but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
-            } else if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
-                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
-                assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
-                    "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
-                        + " is not found in commit";
-            }
-        }
+        assert indexExists == false || assertMaxUnsafeAutoIdInCommit();
 
         final EngineConfig config = newEngineConfig(openMode);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -1106,6 +1090,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             active.set(true);
             newEngine.recoverFromTranslog();
         }
+    }
+
+    private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
+            // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
+            // This should have baked into the commit by the primary we recover from, regardless of the index age.
+            assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+                "recovery from remote but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
+        } else if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
+            indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+                "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+                    + " is not found in commit";
+        }
+        return true;
     }
 
     protected void onNewEngine(Engine newEngine) {

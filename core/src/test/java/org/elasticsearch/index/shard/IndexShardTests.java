@@ -1281,8 +1281,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
+                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(totalTranslogOps);
                     // Shard is still inactive since we haven't started recovering yet
                     assertFalse(replica.isActive());
 

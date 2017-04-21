@@ -66,7 +66,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         when(rawSelector.select(0)).thenReturn(1);
     }
 
-    @Test
     public void testRegisteredChannel() throws IOException, PrivilegedActionException {
         selector.registerServerChannel(serverChannel);
 
@@ -81,7 +80,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         assertEquals(SelectionKey.OP_ACCEPT, selectionKey.interestOps());
     }
 
-    @Test
     public void testAcceptEvent() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
         keySet.add(selectionKey);
@@ -91,7 +89,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         verify(eventHandler).acceptChannel(serverChannel);
     }
 
-    @Test
     public void testAcceptException() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
         keySet.add(selectionKey);
@@ -104,7 +101,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         verify(eventHandler).acceptException(serverChannel, ioException);
     }
 
-    @Test
     public void testCleanup() throws IOException {
         selector.registerServerChannel(serverChannel);
 

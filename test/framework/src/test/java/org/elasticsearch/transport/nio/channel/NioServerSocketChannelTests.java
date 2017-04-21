@@ -20,13 +20,14 @@
 package org.elasticsearch.transport.nio.channel;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
-public class NioServerSocketChannelTests extends AbstractNioChannelTests {
+public class NioServerSocketChannelTests extends AbstractNioChannelTestCase {
 
     @Override
     public NioChannel channelToClose() throws IOException {
-        return channelFactory.openNioServerSocketChannel("nio", new InetSocketAddress(0));
+        return channelFactory.openNioServerSocketChannel("nio", new InetSocketAddress(InetAddress.getLoopbackAddress(),0));
     }
 
 }

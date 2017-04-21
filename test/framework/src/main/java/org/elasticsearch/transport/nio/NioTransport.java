@@ -232,13 +232,16 @@ public class NioTransport extends TcpTransport<NioChannel> {
             fallbackSettingsBuilder.putArray("publish_host", fallbackPublishHost);
         }
 
-        boolean fallbackTcpNoDelay = settings.getAsBoolean("transport.nio.tcp_no_delay", NetworkService.TcpSettings.TCP_NO_DELAY.get(settings));
+        boolean fallbackTcpNoDelay = settings.getAsBoolean("transport.nio.tcp_no_delay",
+            NetworkService.TcpSettings.TCP_NO_DELAY.get(settings));
         fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
 
-        boolean fallbackTcpKeepAlive = settings.getAsBoolean("transport.nio.tcp_keep_alive", NetworkService.TcpSettings.TCP_KEEP_ALIVE.get(settings));
+        boolean fallbackTcpKeepAlive = settings.getAsBoolean("transport.nio.tcp_keep_alive",
+            NetworkService.TcpSettings.TCP_KEEP_ALIVE.get(settings));
         fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
 
-        boolean fallbackReuseAddress = settings.getAsBoolean("transport.nio.reuse_address", NetworkService.TcpSettings.TCP_REUSE_ADDRESS.get(settings));
+        boolean fallbackReuseAddress = settings.getAsBoolean("transport.nio.reuse_address",
+            NetworkService.TcpSettings.TCP_REUSE_ADDRESS.get(settings));
         fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
 
         ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.nio.tcp_send_buffer_size",

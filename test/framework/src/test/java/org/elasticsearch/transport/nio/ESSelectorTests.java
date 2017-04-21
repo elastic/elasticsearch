@@ -44,7 +44,6 @@ public class ESSelectorTests extends ESTestCase {
         selector.state = 1;
     }
 
-    @Test
     public void testQueueChannelForClosed() throws IOException {
         NioChannel channel = mock(NioChannel.class);
         selector.registeredChannels.add(channel);
@@ -60,7 +59,6 @@ public class ESSelectorTests extends ESTestCase {
         assertEquals(0, selector.getRegisteredChannels().size());
     }
 
-    @Test
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {
         ((TestSelector) this.selector).setClosedSelectorException(new ClosedSelectorException());
 
@@ -74,7 +72,6 @@ public class ESSelectorTests extends ESTestCase {
         assertTrue(closedSelectorExceptionCaught);
     }
 
-    @Test
     public void testIOExceptionWhileSelect() throws IOException {
         IOException ioException = new IOException();
         ((TestSelector) this.selector).setIOException(ioException);

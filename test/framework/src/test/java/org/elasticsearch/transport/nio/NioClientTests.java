@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,7 @@ import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +66,7 @@ public class NioClientTests extends ESTestCase {
         client = new NioClient(logger, openChannels, strategy, TimeValue.timeValueMillis(5), channelFactory);
 
         channels = new NioSocketChannel[2];
-        address = new TransportAddress(new InetSocketAddress(0));
+        address = new TransportAddress(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         node = new DiscoveryNode("node-id", address, Version.CURRENT);
     }
 
@@ -134,7 +136,7 @@ public class NioClientTests extends ESTestCase {
             client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener);
             fail("Should have thrown ConnectTransportException");
         } catch (ConnectTransportException e) {
-            assertEquals("[][0.0.0.0:0] connect_timeout[5ms]", e.getMessage());
+            assertTrue(e.getMessage().contains("connect_timeout[5ms]"));
         }
 
         verify(channel1).close();
@@ -166,7 +168,7 @@ public class NioClientTests extends ESTestCase {
             client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener);
             fail("Should have thrown ConnectTransportException");
         } catch (ConnectTransportException e) {
-            assertEquals("[][0.0.0.0:0] connect_exception", e.getMessage());
+            assertTrue(e.getMessage().contains("connect_exception"));
             assertSame(ioException, e.getCause());
         }
 

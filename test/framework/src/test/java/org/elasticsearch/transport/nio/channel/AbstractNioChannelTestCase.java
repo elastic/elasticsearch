@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
 
-public abstract class AbstractNioChannelTests extends ESTestCase {
+public abstract class AbstractNioChannelTestCase extends ESTestCase {
 
     ChannelFactory channelFactory = new ChannelFactory(Settings.EMPTY, mock(TcpReadHandler.class));
     MockServerSocket mockServerSocket;
@@ -69,7 +69,6 @@ public abstract class AbstractNioChannelTests extends ESTestCase {
 
     public abstract NioChannel channelToClose() throws IOException;
 
-    @Test
     public void testClose() throws IOException, TimeoutException, InterruptedException {
         AtomicReference<NioChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

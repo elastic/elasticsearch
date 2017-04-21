@@ -164,14 +164,14 @@ public final class ELambda extends AExpression implements ILambda {
         // desugar lambda body into a synthetic method
         desugared = new SFunction(reserved, location, returnType.name, name,
                                             paramTypes, paramNames, statements, true);
-        desugared.generateSignature();
+        desugared.generateSignature(locals.getDefinition());
         desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType, desugared.parameters,
                                                 captures.size(), reserved.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
         if (expected == null) {
             ref = null;
-            actual = Definition.getType("String");
+            actual = locals.getDefinition().getType("String");
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;

@@ -25,9 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryparser.analyzing.AnalyzingQueryParser;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -59,7 +57,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Collections;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -70,7 +68,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  */
-public class MapperQueryParser extends AnalyzingQueryParser {
+public class MapperQueryParser extends QueryParser {
 
     public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
@@ -93,7 +91,8 @@ public class MapperQueryParser extends AnalyzingQueryParser {
 
     public void reset(QueryParserSettings settings) {
         this.settings = settings;
-        if (settings.fieldsAndWeights().isEmpty()) {
+        if (settings.fieldsAndWeights() == null) {
+            // this query has no explicit fields to query so we fallback to the default field
             this.field = settings.defaultField();
         } else if (settings.fieldsAndWeights().size() == 1) {
             this.field = settings.fieldsAndWeights().keySet().iterator().next();
@@ -103,14 +102,13 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         setAnalyzer(settings.analyzer());
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
+        setSplitOnWhitespace(settings.splitOnWhitespace());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
-        setLowercaseExpandedTerms(false);
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
-        setSplitOnWhitespace(settings.splitOnWhitespace());
     }
 
     /**
@@ -151,6 +149,11 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         if (fields != null) {
             if (fields.size() == 1) {
                 return getFieldQuerySingle(fields.iterator().next(), queryText, quoted);
+            } else if (fields.isEmpty()) {
+                // the requested fields do not match any field in the mapping
+                // happens for wildcard fields only since we cannot expand to a valid field name
+                // if there is no match in the mappings.
+                return new MatchNoDocsQuery("empty fields");
             }
             if (settings.useDisMax()) {
                 List<Query> queries = new ArrayList<>();
@@ -175,7 +178,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getFieldQuerySingle(field, queryText, quoted);
@@ -277,7 +280,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return super.getFieldQuery(field, queryText, slop);
@@ -328,7 +331,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                 }
             }
             if (clauses.isEmpty()) return null; // happens for stopwords
-            return getBooleanQueryCoordDisabled(clauses);
+            return getBooleanQuery(clauses);
         }
     }
 
@@ -386,7 +389,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getFuzzyQuerySingle(field, termStr, minSimilarity);
@@ -450,7 +453,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getPrefixQuerySingle(field, termStr);
@@ -559,7 +562,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token),
                         BooleanClause.Occur.SHOULD));
                 }
-                posQuery = getBooleanQueryCoordDisabled(innerClauses);
+                posQuery = getBooleanQuery(innerClauses);
             }
             clauses.add(new BooleanClause(posQuery,
                 getDefaultOperator() == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD));
@@ -612,7 +615,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getWildcardQuerySingle(field, termStr);
@@ -676,7 +679,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     }
                 }
                 if (clauses.isEmpty()) return null; // happens for stopwords
-                return getBooleanQueryCoordDisabled(clauses);
+                return getBooleanQuery(clauses);
             }
         } else {
             return getRegexpQuerySingle(field, termStr);
@@ -713,19 +716,6 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         }
     }
 
-    /**
-     * @deprecated review all use of this, don't rely on coord
-     */
-    @Deprecated
-    protected Query getBooleanQueryCoordDisabled(List<BooleanClause> clauses) throws ParseException {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.setDisableCoord(true);
-        for (BooleanClause clause : clauses) {
-            builder.add(clause);
-        }
-        return fixNegativeQueryIfNeeded(builder.build());
-    }
-
 
     @Override
     protected Query getBooleanQuery(List<BooleanClause> clauses) throws ParseException {
@@ -737,7 +727,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     }
 
     private Query applyBoost(String field, Query q) {
-        Float fieldBoost = settings.fieldsAndWeights().get(field);
+        Float fieldBoost = settings.fieldsAndWeights() == null ? null : settings.fieldsAndWeights().get(field);
         if (fieldBoost != null && fieldBoost != 1f) {
             return new BoostQuery(q, fieldBoost);
         }
@@ -796,7 +786,8 @@ public class MapperQueryParser extends AnalyzingQueryParser {
         if (field != null) {
             fields = context.simpleMatchToIndexNames(field);
         } else {
-            fields = settings.fieldsAndWeights().keySet();
+            Map<String, Float> fieldsAndWeights = settings.fieldsAndWeights();
+            fields = fieldsAndWeights == null ? Collections.emptyList() : fieldsAndWeights.keySet();
         }
         return fields;
     }

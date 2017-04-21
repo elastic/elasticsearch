@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
@@ -77,14 +78,14 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
-    private static final BiConsumer<Object, Object> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final BiConsumer<?, ?> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
     /**
      * Consumer that marks a field as an optional constructor argument instead of a real object field.
      */
-    private static final BiConsumer<Object, Object> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final BiConsumer<?, ?> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
@@ -189,7 +190,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
         if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
             /*
-             * Constructor arguments are detected by this "marker" consumer. It keeps the API looking clean even if it is a bit sleezy. We
+             * Constructor arguments are detected by these "marker" consumers. It keeps the API looking clean even if it is a bit sleezy. We
              * then build a new consumer directly against the object parser that triggers the "constructor arg just arrived behavior" of the
              * parser. Conveniently, we can close over the position of the constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
@@ -202,6 +203,91 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             numberOfFields += 1;
             objectParser.declareField(queueingConsumer(consumer, parseField), parser, parseField, type);
         }
+    }
+
+    @Override
+    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (namedObjectParser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+
+        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+            /*
+             * Constructor arguments are detected by this "marker" consumer. It
+             * keeps the API looking clean even if it is a bit sleezy. We then
+             * build a new consumer directly against the object parser that
+             * triggers the "constructor arg just arrived behavior" of the
+             * parser. Conveniently, we can close over the position of the
+             * constructor in the argument list so we don't need to do any fancy
+             * or expensive lookups whenever the constructor args come in.
+             */
+            int position = constructorArgInfos.size();
+            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
+            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, parseField, v), namedObjectParser, parseField);
+        } else {
+            numberOfFields += 1;
+            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser, parseField);
+        }
+    }
+
+    @Override
+    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            Consumer<Value> orderedModeCallback, ParseField parseField) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (namedObjectParser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
+        if (orderedModeCallback == null) {
+            throw new IllegalArgumentException("[orderedModeCallback] is required");
+        }
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+
+        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+            /*
+             * Constructor arguments are detected by this "marker" consumer. It
+             * keeps the API looking clean even if it is a bit sleezy. We then
+             * build a new consumer directly against the object parser that
+             * triggers the "constructor arg just arrived behavior" of the
+             * parser. Conveniently, we can close over the position of the
+             * constructor in the argument list so we don't need to do any fancy
+             * or expensive lookups whenever the constructor args come in.
+             */
+            int position = constructorArgInfos.size();
+            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
+            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, parseField, v), namedObjectParser,
+                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+        } else {
+            numberOfFields += 1;
+            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,
+                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+        }
+    }
+
+    private Consumer<Target> wrapOrderedModeCallBack(Consumer<Value> callback) {
+        return (target) -> {
+            if (target.targetObject != null) {
+                // The target has already been built. Call the callback now.
+                callback.accept(target.targetObject);
+                return;
+            }
+            /*
+             * The target hasn't been built. Queue the callback.
+             */
+            target.queuedOrderedModeCallback = callback;
+        };
     }
 
     /**
@@ -258,6 +344,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          * Fields to be saved to the target object when we can build it. This is only allocated if a field has to be queued.
          */
         private Consumer<Value>[] queuedFields;
+        /**
+         * OrderedModeCallback to be called with the target object when we can
+         * build it. This is only allocated if the callback has to be queued.
+         */
+        private Consumer<Value> queuedOrderedModeCallback;
         /**
          * The count of fields already queued.
          */
@@ -343,6 +434,9 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         private void buildTarget() {
             try {
                 targetObject = builder.apply(constructorArgs);
+                if (queuedOrderedModeCallback != null) {
+                    queuedOrderedModeCallback.accept(targetObject);
+                }
                 while (queuedFieldsCount > 0) {
                     queuedFieldsCount -= 1;
                     queuedFields[queuedFieldsCount].accept(targetObject);

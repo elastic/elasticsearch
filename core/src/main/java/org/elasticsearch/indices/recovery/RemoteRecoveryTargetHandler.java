@@ -78,9 +78,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, maxUnsafeAutoIdTimestamp),
+                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }

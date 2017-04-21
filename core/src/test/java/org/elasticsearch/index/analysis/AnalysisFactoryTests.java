@@ -22,5 +22,5 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.AnalysisFactoryTestCase;
 
 public class AnalysisFactoryTests extends AnalysisFactoryTestCase {
-    // tests are inherited
+    // tests are inherited and nothing needs to be defined here
 }

@@ -21,12 +21,9 @@ package org.elasticsearch.backwards;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-import java.io.IOException;
 
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class Backwards50ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -36,7 +33,7 @@ public class Backwards50ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
 

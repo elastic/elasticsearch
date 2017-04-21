@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
@@ -177,16 +178,17 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
                     numCollectedDocs++;
-                    globalOrds.setDocument(doc);
-                    final int numOrds = globalOrds.cardinality();
-                    for (int i = 0; i < numOrds; i++) {
-                        final long globalOrd = globalOrds.ordAt(i);
-                        long bucketOrd = bucketOrds.add(globalOrd);
-                        if (bucketOrd < 0) {
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                    if (globalOrds.advanceExact(doc)) {
+                        for (long globalOrd = globalOrds.nextOrd(); 
+                                globalOrd != SortedSetDocValues.NO_MORE_ORDS; 
+                                globalOrd = globalOrds.nextOrd()) {
+                            long bucketOrd = bucketOrds.add(globalOrd);
+                            if (bucketOrd < 0) {
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
+                            }
                         }
                     }
                 }

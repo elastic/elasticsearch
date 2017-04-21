@@ -865,7 +865,7 @@ public class StoreTests extends ESTestCase {
         String translogId = "a translog id";
         commitData.put(Engine.SYNC_COMMIT_ID, syncId);
         commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogId);
-        writer.setCommitData(commitData);
+        writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;

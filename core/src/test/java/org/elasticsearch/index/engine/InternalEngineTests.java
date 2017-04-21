@@ -56,6 +56,8 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -260,7 +262,7 @@ public class InternalEngineTests extends ESTestCase {
             config.getStore(), config.getDeletionPolicy(), config.getMergePolicy(), analyzer, config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(),
-            config.getMaxUnsafeAutoIdTimestamp());
+            config.getIndexSort());
     }
 
     @Override
@@ -358,7 +360,18 @@ public class InternalEngineTests extends ESTestCase {
         MergePolicy mergePolicy,
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable Supplier<SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
-        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
+        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, sequenceNumbersServiceSupplier, null);
+    }
+
+    protected InternalEngine createEngine(
+        IndexSettings indexSettings,
+        Store store,
+        Path translogPath,
+        MergePolicy mergePolicy,
+        @Nullable IndexWriterFactory indexWriterFactory,
+        @Nullable Supplier<SequenceNumbersService> sequenceNumbersServiceSupplier,
+        @Nullable Sort indexSort) throws IOException {
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null, indexSort);
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, sequenceNumbersServiceSupplier, config);
         if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             internalEngine.recoverFromTranslog();
@@ -391,14 +404,23 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
-                               long maxUnsafeAutoIdTimestamp, ReferenceManager.RefreshListener refreshListener) {
-        return config(indexSettings, store, translogPath, mergePolicy, createSnapshotDeletionPolicy(),
-                      maxUnsafeAutoIdTimestamp, refreshListener);
+                               ReferenceManager.RefreshListener refreshListener) {
+        return config(indexSettings, store, translogPath, mergePolicy, createSnapshotDeletionPolicy(), refreshListener, null);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
-                               SnapshotDeletionPolicy deletionPolicy, long maxUnsafeAutoIdTimestamp,
-                               ReferenceManager.RefreshListener refreshListener) {
+                               ReferenceManager.RefreshListener refreshListener, Sort indexSort) {
+        return config(indexSettings, store, translogPath, mergePolicy, createSnapshotDeletionPolicy(), refreshListener, indexSort);
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                               SnapshotDeletionPolicy deletionPolicy, ReferenceManager.RefreshListener refreshListener) {
+        return config(indexSettings, store, translogPath, mergePolicy, deletionPolicy, refreshListener, null);
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                               SnapshotDeletionPolicy deletionPolicy,
+                               ReferenceManager.RefreshListener refreshListener, Sort indexSort) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final EngineConfig.OpenMode openMode;
@@ -420,8 +442,7 @@ public class InternalEngineTests extends ESTestCase {
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, deletionPolicy,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 new TranslogHandler(xContentRegistry(), shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), refreshListener,
-            maxUnsafeAutoIdTimestamp);
+                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), refreshListener, indexSort);
 
         return config;
     }
@@ -633,6 +654,37 @@ public class InternalEngineTests extends ESTestCase {
                 // we should have had just 1 merge, so last generation should be exact
                 assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
+        }
+    }
+
+    public void testSegmentsWithIndexSort() throws Exception {
+        Sort indexSort = new Sort(new SortedSetSortField("_type", false));
+        try (Store store = createStore();
+             Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
+                 null, null, indexSort)) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", "test", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+
+            ParsedDocument doc2 = testParsedDocument("2", "test", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("3", "test", null, testDocumentWithTextField(), B_3, null);
+            engine.index(indexForDoc(doc3));
+            engine.refresh("test");
+
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(3));
+            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+            assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
+            assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
         }
     }
 
@@ -1114,8 +1166,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
-            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new LogByteSizeMergePolicy(), null))) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "test", null, testDocumentWithTextField(), B_1, null);
             engine.index(indexForDoc(doc));
@@ -1142,7 +1193,7 @@ public class InternalEngineTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             try (Store store = createStore();
                  InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                         new LogDocMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+                         new LogDocMergePolicy(), null))) {
                 final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
                 Engine.Index doc1 = indexForDoc(testParsedDocument("1", "test", null, testDocumentWithTextField(), B_1, null));
                 engine.index(doc1);
@@ -1261,7 +1312,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testForceMerge() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) { // use log MP here we test some behavior in ESMP
+                     new LogByteSizeMergePolicy(), null))) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), "test", null, testDocument(), B_1, null);
@@ -2076,8 +2127,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testConcurrentWritesAndCommits() throws Exception {
         try (Store store = createStore();
              InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
-                                                                     new SnapshotDeletionPolicy(NoDeletionPolicy.INSTANCE),
-                                                                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+                                                                     new SnapshotDeletionPolicy(NoDeletionPolicy.INSTANCE), null))) {
 
             final int numIndexingThreads = scaledRandomIntBetween(3, 6);
             final int numDocsPerThread = randomIntBetween(500, 1000);
@@ -2171,7 +2221,10 @@ public class InternalEngineTests extends ESTestCase {
             final Bits bits = leaf.getLiveDocs();
             for (int docID = 0; docID < leaf.maxDoc(); docID++) {
                 if (bits == null || bits.get(docID)) {
-                    final long seqNo = values.get(docID);
+                    if (values.advanceExact(docID) == false) {
+                        throw new AssertionError("Document does not have a seq number: " + docID);
+                    }
+                    final long seqNo = values.longValue();
                     assertFalse("should not have more than one document with the same seq_no[" + seqNo + "]", bitSet.get((int) seqNo));
                     bitSet.set((int) seqNo);
                 }
@@ -2215,7 +2268,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();
-            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -2362,7 +2415,8 @@ public class InternalEngineTests extends ESTestCase {
             // expected
         }
         // now it should be OK.
-        EngineConfig config = copy(config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null), EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG);
+        EngineConfig config = copy(config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null),
+            EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG);
         engine = new InternalEngine(config);
     }
 
@@ -2677,7 +2731,7 @@ public class InternalEngineTests extends ESTestCase {
                 config.getIndexSettings(), null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(),
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), config.getRefreshListeners(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+                TimeValue.timeValueMinutes(5), config.getRefreshListeners(), null);
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -2729,7 +2783,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testCurrentTranslogIDisCommitted() throws IOException {
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null);
 
             // create
             {
@@ -2852,24 +2906,36 @@ public class InternalEngineTests extends ESTestCase {
                 } else {
                     throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
                 }
+                // test index with document failure
                 Engine.IndexResult indexResult = engine.index(indexForDoc(doc1));
                 assertNotNull(indexResult.getFailure());
+                assertThat(indexResult.getSeqNo(), equalTo(0L));
+                assertThat(indexResult.getVersion(), equalTo(Versions.MATCH_ANY));
+                assertNotNull(indexResult.getTranslogLocation());
 
                 throwingIndexWriter.get().clearFailure();
                 indexResult = engine.index(indexForDoc(doc1));
+                assertThat(indexResult.getSeqNo(), equalTo(1L));
+                assertThat(indexResult.getVersion(), equalTo(1L));
                 assertNull(indexResult.getFailure());
+                assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
 
                 // test failure while deleting
                 // all these simulated exceptions are not fatal to the IW so we treat them as document failures
+                final Engine.DeleteResult deleteResult;
                 if (randomBoolean()) {
                     throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    assertThat(engine.delete(new Engine.Delete("test", "1", newUid(doc1))).getFailure(), instanceOf(IOException.class));
+                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
+                    assertThat(deleteResult.getFailure(), instanceOf(IOException.class));
                 } else {
                     throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    assertThat(engine.delete(new Engine.Delete("test", "1", newUid(doc1))).getFailure(),
+                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
+                    assertThat(deleteResult.getFailure(),
                         instanceOf(IllegalArgumentException.class));
                 }
+                assertThat(deleteResult.getVersion(), equalTo(2L));
+                assertThat(deleteResult.getSeqNo(), equalTo(3L));
 
                 // test non document level failure is thrown
                 if (randomBoolean()) {
@@ -3213,18 +3279,36 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testEngineMaxTimestampIsInitialized() throws IOException {
-        try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
-                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+
+        final long timestamp1 = Math.abs(randomNonNegativeLong());
+        final Path storeDir = createTempDir();
+        final Path translogDir = createTempDir();
+        final long timestamp2 = randomNonNegativeLong();
+        final long maxTimestamp12 = Math.max(timestamp1, timestamp2);
+        try (Store store = createStore(newFSDirectory(storeDir));
+             Engine engine = new InternalEngine(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
-
+            final ParsedDocument doc = testParsedDocument("1", "test", null, testDocumentWithTextField(),
+                new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+            engine.index(appendOnlyPrimary(doc, true, timestamp1));
+            assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
-
-        long maxTimestamp = Math.abs(randomLong());
-        try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
-                 maxTimestamp, null))) {
-            assertEquals(maxTimestamp, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+        try (Store store = createStore(newFSDirectory(storeDir));
+             Engine engine = new InternalEngine(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null))) {
+            assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            engine.recoverFromTranslog();
+            assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            final ParsedDocument doc = testParsedDocument("1", "test", null, testDocumentWithTextField(),
+                new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+            engine.index(appendOnlyPrimary(doc, true, timestamp2));
+            assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            engine.flush();
+        }
+        try (Store store = createStore(newFSDirectory(storeDir));
+             Engine engine = new InternalEngine(
+                 copy(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null),
+                     randomFrom(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG)))) {
+            assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
     }
 
@@ -3294,8 +3378,7 @@ public class InternalEngineTests extends ESTestCase {
             CyclicBarrier join = new CyclicBarrier(2);
             CountDownLatch start = new CountDownLatch(1);
             AtomicInteger controller = new AtomicInteger(0);
-            EngineConfig config = config(defaultSettings, store, translogPath, newMergePolicy(),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, new ReferenceManager.RefreshListener() {
+            EngineConfig config = config(defaultSettings, store, translogPath, newMergePolicy(), new ReferenceManager.RefreshListener() {
                     @Override
                     public void beforeRefresh() throws IOException {
                     }
@@ -3640,12 +3723,9 @@ public class InternalEngineTests extends ESTestCase {
             final String reason = randomAlphaOfLength(16);
             noOpEngine.noOp(
                 new Engine.NoOp(
-                    null,
-                    maxSeqNo + 1,
+                        maxSeqNo + 1,
                     primaryTerm,
-                    0,
-                    VersionType.INTERNAL,
-                    randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
+                        randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
                     System.nanoTime(),
                     reason));
             assertThat(noOpEngine.seqNoService().getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));

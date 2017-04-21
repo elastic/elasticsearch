@@ -141,6 +141,8 @@ setup:
 
 ---
 "docvalue_fields with format":
+  version: " - 5.4.99"
+      reason: feature was added in 5.5.0
   - do:
       search:
         body:

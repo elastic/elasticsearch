@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 public class ExceptionsHelper {
 
+    private ExceptionsHelper() {}
+
     public static ResourceNotFoundException missingJobException(String jobId) {
         return new ResourceNotFoundException(Messages.getMessage(Messages.JOB_UNKNOWN_ID, jobId));
     }
@@ -36,8 +38,8 @@ public class ExceptionsHelper {
         return new ElasticsearchException(msg, cause);
     }
 
-    public static ElasticsearchStatusException conflictStatusException(String msg) {
-        return new ElasticsearchStatusException(msg, RestStatus.CONFLICT);
+    public static ElasticsearchStatusException conflictStatusException(String msg, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.CONFLICT, args);
     }
 
     /**

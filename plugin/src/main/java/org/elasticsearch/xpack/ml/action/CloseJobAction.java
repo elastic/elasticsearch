@@ -573,21 +573,18 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 .custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.getStatus() == null) {
-            throw new ElasticsearchStatusException("cannot close job, because job [" + jobId + "] is not open", RestStatus.CONFLICT);
+            throw ExceptionsHelper.conflictStatusException("cannot close job, because job [" + jobId + "] is " + JobState.CLOSED);
         }
         JobTaskStatus jobTaskStatus = (JobTaskStatus) jobTask.getStatus();
         if (jobTaskStatus.getState().isAnyOf(JobState.OPENED, JobState.FAILED) == false) {
-            throw new ElasticsearchStatusException("cannot close job, because job [" + jobId + "] is not open", RestStatus.CONFLICT);
+            throw ExceptionsHelper.conflictStatusException("cannot close job, because job [" + jobId + "] is " + jobTaskStatus.getState());
         }
 
         Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
         if (datafeed.isPresent()) {
-            DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(),
-                    tasks);
+            DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(), tasks);
             if (datafeedState != DatafeedState.STOPPED) {
-                throw new ElasticsearchStatusException(
-                        "cannot close job [{}], datafeed hasn't been stopped", RestStatus.CONFLICT,
-                        jobId);
+                throw ExceptionsHelper.conflictStatusException("cannot close job [{}], datafeed hasn't been stopped", jobId);
             }
         }
         return jobTask;

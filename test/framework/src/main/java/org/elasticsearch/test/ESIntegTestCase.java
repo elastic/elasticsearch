@@ -1338,9 +1338,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
     }
 
-
-    private static final String RANDOM_BOGUS_TYPE = "RANDOM_BOGUS_TYPE______";
-
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
      * indexes them in a blocking or async fashion. This is very useful to catch problems that relate to internal document
@@ -1388,31 +1385,33 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
-
         Random random = random();
-        Set<String> indicesSet = new HashSet<>();
+        Map<String, Set<String>> indicesAndTypes = new HashMap<>();
         for (IndexRequestBuilder builder : builders) {
-            indicesSet.add(builder.request().index());
+            final Set<String> types = indicesAndTypes.computeIfAbsent(builder.request().index(), index -> new HashSet<>());
+            types.add(builder.request().type());
         }
-        Set<Tuple<String, String>> bogusIds = new HashSet<>();
+        Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
             builders = new ArrayList<>(builders);
-            final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
             // inject some bogus docs
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
-                String id = randomRealisticUnicodeOfLength(unicodeLen) + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
-                String index = RandomPicks.randomFrom(random, indices);
-                bogusIds.add(new Tuple<>(index, id));
-                builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}", XContentType.JSON));
+                String id = "bogus_doc_" + randomRealisticUnicodeOfLength(unicodeLen) + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
+                Map.Entry<String, Set<String>> indexAndTypes = RandomPicks.randomFrom(random, indicesAndTypes.entrySet());
+                String index = indexAndTypes.getKey();
+                String type = RandomPicks.randomFrom(random, indexAndTypes.getValue());
+                bogusIds.add(Arrays.asList(index, type, id));
+                // We configure a routing key in case the mapping requires it
+                builders.add(client().prepareIndex(index, type, id).setSource("{}", XContentType.JSON).setRouting(id));
             }
         }
-        final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random());
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
+        final String[] indices = indicesAndTypes.keySet().toArray(new String[0]);
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : builders.size() < ALWAYS_BULK_THRESHOLD ? rarely() : false) {
             if (frequently()) {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
@@ -1454,10 +1453,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(actualErrors, emptyIterable());
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
-            for (Tuple<String, String> doc : bogusIds) {
-                assertEquals("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
+            for (List<String> doc : bogusIds) {
+                assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(2) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().getResult());
+                    client().prepareDelete(doc.get(0), doc.get(1), doc.get(2)).setRouting(doc.get(2)).get().getResult());
             }
         }
         if (forceRefresh) {

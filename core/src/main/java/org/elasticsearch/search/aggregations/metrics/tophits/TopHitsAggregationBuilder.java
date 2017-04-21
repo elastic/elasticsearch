@@ -84,7 +84,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         super(in);
         explain = in.readBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
             if (in.readBoolean()) {
                 int size = in.readVInt();
                 fieldDataFields = new ArrayList<>(size);
@@ -124,7 +124,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = fieldDataFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+            if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
                 out.writeVInt(fieldDataFields.size());
                 for (DocValueFieldsContext.Field field : fieldDataFields) {
                     out.writeString(field.getName());

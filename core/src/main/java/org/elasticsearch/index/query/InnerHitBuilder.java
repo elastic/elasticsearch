@@ -225,7 +225,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         version = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
             List<String> fieldNameList = (List<String>) in.readGenericValue();
             if (fieldNameList == null) {
                 docValueFields = null;
@@ -280,7 +280,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(version);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
             out.writeBoolean(docValueFields != null);
             if (docValueFields != null) {
                 out.writeList(docValueFields);

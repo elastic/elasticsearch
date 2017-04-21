@@ -98,4 +98,5 @@ GET index/_search
     "docvalue_fields" : [ { "name": "my_date", "format": "use_field_mapping" } ]
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]

@@ -1,5 +1,33 @@
-## Smoke tests for analyzers included in the analysis-common module
+## Smoke tests for char filters included in the analysis-common module
 
+"html_strip":
+    - do:
+        indices.analyze:
+          body:
+            text: <html>test<yyy>foo</yyy></html>
+            tokenizer: keyword
+            char_filter:
+              - type: html_strip
+                escaped_tags: ["xxx", "yyy"]
+                read_ahead: 1024
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "\ntest<yyy>foo</yyy>\n" }
+
+---
+"pattern_replace":
+    - do:
+        indices.analyze:
+          body:
+            text: sample6 sample1
+            tokenizer: keyword
+            char_filter:
+              - type: pattern_replace
+                pattern: sample(.*)
+                replacement: replacedSample $1
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "replacedSample 6 sample1" }
+
+---
 "mapping":
     - do:
         indices.analyze:

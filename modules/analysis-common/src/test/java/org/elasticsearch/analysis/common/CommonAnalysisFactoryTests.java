@@ -20,10 +20,12 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -46,7 +48,14 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, Class<?>> getCharFilters() {
-        Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
+        Map<String, Class<?>> filters = new TreeMap<>(super.getCharFilters());
+        filters.put("htmlstrip",      HtmlStripCharFilterFactory.class);
+        filters.put("mapping",        MappingCharFilterFactory.class);
+        filters.put("patternreplace", PatternReplaceCharFilterFactory.class);
+
+        // TODO: these charfilters are not yet exposed: useful?
+        // handling of zwnj for persian
+        filters.put("persian",        Void.class);
         return filters;
     }
 

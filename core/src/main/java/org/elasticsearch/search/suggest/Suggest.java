@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -386,22 +386,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            String typeAndName = parser.currentName();
-            // we need to extract the type prefix from the name and throw error if it is not present
-            int delimiterPos = typeAndName.indexOf(Aggregation.TYPED_KEYS_DELIMITER);
-            String type;
-            String name;
-            if (delimiterPos > 0) {
-                type = typeAndName.substring(0, delimiterPos);
-                name = typeAndName.substring(delimiterPos + 1);
-            } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Cannot parse suggestion response without type information. Set [" + RestSearchAction.TYPED_KEYS_PARAM
-                                + "] parameter on the request to ensure the type information is added to the response output");
-            }
-
-            return parser.namedObject(Suggestion.class, type, name);
+            return XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class);
         }
 
         protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,

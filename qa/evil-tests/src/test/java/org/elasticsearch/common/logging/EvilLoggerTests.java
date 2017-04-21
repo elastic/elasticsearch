@@ -52,6 +52,12 @@ import static org.hamcrest.Matchers.startsWith;
 public class EvilLoggerTests extends ESTestCase {
 
     @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        LogConfigurator.registerErrorListener();
+    }
+
+    @Override
     public void tearDown() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);

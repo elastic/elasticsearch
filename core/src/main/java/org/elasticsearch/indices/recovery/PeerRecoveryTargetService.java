@@ -286,13 +286,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      */
     private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
         try {
-            if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
-                // we are not going to copy any files, so don't bother listing files, potentially running into concurrency issues with the
-                // primary changing files underneath us
-                return Store.MetadataSnapshot.EMPTY;
-            } else {
-                return recoveryTarget.indexShard().snapshotStoreMetadata();
-            }
+            return recoveryTarget.indexShard().snapshotStoreMetadata();
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
@@ -383,7 +377,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
+                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

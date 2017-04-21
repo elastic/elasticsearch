@@ -311,16 +311,9 @@ class BuildPlugin implements Plugin<Project> {
     /**
      * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
      *
-     * <ul>
-     *     <li>Remove transitive dependencies. We currently exclude all artifacts explicitly instead of using wildcards
-     *         as Ivy incorrectly translates POMs with * excludes to Ivy XML with * excludes which results in the main artifact
-     *         being excluded as well (see https://issues.apache.org/jira/browse/IVY-1531). Note that Gradle 2.14+ automatically
-     *         translates non-transitive dependencies to * excludes. We should revisit this when upgrading Gradle.</li>
-     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)</li>
-     * </ul>
+     * The current fixup is to set compile time deps back to compile from runtime (known issue with maven-publish plugin).
      */
     private static Closure fixupDependencies(Project project) {
-        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')

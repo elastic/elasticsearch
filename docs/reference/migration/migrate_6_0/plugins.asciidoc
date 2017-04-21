@@ -23,6 +23,10 @@ the region of the configured bucket.
 
 * Specifying s3 signer type has been removed, including `cloud.aws.signer` and `cloud.aws.s3.signer`.
 
+* All `cloud.aws` and `repositories.s3` settings have been removed. Use `s3.client.*` settings instead.
+
+* All repository level client settings have been removed. Use `s3.client.*` settings instead.
+
 ==== Azure Repository plugin
 
 * The container an azure repository is configured with will no longer be created automatically.
@@ -42,6 +46,8 @@ See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[A
 
 * The region setting has been removed. This includes the settings `cloud.aws.region`
 and `cloud.aws.ec2.region`. Instead, specify the full endpoint.
+
+* All `cloud.aws.*` and `cloud.aws.ec2.*` settings have been removed. Use `discovery.ec2.*` settings instead.
 
 ==== Ignoring hidden folders
 

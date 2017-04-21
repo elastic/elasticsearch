@@ -130,13 +130,9 @@ public final class InnerHitsContext {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
-                TopDocsCollector topDocsCollector;
+                TopDocsCollector<?> topDocsCollector;
                 if (sort() != null) {
-                    try {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToElastic(e);
-                    }
+                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }
@@ -148,7 +144,6 @@ public final class InnerHitsContext {
                 return topDocsCollector.topDocs(from(), size());
             }
         }
-
     }
 
     public static final class ParentChildInnerHits extends BaseInnerHits {

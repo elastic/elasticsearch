@@ -32,8 +32,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
     @Override
     protected InternalAvg createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         return new InternalAvg(name, randomDoubleBetween(0, 100000, true), randomNonNegativeLong() % 100000,
-                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), pipelineAggregators,
-                metaData);
+                randomNumericDocValueFormat(), pipelineAggregators, metaData);
     }
 
     @Override

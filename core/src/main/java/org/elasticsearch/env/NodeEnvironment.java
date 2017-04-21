@@ -158,13 +158,6 @@ public final class NodeEnvironment  implements Closeable {
         Property.NodeScope);
 
     /**
-     * If true automatically append node lock id to custom data paths.
-     */
-    public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
-
-
-    /**
      * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
      * this seed will be ignored and the uuid from disk will be reused.
      */
@@ -209,7 +202,7 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
                     Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
-                    Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
+                    Path dir = resolveNodePath(dataDir, possibleLockId);
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -273,6 +266,17 @@ public final class NodeEnvironment  implements Closeable {
                 IOUtils.closeWhileHandlingException(locks);
             }
         }
+    }
+
+    /**
+     * Resolve a specific nodes/{node.id} path for the specified path and node lock id.
+     *
+     * @param path       the path
+     * @param nodeLockId the node lock id
+     * @return the resolved path
+     */
+    public static Path resolveNodePath(final Path path, final int nodeLockId) {
+        return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));
     }
 
     /** Returns true if the directory is empty */
@@ -731,6 +735,14 @@ public final class NodeEnvironment  implements Closeable {
         return nodePaths;
     }
 
+    public int getNodeLockId() {
+        assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        return nodeLockId;
+    }
+
     /**
      * Returns all index paths.
      */
@@ -742,6 +754,8 @@ public final class NodeEnvironment  implements Closeable {
         }
         return indexPaths;
     }
+
+
 
     /**
      * Returns all shard paths excluding custom shard path. Note: Shards are only allocated on one of the
@@ -771,19 +785,36 @@ public final class NodeEnvironment  implements Closeable {
         assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
-            Path indicesLocation = nodePath.indicesPath;
-            if (Files.isDirectory(indicesLocation)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
-                    for (Path index : stream) {
-                        if (Files.isDirectory(index)) {
-                            indexFolders.add(index.getFileName().toString());
-                        }
+            indexFolders.addAll(availableIndexFoldersForPath(nodePath));
+        }
+        return indexFolders;
+
+    }
+
+    /**
+     * Return all directory names in the nodes/{node.id}/indices directory for the given node path.
+     *
+     * @param nodePath the path
+     * @return all directories that could be indices for the given node path.
+     * @throws IOException if an I/O exception occurs traversing the filesystem
+     */
+    public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assertEnvIsLocked();
+        final Set<String> indexFolders = new HashSet<>();
+        Path indicesLocation = nodePath.indicesPath;
+        if (Files.isDirectory(indicesLocation)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
+                for (Path index : stream) {
+                    if (Files.isDirectory(index)) {
+                        indexFolders.add(index.getFileName().toString());
                     }
                 }
             }
         }
         return indexFolders;
-
     }
 
     /**
@@ -922,11 +953,7 @@ public final class NodeEnvironment  implements Closeable {
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            if (ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(indexSettings.getNodeSettings())) {
-                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
-            } else {
-                return sharedDataPath.resolve(customDataDir);
-            }
+            return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
         }

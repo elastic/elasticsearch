@@ -497,8 +497,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             createReplicatedOperation(
                     Request request,
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
+                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
@@ -550,8 +549,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             createReplicatedOperation(
                     Request request,
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
+                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
@@ -650,35 +648,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(0, shardFailedRequests.length);
     }
 
-    public void testShadowIndexDisablesReplication() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
-
-        ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
-        MetaData.Builder metaData = MetaData.builder(state.metaData());
-        Settings.Builder settings = Settings.builder().put(metaData.get(index).getSettings());
-        settings.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true);
-        metaData.put(IndexMetaData.builder(metaData.get(index)).settings(settings));
-        state = ClusterState.builder(state).metaData(metaData).build();
-        setState(clusterService, state);
-        AtomicBoolean executed = new AtomicBoolean();
-        ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
-        action.new AsyncPrimaryAction(new Request(shardId), primaryShard.allocationId().getId(),
-            createTransportChannel(new PlainActionFuture<>()), null) {
-            @Override
-            protected ReplicationOperation<Request, Request, TestAction.PrimaryResult<Request, TestResponse>> createReplicatedOperation(
-                    Request request, ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
-                assertFalse(executeOnReplicas);
-                assertFalse(executed.getAndSet(true));
-                return new NoopReplicationOperation(request, actionListener);
-            }
-
-        }.run();
-        assertThat(executed.get(), equalTo(true));
-    }
-
     public void testSeqNoIsSetOnPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
@@ -738,8 +707,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             createReplicatedOperation(
                     Request request,
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
-                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference,
-                    boolean executeOnReplicas) {
+                    TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 assertIndexShardCounter(1);
                 if (throwExceptionOnCreation) {
                     throw new ElasticsearchException("simulated exception, during createReplicatedOperation");
@@ -1150,7 +1118,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, TestAction.PrimaryResult<Request, TestResponse>> {
 
         NoopReplicationOperation(Request request, ActionListener<TestAction.PrimaryResult<Request, TestResponse>> listener) {
-            super(request, null, listener, true, null, null, TransportReplicationActionTests.this.logger, "noop");
+            super(request, null, listener, null, null, TransportReplicationActionTests.this.logger, "noop");
         }
 
         @Override

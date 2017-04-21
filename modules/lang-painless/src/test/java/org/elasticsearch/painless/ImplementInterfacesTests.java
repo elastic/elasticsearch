@@ -325,7 +325,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(String foo);
     }
     public void testNoArgumentsConstant() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(NoArgumentsConstant.class, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + NoArgumentsConstant.class.getName() + "] doesn't have one."));
@@ -336,7 +336,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(String foo);
     }
     public void testWrongArgumentsConstant() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(WrongArgumentsConstant.class, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + WrongArgumentsConstant.class.getName() + "] doesn't have one."));
@@ -347,7 +347,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(String foo);
     }
     public void testWrongLengthOfArgumentConstant() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(WrongLengthOfArgumentConstant.class, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith("[" + WrongLengthOfArgumentConstant.class.getName() + "#ARGUMENTS] has length [2] but ["
                 + WrongLengthOfArgumentConstant.class.getName() + "#execute] takes [1] argument."));
@@ -358,7 +358,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(UnknownArgType foo);
     }
     public void testUnknownArgType() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(UnknownArgType.class, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
                 + "that are of whitelisted types.", e.getMessage());
@@ -369,7 +369,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         UnknownReturnType execute(String foo);
     }
     public void testUnknownReturnType() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(UnknownReturnType.class, null, "1", emptyMap()));
         assertEquals("Painless can only implement execute methods returning a whitelisted type but [" + UnknownReturnType.class.getName()
                 + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't whitelisted.", e.getMessage());
@@ -380,7 +380,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(UnknownArgTypeInArray[] foo);
     }
     public void testUnknownArgTypeInArray() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(UnknownArgTypeInArray.class, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgTypeInArray.class.getName() + ". Painless interfaces can only accept "
                 + "arguments that are of whitelisted types.", e.getMessage());
@@ -391,7 +391,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute(boolean foo);
     }
     public void testTwoExecuteMethods() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(TwoExecuteMethods.class, null, "null", emptyMap()));
         assertEquals("Painless can only implement interfaces that have a single method named [execute] but ["
                 + TwoExecuteMethods.class.getName() + "] has more than one.", e.getMessage());
@@ -401,7 +401,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object something();
     }
     public void testBadMethod() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(BadMethod.class, null, "null", emptyMap()));
         assertEquals("Painless can only implement methods named [execute] and [uses$argName] but [" + BadMethod.class.getName()
                 + "] contains a method named [something]", e.getMessage());
@@ -413,7 +413,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object uses$foo();
     }
     public void testBadUsesReturn() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(BadUsesReturn.class, null, "null", emptyMap()));
         assertEquals("Painless can only implement uses$ methods that return boolean but [" + BadUsesReturn.class.getName()
                 + "#uses$foo] returns [java.lang.Object].", e.getMessage());
@@ -425,7 +425,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         boolean uses$bar(boolean foo);
     }
     public void testBadUsesParameter() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(BadUsesParameter.class, null, "null", emptyMap()));
         assertEquals("Painless can only implement uses$ methods that do not take parameters but [" + BadUsesParameter.class.getName()
                 + "#uses$bar] does.", e.getMessage());
@@ -437,7 +437,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         boolean uses$baz();
     }
     public void testBadUsesName() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(BadUsesName.class, null, "null", emptyMap()));
         assertEquals("Painless can only implement uses$ methods that match a parameter name but [" + BadUsesName.class.getName()
                 + "#uses$baz] doesn't match any of [foo, bar].", e.getMessage());

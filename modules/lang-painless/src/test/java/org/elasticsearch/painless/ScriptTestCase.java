@@ -35,6 +35,8 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasSize;
+
 /**
  * Base test case for scripting unit tests.
  * <p>
@@ -76,11 +78,13 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            ScriptInterface scriptInterface = new ScriptInterface(GenericElasticsearchScript.class);
+            Definition definition = Definition.BUILTINS;
+            ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptInterface, getTestName(), script, pickySettings, null);
+            Walker.buildPainlessTree(scriptInterface, getTestName(), script, pickySettings,
+                    definition, null);
         }
         // test actual script execution
         Object object = scriptEngine.compile(null, script, compileParams);
@@ -112,10 +116,29 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
     public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+        return expectScriptThrows(expectedType, true, runnable);
+    }
+
+    /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
+    public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, boolean shouldHaveScriptStack,
+            ThrowingRunnable runnable) {
         try {
             runnable.run();
         } catch (Throwable e) {
             if (e instanceof ScriptException) {
+                boolean hasEmptyScriptStack = ((ScriptException) e).getScriptStack().isEmpty();
+                if (shouldHaveScriptStack && hasEmptyScriptStack) {
+                    if (0 != e.getCause().getStackTrace().length) {
+                        // Without -XX:-OmitStackTraceInFastThrow the jvm can eat the stack trace which causes us to ignore script_stack
+                        AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
+                        assertion.initCause(e);
+                        throw assertion;
+                    }
+                } else if (false == shouldHaveScriptStack && false == hasEmptyScriptStack) {
+                    AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
+                    assertion.initCause(e);
+                    throw assertion;
+                }
                 e = e.getCause();
                 if (expectedType.isInstance(e)) {
                     return expectedType.cast(e);
@@ -132,4 +155,21 @@ public abstract class ScriptTestCase extends ESTestCase {
         }
         throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
     }
+
+    /**
+     * Asserts that the script_stack looks right.
+     */
+    public static void assertScriptStack(ScriptException e, String... stack) {
+        // This particular incantation of assertions makes the error messages more useful
+        try {
+            assertThat(e.getScriptStack(), hasSize(stack.length));
+            for (int i = 0; i < stack.length; i++) {
+                assertEquals(stack[i], e.getScriptStack().get(i));
+            }
+        } catch (AssertionError assertion) {
+            assertion.initCause(e);
+            throw assertion;
+        }
+    }
+
 }

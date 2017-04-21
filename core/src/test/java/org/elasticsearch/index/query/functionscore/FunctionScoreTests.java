@@ -99,16 +99,17 @@ public class FunctionScoreTests extends ESTestCase {
                 public SortedBinaryDocValues getBytesValues() {
                     return new SortedBinaryDocValues() {
                         @Override
-                        public void setDocument(int docId) {
+                        public boolean advanceExact(int docId) {
+                            return true;
                         }
 
                         @Override
-                        public int count() {
+                        public int docValueCount() {
                             return 1;
                         }
 
                         @Override
-                        public BytesRef valueAt(int index) {
+                        public BytesRef nextValue() {
                             return new BytesRef("0");
                         }
                     };
@@ -178,17 +179,18 @@ public class FunctionScoreTests extends ESTestCase {
                 public SortedNumericDoubleValues getDoubleValues() {
                     return new SortedNumericDoubleValues() {
                         @Override
-                        public void setDocument(int doc) {
+                        public boolean advanceExact(int docId) {
+                            return true;
                         }
 
                         @Override
-                        public double valueAt(int index) {
+                        public int docValueCount() {
                             return 1;
                         }
 
                         @Override
-                        public int count() {
-                            return 1;
+                        public double nextValue() {
+                            return 1d;
                         }
                     };
                 }
@@ -614,7 +616,7 @@ public class FunctionScoreTests extends ESTestCase {
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, null, null, Float.POSITIVE_INFINITY);
         for (boolean needsScores : new boolean[] {true, false}) {
-            Weight weight = searcher.createWeight(fsq, needsScores);
+            Weight weight = searcher.createWeight(fsq, needsScores, 1f);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
@@ -622,7 +624,7 @@ public class FunctionScoreTests extends ESTestCase {
         FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY,
                 null, CombineFunction.MULTIPLY);
         for (boolean needsScores : new boolean[] {true, false}) {
-            Weight weight = searcher.createWeight(ffsq, needsScores);
+            Weight weight = searcher.createWeight(ffsq, needsScores, 1f);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }

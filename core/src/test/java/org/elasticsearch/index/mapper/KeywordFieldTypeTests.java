@@ -150,4 +150,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
+
+    public void testNormalizeQueries() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
+        ft.setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
+        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+    }
 }

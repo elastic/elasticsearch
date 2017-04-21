@@ -155,7 +155,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
         }
-        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore);
+        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
+        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore == Float.MIN_VALUE ? Float.NaN : maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 

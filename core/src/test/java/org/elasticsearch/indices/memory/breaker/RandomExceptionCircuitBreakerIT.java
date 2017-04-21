@@ -41,7 +41,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.basic.SearchWithRandomExceptionsIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -297,6 +296,11 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new RandomExceptionDirectoryReaderWrapper(in, settings);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 }

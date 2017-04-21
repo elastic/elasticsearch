@@ -55,7 +55,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
-    private final Map<BytesRef,VersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<BytesRef,DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private volatile Maps maps = new Maps();
 
@@ -180,7 +180,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         final VersionValue prevTombstone;
         if (version.isDelete()) {
             // Also enroll the delete into tombstones, and account for its RAM too:
-            prevTombstone = tombstones.put(uid, version);
+            prevTombstone = tombstones.put(uid, (DeleteVersionValue)version);
 
             // We initially account for BytesRef/VersionValue RAM for a delete against the tombstones, because this RAM will not be freed up
             // on refresh. Later, in removeTombstoneUnderLock, if we clear the tombstone entry but the delete remains in current, we shift
@@ -225,12 +225,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     /** Caller has a lock, so that this uid will not be concurrently added/deleted by another thread. */
-    VersionValue getTombstoneUnderLock(BytesRef uid) {
+    DeleteVersionValue getTombstoneUnderLock(BytesRef uid) {
         return tombstones.get(uid);
     }
 
     /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones (exposed via reader but not yet GC'd). */
-    Iterable<Map.Entry<BytesRef,VersionValue>> getAllTombstones() {
+    Iterable<Map.Entry<BytesRef, DeleteVersionValue>> getAllTombstones() {
         return tombstones.entrySet();
     }
 

@@ -431,8 +431,8 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public SimWeight computeWeight(CollectionStatistics collectionStats, TermStatistics... termStats) {
-            return delegate.computeWeight(collectionStats, termStats);
+        public SimWeight computeWeight(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+            return delegate.computeWeight(boost, collectionStats, termStats);
         }
 
         @Override

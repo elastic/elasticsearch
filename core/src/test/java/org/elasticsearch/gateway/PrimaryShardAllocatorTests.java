@@ -72,16 +72,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private final DiscoveryNode node3 = newNode("node3");
     private TestAllocator testAllocator;
 
-
-    /**
-     * needed due to random usage of {@link IndexMetaData#INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING}. removed once
-     * shadow replicas are removed.
-     */
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
-
     @Before
     public void buildTestAllocator() {
         this.testAllocator = new TestAllocator();
@@ -393,79 +383,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
         RoutingTable routingTable = RoutingTable.builder()
             .addAsRestore(metaData.index(shardId.getIndex()), new SnapshotRecoverySource(snapshot, Version.CURRENT, shardId.getIndexName()))
-            .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null, System.nanoTime(), false);
-    }
-
-    /**
-     * Tests that when recovering using "recover_on_any_node" and we find a node with a shard copy and allocation
-     * deciders say yes, we allocate to that node.
-     */
-    public void testRecoverOnAnyNode() {
-        RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(yesAllocationDeciders(), "allocId");
-        testAllocator.addData(node1, "allocId", randomBoolean());
-        testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertClusterHealthStatus(allocation, ClusterHealthStatus.RED);
-    }
-
-    /**
-     * Tests that when recovering using "recover_on_any_node" and we find a node with a shard copy and allocation
-     * deciders say throttle, we add it to ignored shards.
-     */
-    public void testRecoverOnAnyNodeThrottle() {
-        RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(throttleAllocationDeciders(), "allocId");
-        testAllocator.addData(node1, "allocId", randomBoolean());
-        testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(false));
-        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
-    }
-
-    /**
-     * Tests that when recovering using "recover_on_any_node" and we find a node with a shard copy but allocation
-     * deciders say no, we still allocate to that node.
-     */
-    public void testRecoverOnAnyNodeForcesAllocateIfShardAvailable() {
-        RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(noAllocationDeciders(), "allocId");
-        testAllocator.addData(node1, "allocId", randomBoolean());
-        testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertClusterHealthStatus(allocation, ClusterHealthStatus.RED);
-    }
-
-    /**
-     * Tests that when recovering using "recover_on_any_node" and we don't find a node with a shard copy we let
-     * BalancedShardAllocator assign the shard
-     */
-    public void testRecoverOnAnyNodeDoesNotAssignIfNoShardAvailable() {
-        RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(yesAllocationDeciders(), "allocId");
-        testAllocator.addData(node1, null, randomBoolean());
-        testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.routingNodesChanged(), equalTo(false));
-        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
-        assertThat(allocation.routingNodes().unassigned().size(), equalTo(1));
-        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
-    }
-
-    private RoutingAllocation getRecoverOnAnyNodeRoutingAllocation(AllocationDeciders allocationDeciders, String... allocIds) {
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
-                .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true))
-                .numberOfShards(1).numberOfReplicas(0).putInSyncAllocationIds(0, Sets.newHashSet(allocIds)))
-            .build();
-
-        RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new SnapshotRecoverySource(new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID())), Version.CURRENT, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)

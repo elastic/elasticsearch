@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
@@ -140,19 +141,15 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         }
 
         @Override
-        public float getValueForNormalization() throws IOException {
-            return in.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float topLevelBoost) {
-            in.normalize(norm, topLevelBoost);
-        }
-
-        @Override
         public Scorer scorer(LeafReaderContext context) throws IOException {
             shardKeyMap.add(context.reader());
             return in.scorer(context);
+        }
+
+        @Override
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.scorerSupplier(context);
         }
 
         @Override

@@ -24,16 +24,16 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -168,8 +168,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 for (int i = 0; i < rollbackDocs; i++) {
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
-                    final IndexResponse primaryResponse = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(primaryResponse, indexRequest, replica);
+                    final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                    indexOnReplica(bulkShardRequest, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
@@ -243,11 +243,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
                                 }, null, config);
                         }
-
-                        @Override
-                        public Engine newReadOnlyEngine(EngineConfig config) {
-                            throw new UnsupportedOperationException();
-                        }
                     };
                 } else {
                     return null;
@@ -294,9 +289,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
                 }) {
                     @Override
-                    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+                    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
                         preparedForTranslog.set(true);
-                        super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
+                        super.prepareForTranslogOperations(totalTranslogOps);
                     }
                 };
             });

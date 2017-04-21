@@ -50,13 +50,16 @@ public class FunctionRef {
     
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
+     * @param definition the whitelist against which this script is being compiled
      * @param expected interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
      */    
-    public FunctionRef(Definition.Type expected, String type, String call, int numCaptures) {
-        this(expected, expected.struct.getFunctionalMethod(), lookup(expected, type, call, numCaptures > 0), numCaptures);
+    public FunctionRef(Definition definition, Definition.Type expected, String type, String call,
+            int numCaptures) {
+        this(expected, expected.struct.getFunctionalMethod(),
+                lookup(definition, expected, type, call, numCaptures > 0), numCaptures);
     }
 
     /**
@@ -134,7 +137,8 @@ public class FunctionRef {
     /** 
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */
-    private static Definition.Method lookup(Definition.Type expected, String type, String call, boolean receiverCaptured) {
+    private static Definition.Method lookup(Definition definition, Definition.Type expected,
+            String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
         Method method = expected.struct.getFunctionalMethod();
@@ -144,7 +148,7 @@ public class FunctionRef {
         }
 
         // lookup requested method
-        Definition.Struct struct = Definition.getType(type).struct;
+        Definition.Struct struct = definition.getType(type).struct;
         final Definition.Method impl;
         // ctor ref
         if ("new".equals(call)) {

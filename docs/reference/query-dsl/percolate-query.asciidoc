@@ -182,7 +182,8 @@ Index response:
   },
   "created": true,
   "result": "created",
-  "_seq_no" : 1
+  "_seq_no" : 1,
+  "_primary_term" : 1
 }
 --------------------------------------------------
 // TESTRESPONSE

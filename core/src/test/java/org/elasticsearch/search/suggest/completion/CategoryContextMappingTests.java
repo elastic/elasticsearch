@@ -697,7 +697,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         CompletionFieldType completionFieldType = (CompletionFieldType) fieldMapper.fieldType();
         
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
-        assertEquals("Unknown context name[brand], must be one of [type, ctx]", e.getMessage());
+        assertEquals("Unknown context name [brand], must be one of [ctx, type]", e.getMessage());
     }
 
     public void testParsingContextFromDocument() throws Exception {

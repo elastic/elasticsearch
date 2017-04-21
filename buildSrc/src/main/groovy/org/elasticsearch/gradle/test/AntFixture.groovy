@@ -28,7 +28,7 @@ import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Input
 
 /**
- * A fixture for integration tests which runs in a separate process.
+ * A fixture for integration tests which runs in a separate process launched by Ant.
  */
 public class AntFixture extends AntTask implements Fixture {
 

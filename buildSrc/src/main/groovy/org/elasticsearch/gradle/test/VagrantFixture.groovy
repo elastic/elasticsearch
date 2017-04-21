@@ -21,6 +21,9 @@ package org.elasticsearch.gradle.test
 import org.elasticsearch.gradle.vagrant.VagrantCommandTask
 import org.gradle.api.Task
 
+/**
+ * A fixture for integration tests which runs in a virtual machine launched by Vagrant.
+ */
 class VagrantFixture extends VagrantCommandTask implements Fixture {
 
     private Task stopTask = null
@@ -45,7 +48,7 @@ class VagrantFixture extends VagrantCommandTask implements Fixture {
     @Override
     public Task getStopTask() {
         // Lazy init the stop task since creating it in the constructor
-        // means that it captures variable names that may not be set in
+        // means that it captures variable values that may not be set in
         // the task yet.
         if (stopTask == null) {
             stopTask = createStopTask()

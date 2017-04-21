@@ -45,3 +45,7 @@ java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
 # org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) directly on the string.
 @defaultMessage use org.elasticsearch.common.Booleans#parseBoolean(java.lang.String)
 java.lang.Boolean#getBoolean(java.lang.String)
+
+@defaultMessage Forked to XLRUQueryCache to work around https://issues.apache.org/jira/browse/LUCENE-7749
+org.apache.lucene.search.LRUQueryCache#<init>(int, long, java.util.function.Predicate)
+org.apache.lucene.search.LRUQueryCache#<init>(int, long)

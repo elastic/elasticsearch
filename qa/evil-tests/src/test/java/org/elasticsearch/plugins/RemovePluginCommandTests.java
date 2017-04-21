@@ -34,8 +34,6 @@ import java.io.StringReader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
@@ -157,6 +155,13 @@ public class RemovePluginCommandTests extends ESTestCase {
         UserException e = expectThrows(UserException.class, () -> removePlugin(null, home));
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertEquals("plugin name is required", e.getMessage());
+    }
+
+    public void testRemoveWhenRemovingMarker() throws Exception {
+        Files.createDirectory(env.pluginsFile().resolve("fake"));
+        Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
+        Files.createFile(env.pluginsFile().resolve("fake").resolve(".removing-fake"));
+        removePlugin("fake", home);
     }
 
     private String expectedConfigDirPreservedMessage(final Path configDir) {

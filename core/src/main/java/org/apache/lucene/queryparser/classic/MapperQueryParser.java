@@ -808,7 +808,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             fields = context.simpleMatchToIndexNames(field);
         } else {
             Map<String, Float> fieldsAndWeights = settings.fieldsAndWeights();
-            fields = fieldsAndWeights == null ? Collections.emptyList() : settings.fieldsAndWeights().keySet();
+            fields = fieldsAndWeights == null ? Collections.emptyList() : fieldsAndWeights.keySet();
         }
         return fields;
     }

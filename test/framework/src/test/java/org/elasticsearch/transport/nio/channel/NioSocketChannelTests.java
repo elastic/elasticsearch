@@ -1,0 +1,81 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.transport.nio.channel;
+
+import org.elasticsearch.transport.nio.ConnectFuture;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class NioSocketChannelTests extends AbstractNioChannelTests {
+
+    @Override
+    public NioChannel channelToClose() throws IOException {
+        return channelFactory.openNioChannel(new InetSocketAddress(mockServerSocket.getLocalPort()));
+    }
+
+    @Test
+    public void testConnectSucceeds() throws IOException, InterruptedException {
+        NioSocketChannel socketChannel = channelFactory.openNioChannel(new InetSocketAddress(mockServerSocket.getLocalPort()));
+        new Thread(wrappedRunnable(() -> ensureConnect(socketChannel))).start();
+        ConnectFuture connectFuture = socketChannel.getConnectFuture();
+        connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
+
+        assertTrue(socketChannel.isConnectComplete());
+        assertTrue(socketChannel.isOpen());
+        assertFalse(connectFuture.connectFailed());
+        assertSame(connectFuture.getChannel(), socketChannel);
+        assertNull(connectFuture.getException());
+    }
+
+    @Test
+    public void testConnectFails() throws IOException, InterruptedException {
+        mockServerSocket.close();
+        NioSocketChannel socketChannel = channelFactory.openNioChannel(new InetSocketAddress(mockServerSocket.getLocalPort()));
+        new Thread(wrappedRunnable(() -> ensureConnect(socketChannel))).start();
+        ConnectFuture connectFuture = socketChannel.getConnectFuture();
+        connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
+
+        assertFalse(socketChannel.isConnectComplete());
+        // Even if connection fails the channel is 'open' until close() is called
+        assertTrue(socketChannel.isOpen());
+        assertTrue(connectFuture.connectFailed());
+        assertThat(connectFuture.getException(), instanceOf(ConnectException.class));
+        assertThat(connectFuture.getException().getMessage(), containsString("Connection refused"));
+        assertNull(connectFuture.getChannel());
+    }
+
+    private void ensureConnect(NioSocketChannel nioSocketChannel) throws IOException {
+        for (;;) {
+            boolean isConnected = nioSocketChannel.finishConnect();
+            if (isConnected) {
+                return;
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        }
+    }
+}

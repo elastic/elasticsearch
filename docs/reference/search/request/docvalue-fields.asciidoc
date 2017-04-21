@@ -85,3 +85,17 @@ which returns:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 36,/"took": "$body.took",/]
+
+In 7.0, docvalue fields will be formatted according to the mapping of the
+field, which will be a breaking change. In order to ease the transition, it is
+possible to opt in for that future behaviour by using a special format called
+`use_field_mapping`, which is supported on all field types.
+
+[source,js]
+--------------------------------------------------
+GET index/_search 
+{
+    "docvalue_fields" : [ { "name": "my_date", "format": "use_field_mapping" } ]
+}
+--------------------------------------------------
+// TEST[continued]

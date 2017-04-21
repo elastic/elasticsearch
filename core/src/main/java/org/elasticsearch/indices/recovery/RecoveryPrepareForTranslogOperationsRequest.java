@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -71,5 +72,8 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
+        }
     }
 }

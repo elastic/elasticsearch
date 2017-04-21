@@ -190,7 +190,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
         if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
             /*
-             * Constructor arguments are detected by this "marker" consumer. It keeps the API looking clean even if it is a bit sleezy. We
+             * Constructor arguments are detected by these "marker" consumers. It keeps the API looking clean even if it is a bit sleezy. We
              * then build a new consumer directly against the object parser that triggers the "constructor arg just arrived behavior" of the
              * parser. Conveniently, we can close over the position of the constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
@@ -205,36 +205,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
     }
 
-    /**
-     * Declares named objects in the style of aggregations. These are named
-     * inside and object like this:
-     * 
-     * <pre>
-     * <code>
-     * {
-     *   "aggregations": {
-     *     "name_1": { "aggregation_type": {} },
-     *     "name_2": { "aggregation_type": {} },
-     *     "name_3": { "aggregation_type": {} }
-     *     }
-     *   }
-     * }
-     * </code>
-     * </pre>
-     * 
-     * Unlike the other version of this method, "ordered" mode (arrays of
-     * objects) is not supported.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
-     * this.
-     *
-     * @param consumer
-     *            sets the values once they have been parsed
-     * @param namedObjectParser
-     *            parses each named object
-     * @param parseField
-     *            the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             ParseField parseField) {
         if (consumer == null) {
@@ -267,58 +238,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
     }
 
-    /**
-     * Declares named objects in the style of highlighting's field element.
-     * These are usually named inside and object like this:
-     * 
-     * <pre>
-     * <code>
-     * {
-     *   "highlight": {
-     *     "fields": {        &lt;------ this one
-     *       "title": {},
-     *       "body": {},
-     *       "category": {}
-     *     }
-     *   }
-     * }
-     * </code>
-     * </pre>
-     * 
-     * but, when order is important, some may be written this way:
-     * 
-     * <pre>
-     * <code>
-     * {
-     *   "highlight": {
-     *     "fields": [        &lt;------ this one
-     *       {"title": {}},
-     *       {"body": {}},
-     *       {"category": {}}
-     *     ]
-     *   }
-     * }
-     * </code>
-     * </pre>
-     * 
-     * This is because json doesn't enforce ordering. Elasticsearch reads it in
-     * the order sent but tools that generate json are free to put object
-     * members in an unordered Map, jumbling them. Thus, if you care about order
-     * you can send the object in the second way.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
-     * this.
-     *
-     * @param consumer
-     *            sets the values once they have been parsed
-     * @param namedObjectParser
-     *            parses each named object
-     * @param orderedModeCallback
-     *            called when the named object is parsed using the "ordered"
-     *            mode (the array of objects)
-     * @param parseField
-     *            the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField parseField) {
         if (consumer == null) {

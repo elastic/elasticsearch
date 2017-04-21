@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class MultiSearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
-    private int maxConcurrentSearchRequests = 0;
+    private int maxConcurrentSearchRequests = 1;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();

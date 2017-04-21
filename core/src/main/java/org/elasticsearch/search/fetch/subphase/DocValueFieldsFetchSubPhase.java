@@ -50,20 +50,16 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws IOException {
+        List<DocValueFieldsContext.Field> docValueFields = Collections.emptyList();
+        if (context.docValueFieldsContext() != null) {
+            docValueFields = context.docValueFieldsContext().fields();
+        }
         if (context.collapse() != null) {
-            // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldType().name();
-            if (context.docValueFieldsContext() == null) {
-                context.docValueFieldsContext(new DocValueFieldsContext(
-                        Collections.singletonList(new DocValueFieldsContext.Field(name, null))));
-            } else if (context.docValueFieldsContext().fields().contains(name) == false) {
-                context.docValueFieldsContext().fields().add(new DocValueFieldsContext.Field(name, null));
-            }
+            docValueFields = new ArrayList<>(docValueFields);
+            docValueFields.add(new DocValueFieldsContext.Field(name, null));
         }
-        if (context.docValueFieldsContext() == null) {
-            return;
-        }
-        for (DocValueFieldsContext.Field field : context.docValueFieldsContext().fields()) {
+        for (DocValueFieldsContext.Field field : docValueFields) {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>(2));
             }

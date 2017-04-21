@@ -274,7 +274,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardRouting.currentNodeId(), equalTo("node2"));
     }
 
-    public void testNodeSelectorRouting(){
+    public void testNodeSelectorRouting() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")

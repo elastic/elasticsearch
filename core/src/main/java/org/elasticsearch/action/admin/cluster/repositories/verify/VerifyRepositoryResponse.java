@@ -53,7 +53,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         super.readFrom(in);
         clusterName = new ClusterName(in);
         nodes = new DiscoveryNode[in.readVInt()];
-        for (int i=0; i<nodes.length; i++){
+        for (int i=0; i<nodes.length; i++) {
             nodes[i] = new DiscoveryNode(in);
         }
     }

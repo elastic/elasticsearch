@@ -222,7 +222,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
     private String readFully(Reader reader) throws IOException {
         StringBuilder buffer = new StringBuilder();
         int ch;
-        while((ch = reader.read()) != -1){
+        while ((ch = reader.read()) != -1) {
             buffer.append((char)ch);
         }
         return buffer.toString();

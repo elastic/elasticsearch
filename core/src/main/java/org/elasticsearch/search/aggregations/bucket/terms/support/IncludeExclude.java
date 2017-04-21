@@ -601,7 +601,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         if (isRegexBased()) {
             return new AutomatonBackedStringFilter(toAutomaton());
         }
-        if (isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedStringFilter();
         }
         return new TermListBackedStringFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
@@ -625,7 +625,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         if (isRegexBased()) {
             return new AutomatonBackedOrdinalsFilter(toAutomaton());
         }
-        if (isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedOrdinalsFilter();
         }
 
@@ -634,7 +634,7 @@ public class IncludeExclude implements Writeable, ToXContent {
 
     public LongFilter convertToLongFilter(DocValueFormat format) {
 
-        if(isPartitionBased()){
+        if(isPartitionBased()) {
             return new PartitionedLongFilter();
         }
 
@@ -655,7 +655,7 @@ public class IncludeExclude implements Writeable, ToXContent {
     }
 
     public LongFilter convertToDoubleFilter() {
-        if(isPartitionBased()){
+        if(isPartitionBased()) {
             return new PartitionedLongFilter();
         }
 

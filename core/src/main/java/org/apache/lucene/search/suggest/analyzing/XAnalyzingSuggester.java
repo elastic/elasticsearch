@@ -1123,7 +1123,7 @@ public long ramBytesUsed() {
             @Override
             public int compareTo(SurfaceFormAndPayload o) {
                 int res = compare(weight, o.weight);
-                if (res == 0 ){
+                if (res == 0 ) {
                     return payload.compareTo(o.payload);
                 }
                 return res;

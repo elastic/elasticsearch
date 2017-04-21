@@ -443,7 +443,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName)) {
                     nestedPath = parser.text();
-                } else if (token == Token.VALUE_STRING){
+                } else if (token == Token.VALUE_STRING) {
                     if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -456,7 +456,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     point.resetFromString(parser.text());
                     geoPoints.add(point);
                     fieldName = currentName;
-                } else if (fieldName.equals(currentName)){
+                } else if (fieldName.equals(currentName)) {
                     throw new ParsingException(
                             parser.getTokenLocation(),
                             "Only geohashes of type string supported for field [{}]",

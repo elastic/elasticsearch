@@ -181,7 +181,7 @@ public abstract class TermsAggregator extends BucketsAggregator {
         this.format = format;
         this.collectMode = collectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation){
+        if (order instanceof Aggregation) {
             AggregationPath path = ((Aggregation) order).path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
         } else if (order instanceof CompoundOrder) {

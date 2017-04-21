@@ -675,7 +675,7 @@ public class RestClient implements Closeable {
                 if (exception instanceof IOException) {
                     throw (IOException) exception;
                 }
-                if (exception instanceof RuntimeException){
+                if (exception instanceof RuntimeException) {
                     throw (RuntimeException) exception;
                 }
                 throw new RuntimeException("error while performing request", exception);

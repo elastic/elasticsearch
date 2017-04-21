@@ -50,7 +50,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     private ShardSearchLocalRequest shardSearchLocalRequest;
 
-    public ShardSearchTransportRequest(){
+    public ShardSearchTransportRequest() {
     }
 
     public ShardSearchTransportRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,

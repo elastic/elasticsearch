@@ -123,7 +123,7 @@ public final class ShardPath {
                 }
                 if (loadedPath == null) {
                     loadedPath = path;
-                } else{
+                } else {
                     throw new IllegalStateException(shardId + " more than one shard state found");
                 }
             }

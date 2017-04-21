@@ -54,7 +54,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         if (config == null) {
             return new ICUTokenizer();
-        }else{
+        } else {
             return new ICUTokenizer(config);
         }
     }

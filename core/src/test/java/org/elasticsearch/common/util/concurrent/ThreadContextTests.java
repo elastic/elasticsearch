@@ -604,7 +604,7 @@ public class ThreadContextTests extends ESTestCase {
     public void testMarkAsSystemContext() throws IOException {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             assertFalse(threadContext.isSystemContext());
-            try(ThreadContext.StoredContext context = threadContext.stashContext()){
+            try(ThreadContext.StoredContext context = threadContext.stashContext()) {
                 assertFalse(threadContext.isSystemContext());
                 threadContext.markAsSystemContext();
                 assertTrue(threadContext.isSystemContext());

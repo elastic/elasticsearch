@@ -103,7 +103,7 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
             long partToRead = (long) (length * randomDouble());
             byte[] buffer = new byte[1024];
             for (long cur = 0; cur < partToRead; cur += buffer.length) {
-                try (InputStream input = request.getInputStream()){
+                try (InputStream input = request.getInputStream()) {
                     input.read(buffer, 0, (int) (partToRead - cur > buffer.length ? buffer.length : partToRead - cur));
                 } catch (IOException ex) {
                     throw new ElasticsearchException("cannot read input stream", ex);

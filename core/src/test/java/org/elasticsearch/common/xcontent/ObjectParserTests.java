@@ -125,13 +125,13 @@ public class ObjectParserTests extends ESTestCase {
                 while (( token = parser.currentToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.VALUE_STRING){
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
                         if (fieldName.equals("host")) {
                             host = parser.text();
                         } else {
                             throw new IllegalStateException("boom");
                         }
-                    } else if (token == XContentParser.Token.VALUE_NUMBER){
+                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         if (fieldName.equals("port")) {
                             port = parser.intValue();
                         } else {

@@ -133,7 +133,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         // Sort the top matches by docID for the benefit of deferred collector
         ScoreDoc[] docsArr = allDocs.toArray(new ScoreDoc[allDocs.size()]);
         Arrays.sort(docsArr, (o1, o2) -> {
-            if(o1.doc == o2.doc){
+            if(o1.doc == o2.doc) {
                 return o1.shardIndex - o2.shardIndex;
             }
             return o1.doc - o2.doc;

@@ -307,7 +307,7 @@ public class XContentFactory {
             return XContentType.YAML;
         }
         // CBOR logic similar to CBORFactory#hasCBORFormat
-        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1){
+        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1) {
             return XContentType.CBOR;
         }
         if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first) && length > 2) {

@@ -766,7 +766,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
-    public boolean scriptedUpsert(){
+    public boolean scriptedUpsert() {
         return this.scriptedUpsert;
     }
 

@@ -39,7 +39,7 @@ public final class MasterNodeChangePredicate {
             final boolean accept;
             if (newMaster == null) {
                 accept = false;
-            } else if (newMaster.equals(currentMaster) == false){
+            } else if (newMaster.equals(currentMaster) == false) {
                 accept = true;
             } else {
                 accept = newState.version() > currentVersion;

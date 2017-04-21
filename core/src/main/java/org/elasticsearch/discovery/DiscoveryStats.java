@@ -50,7 +50,7 @@ public class DiscoveryStats implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DISCOVERY);
-        if (queueStats != null ){
+        if (queueStats != null) {
             queueStats.toXContent(builder, params);
         }
         builder.endObject();

@@ -54,7 +54,7 @@ import java.util.concurrent.TimeoutException;
  *                  process();
  *                  barrier.await();    //wait for all threads to process
  *                }
- *              catch(Exception e){
+ *              catch(Exception e) {
  *                  log(&quot;Worker thread caught exception&quot;, e);
  *                  barrier.reset(e);
  *                }

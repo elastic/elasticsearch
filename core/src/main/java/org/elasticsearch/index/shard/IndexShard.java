@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -38,6 +39,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -78,6 +80,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
@@ -1072,6 +1075,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
         }
+
+        boolean assertionsEnabled = false;
+        assert assertionsEnabled = true;
+        // TODO: add this for shrinked indices.
+        if (assertionsEnabled) {
+            final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+            if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
+                // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
+                // This should have baked into the commit by the primary we recover from, regardless of the index age.
+                assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+                    "recovery from remote but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
+            } else if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
+                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+                assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+                    "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+                        + " is not found in commit";
+            }
+        }
+
         final EngineConfig config = newEngineConfig(openMode);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering

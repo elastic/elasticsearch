@@ -128,7 +128,7 @@ public class InternalEngine extends Engine {
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
-    private static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
+    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
@@ -233,13 +233,6 @@ public class InternalEngine extends Engine {
                 break;
             }
         }
-        assert engineConfig.getOpenMode() != EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG || commitMaxUnsafeAutoIdTimestamp >= -1L :
-            "recovering from a remote primary but max_unsafe_auto_id_timestamp is not found in commit";
-        assert (engineConfig.getOpenMode() == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG &&
-                engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED)) == false
-            || commitMaxUnsafeAutoIdTimestamp >= -1L :
-            "recovering from a local store but max_unsafe_auto_id_timestamp is not found in commit";
-        lsdajfalsk;djf deal with recovery from store
         maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), commitMaxUnsafeAutoIdTimestamp));
     }
 

@@ -238,10 +238,12 @@ public class InternalEngine extends Engine {
             for (long seqNo = localCheckpoint + 1; seqNo <= maxSeqId;
                  // the local checkpoint might have been advanced so we are leap-frogging
                  // to the next seq ID we need to process and create a noop for
-                 seqNo = Math.max(seqNoService.getLocalCheckpoint(), seqNo) + 1) {
+                 seqNo = seqNoService.getLocalCheckpoint()+1) {
                 final NoOp noOp = new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling up seqNo history");
                 innerNoOp(noOp);
                 numNoOpsAdded++;
+                assert seqNo <= seqNoService.getLocalCheckpoint() : "localCheckpoint didn't advanced used to be " + seqNo + " now it's on:"
+                     + seqNoService.getLocalCheckpoint();
 
             }
             return numNoOpsAdded;

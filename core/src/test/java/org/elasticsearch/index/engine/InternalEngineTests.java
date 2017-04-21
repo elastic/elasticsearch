@@ -3867,7 +3867,6 @@ public class InternalEngineTests extends ESTestCase {
                 Engine.Index primaryResponse = indexForDoc(doc);
                 Engine.IndexResult indexResult = engine.index(primaryResponse);
                 if (randomBoolean()) {
-                    doc.updateSeqID(indexResult.getSeqNo(), 1);
                     numDocsOnReplica++;
                     maxSeqIDOnReplica = indexResult.getSeqNo();
                     replicaEngine.index(replicaIndexForDoc(doc, 1, indexResult.getSeqNo(), false));
@@ -3892,6 +3891,19 @@ public class InternalEngineTests extends ESTestCase {
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
             assertEquals((maxSeqIDOnReplica+1) - numDocsOnReplica, recoveringEngine.fillSequenceNumberHistory(2));
+
+            // now snapshot the tlog and ensure the primary term is updated
+            Translog.Snapshot snapshot = recoveringEngine.getTranslog().newSnapshot();
+            assertTrue((maxSeqIDOnReplica+1) - numDocsOnReplica <= snapshot.totalOperations());
+            Translog.Operation operation;
+            while((operation = snapshot.next()) != null) {
+                if (operation.opType() == Translog.Operation.Type.NO_OP) {
+                    assertEquals(2, operation.primaryTerm());
+                } else {
+                    assertEquals(1, operation.primaryTerm());
+                }
+
+            }
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
             if ((flushed = randomBoolean())) {

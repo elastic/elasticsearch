@@ -906,7 +906,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // start a replica shard and index the second doc
         final IndexShard otherShard = newStartedShard(false);
         test = otherShard.prepareIndexOnReplica(
-            SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
+            SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
                 XContentType.JSON),
             1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         otherShard.index(test);

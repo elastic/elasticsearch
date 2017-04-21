@@ -21,6 +21,7 @@ List projects = [
   'distribution:deb',
   'distribution:rpm',
   'distribution:tools:java-version-checker',
+  'distribution:tools:plugin-cli',
   'test:framework',
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',

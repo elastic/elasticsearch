@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
@@ -63,8 +64,12 @@ public class JobStorageDeletionTask extends Task {
                         logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName, indexPattern);
                     }
                     if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
-                        logger.warn("[{}] {} failures encountered while running DeleteByQuery on indices [{}, {}].",
-                                jobId, bulkByScrollResponse.getBulkFailures().size(), indexName, indexPattern);
+                        logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
+                                jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
+                                indexName, indexPattern);
+                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                            logger.warn("DBQ failure: " + failure);
+                        }
                     }
                     deleteAlias(jobId, aliasName, indexName, client, deleteAliasHandler);
                 },
@@ -81,6 +86,7 @@ public class JobStorageDeletionTask extends Task {
                     searchRequest.source(new SearchSourceBuilder().query(query));
                     searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
                     request.setSlices(5);
+                    request.setAbortOnVersionConflict(false);
 
                     client.execute(XPackDeleteByQueryAction.INSTANCE, request, dbqHandler);
                 },

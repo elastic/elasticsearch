@@ -31,10 +31,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -135,15 +131,6 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(0L, tdigest.state.size());
             assertEquals(0L, tdigest.state.centroidCount());
         });
-
-
-
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        xContentBuilder.startArray();
-        xContentBuilder.rawValue(new BytesArray("\"value1\""), XContentType.JSON);
-        xContentBuilder.rawValue(new BytesArray("\"value2\""), XContentType.JSON);
-        xContentBuilder.endArray();
-        String hson = xContentBuilder.bytes().utf8ToString();
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,

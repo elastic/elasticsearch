@@ -64,6 +64,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -142,34 +143,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (needToCheck()) {
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
-            final Set<String> autoCreateIndices = bulkRequest.requests.stream()
+            final Set<String> indices = bulkRequest.requests.stream()
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
              * that we'll use when we try to run the requests. */
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated = null;
+            final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
+            Set<String> autoCreateIndices = new HashSet<>();
             ClusterState state = clusterService.state();
-            for (Iterator<String> itr = autoCreateIndices.iterator(); itr.hasNext();) {
-                String index = itr.next();
+            for (String index : indices) {
                 boolean shouldAutoCreate;
                 try {
                     shouldAutoCreate = shouldAutoCreate(index, state);
                 } catch (IndexNotFoundException e) {
                     shouldAutoCreate = false;
-                    if (indicesThatCannotBeCreated == null) {
-                        indicesThatCannotBeCreated = new HashMap<>();
-                    }
                     indicesThatCannotBeCreated.put(index, e);
                 }
-                if (false == shouldAutoCreate) {
-                    itr.remove();
+                if (shouldAutoCreate) {
+                    autoCreateIndices.add(index);
                 }
             }
             // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-            final Map<String, IndexNotFoundException> finalIndicesThatCannotBeCreated =
-                    indicesThatCannotBeCreated == null ? emptyMap() : indicesThatCannotBeCreated;
             if (autoCreateIndices.isEmpty()) {
-                executeBulk(task, bulkRequest, startTime, listener, responses, finalIndicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
                 for (String index : autoCreateIndices) {
@@ -177,7 +173,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, listener, responses, finalIndicesThatCannotBeCreated);
+                                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
                             }
                         }
 
@@ -196,7 +192,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
-                                }), responses, finalIndicesThatCannotBeCreated);
+                                }), responses, indicesThatCannotBeCreated);
                             }
                         }
                     });

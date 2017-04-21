@@ -57,7 +57,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Collections;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -91,7 +91,8 @@ public class MapperQueryParser extends QueryParser {
 
     public void reset(QueryParserSettings settings) {
         this.settings = settings;
-        if (settings.fieldsAndWeights().isEmpty()) {
+        if (settings.fieldsAndWeights() == null) {
+            // this query has no explicit fields to query so we fallback to the default field
             this.field = settings.defaultField();
         } else if (settings.fieldsAndWeights().size() == 1) {
             this.field = settings.fieldsAndWeights().keySet().iterator().next();
@@ -148,6 +149,11 @@ public class MapperQueryParser extends QueryParser {
         if (fields != null) {
             if (fields.size() == 1) {
                 return getFieldQuerySingle(fields.iterator().next(), queryText, quoted);
+            } else if (fields.isEmpty()) {
+                // the requested fields do not match any field in the mapping
+                // happens for wildcard fields only since we cannot expand to a valid field name
+                // if there is no match in the mappings.
+                return new MatchNoDocsQuery("empty fields");
             }
             if (settings.useDisMax()) {
                 List<Query> queries = new ArrayList<>();
@@ -721,7 +727,7 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private Query applyBoost(String field, Query q) {
-        Float fieldBoost = settings.fieldsAndWeights().get(field);
+        Float fieldBoost = settings.fieldsAndWeights() == null ? null : settings.fieldsAndWeights().get(field);
         if (fieldBoost != null && fieldBoost != 1f) {
             return new BoostQuery(q, fieldBoost);
         }
@@ -780,7 +786,8 @@ public class MapperQueryParser extends QueryParser {
         if (field != null) {
             fields = context.simpleMatchToIndexNames(field);
         } else {
-            fields = settings.fieldsAndWeights().keySet();
+            Map<String, Float> fieldsAndWeights = settings.fieldsAndWeights();
+            fields = fieldsAndWeights == null ? Collections.emptyList() : fieldsAndWeights.keySet();
         }
         return fields;
     }

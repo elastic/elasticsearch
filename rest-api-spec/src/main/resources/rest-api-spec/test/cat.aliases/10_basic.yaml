@@ -167,14 +167,9 @@
 
   - match:
       $body: |
-               /^  alias           \s+
-                   index
-                   \n
-                   foo             \s+
-                   test
-                   \n
-                   bar             \s+
-                   test2
+               /^  alias \s+ index \n
+                   foo   \s+ test  \n
+                   bar   \s+ test2
                $/
 
 ---

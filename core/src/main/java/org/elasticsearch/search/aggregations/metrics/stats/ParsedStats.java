@@ -39,7 +39,7 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     protected double sum;
     protected double avg;
 
-    protected Map<String, String> valueAsString = new HashMap<>();
+    protected final Map<String, String> valueAsString = new HashMap<>();
 
     @Override
     public long getCount() {
@@ -99,17 +99,24 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.COUNT, count);
-        builder.field(Fields.MIN, count != 0 ? min : null);
-        builder.field(Fields.MAX, count != 0 ? max : null);
-        builder.field(Fields.AVG, count != 0 ? avg : null);
-        builder.field(Fields.SUM, count != 0 ? sum : null);
-        if (count != 0 && valueAsString.get(Fields.MIN_AS_STRING) != null) {
-            builder.field(Fields.MIN_AS_STRING, getMinAsString());
-            builder.field(Fields.MAX_AS_STRING, getMaxAsString());
-            builder.field(Fields.AVG_AS_STRING, getAvgAsString());
-            builder.field(Fields.SUM_AS_STRING, getSumAsString());
+        if (count != 0) {
+            builder.field(Fields.MIN, min);
+            builder.field(Fields.MAX, max);
+            builder.field(Fields.AVG, avg);
+            builder.field(Fields.SUM, sum);
+            if (valueAsString.get(Fields.MIN_AS_STRING) != null) {
+                builder.field(Fields.MIN_AS_STRING, getMinAsString());
+                builder.field(Fields.MAX_AS_STRING, getMaxAsString());
+                builder.field(Fields.AVG_AS_STRING, getAvgAsString());
+                builder.field(Fields.SUM_AS_STRING, getSumAsString());
+            }
+        } else {
+            builder.nullField(Fields.MIN);
+            builder.nullField(Fields.MAX);
+            builder.nullField(Fields.AVG);
+            builder.nullField(Fields.SUM);
         }
-        otherStatsToXCotent(builder, params);
+        otherStatsToXContent(builder, params);
         return builder;
     }
 
@@ -119,13 +126,13 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     static {
         declareAggregationFields(PARSER);
         PARSER.declareLong((agg, value) -> agg.count = value, new ParseField(Fields.COUNT));
-        PARSER.declareField((agg, value) -> agg.min = value, (parser, context) -> parseValue(parser, Double.POSITIVE_INFINITY),
+        PARSER.declareField((agg, value) -> agg.min = value, (parser, context) -> parseDouble(parser, Double.POSITIVE_INFINITY),
                 new ParseField(Fields.MIN), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.max = value, (parser, context) -> parseValue(parser, Double.NEGATIVE_INFINITY),
+        PARSER.declareField((agg, value) -> agg.max = value, (parser, context) -> parseDouble(parser, Double.NEGATIVE_INFINITY),
                 new ParseField(Fields.MAX), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.avg = value, (parser, context) -> parseValue(parser, 0), new ParseField(Fields.AVG),
+        PARSER.declareField((agg, value) -> agg.avg = value, (parser, context) -> parseDouble(parser, 0), new ParseField(Fields.AVG),
                 ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.sum = value, (parser, context) -> parseValue(parser, 0), new ParseField(Fields.SUM),
+        PARSER.declareField((agg, value) -> agg.sum = value, (parser, context) -> parseDouble(parser, 0), new ParseField(Fields.SUM),
                 ValueType.DOUBLE_OR_NULL);
         PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.MIN_AS_STRING, value), new ParseField(Fields.MIN_AS_STRING));
         PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.MAX_AS_STRING, value), new ParseField(Fields.MAX_AS_STRING));
@@ -139,7 +146,7 @@ public class ParsedStats extends ParsedAggregation implements Stats {
         return parsedStats;
     }
 
-    protected XContentBuilder otherStatsToXCotent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
 }

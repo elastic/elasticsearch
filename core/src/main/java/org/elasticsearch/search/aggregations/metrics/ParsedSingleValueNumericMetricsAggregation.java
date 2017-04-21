@@ -54,7 +54,7 @@ public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedA
             double defaultNullValue) {
         declareAggregationFields(objectParser);
         objectParser.declareField(ParsedSingleValueNumericMetricsAggregation::setValue,
-                (parser, context) -> parseValue(parser, defaultNullValue), CommonFields.VALUE, ValueType.DOUBLE_OR_NULL);
+                (parser, context) -> parseDouble(parser, defaultNullValue), CommonFields.VALUE, ValueType.DOUBLE_OR_NULL);
         objectParser.declareString(ParsedSingleValueNumericMetricsAggregation::setValueAsString, CommonFields.VALUE_AS_STRING);
     }
 }

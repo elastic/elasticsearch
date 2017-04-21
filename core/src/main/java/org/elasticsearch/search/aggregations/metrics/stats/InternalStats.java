@@ -187,11 +187,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             builder.field(Fields.AVG_AS_STRING, format.format(getAvg()));
             builder.field(Fields.SUM_AS_STRING, format.format(sum));
         }
-        otherStatsToXCotent(builder, params);
+        otherStatsToXContent(builder, params);
         return builder;
     }
 
-    protected XContentBuilder otherStatsToXCotent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
 

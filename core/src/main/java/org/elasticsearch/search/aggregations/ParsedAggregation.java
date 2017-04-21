@@ -80,7 +80,11 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
-    protected static double parseValue(XContentParser parser, double defaultNullValue) throws IOException {
+    /**
+     * Parse a token of type XContentParser.Token.VALUE_NUMBER or XContentParser.Token.STRING to a double.
+     * In other cases the default value is returned instead.
+     */
+    protected static double parseDouble(XContentParser parser, double defaultNullValue) throws IOException {
         Token currentToken = parser.currentToken();
         if (currentToken == XContentParser.Token.VALUE_NUMBER || currentToken == XContentParser.Token.VALUE_STRING) {
             return parser.doubleValue();

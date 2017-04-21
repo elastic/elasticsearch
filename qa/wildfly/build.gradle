@@ -42,7 +42,7 @@ repositories {
     mavenCentral()
     // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
     ivy {
-        url "http://download.jboss.org"
+        url "http://download.elastic.co"
         layout 'pattern', {
             artifact 'wildfly/[revision]/[module]-[revision].[ext]'
         }

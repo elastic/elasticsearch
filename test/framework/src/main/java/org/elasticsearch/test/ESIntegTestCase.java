@@ -1391,7 +1391,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             final Set<String> types = indicesAndTypes.computeIfAbsent(builder.request().index(), index -> new HashSet<>());
             types.add(builder.request().type());
         }
-        Set<List<String>> bogusIds = new HashSet<>();
+        Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
             builders = new ArrayList<>(builders);
             // inject some bogus docs

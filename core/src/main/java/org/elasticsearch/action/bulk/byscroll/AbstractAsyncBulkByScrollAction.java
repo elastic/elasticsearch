@@ -799,8 +799,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             executable.setNextVar("ctx", context);
             executable.run();
 
-            Map<String, Object> resultCtx = (Map<String, Object>) executable.unwrap(context);
-            String newOp = (String) resultCtx.remove("op");
+            String newOp = (String) context.remove("op");
             if (newOp == null) {
                 throw new IllegalArgumentException("Script cleared operation type");
             }
@@ -809,25 +808,25 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * It'd be lovely to only set the source if we know its been modified
              * but it isn't worth keeping two copies of it around just to check!
              */
-            request.setSource((Map<String, Object>) resultCtx.remove(SourceFieldMapper.NAME));
+            request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
 
-            Object newValue = resultCtx.remove(IndexFieldMapper.NAME);
+            Object newValue = context.remove(IndexFieldMapper.NAME);
             if (false == doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
             }
-            newValue = resultCtx.remove(TypeFieldMapper.NAME);
+            newValue = context.remove(TypeFieldMapper.NAME);
             if (false == doc.getType().equals(newValue)) {
                 scriptChangedType(request, newValue);
             }
-            newValue = resultCtx.remove(IdFieldMapper.NAME);
+            newValue = context.remove(IdFieldMapper.NAME);
             if (false == doc.getId().equals(newValue)) {
                 scriptChangedId(request, newValue);
             }
-            newValue = resultCtx.remove(VersionFieldMapper.NAME);
+            newValue = context.remove(VersionFieldMapper.NAME);
             if (false == Objects.equals(oldVersion, newValue)) {
                 scriptChangedVersion(request, newValue);
             }
-            newValue = resultCtx.remove(ParentFieldMapper.NAME);
+            newValue = context.remove(ParentFieldMapper.NAME);
             if (false == Objects.equals(oldParent, newValue)) {
                 scriptChangedParent(request, newValue);
             }
@@ -835,7 +834,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * Its important that routing comes after parent in case you want to
              * change them both.
              */
-            newValue = resultCtx.remove(RoutingFieldMapper.NAME);
+            newValue = context.remove(RoutingFieldMapper.NAME);
             if (false == Objects.equals(oldRouting, newValue)) {
                 scriptChangedRouting(request, newValue);
             }
@@ -845,8 +844,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return scriptChangedOpType(request, oldOpType, newOpType);
             }
 
-            if (false == resultCtx.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", resultCtx.keySet()) + ']');
+            if (false == context.isEmpty()) {
+                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
             }
             return request;
         }

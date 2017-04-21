@@ -192,7 +192,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     }
     
     // if there are no indices to open/close throw an exception
-    public void testOpenCloseWildCardsNoIdcicesDefault() {
+    public void testOpenCloseWildCardsNoIndicesDefault() {
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareOpen("test").execute().actionGet());
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").execute().actionGet());
         
@@ -207,21 +207,23 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     }
     
     // if there are no indices to open/close and allow_no_indices=true, the open/close is a no-op
-    public void testOpenCloseWildCardsNoIdcicesAllowNoIndices() {
-        IndicesOptions openIncidesOptions = IndicesOptions.fromOptions(false, true, false, true);
-        IndicesOptions closeIncidesOptions = IndicesOptions.fromOptions(false, true, true, false);
+    public void testOpenCloseWildCardsNoIndicesAllowNoIndices() throws InterruptedException, ExecutionException {
+        IndicesOptions openIndicesOptions = IndicesOptions.fromOptions(false, true, false, true);
+        IndicesOptions closeIndicesOptions = IndicesOptions.fromOptions(false, true, true, false);
 
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareOpen("test").execute().actionGet());
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").execute().actionGet());
+        expectThrows(IndexNotFoundException.class,
+                () -> client().admin().indices().prepareOpen("test").setIndicesOptions(openIndicesOptions).execute().actionGet());
+        expectThrows(IndexNotFoundException.class,
+                () -> client().admin().indices().prepareClose("test").setIndicesOptions(closeIndicesOptions).execute().actionGet());
+
+        assertAcked(client().admin().indices().prepareOpen("test*").setIndicesOptions(openIndicesOptions).execute().get());
+        assertAcked(client().admin().indices().prepareClose("test*").setIndicesOptions(closeIndicesOptions).execute().get());
         
-        assertAcked(client().admin().indices().prepareClose("test*").setIndicesOptions(openIncidesOptions).execute().actionGet());
-        assertAcked(client().admin().indices().prepareClose("test*").setIndicesOptions(closeIncidesOptions).execute().actionGet());
+        assertAcked(client().admin().indices().prepareOpen("*").setIndicesOptions(openIndicesOptions).execute().get());
+        assertAcked(client().admin().indices().prepareClose("*").setIndicesOptions(closeIndicesOptions).execute().get());
         
-        assertAcked(client().admin().indices().prepareClose("*").setIndicesOptions(openIncidesOptions).execute().actionGet());
-        assertAcked(client().admin().indices().prepareClose("*").setIndicesOptions(closeIncidesOptions).execute().actionGet());
-        
-        assertAcked(client().admin().indices().prepareClose("_all").setIndicesOptions(openIncidesOptions).execute().actionGet());
-        assertAcked(client().admin().indices().prepareClose("_all").setIndicesOptions(closeIncidesOptions).execute().actionGet());
+        assertAcked(client().admin().indices().prepareOpen("_all").setIndicesOptions(openIndicesOptions).execute().get());
+        assertAcked(client().admin().indices().prepareClose("_all").setIndicesOptions(closeIndicesOptions).execute().get());
     }
 
     public void testCloseNoIndex() {

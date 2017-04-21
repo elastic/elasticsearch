@@ -117,7 +117,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         request.source(Requests.INDEX_CONTENT_TYPE, "foo", 3);
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(request);
-        final AtomicBoolean onFailureCalled = new AtomicBoolean();
+        final AtomicBoolean gotResponse = new AtomicBoolean();
 
         transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
             @Override
@@ -125,19 +125,16 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
                 BulkItemResponse itemResponse = bulkResponse.getItems()[0];
                 assertTrue(itemResponse.isFailed());
                 assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
-                assertEquals(itemResponse.getFailure().getCause().getMessage(), "no such index");
-                onFailureCalled.set(true);
-                fail("onResponse shouldn't be called");
+                assertEquals("no such index and [index.mapper.dynamic] is [false]", itemResponse.getFailure().getCause().getMessage());
+                gotResponse.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
-                onFailureCalled.set(true);
-                assertThat(e, instanceOf(IndexNotFoundException.class));
-                assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
+                fail("unexpected failure in bulk action, expected failed bulk item");
             }
         });
 
-        assertTrue(onFailureCalled.get());
+        assertTrue(gotResponse.get());
     }
 }

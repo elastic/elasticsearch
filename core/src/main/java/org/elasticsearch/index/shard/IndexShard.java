@@ -1079,7 +1079,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean assertionsEnabled = false;
         assert assertionsEnabled = true;
         // TODO: add this for shrinked indices.
-        if (assertionsEnabled) {
+        if (assertionsEnabled && indexExists) {
             final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
             if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
                 // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.

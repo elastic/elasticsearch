@@ -147,11 +147,11 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         }
         String fieldName = null;
         if (randomBoolean()) {
-            detector.setPartitionFieldName(fieldName = randomAlphaOfLengthBetween(1, 20));
+            detector.setPartitionFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
         } else if (randomBoolean() && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function) == false) {
-            detector.setOverFieldName(fieldName = randomAlphaOfLengthBetween(1, 20));
+            detector.setOverFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
         } else if (randomBoolean() && Detector.NO_BY_FIELD_NAME_FUNCTIONS.contains(function) == false) {
-            detector.setByFieldName(fieldName = randomAlphaOfLengthBetween(1, 20));
+            detector.setByFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
         }
         if (randomBoolean()) {
             detector.setExcludeFrequent(randomFrom(Detector.ExcludeFrequent.values()));

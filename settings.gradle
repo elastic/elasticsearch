@@ -71,6 +71,7 @@ List projects = [
   'qa:smoke-test-reindex-with-painless',
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
+  'qa:wildfly'
 ]
 
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')

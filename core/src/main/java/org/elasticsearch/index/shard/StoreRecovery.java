@@ -364,6 +364,8 @@ final class StoreRecovery {
                     logger.debug("failed to list file details", e);
                 }
                 indexShard.performTranslogRecovery(indexShouldExists);
+                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                indexShard.getEngine().fillSequenceNumberHistory(indexShard.getPrimaryTerm());
             }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");

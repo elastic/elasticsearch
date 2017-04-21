@@ -53,6 +53,7 @@ DELETE _xpack/ml/anomaly_detectors/event_rate
 // TEST[skip:todo]
 
 When the job is deleted, you receive the following results:
+[source,js]
 ----
 {
   "acknowledged": true

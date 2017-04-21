@@ -61,6 +61,7 @@ POST _xpack/ml/anomaly_detectors/event_rate/_open
 // TEST[skip:todo]
 
 When the job opens, you receive the following results:
+[source,js]
 ----
 {
   "opened": true

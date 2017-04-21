@@ -29,49 +29,64 @@ The following example queries the info API:
 ------------------------------------------------------------
 GET /_xpack
 ------------------------------------------------------------
+// CONSOLE
 
 Example response:
-
 [source,js]
 ------------------------------------------------------------
 {
-   "build": {
-      "hash": "2798b1a3ce779b3611bb53a0082d4d741e4d3168",
-      "timestamp": "2015-04-07T13:34:42Z"
+   "build" : {
+      "hash" : "2798b1a3ce779b3611bb53a0082d4d741e4d3168",
+      "date" : "2015-04-07T13:34:42Z"
    },
-   "license": {
-      "uid": "893361dc-9749-4997-93cb-802e3dofh7aa",
-      "type": "internal",
-      "mode": "platinum",
-      "status": "active",
-      "expiry_date": "2030-08-29T23:59:59.999Z",
-      "expiry_date_in_millis": 1914278399999
+   "license" : {
+      "uid" : "893361dc-9749-4997-93cb-802e3dofh7aa",
+      "type" : "trial",
+      "mode" : "trial",
+      "status" : "active",
+      "expiry_date_in_millis" : 1914278399999
    },
-   "features": {
-      "graph": {
-         "description": "Graph Data Exploration for the Elastic Stack",
-         "available": true,
-         "enabled": true
+   "features" : {
+      "graph" : {
+         "description" : "Graph Data Exploration for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
       },
-      "monitoring": {
-         "description": "Monitoring for the Elastic Stack",
-         "available": true,
-         "enabled": true
+      "ml" : {
+         "description" : "Machine Learning for the Elastic Stack",
+         "available" : true,
+         "enabled" : true,
+         "native_code_info" : {
+           "version" : "6.0.0-alpha1-SNAPSHOT",
+           "build_hash" : "d081461967d61a"
+        }
       },
-      "security": {
-         "description": "Security for the Elastic Stack",
-         "available": true,
-         "enabled": true
+      "monitoring" : {
+         "description" : "Monitoring for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
       },
-      "watcher": {
-         "description": "Alerting, Notification and Automation for the Elastic Stack",
-         "available": true,
-         "enabled": true
+      "security" : {
+         "description" : "Security for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      },
+      "watcher" : {
+         "description" : "Alerting, Notification and Automation for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
       }
    },
-   "tagline": "You know, for X"
+   "tagline" : "You know, for X"
 }
 ------------------------------------------------------------
+// TESTRESPONSE[s/"hash" : "2798b1a3ce779b3611bb53a0082d4d741e4d3168",/"hash" : "$body.build.hash",/]
+// TESTRESPONSE[s/"date" : "2015-04-07T13:34:42Z"/"date" : "$body.build.date"/]
+// TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-802e3dofh7aa",/"uid": "$body.license.uid",/]
+// TESTRESPONSE[s/"expiry_date_in_millis" : 1914278399999/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
+// TESTRESPONSE[s/"version" : "6.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
+// TESTRESPONSE[s/"build_hash" : "d081461967d61a"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// So much s/// but at least we test that the layout is close to matching....
 
 You can also control what information is returned using the `categories` and
 `human` parameters.
@@ -82,6 +97,7 @@ The following example only returns the build and features information:
 ------------------------------------------------------------
 GET /_xpack?categories=build,features
 ------------------------------------------------------------
+// CONSOLE
 
 The following example removes the descriptions from the response:
 
@@ -89,6 +105,7 @@ The following example removes the descriptions from the response:
 ------------------------------------------------------------
 GET /_xpack?human=false
 ------------------------------------------------------------
+// CONSOLE
 
 include::security.asciidoc[]
 

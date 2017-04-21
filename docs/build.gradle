@@ -1,0 +1,194 @@
+import org.elasticsearch.gradle.test.NodeInfo
+
+import java.nio.charset.StandardCharsets
+
+apply plugin: 'elasticsearch.docs-test'
+
+/* List of files that have snippets that probably should be converted to
+ * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
+ * only remove entries from this list. When it is empty we'll remove it
+ * entirely and have a party! There will be cake and everything.... */
+buildRestTests.expectedUnconvertedCandidates = [
+        'en/rest-api/security/users.asciidoc',
+        'en/rest-api/watcher/put-watch.asciidoc',
+        'en/rest-api/ml/post-data.asciidoc',
+        'en/security/authentication/user-cache.asciidoc',
+        'en/security/authorization/field-and-document-access-control.asciidoc',
+        'en/security/authorization/run-as-privilege.asciidoc',
+        'en/security/tribe-clients-integrations/beats.asciidoc',
+        'en/security/tribe-clients-integrations/http.asciidoc',
+        'en/security/tribe-clients-integrations/monitoring.asciidoc',
+        'en/security/tribe-clients-integrations/cross-cluster.asciidoc',
+        'en/security/authorization/custom-roles-provider.asciidoc',
+        'en/watcher/actions/email.asciidoc',
+        'en/watcher/actions/hipchat.asciidoc',
+        'en/watcher/actions/index.asciidoc',
+        'en/watcher/actions/logging.asciidoc',
+        'en/watcher/actions/pagerduty.asciidoc',
+        'en/watcher/actions/slack.asciidoc',
+        'en/watcher/actions/jira.asciidoc',
+        'en/watcher/actions/webhook.asciidoc',
+        'en/watcher/condition/always.asciidoc',
+        'en/watcher/condition/array-compare.asciidoc',
+        'en/watcher/condition/compare.asciidoc',
+        'en/watcher/condition/never.asciidoc',
+        'en/watcher/condition/script.asciidoc',
+        'en/watcher/customizing-watches.asciidoc',
+        'en/watcher/example-watches/example-watch-meetupdata.asciidoc',
+        'en/watcher/how-watcher-works.asciidoc',
+        'en/watcher/input/chain.asciidoc',
+        'en/watcher/input/http.asciidoc',
+        'en/watcher/input/search.asciidoc',
+        'en/watcher/input/simple.asciidoc',
+        'en/watcher/transform.asciidoc',
+        'en/watcher/transform/chain.asciidoc',
+        'en/watcher/transform/script.asciidoc',
+        'en/watcher/transform/search.asciidoc',
+        'en/watcher/trigger/schedule/cron.asciidoc',
+        'en/watcher/trigger/schedule/daily.asciidoc',
+        'en/watcher/trigger/schedule/hourly.asciidoc',
+        'en/watcher/trigger/schedule/interval.asciidoc',
+        'en/watcher/trigger/schedule/monthly.asciidoc',
+        'en/watcher/trigger/schedule/weekly.asciidoc',
+        'en/watcher/trigger/schedule/yearly.asciidoc',
+        'en/watcher/troubleshooting.asciidoc',
+        'en/ml/api-quickref.asciidoc',
+        'en/rest-api/ml/close-job.asciidoc',
+        'en/rest-api/ml/delete-datafeed.asciidoc',
+        'en/rest-api/ml/delete-snapshot.asciidoc',
+        'en/rest-api/ml/flush-job.asciidoc',
+        'en/rest-api/ml/get-bucket.asciidoc',
+        'en/rest-api/ml/get-category.asciidoc',
+        'en/rest-api/ml/get-datafeed-stats.asciidoc',
+        'en/rest-api/ml/get-job-stats.asciidoc',
+        'en/rest-api/ml/get-record.asciidoc',
+        'en/rest-api/ml/open-job.asciidoc',
+        'en/rest-api/ml/preview-datafeed.asciidoc',
+        'en/rest-api/ml/put-datafeed.asciidoc',
+        'en/rest-api/ml/put-job.asciidoc',
+        'en/rest-api/ml/start-datafeed.asciidoc',
+        'en/rest-api/ml/stop-datafeed.asciidoc',
+        'en/rest-api/ml/update-datafeed.asciidoc',
+        'en/rest-api/ml/update-job.asciidoc',
+        'en/rest-api/ml/update-snapshot.asciidoc',
+        'en/rest-api/ml/validate-detector.asciidoc',
+        'en/rest-api/ml/delete-job.asciidoc',
+        'en/rest-api/ml/get-datafeed.asciidoc',
+        'en/rest-api/ml/get-influencer.asciidoc',
+        'en/rest-api/ml/get-job.asciidoc',
+        'en/rest-api/ml/get-snapshot.asciidoc',
+        'en/rest-api/ml/revert-snapshot.asciidoc',
+        'en/rest-api/ml/validate-job.asciidoc',
+        'en/rest-api/security/authenticate.asciidoc',
+        'en/rest-api/watcher/stats.asciidoc',
+        'en/security/authorization.asciidoc',
+        'en/security/tribe-clients-integrations/logstash.asciidoc',
+        'en/watcher/actions.asciidoc',
+        'en/watcher/example-watches/watching-time-series-data.asciidoc',
+]
+
+dependencies {
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+}
+
+Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    // wait up to twenty seconds
+    final long stopTime = System.currentTimeMillis() + 20000L;
+    Exception lastException = null;
+    while (System.currentTimeMillis() < stopTime) {
+        lastException = null;
+        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
+        HttpURLConnection httpURLConnection = null;
+        try {
+            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health").openConnection();
+            httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                    Base64.getEncoder().encodeToString("test_admin:changeme".getBytes(StandardCharsets.UTF_8)));
+            httpURLConnection.setRequestMethod("GET");
+            httpURLConnection.setConnectTimeout(1000);
+            httpURLConnection.setReadTimeout(30000);
+            httpURLConnection.connect();
+            if (httpURLConnection.getResponseCode() == 200) {
+                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
+                }
+                break;
+            }
+        } catch (Exception e) {
+            logger.debug("failed to call cluster health", e)
+            lastException = e
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
+        }
+
+        // did not start, so wait a bit before trying again
+        Thread.sleep(500L);
+    }
+    if (tmpFile.exists() == false && lastException != null) {
+        logger.error("final attempt of calling cluster health failed", lastException)
+    }
+    return tmpFile.exists()
+}
+
+integTestCluster {
+    plugin ':x-pack-elasticsearch:plugin'
+    setting 'script.inline', 'true'
+    setupCommand 'setupTestAdmin',
+            'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+    waitCondition = waitWithAuth
+}
+
+
+
+buildRestTests.docs = fileTree(projectDir) {
+    // No snippets in here!
+    exclude 'build.gradle'
+    // That is where the snippets go, not where they come from!
+    exclude 'build'
+    // These file simply doesn't pass yet. We should figure out how to fix them.
+    exclude 'en/rest-api/watcher/ack-watch.asciidoc'
+    exclude 'en/watcher/reference/actions.asciidoc'
+    exclude 'en/rest-api/graph/explore.asciidoc'
+}
+
+Map<String, String> setups = buildRestTests.setups
+setups['my_inactive_watch'] = '''
+  - do:
+      xpack.watcher.put_watch:
+        id: "my_watch"
+        master_timeout: "40s"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test",
+                  "doc_type": "test2"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')

@@ -66,6 +66,7 @@ _xpack/ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
 // TEST[skip:todo]
 
 When the snapshot is updated, you receive the following results:
+[source,js]
 ----
 {
   "acknowledged": true,

@@ -42,6 +42,7 @@ DELETE _xpack/ml/datafeeds/datafeed-it-ops
 // TEST[skip:todo]
 
 When the data feed is deleted, you receive the following results:
+[source,js]
 ----
 {
   "acknowledged": true

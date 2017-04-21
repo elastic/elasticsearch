@@ -101,6 +101,7 @@ _xpack/ml/anomaly_detectors/it_ops_new_kpi/model_snapshots/1491856080/_revert
 // TEST[skip:todo]
 
 When the operation is complete, you receive the following results:
+[source,js]
 ----
 {
   "acknowledged": true,

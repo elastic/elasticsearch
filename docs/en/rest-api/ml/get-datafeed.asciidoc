@@ -56,6 +56,7 @@ GET _xpack/ml/datafeeds/datafeed-it-ops-kpi
 // TEST[skip:todo]
 
 The API returns the following results:
+[source,js]
 ----
 {
   "count": 1,

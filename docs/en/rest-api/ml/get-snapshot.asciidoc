@@ -85,6 +85,7 @@ GET _xpack/ml/anomaly_detectors/farequote/model_snapshots
 // TEST[skip:todo]
 
 In this example, the API provides a single result:
+[source,js]
 ----
 {
   "count": 1,

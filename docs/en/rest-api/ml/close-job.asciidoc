@@ -69,6 +69,7 @@ POST _xpack/ml/anomaly_detectors/event_rate/_close
 // TEST[skip:todo]
 
 When the job is closed, you receive the following results:
+[source,js]
 ----
 {
   "closed": true

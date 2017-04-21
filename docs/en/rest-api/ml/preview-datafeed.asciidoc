@@ -51,6 +51,7 @@ GET _xpack/ml/datafeeds/datafeed-farequote/_preview
 // TEST[skip:todo]
 
 The data that is returned for this example is as follows:
+[source,js]
 ----
 [
   {

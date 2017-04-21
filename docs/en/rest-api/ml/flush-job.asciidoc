@@ -67,6 +67,7 @@ POST _xpack/ml/anomaly_detectors/farequote/_flush
 // TEST[skip:todo]
 
 When the operation succeeds, you receive the following results:
+[source,js]
 ----
 {
   "flushed": true

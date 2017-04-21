@@ -89,6 +89,7 @@ PUT _xpack/ml/anomaly_detectors/it-ops-kpi
 // TEST[skip:todo]
 
 When the job is created, you receive the following results:
+[source,js]
 ----
 {
   "job_id": "it-ops-kpi",

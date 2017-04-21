@@ -67,6 +67,7 @@ GET _xpack/ml/anomaly_detectors/it_ops_new_logs/results/categories
 // TEST[skip:todo]
 
 In this example, the API returns the following information for each category:
+[source,js]
 ----
 {
   "count": 11,

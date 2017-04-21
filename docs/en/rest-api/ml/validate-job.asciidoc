@@ -61,6 +61,7 @@ POST _xpack/ml/anomaly_detectors/_validate
 // TEST[skip:todo]
 
 When the validation is complete, you receive the following results:
+[source,js]
 ----
 {
   "acknowledged": true

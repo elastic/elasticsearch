@@ -85,6 +85,7 @@ GET _xpack/ml/anomaly_detectors/it-ops-kpi/results/records
 
 In this example, the API returns twelve results for the specified
 time constraints:
+[source,js]
 ----
 {
   "count": 12,

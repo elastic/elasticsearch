@@ -53,6 +53,7 @@ GET _xpack/ml/anomaly_detectors/farequote
 
 In this example, the API returns a single result that matches the specified
 score and time constraints:
+[source,js]
 ----
 {
   "count": 1,

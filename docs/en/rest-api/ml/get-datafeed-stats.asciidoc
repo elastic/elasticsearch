@@ -57,6 +57,7 @@ GET _xpack/ml/datafeeds/datafeed-farequote/_stats
 // TEST[skip:todo]
 
 The API returns the following results:
+[source,js]
 ----
 {
   "count": 1,

@@ -49,7 +49,7 @@ DELETE _xpack/ml/anomaly_detectors/farequote/model_snapshots/1491948163
 // TEST[skip:todo]
 
 When the snapshot is deleted, you receive the following results:
-
+[source,js]
 ----
 {
   "acknowledged": true

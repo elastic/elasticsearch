@@ -89,6 +89,7 @@ PUT _xpack/ml/datafeeds/datafeed-it-ops-kpi
 // TEST[skip:todo]
 
 When the data feed is created, you receive the following results:
+[source,js]
 ----
 {
   "datafeed_id": "datafeed-it-ops-kpi",

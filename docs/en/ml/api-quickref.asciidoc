@@ -3,6 +3,7 @@
 
 All {ml} endpoints have the following base:
 
+[source,js]
 ----
 /_xpack/ml/
 ----

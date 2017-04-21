@@ -97,6 +97,7 @@ POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_start
 // TEST[skip:todo]
 
 When the job opens, you receive the following results:
+[source,js]
 ----
 {
   "started": true

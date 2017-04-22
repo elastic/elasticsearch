@@ -43,7 +43,8 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
     public void testConnectSucceeds() throws IOException, InterruptedException {
         InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress);
-        new Thread(wrappedRunnable(() -> ensureConnect(socketChannel))).start();
+        Thread thread = new Thread(wrappedRunnable(() -> ensureConnect(socketChannel)));
+        thread.start();
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
         connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
 
@@ -52,13 +53,16 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertFalse(connectFuture.connectFailed());
         assertSame(connectFuture.getChannel(), socketChannel);
         assertNull(connectFuture.getException());
+
+        thread.join();
     }
 
     public void testConnectFails() throws IOException, InterruptedException {
         mockServerSocket.close();
         InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress);
-        new Thread(wrappedRunnable(() -> ensureConnect(socketChannel))).start();
+        Thread thread = new Thread(wrappedRunnable(() -> ensureConnect(socketChannel)));
+        thread.start();
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
         connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
 
@@ -69,6 +73,8 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertThat(connectFuture.getException(), instanceOf(ConnectException.class));
         assertThat(connectFuture.getException().getMessage(), containsString("Connection refused"));
         assertNull(connectFuture.getChannel());
+
+        thread.join();
     }
 
     private void ensureConnect(NioSocketChannel nioSocketChannel) throws IOException {

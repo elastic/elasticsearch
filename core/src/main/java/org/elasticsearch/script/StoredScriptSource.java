@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -123,10 +122,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
          * Appends the user-defined compiler options with the internal compiler options.
          */
         private void setOptions(Map<String, String> options) {
-            if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
-                throw new IllegalArgumentException(Script.CONTENT_TYPE_OPTION + " cannot be user-specified");
-            }
-
             this.options.putAll(options);
         }
 
@@ -265,9 +260,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     } else {
                         try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
                             builder.copyCurrentStructure(parser);
-
-                            return new StoredScriptSource(lang, builder.string(),
-                                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
+                            return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
                         }
                     }
 
@@ -283,8 +276,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     token = parser.nextToken();
 
                     if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(lang, parser.text(),
-                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
+                        return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                     }
                 }
 
@@ -296,9 +288,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     } else {
                         builder.copyCurrentStructure(parser);
                     }
-
-                    return new StoredScriptSource(lang, builder.string(),
-                        Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
+                    return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {

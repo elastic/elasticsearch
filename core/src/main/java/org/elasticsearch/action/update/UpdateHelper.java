@@ -216,8 +216,6 @@ public class UpdateHelper extends AbstractComponent {
                 ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE);
                 executableScript.setNextVar("ctx", ctx);
                 executableScript.run();
-                // we need to unwrap the ctx...
-                ctx = (Map<String, Object>) executableScript.unwrap(ctx);
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);

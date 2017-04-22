@@ -351,7 +351,8 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public final ExecutableScript getExecutableScript(Script script, ScriptContext context) {
         failIfFrozen();
-        return scriptService.executable(script, context);
+        CompiledScript compiledScript = scriptService.compile(script, context);
+        return scriptService.executable(compiledScript, script.getParams());
     }
 
     /**

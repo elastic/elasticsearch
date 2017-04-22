@@ -284,6 +284,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * The given url must be {@code https} and existing means a {@code HEAD} request returns 200.
      */
     // pkg private for tests to manipulate
+    @SuppressForbidden(reason = "Make HEAD request using URLConnection.connect()")
     boolean urlExists(Terminal terminal, String urlString) throws IOException {
         terminal.println(VERBOSE, "Checking if url exists: " + urlString);
         assert urlString.startsWith("https://") : "Only http urls can be checked";

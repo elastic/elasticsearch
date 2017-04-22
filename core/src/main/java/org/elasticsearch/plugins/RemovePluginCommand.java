@@ -34,6 +34,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
@@ -92,7 +94,9 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          * Add the contents of the plugin directory before creating the marker file and adding it to the list of paths to be deleted so
          * that the marker file is the last file to be deleted.
          */
-        Files.list(pluginDir).forEach(pluginPaths::add);
+        try (Stream<Path> paths = Files.list(pluginDir)) {
+            pluginPaths.addAll(paths.collect(Collectors.toList()));
+        }
         try {
             Files.createFile(removing);
         } catch (final FileAlreadyExistsException e) {
@@ -104,9 +108,9 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         }
         // now add the marker file
         pluginPaths.add(removing);
+        // finally, add the plugin directory
+        pluginPaths.add(pluginDir);
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
-        // at this point, the plugin directory is empty and we can execute a simple directory removal
-        Files.delete(pluginDir);
 
         // we preserve the config files in case the user is upgrading the plugin, but we print
         // a message so the user knows in case they want to remove manually

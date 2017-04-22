@@ -346,7 +346,9 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testExecutableCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        CompiledScript compiledScript = scriptService.compile(script, randomFrom(scriptContexts));
+        scriptService.executable(compiledScript, script.getParams());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -371,8 +373,9 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
-        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        scriptService.compile(script, randomFrom(scriptContexts));
+        scriptService.compile(script, randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -394,8 +397,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
-        scriptService.executable(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(scriptContexts));
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
     }

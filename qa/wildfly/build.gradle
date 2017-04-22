@@ -35,7 +35,7 @@ final String wildflyInstall = "${buildDir}/wildfly/wildfly-${wildflyVersion}"
 // TODO: use ephemeral ports
 final int portOffset = 30000
 final int managementPort = 9990 + portOffset
-// we skip these tests on Windows so we do no need to worry about compatibility here
+// we skip these tests on Windows so we do not need to worry about compatibility here
 final String stopWildflyCommand = "${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${managementPort} --connect command=:shutdown"
 
 repositories {
@@ -88,11 +88,10 @@ task deploy(type: Copy) {
 }
 
 task writeElasticsearchProperties {
-    onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
+    onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) && project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_8 }
     dependsOn 'integTestCluster#wait', deploy
     doLast {
-        final File elasticsearchProperties =
-                file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
+        final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
         elasticsearchProperties.write(
                 [
                         "transport.uri=${-> integTest.getNodes().get(0).transportUri()}",
@@ -146,7 +145,7 @@ task startWildfly {
 
 task configureTransportClient(type: LoggedExec) {
     dependsOn startWildfly
-    // we skip these tests on Windows so we do no need to worry about compatibility here
+    // we skip these tests on Windows so we do not need to worry about compatibility here
     commandLine "${wildflyInstall}/bin/jboss-cli.sh",
             "--controller=localhost:${managementPort}",
             "--connect",
@@ -157,7 +156,7 @@ task stopWildfly(type: LoggedExec) {
     commandLine stopWildflyCommand.split(' ')
 }
 
-if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (!Os.isFamily(Os.FAMILY_WINDOWS) && project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_8) {
     integTestRunner.dependsOn(configureTransportClient)
     final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
         @Override

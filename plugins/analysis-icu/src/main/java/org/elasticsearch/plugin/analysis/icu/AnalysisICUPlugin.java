@@ -31,7 +31,7 @@ import org.elasticsearch.index.analysis.IcuTokenizerFactory;
 import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.ICUCollationFieldMapper;
+import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -67,7 +67,7 @@ public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ICUCollationFieldMapper.CONTENT_TYPE, new ICUCollationFieldMapper.TypeParser());
+        return Collections.singletonMap(ICUCollationKeywordFieldMapper.CONTENT_TYPE, new ICUCollationKeywordFieldMapper.TypeParser());
     }
 
     @Override
@@ -75,8 +75,8 @@ public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperP
         return Collections.singletonList(
             new NamedWriteableRegistry.Entry(
                 DocValueFormat.class,
-                ICUCollationFieldMapper.CollationFieldType.COLLATE_FORMAT.getWriteableName(),
-                in -> ICUCollationFieldMapper.CollationFieldType.COLLATE_FORMAT
+                ICUCollationKeywordFieldMapper.CollationFieldType.COLLATE_FORMAT.getWriteableName(),
+                in -> ICUCollationKeywordFieldMapper.CollationFieldType.COLLATE_FORMAT
             )
         );
     }

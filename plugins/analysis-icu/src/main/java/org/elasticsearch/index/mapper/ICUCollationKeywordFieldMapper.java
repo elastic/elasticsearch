@@ -20,16 +20,20 @@
 package org.elasticsearch.index.mapper;
 
 import com.ibm.icu.text.Collator;
+import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-import org.apache.lucene.collation.ICUCollationDocValuesField;
-import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -45,26 +49,35 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class ICUCollationFieldMapper extends FieldMapper {
+public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "icu_collation";
+    public static final String CONTENT_TYPE = "icu_collation_keyword";
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new CollationFieldType();
+
+        static {
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.freeze();
+        }
+
+        public static final String NULL_VALUE = null;
     }
 
     public static final class CollationFieldType extends StringFieldType {
+        private final Object collatorLock = new Object();
+        private Collator collator = null;
+
         public CollationFieldType() {
-            setStored(false);
-            setTokenized(false);
-            setIndexOptions(IndexOptions.NONE);
-            setHasDocValues(true);
-            setDocValuesType(DocValuesType.SORTED);
-            freeze();
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected CollationFieldType(CollationFieldType ref) {
             super(ref);
+            this.collator = ref.collator;
         }
 
         public CollationFieldType clone() {
@@ -72,14 +85,71 @@ public class ICUCollationFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean equals(Object o) {
+            return super.equals(o) && Objects.equals(collator, ((CollationFieldType) o).collator);
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(otherFT, conflicts, strict);
+            CollationFieldType other = (CollationFieldType) otherFT;
+            if (!Objects.equals(collator, other.collator)) {
+                conflicts.add("mapper [" + name() + "] has different [collator]");
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hashCode(collator);
+        }
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public Collator collator() {
+            return collator;
+        }
+
+        public void setCollator(Collator collator) {
+            checkIfFrozen();
+            this.collator = collator;
+        }
+
+        @Override
+        public Query nullValueQuery() {
+            if (nullValue() == null) {
+                return null;
+            }
+            return termQuery(nullValue(), null);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        protected BytesRef indexedValueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof BytesRef) {
+                value = ((BytesRef) value).utf8ToString();
+            }
+
+            if (collator != null) {
+                RawCollationKey key;
+                synchronized (collatorLock) {
+                    key = collator.getRawCollationKey(value.toString(), null);
+                }
+
+                return new BytesRef(key.bytes, 0, key.size);
+            } else {
+                throw new IllegalStateException("collator is null");
+            }
         }
 
         public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -94,12 +164,12 @@ public class ICUCollationFieldMapper extends FieldMapper {
 
             @Override
             public String format(long value) {
-                return Long.toString(value);
+                throw new UnsupportedOperationException();
             }
 
             @Override
             public String format(double value) {
-                return Double.toString(value);
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -112,18 +182,12 @@ public class ICUCollationFieldMapper extends FieldMapper {
 
             @Override
             public long parseLong(String value, boolean roundUp, LongSupplier now) {
-                double d = Double.parseDouble(value);
-                if (roundUp) {
-                    d = Math.ceil(d);
-                } else {
-                    d = Math.floor(d);
-                }
-                return Math.round(d);
+                throw new UnsupportedOperationException();
             }
 
             @Override
             public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-                return Double.parseDouble(value);
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -142,7 +206,7 @@ public class ICUCollationFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ICUCollationFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, ICUCollationKeywordFieldMapper> {
         private String rules = null;
         private String language = null;
         private String country = null;
@@ -155,6 +219,27 @@ public class ICUCollationFieldMapper extends FieldMapper {
         private boolean numeric = false;
         private String variableTop = null;
         private boolean hiraganaQuaternaryMode = false;
+        private String nullValue = Defaults.NULL_VALUE;
+
+        public Builder(String name) {
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            builder = this;
+        }
+
+        @Override
+        public CollationFieldType fieldType() {
+            return (CollationFieldType) super.fieldType();
+        }
+
+        @Override
+        public Builder indexOptions(IndexOptions indexOptions) {
+            if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
+                throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support positions, got [index_options]="
+                    + indexOptionToString(indexOptions));
+            }
+
+            return super.indexOptions(indexOptions);
+        }
 
         public String rules() {
             return rules;
@@ -264,17 +349,109 @@ public class ICUCollationFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
+        public Collator buildCollator() {
+            Collator collator;
+            if (rules != null) {
+                try {
+                    collator = new RuleBasedCollator(rules);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to parse collation rules", e);
+                }
+            } else {
+                if (language != null) {
+                    ULocale locale;
+                    if (country != null) {
+                        if (variant != null) {
+                            locale = new ULocale(language, country, variant);
+                        } else {
+                            locale = new ULocale(language, country);
+                        }
+                    } else {
+                        locale = new ULocale(language);
+                    }
+                    collator = Collator.getInstance(locale);
+                } else {
+                    collator = Collator.getInstance();
+                }
+            }
+
+            // set the strength flag, otherwise it will be the default.
+            if (strength != null) {
+                if (strength.equalsIgnoreCase("primary")) {
+                    collator.setStrength(Collator.PRIMARY);
+                } else if (strength.equalsIgnoreCase("secondary")) {
+                    collator.setStrength(Collator.SECONDARY);
+                } else if (strength.equalsIgnoreCase("tertiary")) {
+                    collator.setStrength(Collator.TERTIARY);
+                } else if (strength.equalsIgnoreCase("quaternary")) {
+                    collator.setStrength(Collator.QUATERNARY);
+                } else if (strength.equalsIgnoreCase("identical")) {
+                    collator.setStrength(Collator.IDENTICAL);
+                } else {
+                    throw new IllegalArgumentException("Invalid strength: " + strength);
+                }
+            }
+
+            // set the decomposition flag, otherwise it will be the default.
+            if (decomposition != null) {
+                if (decomposition.equalsIgnoreCase("no")) {
+                    collator.setDecomposition(Collator.NO_DECOMPOSITION);
+                } else if (decomposition.equalsIgnoreCase("canonical")) {
+                    collator.setDecomposition(Collator.CANONICAL_DECOMPOSITION);
+                } else {
+                    throw new IllegalArgumentException("Invalid decomposition: " + decomposition);
+                }
+            }
+
+            // expert options: concrete subclasses are always a RuleBasedCollator
+            RuleBasedCollator rbc = (RuleBasedCollator) collator;
+            if (alternate != null) {
+                if (alternate.equalsIgnoreCase("shifted")) {
+                    rbc.setAlternateHandlingShifted(true);
+                } else if (alternate.equalsIgnoreCase("non-ignorable")) {
+                    rbc.setAlternateHandlingShifted(false);
+                } else {
+                    throw new IllegalArgumentException("Invalid alternate: " + alternate);
+                }
+            }
+
+            if (caseLevel) {
+                rbc.setCaseLevel(true);
+            }
+
+            if (caseFirst != null) {
+                if (caseFirst.equalsIgnoreCase("lower")) {
+                    rbc.setLowerCaseFirst(true);
+                } else if (caseFirst.equalsIgnoreCase("upper")) {
+                    rbc.setUpperCaseFirst(true);
+                } else {
+                    throw new IllegalArgumentException("Invalid caseFirst: " + caseFirst);
+                }
+            }
+
+            if (numeric) {
+                rbc.setNumericCollation(true);
+            }
+
+            if (variableTop != null) {
+                rbc.setVariableTop(variableTop);
+            }
+
+            if (hiraganaQuaternaryMode) {
+                rbc.setHiraganaQuaternary(true);
+            }
+
+            return collator;
         }
 
         @Override
-        public ICUCollationFieldMapper build(BuilderContext context) {
+        public ICUCollationKeywordFieldMapper build(BuilderContext context) {
+            final Collator collator = buildCollator();
+            fieldType().setCollator(collator);
             setupFieldType(context);
-            return new ICUCollationFieldMapper(name, fieldType, defaultFieldType, context.indexSettings(),
+            return new ICUCollationKeywordFieldMapper(name, fieldType, defaultFieldType, context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
-                alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode);
+                alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, collator);
         }
     }
 
@@ -283,20 +460,23 @@ public class ICUCollationFieldMapper extends FieldMapper {
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Builder builder = new Builder(name);
-
-            if (node.get("doc_values") != null) {
-                throw new MapperParsingException("Setting [doc_values] cannot be modified for field [" + name + "]");
-            }
-
-            if (node.get("index") != null) {
-                throw new MapperParsingException("Setting [index] cannot be modified for field [" + name + "]");
-            }
-
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext(); ) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 switch (fieldName) {
+                    case "null_value":
+                        if (fieldNode == null) {
+                            throw new MapperParsingException("Property [null_value] cannot be null.");
+                        }
+                        builder.nullValue(fieldNode.toString());
+                        iterator.remove();
+                        break;
+                    case "norms":
+                        builder.omitNorms(!XContentMapValues.nodeBooleanValue(fieldNode, "norms"));
+                        iterator.remove();
+                        break;
                     case "rules":
                         builder.rules(XContentMapValues.nodeStringValue(fieldNode, null));
                         iterator.remove();
@@ -350,7 +530,6 @@ public class ICUCollationFieldMapper extends FieldMapper {
                 }
             }
 
-            TypeParsers.parseField(builder, name, node, parserContext);
             return builder;
         }
     }
@@ -369,14 +548,11 @@ public class ICUCollationFieldMapper extends FieldMapper {
     private final boolean hiraganaQuaternaryMode;
     private final Collator collator;
 
-    // each thread needs its own ICUCollationDocValuesField because the internally cloned collator is not thread-safe
-    private final ThreadLocal<ICUCollationDocValuesField> perThreadICUCollationField;
-
-    protected ICUCollationFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                      Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
-                                      String country, String variant,
-                                      String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
-                                      boolean numeric, String variableTop, boolean hiraganaQuaternaryMode) {
+    protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
+                                             String country, String variant,
+                                             String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
+                                             boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.rules = rules;
         this.language = language;
@@ -390,103 +566,17 @@ public class ICUCollationFieldMapper extends FieldMapper {
         this.numeric = numeric;
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
-        this.collator = buildCollator();
-        this.perThreadICUCollationField = ThreadLocal.withInitial(() -> new ICUCollationDocValuesField(name(), collator));
+        this.collator = collator;
     }
 
-    public Collator buildCollator() {
-        Collator collator;
-        if (rules != null) {
-            try {
-                collator = new RuleBasedCollator(rules);
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Failed to parse collation rules", e);
-            }
-        } else {
-            if (language != null) {
-                ULocale locale;
-                if (country != null) {
-                    if (variant != null) {
-                        locale = new ULocale(language, country, variant);
-                    } else {
-                        locale = new ULocale(language, country);
-                    }
-                } else {
-                    locale = new ULocale(language);
-                }
-                collator = Collator.getInstance(locale);
-            } else {
-                collator = Collator.getInstance();
-            }
-        }
+    @Override
+    protected ICUCollationKeywordFieldMapper clone() {
+        return (ICUCollationKeywordFieldMapper) super.clone();
+    }
 
-        // set the strength flag, otherwise it will be the default.
-        if (strength != null) {
-            if (strength.equalsIgnoreCase("primary")) {
-                collator.setStrength(Collator.PRIMARY);
-            } else if (strength.equalsIgnoreCase("secondary")) {
-                collator.setStrength(Collator.SECONDARY);
-            } else if (strength.equalsIgnoreCase("tertiary")) {
-                collator.setStrength(Collator.TERTIARY);
-            } else if (strength.equalsIgnoreCase("quaternary")) {
-                collator.setStrength(Collator.QUATERNARY);
-            } else if (strength.equalsIgnoreCase("identical")) {
-                collator.setStrength(Collator.IDENTICAL);
-            } else {
-                throw new IllegalArgumentException("Invalid strength: " + strength);
-            }
-        }
-
-        // set the decomposition flag, otherwise it will be the default.
-        if (decomposition != null) {
-            if (decomposition.equalsIgnoreCase("no")) {
-                collator.setDecomposition(Collator.NO_DECOMPOSITION);
-            } else if (decomposition.equalsIgnoreCase("canonical")) {
-                collator.setDecomposition(Collator.CANONICAL_DECOMPOSITION);
-            } else {
-                throw new IllegalArgumentException("Invalid decomposition: " + decomposition);
-            }
-        }
-
-        // expert options: concrete subclasses are always a RuleBasedCollator
-        RuleBasedCollator rbc = (RuleBasedCollator) collator;
-        if (alternate != null) {
-            if (alternate.equalsIgnoreCase("shifted")) {
-                rbc.setAlternateHandlingShifted(true);
-            } else if (alternate.equalsIgnoreCase("non-ignorable")) {
-                rbc.setAlternateHandlingShifted(false);
-            } else {
-                throw new IllegalArgumentException("Invalid alternate: " + alternate);
-            }
-        }
-
-        if (caseLevel) {
-            rbc.setCaseLevel(true);
-        }
-
-        if (caseFirst != null) {
-            if (caseFirst.equalsIgnoreCase("lower")) {
-                rbc.setLowerCaseFirst(true);
-            } else if (caseFirst.equalsIgnoreCase("upper")) {
-                rbc.setUpperCaseFirst(true);
-            } else {
-                throw new IllegalArgumentException("Invalid caseFirst: " + caseFirst);
-            }
-        }
-
-        if (numeric) {
-            rbc.setNumericCollation(true);
-        }
-
-        if (variableTop != null) {
-            rbc.setVariableTop(variableTop);
-        }
-
-        if (hiraganaQuaternaryMode) {
-            rbc.setHiraganaQuaternary(true);
-        }
-
-        return collator;
+    @Override
+    public CollationFieldType fieldType() {
+        return (CollationFieldType) super.fieldType();
     }
 
     @Override
@@ -496,8 +586,10 @@ public class ICUCollationFieldMapper extends FieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+
         List<String> conflicts = new ArrayList<>();
-        ICUCollationFieldMapper icuMergeWith = (ICUCollationFieldMapper) mergeWith;
+        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
 
         if (!Objects.equals(rules, icuMergeWith.rules)) {
             conflicts.add("Cannot update rules setting for [" + CONTENT_TYPE + "]");
@@ -556,68 +648,91 @@ public class ICUCollationFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (rules != null) {
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
+        }
+
+        if (includeDefaults || rules != null) {
             builder.field("rules", rules);
         }
 
-        if (language != null) {
+        if (includeDefaults || language != null) {
             builder.field("language", language);
         }
 
-        if (country != null) {
+        if (includeDefaults || country != null) {
             builder.field("country", country);
         }
 
-        if (variant != null) {
+        if (includeDefaults || variant != null) {
             builder.field("variant", variant);
         }
 
-        if (strength != null) {
+        if (includeDefaults || strength != null) {
             builder.field("strength", strength);
         }
 
-        if (decomposition != null) {
+        if (includeDefaults || decomposition != null) {
             builder.field("decomposition", decomposition);
         }
 
-        if (alternate != null) {
+        if (includeDefaults || alternate != null) {
             builder.field("alternate", alternate);
         }
 
-        if (caseLevel) {
+        if (includeDefaults || caseLevel) {
             builder.field("caseLevel", caseLevel);
         }
 
-        if (caseFirst != null) {
+        if (includeDefaults || caseFirst != null) {
             builder.field("caseFirst", caseFirst);
         }
 
-        if (numeric) {
+        if (includeDefaults || numeric) {
             builder.field("numeric", numeric);
         }
 
-        if (variableTop != null) {
+        if (includeDefaults || variableTop != null) {
             builder.field("variableTop", variableTop);
         }
 
-        if (hiraganaQuaternaryMode) {
+        if (includeDefaults || hiraganaQuaternaryMode) {
             builder.field("hiraganaQuaternaryMode", hiraganaQuaternaryMode);
         }
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final Object value;
+        final String value;
         if (context.externalValueSet()) {
-            value = context.externalValue();
+            value = context.externalValue().toString();
         } else {
-            value = context.parser().textOrNull();
+            XContentParser parser = context.parser();
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                value = fieldType().nullValueAsString();
+            } else {
+                value = parser.textOrNull();
+            }
         }
 
-        if (value != null) {
-            ICUCollationDocValuesField icuCollationField = perThreadICUCollationField.get();
-            icuCollationField.setStringValue(Objects.toString(value));
-            fields.add(icuCollationField);
+        if (value == null) {
+            return;
+        }
+
+        RawCollationKey key;
+        synchronized (collator) {
+            key = collator.getRawCollationKey(value, null);
+        }
+
+        final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
+
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            Field field = new Field(fieldType().name(), binaryValue, fieldType());
+            fields.add(field);
+        }
+
+        if (fieldType().hasDocValues()) {
+            fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
         }
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,7 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.Collections;
 
-public class ICUCollationFieldMapperIT extends ESIntegTestCase {
+public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -57,10 +58,12 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
+        String[] equilavent = {"I WİLL USE TURKİSH CASING", "ı will use turkish casıng"};
+
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "tr")
             .field("strength", "primary")
             .endObject()
@@ -70,15 +73,17 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
 
         // both values should collate to same value
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"I WİLL USE TURKİSH CASING\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"ı will use turkish casıng\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
         );
 
+        // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest()
             .indices(index)
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
                 .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
@@ -96,10 +101,12 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
+        String[] equilavent = {"I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng"};
+
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "tr")
             .field("strength", "primary")
             .field("decomposition", "canonical")
@@ -109,16 +116,17 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1")
-                .setSource("{\"collate\":\"I W\u0049\u0307LL USE TURKİSH CASING\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"ı will use turkish casıng\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
         );
 
+        // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest()
             .indices(index)
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
                 .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
@@ -136,10 +144,12 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
+        String[] equilavent = {"TESTING", "testing"};
+
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "secondary")
             .field("decomposition", "no")
@@ -149,8 +159,8 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"TESTING\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"testing\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest()
@@ -158,6 +168,7 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
                 .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
@@ -176,10 +187,12 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
+        String[] equilavent = {"foo-bar", "foo bar"};
+
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "primary")
             .field("alternate", "shifted")
@@ -189,8 +202,8 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"foo-bar\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"foo bar\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest()
@@ -198,6 +211,7 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
                 .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
@@ -219,11 +233,12 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "primary")
             .field("alternate", "shifted")
             .field("variableTop", " ")
+            .field("index", false)
             .endObject()
             .endObject().endObject();
 
@@ -261,9 +276,10 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("numeric", true)
+            .field("index", false)
             .endObject()
             .endObject().endObject();
 
@@ -299,10 +315,11 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "primary")
             .field("caseLevel", true)
+            .field("index", false)
             .endObject()
             .endObject().endObject();
 
@@ -341,10 +358,11 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "tertiary")
             .field("caseFirst", "upper")
+            .field("index", false)
             .endObject()
             .endObject().endObject();
 
@@ -389,10 +407,12 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         RuleBasedCollator tailoredCollator = new RuleBasedCollator(baseCollator.getRules() + DIN5007_2_tailorings);
         String tailoredRules = tailoredCollator.getRules();
 
+        String[] equilavent = {"Töne", "Toene"};
+
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
             .startObject("collate")
-            .field("type", "icu_collation")
+            .field("type", "icu_collation_keyword")
             .field("rules", tailoredRules)
             .field("strength", "primary")
             .endObject()
@@ -401,8 +421,8 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"Töne\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"Toene\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest()
@@ -410,6 +430,7 @@ public class ICUCollationFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate", SortOrder.ASC)
                 .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );

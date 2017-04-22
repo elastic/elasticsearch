@@ -37,6 +37,16 @@
  - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
 
 ---
+"Verify that we can still find things with the template":
+  - do:
+      search_template:
+        body:
+          id: test_search_template
+          params:
+            f1: v5_old
+  - match: { hits.total: 1 }
+
+---
 "Verify custom cluster metadata still exists after rolling upgrade":
   - do:
       snapshot.get_repository:

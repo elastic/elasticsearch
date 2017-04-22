@@ -37,6 +37,16 @@
  - match: { hits.total: 10 } # 5 docs from old cluster, 5 docs from mixed cluster
 
 ---
+"Verify that we can still find things with the template":
+  - do:
+      search_template:
+        body:
+          id: test_search_template
+          params:
+            f1: v5_old
+  - match: { hits.total: 1 }
+
+---
 "Verify custom cluster metadata still exists during upgrade":
   - do:
       snapshot.get_repository:

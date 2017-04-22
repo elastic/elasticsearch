@@ -114,21 +114,22 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          */
         try (Stream<Path> paths = Files.list(pluginDir)) {
             pluginPaths.addAll(paths.collect(Collectors.toList()));
-            try {
-                Files.createFile(removing);
-            } catch (final FileAlreadyExistsException e) {
-                /*
-                 * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed
-                 * and the user is attempting to remove the plugin again.
-                 */
-                terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
-            }
-            // now add the marker file
-            pluginPaths.add(removing);
-            // finally, delete the plugin directory
-            pluginPaths.add(pluginDir);
-            IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
         }
+        try {
+            Files.createFile(removing);
+        } catch (final FileAlreadyExistsException e) {
+            /*
+             * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed and
+             * the user is attempting to remove the plugin again.
+             */
+            terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
+        }
+        // now add the marker file
+        pluginPaths.add(removing);
+        // finally, delete the plugin directory
+        pluginPaths.add(pluginDir);
+        IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
+
 
         /*
          * We preserve the config files in case the user is upgrading the plugin, but we print a

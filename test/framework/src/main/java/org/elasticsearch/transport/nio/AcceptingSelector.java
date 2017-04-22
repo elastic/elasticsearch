@@ -53,22 +53,16 @@ public class AcceptingSelector extends ESSelector {
     public void doSelect(int timeout) throws IOException, ClosedSelectorException {
         setUpNewServerChannels();
 
-        try {
-            int ready = selector.select(timeout);
-            if (ready > 0) {
-                Set<SelectionKey> selectionKeys = selector.selectedKeys();
-                Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
-                while (keyIterator.hasNext()) {
-                    SelectionKey sk = keyIterator.next();
-                    keyIterator.remove();
-                    acceptChannel(sk);
-                }
+        int ready = selector.select(timeout);
+        if (ready > 0) {
+            Set<SelectionKey> selectionKeys = selector.selectedKeys();
+            Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
+            while (keyIterator.hasNext()) {
+                SelectionKey sk = keyIterator.next();
+                keyIterator.remove();
+                acceptChannel(sk);
             }
-        } catch (ClosedSelectorException e) {
-            if (isRunning()) {
-                throw e;
             }
-        }
     }
 
     @Override

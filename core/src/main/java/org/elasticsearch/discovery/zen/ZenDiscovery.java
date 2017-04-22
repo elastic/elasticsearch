@@ -47,6 +47,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -580,8 +581,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
 
             final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-            if (!electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes())) {
-                rejoin.accept("not enough master nodes");
+            if (electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes()) == false) {
+                final int masterNodes = electMasterService.countMasterNodes(remainingNodesClusterState.nodes());
+                rejoin.accept(LoggerMessageFormat.format("not enough master nodes (has [{}], but needed [{}])",
+                                                         masterNodes, electMasterService.minimumMasterNodes()));
                 return resultBuilder.build(currentState);
             } else {
                 return resultBuilder.build(allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks)));
@@ -920,7 +923,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 return winner.getNode();
             } else {
                 // if we don't have enough master nodes, we bail, because there are not enough master to elect from
-                logger.trace("not enough master nodes [{}]", masterCandidates);
+                logger.warn("not enough master nodes discovered during pinging (found [{}], but needed [{}]), pinging again",
+                            masterCandidates, electMaster.minimumMasterNodes());
                 return null;
             }
         } else {

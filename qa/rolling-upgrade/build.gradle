@@ -39,11 +39,10 @@ oldClusterTestRunner {
   systemProperty 'tests.rest.suite', 'old_cluster'
 }
 
-task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(oldClusterTestRunner, 'oldClusterTestCluster#node1.stop')
-}
+task mixedClusterTest(type: RestIntegTestTask) {}
 
 mixedClusterTestCluster {
+  dependsOn oldClusterTestRunner, 'oldClusterTestCluster#node1.stop'
   distribution = 'zip'
   clusterName = 'rolling-upgrade'
   unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }

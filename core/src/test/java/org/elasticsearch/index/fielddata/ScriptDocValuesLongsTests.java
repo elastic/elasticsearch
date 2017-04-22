@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
+import java.io.IOException;
+
 public class ScriptDocValuesLongsTests extends ESTestCase {
-    public void testLongs() {
+    public void testLongs() throws IOException {
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
@@ -54,7 +55,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         }
     }
 
-    public void testDates() {
+    public void testDates() throws IOException {
         long[][] values = new long[between(3, 10)][];
         ReadableDateTime[][] dates = new ReadableDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {
@@ -87,20 +88,23 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
     }
 
     private Longs wrap(long[][] values) {
-        return new Longs(new SortedNumericDocValues() {
+        return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
+            int i;
 
             @Override
-            public void setDocument(int doc) {
+            public boolean advanceExact(int doc) {
+                i = 0;
                 current = values[doc];
+                return current.length > 0;
             }
             @Override
-            public int count() {
+            public int docValueCount() {
                 return current.length;
             }
             @Override
-            public long valueAt(int index) {
-                return current[index];
+            public long nextValue() {
+                return current[i++];
             }
         });
     }

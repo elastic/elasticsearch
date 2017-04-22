@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
@@ -44,6 +44,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
@@ -107,7 +108,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     /**
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
      */
-    static class IndexFieldCache implements IndexFieldDataCache, SegmentReader.CoreClosedListener, IndexReader.ReaderClosedListener {
+    static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
         private final Logger logger;
         final Index index;
         final String fieldName;
@@ -125,10 +126,14 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context, final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
-            final Key key = new Key(this, context.reader().getCoreCacheKey(), shardId);
+            final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
+            if (cacheHelper == null) {
+                throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
+            }
+            final Key key = new Key(this, cacheHelper.getKey(), shardId);
             //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
-                context.reader().addCoreClosedListener(IndexFieldCache.this);
+                cacheHelper.addClosedListener(IndexFieldCache.this);
                 for (Listener listener : this.listeners) {
                     k.listeners.add(listener);
                 }
@@ -149,7 +154,11 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader, final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
-            final Key key = new Key(this, indexReader.getCoreCacheKey(), shardId);
+            final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
+            if (cacheHelper == null) {
+                throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
+            }
+            final Key key = new Key(this, cacheHelper.getKey(), shardId);
             //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
@@ -171,14 +180,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public void onClose(Object coreKey) {
-            cache.invalidate(new Key(this, coreKey, null));
-            // don't call cache.cleanUp here as it would have bad performance implications
-        }
-
-        @Override
-        public void onClose(IndexReader reader) {
-            cache.invalidate(new Key(this, reader.getCoreCacheKey(), null));
+        public void onClose(CacheKey key) throws IOException {
+            cache.invalidate(new Key(this, key, null));
             // don't call cache.cleanUp here as it would have bad performance implications
         }
 
@@ -211,12 +214,12 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
     public static class Key {
         public final IndexFieldCache indexCache;
-        public final Object readerKey;
+        public final IndexReader.CacheKey readerKey;
         public final ShardId shardId;
 
         public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>();
 
-        Key(IndexFieldCache indexCache, Object readerKey, @Nullable ShardId shardId) {
+        Key(IndexFieldCache indexCache, IndexReader.CacheKey readerKey, @Nullable ShardId shardId) {
             this.indexCache = indexCache;
             this.readerKey = readerKey;
             this.shardId = shardId;

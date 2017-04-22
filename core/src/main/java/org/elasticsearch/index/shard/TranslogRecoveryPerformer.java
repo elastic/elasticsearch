@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -31,7 +30,6 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
 
@@ -182,7 +180,7 @@ public class TranslogRecoveryPerformer {
                     final String reason = noOp.reason();
                     logger.trace("[translog] recover [no_op] op [({}, {})] of [{}]", seqNo, primaryTerm, reason);
                     final Engine.NoOp engineNoOp =
-                        new Engine.NoOp(null, seqNo, primaryTerm, 0, VersionType.INTERNAL, origin, System.nanoTime(), reason);
+                        new Engine.NoOp(seqNo, primaryTerm, origin, System.nanoTime(), reason);
                     noOp(engine, engineNoOp);
                     break;
                 default:

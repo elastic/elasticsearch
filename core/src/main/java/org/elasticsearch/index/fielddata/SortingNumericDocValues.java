@@ -31,10 +31,12 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
 
     private int count;
     protected long[] values;
+    protected int valuesCursor;
     private final Sorter sorter;
 
     protected SortingNumericDocValues() {
         values = new long[1];
+        valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {
 
             @Override
@@ -52,12 +54,13 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     }
 
     /**
-     * Set the {@link #count()} and ensure that the {@link #values} array can
+     * Set the {@link #docValueCount()} and ensure that the {@link #values} array can
      * store at least that many entries.
      */
     protected final void resize(int newSize) {
         count = newSize;
         values = ArrayUtil.grow(values, count);
+        valuesCursor = 0;
     }
 
     /**
@@ -69,12 +72,12 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     }
 
     @Override
-    public final int count() {
+    public final int docValueCount() {
         return count;
     }
 
     @Override
-    public final long valueAt(int index) {
-        return values[index];
+    public final long nextValue() {
+        return values[valuesCursor++];
     }
 }

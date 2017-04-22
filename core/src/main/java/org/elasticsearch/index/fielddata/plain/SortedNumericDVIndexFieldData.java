@@ -148,9 +148,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
-     * the underlying single-valued NumericDocValues representation, and
-     * {@link DocValues#unwrapSingletonBits(SortedNumericDocValues)} will return
-     * a Bits matching documents that have a real value (as opposed to missing).
+     * the underlying single-valued NumericDocValues representation.
      */
     static final class SortedNumericLongFieldData extends AtomicLongFieldData {
         final LeafReader reader;
@@ -188,9 +186,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation, and
-     * {@link FieldData#unwrapSingletonBits(SortedNumericDoubleValues)} will return
-     * a Bits matching documents that have a real value (as opposed to missing).
+     * the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericHalfFloatFieldData extends AtomicDoubleFieldData {
         final LeafReader reader;
@@ -209,7 +205,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
-                    return FieldData.singleton(new SingleHalfFloatValues(single), DocValues.unwrapSingletonBits(raw));
+                    return FieldData.singleton(new SingleHalfFloatValues(single));
                 } else {
                     return new MultiHalfFloatValues(raw);
                 }
@@ -235,8 +231,13 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
 
         @Override
-        public double get(int docID) {
-            return HalfFloatPoint.sortableShortToHalfFloat((short) in.get(docID));
+        public double doubleValue() throws IOException {
+            return HalfFloatPoint.sortableShortToHalfFloat((short) in.longValue());
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            return in.advanceExact(doc);
         }
     }
 
@@ -251,18 +252,18 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
 
         @Override
-        public void setDocument(int doc) {
-            in.setDocument(doc);
+        public boolean advanceExact(int target) throws IOException {
+            return in.advanceExact(target);
         }
 
         @Override
-        public double valueAt(int index) {
-            return HalfFloatPoint.sortableShortToHalfFloat((short) in.valueAt(index));
+        public double nextValue() throws IOException {
+            return HalfFloatPoint.sortableShortToHalfFloat((short) in.nextValue());
         }
 
         @Override
-        public int count() {
-            return in.count();
+        public int docValueCount() {
+            return in.docValueCount();
         }
     }
 
@@ -277,9 +278,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation, and
-     * {@link FieldData#unwrapSingletonBits(SortedNumericDoubleValues)} will return
-     * a Bits matching documents that have a real value (as opposed to missing).
+     * the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericFloatFieldData extends AtomicDoubleFieldData {
         final LeafReader reader;
@@ -298,7 +297,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
-                    return FieldData.singleton(new SingleFloatValues(single), DocValues.unwrapSingletonBits(raw));
+                    return FieldData.singleton(new SingleFloatValues(single));
                 } else {
                     return new MultiFloatValues(raw);
                 }
@@ -324,8 +323,13 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
 
         @Override
-        public double get(int docID) {
-            return NumericUtils.sortableIntToFloat((int) in.get(docID));
+        public double doubleValue() throws IOException {
+            return NumericUtils.sortableIntToFloat((int) in.longValue());
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            return in.advanceExact(doc);
         }
     }
 
@@ -340,18 +344,18 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
 
         @Override
-        public void setDocument(int doc) {
-            in.setDocument(doc);
+        public boolean advanceExact(int target) throws IOException {
+            return in.advanceExact(target);
         }
 
         @Override
-        public double valueAt(int index) {
-            return NumericUtils.sortableIntToFloat((int) in.valueAt(index));
+        public double nextValue() throws IOException {
+            return NumericUtils.sortableIntToFloat((int) in.nextValue());
         }
 
         @Override
-        public int count() {
-            return in.count();
+        public int docValueCount() {
+            return in.docValueCount();
         }
     }
 
@@ -366,9 +370,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation, and
-     * {@link FieldData#unwrapSingletonBits(SortedNumericDoubleValues)} will return
-     * a Bits matching documents that have a real value (as opposed to missing).
+     * the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericDoubleFieldData extends AtomicDoubleFieldData {
         final LeafReader reader;

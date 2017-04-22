@@ -52,12 +52,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** terms enum for uid field */
     private final TermsEnum termsEnum;
-    /** _version data */
-    private final NumericDocValues versions;
-    /** _seq_no data */
-    private final NumericDocValues seqNos;
-    /** _primary_term data */
-    private final NumericDocValues primaryTerms;
+
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
 
@@ -72,30 +67,33 @@ final class PerThreadIDVersionAndSeqNoLookup {
         Terms terms = fields.terms(UidFieldMapper.NAME);
         termsEnum = terms.iterator();
         if (termsEnum == null) {
-            throw new IllegalArgumentException("reader misses the [" + UidFieldMapper.NAME +
-                "] field");
+            throw new IllegalArgumentException("reader misses the [" + UidFieldMapper.NAME + "] field");
         }
-        versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
-        if (versions == null) {
-            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME +
-                "] field");
+        if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
+            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
         }
-        seqNos = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
-        primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+
         Object readerKey = null;
-        assert (readerKey = reader.getCoreCacheKey()) != null;
+        assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
         this.readerKey = readerKey;
     }
 
     /** Return null if id is not found. */
     public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context)
         throws IOException {
-        assert context.reader().getCoreCacheKey().equals(readerKey) :
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, liveDocs);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            return new DocIdAndVersion(docID, versions.get(docID), context);
+            final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
+            if (versions == null) {
+                throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
+            }
+            if (versions.advanceExact(docID) == false) {
+                throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
+            }
+            return new DocIdAndVersion(docID, versions.longValue(), context);
         } else {
             return null;
         }
@@ -124,11 +122,18 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheKey().equals(readerKey) :
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, liveDocs);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            return new DocIdAndSeqNo(docID, seqNos == null ? SequenceNumbersService.UNASSIGNED_SEQ_NO : seqNos.get(docID), context);
+            NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            long seqNo;
+            if (seqNos != null && seqNos.advanceExact(docID)) {
+                seqNo = seqNos.longValue();
+            } else {
+                seqNo =  SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            }
+            return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;
         }
@@ -139,7 +144,12 @@ final class PerThreadIDVersionAndSeqNoLookup {
      *
      * Note that 0 is an illegal primary term. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
      **/
-    long lookUpPrimaryTerm(int docID) throws IOException {
-            return primaryTerms == null ? 0  : primaryTerms.get(docID);
+    long lookUpPrimaryTerm(int docID, LeafReader reader) throws IOException {
+        NumericDocValues primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        if (primaryTerms != null && primaryTerms.advanceExact(docID)) {
+            return primaryTerms.longValue();
+        } else {
+            return 0;
+        }
     }
 }

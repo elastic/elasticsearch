@@ -48,9 +48,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(new BytesRef("abc"), values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("abc"), values.nextValue());
         }
     }
 
@@ -70,16 +70,15 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-            values.setDocument(0);
-            assertEquals(0, values.count());
+            assertFalse(values.advanceExact(0));
 
             config = ValuesSourceConfig.resolve(
                     context, null, "bytes", null, "abc", null, null);
             valuesSource = config.toValuesSource(context);
             values = valuesSource.bytesValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(new BytesRef("abc"), values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("abc"), values.nextValue());
         }
     }
 
@@ -102,9 +101,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(new BytesRef("abc"), values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("abc"), values.nextValue());
         }
     }
 
@@ -124,9 +123,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(42, values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(42, values.nextValue());
         }
     }
 
@@ -146,16 +145,15 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(0, values.count());
+            assertFalse(values.advanceExact(0));
 
             config = ValuesSourceConfig.resolve(
                     context, null, "long", null, 42, null, null);
             valuesSource = config.toValuesSource(context);
             values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(42, values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(42, values.nextValue());
         }
     }
 
@@ -179,9 +177,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(42, values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(42, values.nextValue());
         }
     }
 
@@ -201,9 +199,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(1, values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(1, values.nextValue());
         }
     }
 
@@ -223,16 +221,15 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(0, values.count());
+            assertFalse(values.advanceExact(0));
 
             config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, true, null, null);
             valuesSource = config.toValuesSource(context);
             values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(1, values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(1, values.nextValue());
         }
     }
 
@@ -256,9 +253,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(1, values.valueAt(0));
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(1, values.nextValue());
         }
     }
 }

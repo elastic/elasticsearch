@@ -19,9 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -33,6 +41,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +53,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 
 public class ShrinkIndexIT extends ESIntegTestCase {
 
@@ -249,5 +259,77 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+    }
+
+    public void testCreateShrinkWithIndexSort() throws Exception {
+        SortField expectedSortField = new SortedSetSortField("id", true, SortedSetSelector.Type.MAX);
+        expectedSortField.setMissingValue(SortedSetSortField.STRING_FIRST);
+        Sort expectedIndexSort = new Sort(expectedSortField);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source")
+            .setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put("sort.field", "id")
+                    .put("sort.order", "desc")
+                    .put("number_of_shards", 8)
+                    .put("number_of_replicas", 0)
+            )
+            .addMapping("t1", "id", "type=keyword,doc_values=true")
+            .get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", "t1", Integer.toString(i))
+                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
+        }
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String mergeNode = discoveryNodes[0].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+
+        flushAndRefresh();
+        assertSortedSegments("source", expectedIndexSort);
+
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+
+        // check that index sort cannot be set on the target index
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareShrinkIndex("source", "target")
+                .setSettings(Settings.builder()
+                    .put("index.number_of_replicas", 0)
+                    .put("index.number_of_shards", "2")
+                    .put("index.sort.field", "foo")
+                    .build()).get());
+        assertThat(exc.getMessage(), containsString("can't override index sort when shrinking index"));
+
+        // check that the index sort order of `source` is correctly applied to the `target`
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
+            .setSettings(Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", "2").build()).get());
+        ensureGreen();
+        flushAndRefresh();
+        GetSettingsResponse settingsResponse =
+            client().admin().indices().prepareGetSettings("target").execute().actionGet();
+        assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
+        assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
+        assertSortedSegments("target", expectedIndexSort);
+
+        // ... and that the index sort is also applied to updates
+        for (int i = 20; i < 40; i++) {
+            client().prepareIndex("target", randomFrom("t1", "t2", "t3"))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+        }
+        flushAndRefresh();
+        assertSortedSegments("target", expectedIndexSort);
     }
 }

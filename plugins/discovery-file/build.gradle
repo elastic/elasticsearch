@@ -50,12 +50,10 @@ setupSeedNodeAndUnicastHostsFile.doLast {
 
 // second cluster, which will connect to the first via the unicast_hosts.txt file
 integTestCluster {
+    dependsOn setupSeedNodeAndUnicastHostsFile
     clusterName = 'discovery-file-test-cluster'
     extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
 }
 
 integTestRunner.finalizedBy ':plugins:discovery-file:initialCluster#stop'
 
-integTest {
-    dependsOn(setupSeedNodeAndUnicastHostsFile)
-}

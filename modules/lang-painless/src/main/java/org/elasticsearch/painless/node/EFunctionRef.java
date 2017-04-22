@@ -59,7 +59,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void analyze(Locals locals) {
         if (expected == null) {
             ref = null;
-            actual = Definition.getType("String");
+            actual = locals.getDefinition().getType("String");
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
@@ -79,7 +79,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     ref = new FunctionRef(expected, interfaceMethod, implMethod, 0);
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(expected, type, call, 0);
+                    ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
                 }
             } catch (IllegalArgumentException e) {
                 throw createError(e);

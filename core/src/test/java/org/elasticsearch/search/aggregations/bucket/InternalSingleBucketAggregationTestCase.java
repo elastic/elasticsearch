@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -47,14 +46,10 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
     protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         List<InternalAggregation> internal = new ArrayList<>();
         if (hasInternalMax) {
-            internal.add(new InternalMax("max", randomDouble(),
-                    randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), emptyList(),
-                    emptyMap()));
+            internal.add(new InternalMax("max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
         }
         if (hasInternalMin) {
-            internal.add(new InternalMin("min", randomDouble(),
-                    randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), emptyList(),
-                    emptyMap()));
+            internal.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
         }
         // we shouldn't use the full long range here since we sum doc count on reduce, and don't want to overflow the long range there
         long docCount = between(0, Integer.MAX_VALUE);

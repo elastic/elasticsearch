@@ -57,20 +57,25 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final Weight parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
-    // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray, but then we don't have the reuse feature of BigArrays.
-    // Also if we know the highest possible value that a parent agg will create then we store multiple values into one slot
+    // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray,
+    // but then we don't have the reuse feature of BigArrays.
+    // Also if we know the highest possible value that a parent agg will create
+    // then we store multiple values into one slot
     private final LongArray parentOrdToBuckets;
 
     // Only pay the extra storage price if the a parentOrd has multiple buckets
-    // Most of the times a parent doesn't have multiple buckets, since there is only one document per parent ord,
-    // only in the case of terms agg if a parent doc has multiple terms per field this is needed:
+    // Most of the times a parent doesn't have multiple buckets, since there is
+    // only one document per parent ord,
+    // only in the case of terms agg if a parent doc has multiple terms per
+    // field this is needed:
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    public ParentToChildrenAggregator(String name, AggregatorFactories factories, SearchContext context,
-                                      Aggregator parent, String parentType, Query childFilter, Query parentFilter,
-                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
-            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public ParentToChildrenAggregator(String name, AggregatorFactories factories,
+            SearchContext context, Aggregator parent, String parentType, Query childFilter,
+            Query parentFilter, ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
+            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.parentType = parentType;
         // these two filters are cached in the parser
@@ -84,13 +89,14 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
-                metaData());
+        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal),
+                bucketAggregations(owningBucketOrdinal), pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+        return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
+                metaData());
     }
 
     @Override
@@ -108,8 +114,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
             @Override
             public void collect(int docId, long bucket) throws IOException {
-                if (parentDocs.get(docId)) {
-                    long globalOrdinal = globalOrdinals.getOrd(docId);
+                if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
+                    long globalOrdinal = globalOrdinals.ordValue();
                     if (globalOrdinal != -1) {
                         if (parentOrdToBuckets.get(globalOrdinal) == -1) {
                             parentOrdToBuckets.set(globalOrdinal, bucket);
@@ -120,7 +126,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
                                 bucketOrds[bucketOrds.length - 1] = bucket;
                                 parentOrdToOtherBuckets.put(globalOrdinal, bucketOrds);
                             } else {
-                                parentOrdToOtherBuckets.put(globalOrdinal, new long[]{bucket});
+                                parentOrdToOtherBuckets.put(globalOrdinal, new long[] { bucket });
                             }
                             multipleBucketsPerParentOrd = true;
                         }
@@ -141,18 +147,21 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             DocIdSetIterator childDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
-            final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
+            final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType,
+                    ctx);
 
             // Set the scorer, since we now replay only the child docIds
-            sub.setScorer(new ConstantScoreScorer(null, 1f,childDocsIter));
+            sub.setScorer(new ConstantScoreScorer(null, 1f, childDocsIter));
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
-            for (int docId = childDocsIter.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
+            for (int docId = childDocsIter
+                    .nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter
+                            .nextDoc()) {
                 if (liveDocs != null && liveDocs.get(docId) == false) {
                     continue;
                 }
-                long globalOrdinal = globalOrdinals.getOrd(docId);
-                if (globalOrdinal != -1) {
+                if (globalOrdinals.advanceExact(docId)) {
+                    long globalOrdinal = globalOrdinals.ordValue();
                     long bucketOrd = parentOrdToBuckets.get(globalOrdinal);
                     if (bucketOrd != -1) {
                         collectBucket(sub, docId, bucketOrd);

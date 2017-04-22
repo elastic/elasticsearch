@@ -28,10 +28,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -187,7 +187,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         return NAME;
     }
 
-    private static class CellValues extends SortingNumericDocValues {
+    private static class CellValues extends AbstractSortingNumericDocValues {
         private MultiGeoPointValues geoValues;
         private int precision;
 
@@ -197,14 +197,19 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         }
 
         @Override
-        public void setDocument(int docId) {
-            geoValues.setDocument(docId);
-            resize(geoValues.count());
-            for (int i = 0; i < count(); ++i) {
-                GeoPoint target = geoValues.valueAt(i);
-                values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(), precision);
+        public boolean advanceExact(int docId) throws IOException {
+            if (geoValues.advanceExact(docId)) {
+                resize(geoValues.docValueCount());
+                for (int i = 0; i < docValueCount(); ++i) {
+                    GeoPoint target = geoValues.nextValue();
+                    values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(),
+                            precision);
+                }
+                sort();
+                return true;
+            } else {
+                return false;
             }
-            sort();
         }
     }
 

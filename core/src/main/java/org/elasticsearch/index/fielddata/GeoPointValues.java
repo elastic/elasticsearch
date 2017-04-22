@@ -21,17 +21,23 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoPoint;
 
+import java.io.IOException;
+
 /**
  * Per-document geo-point values.
  */
 public abstract class GeoPointValues {
 
     /**
-     * Get the {@link GeoPoint} associated with <code>docID</code>.
-     * The returned {@link GeoPoint} might be reused across calls.
-     * If the given <code>docID</code> does not have a value then the returned
-     * geo point mught have both latitude and longitude set to 0.
+     * Advance this instance to the given document id
+     * @return true if there is a value for this document
      */
-    public abstract GeoPoint get(int docID);
+    public abstract boolean advanceExact(int doc) throws IOException;
+
+    /**
+     * Get the {@link GeoPoint} associated with the current document.
+     * The returned {@link GeoPoint} might be reused across calls.
+     */
+    public abstract GeoPoint geoPointValue();
 
 }

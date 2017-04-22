@@ -112,15 +112,15 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          * Add the contents of the plugin directory before creating the marker file and adding it to the list of paths to be deleted so
          * that the marker file is the last file to be deleted.
          */
-        try (Stream<Path> paths =  Files.list(pluginDir)) {
+        try (Stream<Path> paths = Files.list(pluginDir)) {
             pluginPaths.addAll(paths.collect(Collectors.toList()));
             try {
                 Files.createFile(removing);
             } catch (final FileAlreadyExistsException e) {
-            /*
-             * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed and
-             * the user is attempting to remove the plugin again.
-             */
+                /*
+                 * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed
+                 * and the user is attempting to remove the plugin again.
+                 */
                 terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
             }
             // now add the marker file

@@ -84,9 +84,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
@@ -185,6 +183,21 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Indices stats.
      */
     IndicesStatsRequestBuilder prepareStats(String... indices);
+
+    /**
+     * Phantom indices stats.
+     */
+    ActionFuture<PhantomIndicesStatsResponse> phantomStats(PhantomIndicesStatsRequest request);
+
+    /**
+     * Phantom indices stats.
+     */
+    void phantomStats(PhantomIndicesStatsRequest request, ActionListener<PhantomIndicesStatsResponse> listener);
+
+    /**
+     * Phantom indices stats.
+     */
+    PhantomIndicesStatsRequestBuilder preparePhantomStats(String... indices);
 
     /**
      * Indices recoveries

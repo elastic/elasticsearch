@@ -192,10 +192,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBui
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
@@ -1549,6 +1546,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public IndicesStatsRequestBuilder prepareStats(String... indices) {
             return new IndicesStatsRequestBuilder(this, IndicesStatsAction.INSTANCE).setIndices(indices);
+        }
+
+        @Override
+        public ActionFuture<PhantomIndicesStatsResponse> phantomStats(final PhantomIndicesStatsRequest request) {
+            return execute(PhantomIndicesStatsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void phantomStats(final PhantomIndicesStatsRequest request, final ActionListener<PhantomIndicesStatsResponse> listener) {
+            execute(PhantomIndicesStatsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public PhantomIndicesStatsRequestBuilder preparePhantomStats(String... indices) {
+            return new PhantomIndicesStatsRequestBuilder(this, PhantomIndicesStatsAction.INSTANCE).setIndices(indices);
         }
 
         @Override

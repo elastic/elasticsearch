@@ -60,6 +60,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.engine.phantom.PhantomEnginesModule;
 import org.elasticsearch.index.search.shape.ShapeModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -195,6 +196,7 @@ public class Node implements Releasable {
             if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 modules.add(new HttpServerModule(settings));
             }
+            modules.add(new PhantomEnginesModule());
             modules.add(new IndicesModule());
             modules.add(new SearchModule());
             modules.add(new ActionModule(false));

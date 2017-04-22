@@ -22,7 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.WaitingSearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.Lucene;
@@ -60,7 +60,7 @@ public class ShadowEngine extends Engine {
     public final static String NONEXISTENT_INDEX_RETRY_WAIT = "index.shadow.wait_for_initial_commit";
     public final static TimeValue DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT = TimeValue.timeValueSeconds(5);
 
-    private volatile SearcherManager searcherManager;
+    private volatile WaitingSearcherManager searcherManager;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -77,7 +77,7 @@ public class ShadowEngine extends Engine {
             try {
                 if (Lucene.waitForIndex(store.directory(), nonexistentRetryTime)) {
                     reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
-                    this.searcherManager = new SearcherManager(reader, searcherFactory);
+                    this.searcherManager = new WaitingSearcherManager(reader, searcherFactory);
                     this.lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                     success = true;
                 } else {
@@ -214,7 +214,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    protected SearcherManager getSearcherManager() {
+    protected WaitingSearcherManager getSearcherManager() {
         return searcherManager;
     }
 

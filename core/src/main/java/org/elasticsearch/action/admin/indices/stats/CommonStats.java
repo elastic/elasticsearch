@@ -115,6 +115,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Recovery:
                     recoveryStats = new RecoveryStats();
                     break;
+                case LoadState:
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -181,6 +183,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Recovery:
                     recoveryStats = indexShard.recoveryStats();
                     break;
+                case LoadState:
+                    loadState = indexShard.loadState();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -240,6 +245,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public RecoveryStats recoveryStats;
+
+    @Nullable
+    public Boolean loadState;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -479,6 +487,11 @@ public class CommonStats implements Streamable, ToXContent {
         return recoveryStats;
     }
 
+    @Nullable
+    public Boolean getLoadState() {
+        return loadState;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -557,6 +570,7 @@ public class CommonStats implements Streamable, ToXContent {
         suggest = in.readOptionalStreamable(new SuggestStats());
         requestCache = in.readOptionalStreamable(new RequestCacheStats());
         recoveryStats = in.readOptionalStreamable(new RecoveryStats());
+        loadState = in.readOptionalBoolean();
     }
 
     @Override
@@ -649,11 +663,15 @@ public class CommonStats implements Streamable, ToXContent {
         out.writeOptionalStreamable(suggest);
         out.writeOptionalStreamable(requestCache);
         out.writeOptionalStreamable(recoveryStats);
+        out.writeOptionalBoolean(loadState);
     }
 
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (loadState != null) {
+            builder.field("loaded", loadState);
+        }
         if (docs != null) {
             docs.toXContent(builder, params);
         }

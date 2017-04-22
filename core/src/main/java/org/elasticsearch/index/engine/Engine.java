@@ -20,22 +20,12 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.base.Preconditions;
-
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.WaitingSearcherManager;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
@@ -66,11 +56,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -147,7 +133,7 @@ public abstract class Engine implements Closeable {
         return IndexWriter.SOURCE_MERGE.equals(source);
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, WaitingSearcherManager manager) {
         return new EngineSearcher(source, searcher, manager, store, logger);
     }
 
@@ -287,14 +273,14 @@ public abstract class Engine implements Closeable {
         return acquireSearcher(source, true);
     }
 
-    protected final Searcher acquireSearcher(String source, boolean maybeWrap) throws EngineException {
+    protected Searcher acquireSearcher(String source, boolean maybeWrap) throws EngineException {
         boolean success = false;
          /* Acquire order here is store -> manager since we need
           * to make sure that the store is not closed before
           * the searcher is acquired. */
         store.incRef();
         try {
-            final SearcherManager manager = getSearcherManager(); // can never be null
+            final WaitingSearcherManager manager = getSearcherManager(); // can never be null
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -338,7 +324,7 @@ public abstract class Engine implements Closeable {
     /**
      * Read the last segments info from the commit pointed to by the searcher manager
      */
-    protected static SegmentInfos readLastCommittedSegmentInfos(final SearcherManager sm, final Store store) throws IOException {
+    protected static SegmentInfos readLastCommittedSegmentInfos(final WaitingSearcherManager sm, final Store store) throws IOException {
         IndexSearcher searcher = sm.acquire();
         try {
             IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
@@ -359,7 +345,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public final SegmentsStats segmentsStats() {
+    public SegmentsStats segmentsStats() {
         ensureOpen();
         try (final Searcher searcher = acquireSearcher("segments_stats", false)) {
             SegmentsStats stats = new SegmentsStats();
@@ -461,7 +447,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments(boolean verbose);
 
-    public final boolean refreshNeeded() {
+    public boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
               we need to inc the store here since searcherManager.isSearcherCurrent()
@@ -471,6 +457,8 @@ public abstract class Engine implements Closeable {
              */
             try {
                 return !getSearcherManager().isSearcherCurrent();
+            } catch (NullPointerException | AlreadyClosedException e) {
+                // hits when swapping engines
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -1106,7 +1094,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract SearcherManager getSearcherManager();
+    protected abstract WaitingSearcherManager getSearcherManager();
 
     /**
      * Method to close the engine while the write lock is held.
@@ -1147,6 +1135,19 @@ public abstract class Engine implements Closeable {
                 closeNoLock("api");
             }
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return shardId.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof Engine)) {
+            return false;
+        }
+        return shardId.equals(((Engine) obj).shardId);
     }
 
     /**

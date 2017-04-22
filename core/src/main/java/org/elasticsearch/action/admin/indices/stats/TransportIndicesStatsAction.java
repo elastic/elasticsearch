@@ -162,6 +162,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             flags.set(CommonStatsFlags.Flag.Recovery);
         }
 
+        if (request.loadState()) {
+            flags.set(CommonStatsFlags.Flag.LoadState);
+        }
+
         return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indexShard, flags), indexShard.commitStats());
     }
 }

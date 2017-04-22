@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -60,6 +61,7 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     private volatile TimeValue flushThresholdPeriod;
     private volatile boolean disableFlush;
     private volatile ScheduledFuture future;
+    private volatile boolean phantom;
 
     private final ApplySettings applySettings = new ApplySettings();
 
@@ -74,9 +76,12 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
         this.flushThresholdPeriod = indexSettings.getAsTime(INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TimeValue.timeValueMinutes(30));
         this.interval = indexSettings.getAsTime(INDEX_TRANSLOG_FLUSH_INTERVAL, timeValueMillis(5000));
         this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
+        this.phantom = indexSettings.getAsBoolean(EngineConfig.INDEX_USE_AS_PHANTOM, false);
         logger.debug("interval [{}], flush_threshold_ops [{}], flush_threshold_size [{}], flush_threshold_period [{}]", interval, flushThresholdOperations, flushThresholdSize, flushThresholdPeriod);
 
-        this.future = threadPool.schedule(interval, ThreadPool.Names.SAME, new TranslogBasedFlush());
+        if (!phantom) {
+            this.future = threadPool.schedule(interval, ThreadPool.Names.SAME, new TranslogBasedFlush());
+        }
 
         indexSettingsService.addListener(applySettings);
     }
@@ -116,6 +121,13 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
                 logger.info("updating disable_flush from [{}] to [{}]", TranslogService.this.disableFlush, disableFlush);
                 TranslogService.this.disableFlush = disableFlush;
             }
+            boolean isPhantom = settings.getAsBoolean(EngineConfig.INDEX_USE_AS_PHANTOM, TranslogService.this.phantom);
+            if (isPhantom != TranslogService.this.phantom) {
+                TranslogService.this.phantom = isPhantom;
+                if (!phantom) {
+                    TranslogService.this.future = threadPool.schedule(interval, ThreadPool.Names.SAME, new TranslogBasedFlush());
+                } // else: TranslogBasedFlush will stop itself on raised phantom flag
+            }
         }
     }
 
@@ -146,6 +158,10 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
 
         /** checks if we need to flush and reschedules a new check. returns true if a new check was scheduled */
         public boolean maybeFlushAndReschedule() {
+            if (phantom) { // hits single on phantom flag switch: [false => true]
+                return true;
+            }
+
             if (indexShard.state() == IndexShardState.CLOSED) {
                 return false;
             }
@@ -160,6 +176,12 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
                 translog = indexShard.engine().getTranslog();
             } catch (EngineClosedException e) {
                 // we're still recovering
+                reschedule();
+                return true;
+            }
+
+            if (translog == null) {
+                // still can happen
                 reschedule();
                 return true;
             }

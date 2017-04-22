@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -34,10 +35,11 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,7 +147,26 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             final DiscoveryNodes nodes = clusterState.nodes();
             if (nodes.localNodeMaster() || localExecute(request)) {
                 // check for block, if blocked, retry, else, execute locally
-                final ClusterBlockException blockException = checkBlock(request, clusterState);
+
+                // Since IndexService makes its shards read-only using index.blocks.* staff,
+                // we need to permit requests which turn off phantom indices
+                boolean doCheck = true;
+                if (request instanceof UpdateSettingsRequest) {
+                    Settings settings = ((UpdateSettingsRequest) request).settings();
+                    String phantom = settings.get(EngineConfig.INDEX_USE_AS_PHANTOM);
+                    // setting must be "false" - turning off phantom index.
+                    // when "true", index is not read-only yet.
+                    // if we permit "true" values, it become possible to change read-only index.
+                    if (phantom != null && Booleans.isExplicitFalse(phantom)) {
+                        doCheck = false;
+                    }
+                }
+
+                ClusterBlockException blockException = null;
+                if (doCheck) {
+                    blockException = checkBlock(request, clusterState);
+                }
+
                 if (blockException != null) {
                     if (!blockException.retryable()) {
                         listener.onFailure(blockException);
@@ -171,7 +192,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         }
                     };
                     taskManager.registerChildTask(task, nodes.getLocalNodeId());
-                    threadPool.executor(executor).execute(new ActionRunnable(delegate) {
+                    threadPool.executor(executor).execute(new ActionRunnable<Response>(delegate) {
                         @Override
                         protected void doRun() throws Exception {
                             masterOperation(task, request, clusterService.state(), delegate);

@@ -72,6 +72,7 @@ import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsActio
 import org.elasticsearch.rest.action.admin.indices.settings.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.shards.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.stats.RestIndicesStatsAction;
+import org.elasticsearch.rest.action.admin.indices.stats.RestPhantomIndicesStatsAction;
 import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.head.RestHeadIndexTemplateAction;
@@ -171,6 +172,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestTypesExistsAction.class).asEagerSingleton();
         bind(RestGetIndicesAction.class).asEagerSingleton();
         bind(RestIndicesStatsAction.class).asEagerSingleton();
+        bind(RestPhantomIndicesStatsAction.class).asEagerSingleton();
         bind(RestIndicesSegmentsAction.class).asEagerSingleton();
         bind(RestIndicesShardStoresAction.class).asEagerSingleton();
         bind(RestGetAliasesAction.class).asEagerSingleton();

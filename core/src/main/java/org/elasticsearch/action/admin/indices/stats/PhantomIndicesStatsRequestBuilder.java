@@ -17,32 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.engine.phantom.PhantomEngineFactory;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class InternalEngineFactory implements EngineFactory {
-
-    private final PhantomEngineFactory factory;
-
-    @Inject
-    public InternalEngineFactory(PhantomEngineFactory factory) {
-        this.factory = factory;
-    }
-
-    @Override
-    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new InternalEngine(config, skipTranslogRecovery);
-    }
-
-    @Override
-    public Engine newReadOnlyEngine(EngineConfig config) {
-        return new ShadowEngine(config);
-    }
-
-    @Override
-    public Engine newPhantomEngine(EngineConfig config) {
-        return factory.create(config);
+/**
+ * Builder for {@link PhantomIndicesStatsRequest}.
+ */
+public class PhantomIndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<PhantomIndicesStatsRequest, PhantomIndicesStatsResponse, PhantomIndicesStatsRequestBuilder> {
+    public PhantomIndicesStatsRequestBuilder(ElasticsearchClient client, Action<PhantomIndicesStatsRequest, PhantomIndicesStatsResponse, PhantomIndicesStatsRequestBuilder> action) {
+        super(client, action, new PhantomIndicesStatsRequest());
     }
 }

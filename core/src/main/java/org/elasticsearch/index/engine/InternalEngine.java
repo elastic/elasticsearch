@@ -32,12 +32,8 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -105,7 +101,7 @@ public class InternalEngine extends Engine {
     private final IndexWriter indexWriter;
 
     private final SearcherFactory searcherFactory;
-    private final SearcherManager searcherManager;
+    private final WaitingSearcherManager searcherManager;
 
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
@@ -128,7 +124,7 @@ public class InternalEngine extends Engine {
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
-        SearcherManager manager = null;
+        WaitingSearcherManager manager = null;
         EngineMergeScheduler scheduler = null;
         boolean success = false;
         try {
@@ -165,7 +161,7 @@ public class InternalEngine extends Engine {
             this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
-            this.versionMap.setManager(searcherManager);
+            this.versionMap.setManager(searcherManager.manager);
             try {
                 if (skipInitialTranslogRecovery) {
                     // make sure we point at the latest translog from now on..
@@ -275,13 +271,13 @@ public class InternalEngine extends Engine {
         return null;
     }
 
-    private SearcherManager createSearcherManager() throws EngineException {
+    private WaitingSearcherManager createSearcherManager() throws EngineException {
         boolean success = false;
-        SearcherManager searcherManager = null;
+        WaitingSearcherManager searcherManager = null;
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter, true), shardId);
-                searcherManager = new SearcherManager(directoryReader, searcherFactory);
+                searcherManager = new WaitingSearcherManager(directoryReader, searcherFactory);
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                 success = true;
                 return searcherManager;
@@ -1014,7 +1010,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected SearcherManager getSearcherManager() {
+    protected WaitingSearcherManager getSearcherManager() {
         return searcherManager;
     }
 

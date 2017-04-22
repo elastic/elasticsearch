@@ -80,7 +80,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return indices;
     }
 
-    Settings settings() {
+    public Settings settings() {
         return settings;
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -130,6 +131,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
         table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
+        table.addCell("pha", "alias:phantom;desc:phantom index");
 
         table.addCell("creation.date", "alias:cd;default:false;desc:index creation date (millisecond value)");
         table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");
@@ -344,6 +346,7 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getDeleted());
+            table.addCell(state != IndexMetaData.State.OPEN ? null : (indexMetaData.getSettings().getAsBoolean(EngineConfig.INDEX_USE_AS_PHANTOM, false) ? " +" : " -"));
 
             table.addCell(indexMetaData.getCreationDate());
             table.addCell(new DateTime(indexMetaData.getCreationDate(), DateTimeZone.UTC));

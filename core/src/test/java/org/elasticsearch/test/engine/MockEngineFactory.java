@@ -55,4 +55,9 @@ public final class MockEngineFactory implements EngineFactory {
     public Engine newReadOnlyEngine(EngineConfig config) {
         return new MockShadowEngine(config, wrapper);
     }
+
+    @Override
+    public Engine newPhantomEngine(EngineConfig config) {
+        return null;
+    }
 }

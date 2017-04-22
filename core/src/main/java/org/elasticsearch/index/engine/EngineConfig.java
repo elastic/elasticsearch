@@ -76,6 +76,7 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
     private final IndexSearcherWrappingService wrappingService;
+    private boolean isPhantom;
 
     /**
      * Index setting for compound file on flush. This setting is realtime updateable.
@@ -110,6 +111,9 @@ public final class EngineConfig {
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
 
+    /** be unloadable or not */
+    public static final String INDEX_USE_AS_PHANTOM = "index.phantom";
+
 
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
@@ -127,7 +131,8 @@ public final class EngineConfig {
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, IndexSearcherWrappingService wrappingService, TranslogConfig translogConfig) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        IndexSearcherWrappingService wrappingService, TranslogConfig translogConfig) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -155,6 +160,7 @@ public final class EngineConfig {
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
+        this.isPhantom = indexSettings.getAsBoolean(INDEX_USE_AS_PHANTOM, false);
     }
 
     /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
@@ -165,6 +171,14 @@ public final class EngineConfig {
         } else {
             versionMapSize = ByteSizeValue.parseBytesSizeValue(versionMapSizeSetting, INDEX_VERSION_MAP_SIZE);
         }
+    }
+
+    public boolean isPhantom() {
+        return isPhantom;
+    }
+
+    public void setPhantom(boolean value) {
+        this.isPhantom = value;
     }
 
     /**

@@ -130,7 +130,6 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         pluginPaths.add(pluginDir);
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
 
-
         /*
          * We preserve the config files in case the user is upgrading the plugin, but we print a
          * message so the user knows in case they want to remove manually.

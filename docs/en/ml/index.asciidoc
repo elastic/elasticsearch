@@ -16,7 +16,7 @@ easily answer these types of questions.
 
 include::introduction.asciidoc[]
 include::getting-started.asciidoc[]
-include::ml-scenarios.asciidoc[]
+// include::ml-scenarios.asciidoc[]
 include::api-quickref.asciidoc[]
 
 //include::troubleshooting.asciidoc[]  Referenced from x-pack/docs/public/xpack-troubleshooting.asciidoc

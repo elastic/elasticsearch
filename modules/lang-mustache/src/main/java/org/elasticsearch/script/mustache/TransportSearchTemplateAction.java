@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -71,7 +72,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         try {
             Script script = new Script(request.getScriptType(), TEMPLATE_LANG, request.getScript(),
                 request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH);
+            CompiledScript compiledScript = scriptService.compile(script, SEARCH);
+            ExecutableScript executable = scriptService.executable(compiledScript, script.getParams());
 
             BytesReference source = (BytesReference) executable.run();
             response.setSource(source);

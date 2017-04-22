@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -93,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
@@ -222,7 +222,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
+
                     @Override
                     protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                         return new ClusterStateUpdateResponse(acknowledged);
@@ -372,9 +374,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 throw e;
                             }
 
+                            if (request.shrinkFrom() == null) {
+                                // now that the mapping is merged we can validate the index sort.
+                                // we cannot validate for index shrinking since the mapping is empty
+                                // at this point. The validation will take place later in the process
+                                // (when all shards are copied in a single place).
+                                indexService.getIndexSortSupplier().get();
+                            }
+
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                             // timestamp
                             final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
                                     aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
@@ -431,10 +442,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                     .put(indexMetaData, false)
                                     .build();
 
-                            String maybeShadowIndicator = indexMetaData.isIndexUsingShadowReplicas() ? "s" : "";
-                            logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
+                            logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
                                     request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
-                                    indexMetaData.getNumberOfReplicas(), maybeShadowIndicator, mappings.keySet());
+                                    indexMetaData.getNumberOfReplicas(), mappings.keySet());
 
                             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                             if (!request.blocks().isEmpty()) {
@@ -474,10 +484,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         super.onFailure(source, e);
                     }
                 });
-    }
-
-    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
-        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
@@ -584,10 +590,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
         final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
+
         final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
             mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
-        final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.");
+        final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
+            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
         indexSettingsBuilder
             // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
             // once we are allocated.
@@ -595,11 +602,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
             // we only try once and then give up with a shrink index
             .put("index.allocation.max_retries", 1)
-            // now copy all similarity / analysis settings - this overrides all settings from the user unless they
+            // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
             // wanna add extra settings
             .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
-            .put(sourceMetaData.getSettings().filter(analysisSimilarityPredicate))
+            .put(sourceMetaData.getSettings().filter(sourceSettingsPredicate))
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());

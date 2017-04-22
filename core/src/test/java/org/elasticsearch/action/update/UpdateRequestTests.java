@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -459,7 +460,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = XContentHelper.toXContent(updateRequest, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(updateRequest, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

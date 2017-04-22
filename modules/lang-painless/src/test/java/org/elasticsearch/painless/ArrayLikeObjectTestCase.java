@@ -77,8 +77,8 @@ public abstract class ArrayLikeObjectTestCase extends ScriptTestCase {
     }
 
     private void expectOutOfBounds(int index, String script, Object val) {
-        IndexOutOfBoundsException e = expectScriptThrows(IndexOutOfBoundsException.class,
-                () -> exec(script, singletonMap("val", val), true));
+        IndexOutOfBoundsException e = expectScriptThrows(IndexOutOfBoundsException.class, () ->
+            exec(script, singletonMap("val", val), true));
         try {
             assertThat(e.getMessage(), outOfBoundsExceptionMessageMatcher(index, 5));
         } catch (AssertionError ae) {

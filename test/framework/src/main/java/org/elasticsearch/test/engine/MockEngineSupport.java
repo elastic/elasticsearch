@@ -47,7 +47,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine} or {@link org.elasticsearch.test.engine.MockShadowEngine}
+ * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine}
  * since they need to subclass the actual engine
  */
 public final class MockEngineSupport {
@@ -178,11 +178,6 @@ public final class MockEngineSupport {
         public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {
             super(in, subReaderWrapper);
             this.subReaderWrapper = subReaderWrapper;
-        }
-
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
         }
 
     }

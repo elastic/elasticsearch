@@ -98,11 +98,11 @@ public final class IndexSettings {
             Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1, Property.Dynamic, Property.IndexScope);
     /**
      * Index setting describing the maximum number of filters clauses that can be used
-     * in an adjacency_matrix aggregation. The max number of buckets produced by  
+     * in an adjacency_matrix aggregation. The max number of buckets produced by
      * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
      */
     public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
-        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);    
+        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -160,7 +160,6 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final boolean isShadowReplicaIndex;
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
@@ -177,6 +176,7 @@ public final class IndexSettings {
     private volatile ByteSizeValue generationThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
+    private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
@@ -257,7 +257,6 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        isShadowReplicaIndex = indexMetaData.isIndexUsingShadowReplicas(settings);
 
         this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -280,6 +279,7 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        this.indexSortConfig = new IndexSortConfig(this);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -360,15 +360,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index
-     * associated with these settings allocates it's shards on a shared
-     * filesystem.
-     */
-    public boolean isOnSharedFilesystem() {
-        return indexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
      * Returns the version the index was created on.
      * @see Version#indexCreated(Settings)
      */
@@ -399,12 +390,6 @@ public final class IndexSettings {
      * Returns the number of replicas this index has.
      */
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
-
-    /**
-     * Returns <code>true</code> iff this index uses shadow replicas.
-     * @see IndexMetaData#isIndexUsingShadowReplicas(Settings)
-     */
-    public boolean isShadowReplicaIndex() { return isShadowReplicaIndex; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -516,7 +501,7 @@ public final class IndexSettings {
     private void setMaxResultWindow(int maxResultWindow) {
         this.maxResultWindow = maxResultWindow;
     }
-    
+
     /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
      */
@@ -526,7 +511,7 @@ public final class IndexSettings {
 
     private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
         this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
-    }    
+    }
 
     /**
      * Returns the maximum rescore window for search requests.
@@ -589,6 +574,13 @@ public final class IndexSettings {
 
     private void setMaxSlicesPerScroll(int value) {
         this.maxSlicesPerScroll = value;
+    }
+
+    /**
+     * Returns the index sort config that should be used for this index.
+     */
+    public IndexSortConfig getIndexSortConfig() {
+        return indexSortConfig;
     }
 
     public IndexScopedSettings getScopedSettings() { return scopedSettings;}

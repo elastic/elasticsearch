@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -87,23 +86,22 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
             CollectionUtils.sortAndDedup(bytesList1);
-            bytesValues.setDocument(0);
-            assertThat(bytesValues.count(), equalTo(2));
-            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList1.get(0))));
-            assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList1.get(1))));
+            assertTrue(bytesValues.advanceExact(0));
+            assertThat(bytesValues.docValueCount(), equalTo(2));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(0))));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(1))));
 
-            bytesValues.setDocument(1);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytes1)));
+            assertTrue(bytesValues.advanceExact(1));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytes1)));
 
-            bytesValues.setDocument(2);
-            assertThat(bytesValues.count(), equalTo(0));
+            assertFalse(bytesValues.advanceExact(2));
 
             CollectionUtils.sortAndDedup(bytesList2);
-            bytesValues.setDocument(3);
-            assertThat(bytesValues.count(), equalTo(2));
-            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList2.get(0))));
-            assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList2.get(1))));
+            assertTrue(bytesValues.advanceExact(3));
+            assertThat(bytesValues.docValueCount(), equalTo(2));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList2.get(0))));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList2.get(1))));
         }
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 
@@ -68,11 +69,13 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
                 Nested nested = search(newSearcher(indexReader, true, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
-                ReverseNested reverseNested = (ReverseNested) nested.getProperty(REVERSE_AGG_NAME);
+                ReverseNested reverseNested = (ReverseNested)
+                        ((InternalAggregation)nested).getProperty(REVERSE_AGG_NAME);
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(0, reverseNested.getDocCount());
 
-                InternalMax max = (InternalMax) reverseNested.getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax)
+                        ((InternalAggregation)reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
             }
@@ -131,11 +134,13 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                ReverseNested reverseNested = (ReverseNested) nested.getProperty(REVERSE_AGG_NAME);
+                ReverseNested reverseNested = (ReverseNested)
+                        ((InternalAggregation)nested).getProperty(REVERSE_AGG_NAME);
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(expectedParentDocs, reverseNested.getDocCount());
 
-                InternalMax max = (InternalMax) reverseNested.getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax)
+                        ((InternalAggregation)reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
             }

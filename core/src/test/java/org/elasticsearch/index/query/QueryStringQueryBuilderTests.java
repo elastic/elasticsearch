@@ -85,8 +85,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.defaultField(randomBoolean() ?
                 STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10));
-        }
-        if (randomBoolean()) {
+        } else {
             int numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
                 String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
@@ -324,7 +323,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
             QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
             settings.defaultField(STRING_FIELD_NAME);
-            settings.fieldsAndWeights(Collections.emptyMap());
             settings.analyzeWildcard(true);
             settings.fuzziness(Fuzziness.AUTO);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
@@ -352,7 +350,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
             QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
             settings.defaultField(STRING_FIELD_NAME);
-            settings.fieldsAndWeights(Collections.emptyMap());
             settings.analyzeWildcard(true);
             settings.fuzziness(Fuzziness.AUTO);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
@@ -374,7 +371,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                             BooleanClause.Occur.SHOULD))
                         .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")),
                             BooleanClause.Occur.SHOULD))
-                        .setDisableCoord(true)
                         .build(), defaultOp)
                     .build(), defaultOp)
                 .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "last"),
@@ -391,7 +387,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
             QueryParserSettings settings = new QueryParserSettings("");
             settings.defaultField(STRING_FIELD_NAME);
-            settings.fieldsAndWeights(Collections.emptyMap());
             settings.fuzziness(Fuzziness.AUTO);
             settings.analyzeWildcard(true);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
@@ -463,7 +458,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                         new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
                     .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
                     .build(), Occur.SHOULD)
-                .setDisableCoord(true)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
@@ -481,7 +475,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .setSlop(2)
                     .build(),
                     Occur.SHOULD)
-                .setDisableCoord(true)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
@@ -692,6 +685,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(phraseQuery.getTerms().length, equalTo(2));
     }
 
+    public void testToQueryWildcardNonExistingFields() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryStringQueryBuilder queryStringQueryBuilder =
+            new QueryStringQueryBuilder("foo bar").field("invalid*");
+        Query query = queryStringQueryBuilder.toQuery(createShardContext());
+        Query expectedQuery = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .build();
+        assertThat(expectedQuery, equalTo(query));
+
+        queryStringQueryBuilder =
+            new QueryStringQueryBuilder("field:foo bar").field("invalid*");
+        query = queryStringQueryBuilder.toQuery(createShardContext());
+        expectedQuery = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("field", "foo")), Occur.SHOULD)
+            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .build();
+        assertThat(expectedQuery, equalTo(query));
+
+
+    }
+
     public void testToQuerySplitOnWhitespace() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // splitOnWhitespace=false
@@ -822,7 +838,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         queryBuilder = new QueryStringQueryBuilder("_all:*");
         query = queryBuilder.toQuery(context);
-        expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");

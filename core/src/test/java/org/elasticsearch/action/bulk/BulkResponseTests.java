@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -86,13 +87,7 @@ public class BulkResponseTests extends ESTestCase {
         }
 
         BulkResponse bulkResponse = new BulkResponse(bulkItems, took, ingestTook);
-        BytesReference originalBytes = toXContent(bulkResponse, xContentType, humanReadable);
-
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
-        }
+        BytesReference originalBytes = toShuffledXContent(bulkResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         BulkResponse parsedBulkResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

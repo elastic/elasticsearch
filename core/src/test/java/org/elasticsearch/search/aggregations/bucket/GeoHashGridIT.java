@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid.Bucket;
@@ -63,7 +65,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            Version.CURRENT);
 
     static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;
@@ -156,9 +159,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
             assertSearchResponse(response);
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
-            List<Bucket> buckets = geoGrid.getBuckets();
-            Object[] propertiesKeys = (Object[]) geoGrid.getProperty("_key");
-            Object[] propertiesDocCounts = (Object[]) geoGrid.getProperty("_count");
+            List<? extends Bucket> buckets = geoGrid.getBuckets();
+            Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoGrid).getProperty("_key");
+            Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoGrid).getProperty("_count");
             for (int i = 0; i < buckets.size(); i++) {
                 GeoHashGrid.Bucket cell = buckets.get(i);
                 String geohash = cell.getKeyAsString();

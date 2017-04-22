@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -37,6 +38,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -395,6 +397,190 @@ public class ConstructingObjectParserTests extends ESTestCase {
             parser.declareString(HasCtorArguments::setC, new ParseField("c"));
             parser.declareBoolean(HasCtorArguments::setD, new ParseField("d"));
             return parser;
+        }
+    }
+
+    public void testParseNamedObject() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": {\n"
+                + "  \"a\": {}"
+                + "},\"named_in_constructor\": {\n"
+                + "  \"b\": {}"
+                + "}}");
+        NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
+        assertThat(h.named, hasSize(1));
+        assertEquals("a", h.named.get(0).name);
+        assertThat(h.namedInConstructor, hasSize(1));
+        assertEquals("b", h.namedInConstructor.get(0).name);
+        assertFalse(h.namedSuppliedInOrder);
+    }
+
+    public void testParseNamedObjectInOrder() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  {\"a\": {}}"
+                + "],\"named_in_constructor\": [\n"
+                + "  {\"b\": {}}"
+                + "]}");
+        NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
+        assertThat(h.named, hasSize(1));
+        assertEquals("a", h.named.get(0).name);
+        assertThat(h.namedInConstructor, hasSize(1));
+        assertEquals("b", h.namedInConstructor.get(0).name);
+        assertTrue(h.namedSuppliedInOrder);
+    }
+
+    public void testParseNamedObjectTwoFieldsInArray() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  {\"a\": {}, \"b\": {}}"
+                + "],\"named_in_constructor\": [\n"
+                + "  {\"c\": {}}"
+                + "]}");
+        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
+        assertEquals(
+                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
+                e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectTwoFieldsInArrayConstructorArg() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  {\"a\": {}}"
+                + "],\"named_in_constructor\": [\n"
+                + "  {\"c\": {}, \"d\": {}}"
+                + "]}");
+        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
+        assertEquals(
+                "[named_in_constructor] can be a single object with any number of fields or an array where each entry is an object with a "
+                        + "single field", e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectNoFieldsInArray() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  {}"
+                + "],\"named_in_constructor\": [\n"
+                + "  {\"a\": {}}"
+                + "]}");
+        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
+        assertEquals(
+                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
+                e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectNoFieldsInArrayConstructorArg() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  {\"a\": {}}"
+                + "],\"named_in_constructor\": [\n"
+                + "  {}"
+                + "]}");
+        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
+        assertEquals(
+                "[named_in_constructor] can be a single object with any number of fields or an array where each entry is an object with a "
+                        + "single field", e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectJunkInArray() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  \"junk\""
+                + "],\"named_in_constructor\": [\n"
+                + " {\"a\": {}}"
+                + "]}");
+        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
+        assertEquals(
+                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
+                e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectJunkInArrayConstructorArg() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+                  "{\"named\": [\n"
+                + "  {\"a\": {}}"
+                + "],\"named_in_constructor\": [\n"
+                + "  \"junk\""
+                + "]}");
+        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
+        assertEquals(
+                "[named_in_constructor] can be a single object with any number of fields or an array where each entry is an object with a "
+                        + "single field", e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectInOrderNotSupported() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+                  "{\"named\": [\n"
+                + "  {\"a\": {}}"
+                + "],\"named_in_constructor\": {\"b\": {}}"
+                + "}");
+
+        // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
+        @SuppressWarnings("unchecked")
+        ConstructingObjectParser<NamedObjectHolder, Void> objectParser = new ConstructingObjectParser<>("named_object_holder",
+                a -> new NamedObjectHolder(((List<NamedObject>) a[0])));
+        objectParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), NamedObject.PARSER,
+                new ParseField("named_in_constructor"));
+        objectParser.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
+
+        // Now firing the xml through it fails
+        ParsingException e = expectThrows(ParsingException.class, () -> objectParser.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
+        assertEquals("[named] doesn't support arrays. Use a single object with multiple fields.", e.getCause().getMessage());
+    }
+
+    public void testParseNamedObjectInOrderNotSupportedConstructorArg() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+                  "{\"named\": {\"a\": {}}"
+                + ",\"named_in_constructor\": [\n"
+                + "  {\"b\": {}}"
+                + "]}");
+
+        // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
+        @SuppressWarnings("unchecked")
+        ConstructingObjectParser<NamedObjectHolder, Void> objectParser = new ConstructingObjectParser<>("named_object_holder",
+                a -> new NamedObjectHolder(((List<NamedObject>) a[0])));
+        objectParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), NamedObject.PARSER,
+                new ParseField("named_in_constructor"));
+        objectParser.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
+
+        // Now firing the xml through it fails
+        ParsingException e = expectThrows(ParsingException.class, () -> objectParser.apply(parser, null));
+        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
+        assertEquals("[named_in_constructor] doesn't support arrays. Use a single object with multiple fields.", e.getCause().getMessage());
+    }
+
+    static class NamedObjectHolder {
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<NamedObjectHolder, Void> PARSER = new ConstructingObjectParser<>("named_object_holder",
+                a -> new NamedObjectHolder(((List<NamedObject>) a[0])));
+        static {
+            PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), NamedObject.PARSER, NamedObjectHolder::keepNamedInOrder,
+                    new ParseField("named_in_constructor"));
+            PARSER.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, NamedObjectHolder::keepNamedInOrder,
+                    new ParseField("named"));
+        }
+
+        private List<NamedObject> named;
+        private List<NamedObject> namedInConstructor;
+        private boolean namedSuppliedInOrder = false;
+
+        NamedObjectHolder(List<NamedObject> namedInConstructor) {
+            this.namedInConstructor = namedInConstructor;
+        }
+
+        public void setNamed(List<NamedObject> named) {
+            this.named = named;
+        }
+
+        public void keepNamedInOrder() {
+            namedSuppliedInOrder = true;
         }
     }
 }

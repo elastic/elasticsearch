@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -142,9 +143,9 @@ public class AvgIT extends AbstractNumericTestCase {
         assertThat(avg.getName(), equalTo("avg"));
         double expectedAvgValue = (double) (1+2+3+4+5+6+7+8+9+10) / 10;
         assertThat(avg.getValue(), equalTo(expectedAvgValue));
-        assertThat((Avg) global.getProperty("avg"), equalTo(avg));
-        assertThat((double) global.getProperty("avg.value"), equalTo(expectedAvgValue));
-        assertThat((double) avg.getProperty("value"), equalTo(expectedAvgValue));
+        assertThat((Avg) ((InternalAggregation)global).getProperty("avg"), equalTo(avg));
+        assertThat((double) ((InternalAggregation)global).getProperty("avg.value"), equalTo(expectedAvgValue));
+        assertThat((double) ((InternalAggregation)avg).getProperty("value"), equalTo(expectedAvgValue));
     }
 
     @Override

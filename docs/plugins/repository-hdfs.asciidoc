@@ -4,35 +4,8 @@
 The HDFS repository plugin adds support for using HDFS File System as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
-[[repository-hdfs-install]]
-[float]
-==== Installation
-
-This plugin can be installed through the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install repository-hdfs
-----------------------------------------------------------------
-
-The plugin must be installed on _every_ node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/repository-hdfs/repository-hdfs-{version}.zip.
-
-[[repository-hdfs-remove]]
-[float]
-==== Removal
-
-The plugin can be removed by specifying the _installed_ package:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove repository-hdfs
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: repository-hdfs
+include::install_remove.asciidoc[]
 
 [[repository-hdfs-usage]]
 ==== Getting started with HDFS

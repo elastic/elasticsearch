@@ -54,7 +54,7 @@ public class MainResponseTests extends ESTestCase {
         MainResponse mainResponse = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(mainResponse, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(mainResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         MainResponse parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parsed = MainResponse.fromXContent(parser);
@@ -72,7 +72,7 @@ public class MainResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         Build build = new Build("buildHash", "2016-11-15".toString(), true);
-        Version version = Version.V_2_4_5;
+        Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), "clusterUuid", build, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -81,11 +81,11 @@ public class MainResponseTests extends ESTestCase {
                 + "\"cluster_name\":\"clusterName\","
                 + "\"cluster_uuid\":\"clusterUuid\","
                 + "\"version\":{"
-                    + "\"number\":\"2.4.5\","
+                    + "\"number\":\"" + version.toString() + "\","
                     + "\"build_hash\":\"buildHash\","
                     + "\"build_date\":\"2016-11-15\","
                     + "\"build_snapshot\":true,"
-                    + "\"lucene_version\":\"5.5.2\"},"
+                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\"},"
                 + "\"tagline\":\"You Know, for Search\""
           + "}", builder.string());
     }

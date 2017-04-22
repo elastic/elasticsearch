@@ -152,7 +152,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "            }\n" +
                 "          }\n" +
                 "        } ],\n" +
-                "        \"disable_coord\" : false,\n" +
                 "        \"adjust_pure_negative\" : true,\n" +
                 "        \"boost\" : 1.0\n" +
                 "      }\n" +

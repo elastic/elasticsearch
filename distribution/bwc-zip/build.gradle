@@ -65,6 +65,7 @@ task addUpstream(type: LoggedExec) {
 }
 
 task fetchLatest(type: LoggedExec) {
+  onlyIf { project.gradle.startParameter.isOffline() == false }
   dependsOn addUpstream
   workingDir = checkoutDir
   commandLine = ['git', 'fetch', 'upstream']

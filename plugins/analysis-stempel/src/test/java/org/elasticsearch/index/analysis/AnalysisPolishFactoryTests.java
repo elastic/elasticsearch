@@ -19,14 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.AnalysisFactoryTestCase;
 import org.elasticsearch.Version;
@@ -36,6 +31,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
 

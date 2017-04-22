@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -70,13 +70,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
         IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
-        IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING,
-        IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING,
         IndexMetaData.INDEX_READ_ONLY_SETTING,
         IndexMetaData.INDEX_BLOCKS_READ_SETTING,
         IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,
         IndexMetaData.INDEX_BLOCKS_METADATA_SETTING,
-        IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING,
         IndexMetaData.INDEX_PRIORITY_SETTING,
         IndexMetaData.INDEX_DATA_PATH_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
@@ -103,6 +100,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
+        IndexSortConfig.INDEX_SORT_FIELD_SETTING,
+        IndexSortConfig.INDEX_SORT_ORDER_SETTING,
+        IndexSortConfig.INDEX_SORT_MISSING_SETTING,
+        IndexSortConfig.INDEX_SORT_MODE_SETTING,
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,

@@ -61,19 +61,16 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -85,7 +82,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
@@ -114,6 +110,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     private TimeValue slowTaskLoggingThreshold;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
+    private volatile ClusterServiceTaskBatcher taskBatcher;
 
     /**
      * Those 3 state listeners are changing infrequently - CopyOnWriteArrayList is just fine
@@ -121,7 +118,6 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final Collection<ClusterStateApplier> highPriorityStateAppliers = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateApplier> normalPriorityStateAppliers = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateApplier> lowPriorityStateAppliers = new CopyOnWriteArrayList<>();
-    final Map<ClusterStateTaskExecutor, LinkedHashSet<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
     private final Iterable<ClusterStateApplier> clusterStateAppliers = Iterables.concat(highPriorityStateAppliers,
         normalPriorityStateAppliers, lowPriorityStateAppliers);
 
@@ -219,8 +215,9 @@ public class ClusterService extends AbstractLifecycleComponent {
             DiscoveryNodes nodes = DiscoveryNodes.builder(state.nodes()).add(localNode).localNodeId(localNode.getId()).build();
             return ClusterState.builder(state).nodes(nodes).blocks(initialBlocks).build();
         });
-        this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
-                threadPool.getThreadContext());
+        this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME,
+            daemonThreadFactory(settings, UPDATE_THREAD_NAME), threadPool.getThreadContext(), threadPool.scheduler());
+        this.taskBatcher = new ClusterServiceTaskBatcher(logger, threadPoolExecutor);
     }
 
     @Override
@@ -242,6 +239,44 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     @Override
     protected synchronized void doClose() {
+    }
+
+    class ClusterServiceTaskBatcher extends TaskBatcher {
+
+        ClusterServiceTaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+            super(logger, threadExecutor);
+        }
+
+        @Override
+        protected void onTimeout(List<? extends BatchedTask> tasks, TimeValue timeout) {
+            threadPool.generic().execute(
+                () -> tasks.forEach(
+                    task -> ((UpdateTask) task).listener.onFailure(task.source,
+                        new ProcessClusterEventTimeoutException(timeout, task.source))));
+        }
+
+        @Override
+        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
+            ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) batchingKey;
+            List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
+            runTasks(new ClusterService.TaskInputs(taskExecutor, updateTasks, tasksSummary));
+        }
+
+        class UpdateTask extends BatchedTask {
+            final ClusterStateTaskListener listener;
+
+            UpdateTask(Priority priority, String source, Object task, ClusterStateTaskListener listener,
+                       ClusterStateTaskExecutor<?> executor) {
+                super(priority, source, executor, task);
+                this.listener = listener;
+            }
+
+            @Override
+            public String describeTasks(List<? extends BatchedTask> tasks) {
+                return ((ClusterStateTaskExecutor<Object>) batchingKey).describeTasks(
+                    tasks.stream().map(BatchedTask::getTask).collect(Collectors.toList()));
+            }
+        }
     }
 
     /**
@@ -350,6 +385,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             listener.onClose();
             return;
         }
+
         // call the post added notification on the same event thread
         try {
             threadPoolExecutor.execute(new SourcePrioritizedRunnable(Priority.HIGH, "_add_listener_") {
@@ -432,38 +468,11 @@ public class ClusterService extends AbstractLifecycleComponent {
         if (!lifecycle.started()) {
             return;
         }
-        if (tasks.isEmpty()) {
-            return;
-        }
         try {
-            @SuppressWarnings("unchecked")
-            ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) executor;
-            // convert to an identity map to check for dups based on update tasks semantics of using identity instead of equal
-            final IdentityHashMap<Object, ClusterStateTaskListener> tasksIdentity = new IdentityHashMap<>(tasks);
-            final List<UpdateTask> updateTasks = tasksIdentity.entrySet().stream().map(
-                entry -> new UpdateTask(source, entry.getKey(), config.priority(), taskExecutor, safe(entry.getValue(), logger))
-            ).collect(Collectors.toList());
-
-            synchronized (updateTasksPerExecutor) {
-                LinkedHashSet<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor,
-                    k -> new LinkedHashSet<>(updateTasks.size()));
-                for (UpdateTask existing : existingTasks) {
-                    if (tasksIdentity.containsKey(existing.task)) {
-                        throw new IllegalStateException("task [" + taskExecutor.describeTasks(Collections.singletonList(existing.task)) +
-                            "] with source [" + source + "] is already queued");
-                    }
-                }
-                existingTasks.addAll(updateTasks);
-            }
-
-            final UpdateTask firstTask = updateTasks.get(0);
-
-            final TimeValue timeout = config.timeout();
-            if (timeout != null) {
-                threadPoolExecutor.execute(firstTask, threadPool.scheduler(), timeout, () -> onTimeout(updateTasks, source, timeout));
-            } else {
-                threadPoolExecutor.execute(firstTask);
-            }
+            List<ClusterServiceTaskBatcher.UpdateTask> safeTasks = tasks.entrySet().stream()
+                .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e.getKey(), safe(e.getValue(), logger), executor))
+                .collect(Collectors.toList());
+            taskBatcher.submitTasks(safeTasks, config.timeout());
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...
@@ -473,60 +482,17 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
     }
 
-    private void onTimeout(List<UpdateTask> updateTasks, String source, TimeValue timeout) {
-        threadPool.generic().execute(() -> {
-            final ArrayList<UpdateTask> toRemove = new ArrayList<>();
-            for (UpdateTask task : updateTasks) {
-                if (task.processed.getAndSet(true) == false) {
-                    logger.debug("cluster state update task [{}] timed out after [{}]", source, timeout);
-                    toRemove.add(task);
-                }
-            }
-            if (toRemove.isEmpty() == false) {
-                ClusterStateTaskExecutor<Object> clusterStateTaskExecutor = toRemove.get(0).executor;
-                synchronized (updateTasksPerExecutor) {
-                    LinkedHashSet<UpdateTask> existingTasks = updateTasksPerExecutor.get(clusterStateTaskExecutor);
-                    if (existingTasks != null) {
-                        existingTasks.removeAll(toRemove);
-                        if (existingTasks.isEmpty()) {
-                            updateTasksPerExecutor.remove(clusterStateTaskExecutor);
-                        }
-                    }
-                }
-                for (UpdateTask task : toRemove) {
-                    task.listener.onFailure(source, new ProcessClusterEventTimeoutException(timeout, source));
-                }
-            }
-        });
-    }
-
     /**
      * Returns the tasks that are pending.
      */
     public List<PendingClusterTask> pendingTasks() {
-        PrioritizedEsThreadPoolExecutor.Pending[] pendings = threadPoolExecutor.getPending();
-        List<PendingClusterTask> pendingClusterTasks = new ArrayList<>(pendings.length);
-        for (PrioritizedEsThreadPoolExecutor.Pending pending : pendings) {
-            final String source;
-            final long timeInQueue;
-            // we have to capture the task as it will be nulled after execution and we don't want to change while we check things here.
-            final Object task = pending.task;
-            if (task == null) {
-                continue;
-            } else if (task instanceof SourcePrioritizedRunnable) {
-                SourcePrioritizedRunnable runnable = (SourcePrioritizedRunnable) task;
-                source = runnable.source();
-                timeInQueue = runnable.getAgeInMillis();
-            } else {
-                assert false : "expected SourcePrioritizedRunnable got " + task.getClass();
-                source = "unknown [" + task.getClass() + "]";
-                timeInQueue = 0;
-            }
-
-            pendingClusterTasks.add(
-                    new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(source), timeInQueue, pending.executing));
-        }
-        return pendingClusterTasks;
+        return Arrays.stream(threadPoolExecutor.getPending()).map(pending -> {
+            assert pending.task instanceof SourcePrioritizedRunnable :
+                "thread pool executor should only use SourcePrioritizedRunnable instances but found: " + pending.task.getClass().getName();
+            SourcePrioritizedRunnable task = (SourcePrioritizedRunnable) pending.task;
+            return new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(task.source()),
+                task.getAgeInMillis(), pending.executing);
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -583,19 +549,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public void setDiscoverySettings(DiscoverySettings discoverySettings) {
         this.discoverySettings = discoverySettings;
-    }
-
-    abstract static class SourcePrioritizedRunnable extends PrioritizedRunnable {
-        protected final String source;
-
-        SourcePrioritizedRunnable(Priority priority, String source) {
-            super(priority);
-            this.source = source;
-        }
-
-        public String source() {
-            return source;
-        }
     }
 
     void runTasks(TaskInputs taskInputs) {
@@ -657,8 +610,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     public TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, long startTimeNS) {
         ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, startTimeNS, previousClusterState);
         // extract those that are waiting for results
-        List<UpdateTask> nonFailedTasks = new ArrayList<>();
-        for (UpdateTask updateTask : taskInputs.updateTasks) {
+        List<ClusterServiceTaskBatcher.UpdateTask> nonFailedTasks = new ArrayList<>();
+        for (ClusterServiceTaskBatcher.UpdateTask updateTask : taskInputs.updateTasks) {
             assert clusterTasksResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
             final ClusterStateTaskExecutor.TaskResult taskResult =
                 clusterTasksResult.executionResults.get(updateTask.task);
@@ -675,7 +628,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     private ClusterTasksResult<Object> executeTasks(TaskInputs taskInputs, long startTimeNS, ClusterState previousClusterState) {
         ClusterTasksResult<Object> clusterTasksResult;
         try {
-            List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
+            List<Object> inputs = taskInputs.updateTasks.stream()
+                .map(ClusterServiceTaskBatcher.UpdateTask::getTask).collect(Collectors.toList());
             clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
         } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
@@ -693,7 +647,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
             warnAboutSlowTaskIfNeeded(executionTime, taskInputs.summary);
             clusterTasksResult = ClusterTasksResult.builder()
-                .failures(taskInputs.updateTasks.stream().map(updateTask -> updateTask.task)::iterator, e)
+                .failures(taskInputs.updateTasks.stream().map(ClusterServiceTaskBatcher.UpdateTask::getTask)::iterator, e)
                 .build(previousClusterState);
         }
 
@@ -704,7 +658,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         boolean assertsEnabled = false;
         assert (assertsEnabled = true);
         if (assertsEnabled) {
-            for (UpdateTask updateTask : taskInputs.updateTasks) {
+            for (ClusterServiceTaskBatcher.UpdateTask updateTask : taskInputs.updateTasks) {
                 assert clusterTasksResult.executionResults.containsKey(updateTask.task) :
                     "missing task result for " + updateTask;
             }
@@ -870,10 +824,10 @@ public class ClusterService extends AbstractLifecycleComponent {
      */
     class TaskInputs {
         public final String summary;
-        public final ArrayList<UpdateTask> updateTasks;
+        public final List<ClusterServiceTaskBatcher.UpdateTask> updateTasks;
         public final ClusterStateTaskExecutor<Object> executor;
 
-        TaskInputs(ClusterStateTaskExecutor<Object> executor, ArrayList<UpdateTask> updateTasks, String summary) {
+        TaskInputs(ClusterStateTaskExecutor<Object> executor, List<ClusterServiceTaskBatcher.UpdateTask> updateTasks, String summary) {
             this.summary = summary;
             this.executor = executor;
             this.updateTasks = updateTasks;
@@ -895,11 +849,11 @@ public class ClusterService extends AbstractLifecycleComponent {
         public final TaskInputs taskInputs;
         public final ClusterState previousClusterState;
         public final ClusterState newClusterState;
-        public final List<UpdateTask> nonFailedTasks;
+        public final List<ClusterServiceTaskBatcher.UpdateTask> nonFailedTasks;
         public final Map<Object, ClusterStateTaskExecutor.TaskResult> executionResults;
 
         TaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState,
-                           ClusterState newClusterState, List<UpdateTask> nonFailedTasks,
+                           ClusterState newClusterState, List<ClusterServiceTaskBatcher.UpdateTask> nonFailedTasks,
                            Map<Object, ClusterStateTaskExecutor.TaskResult> executionResults) {
             this.taskInputs = taskInputs;
             this.previousClusterState = previousClusterState;
@@ -951,7 +905,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         public void notifyFailedTasks() {
             // fail all tasks that have failed
-            for (UpdateTask updateTask : taskInputs.updateTasks) {
+            for (ClusterServiceTaskBatcher.UpdateTask updateTask : taskInputs.updateTasks) {
                 assert executionResults.containsKey(updateTask.task) : "missing " + updateTask;
                 final ClusterStateTaskExecutor.TaskResult taskResult = executionResults.get(updateTask.task);
                 if (taskResult.isSuccess() == false) {
@@ -1068,65 +1022,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         @Override
         public TimeValue ackTimeout() {
             return listener.ackTimeout();
-        }
-    }
-
-    class UpdateTask extends SourcePrioritizedRunnable {
-
-        public final Object task;
-        public final ClusterStateTaskListener listener;
-        private final ClusterStateTaskExecutor<Object> executor;
-        public final AtomicBoolean processed = new AtomicBoolean();
-
-        UpdateTask(String source, Object task, Priority priority, ClusterStateTaskExecutor<Object> executor,
-                   ClusterStateTaskListener listener) {
-            super(priority, source);
-            this.task = task;
-            this.executor = executor;
-            this.listener = listener;
-        }
-
-        @Override
-        public void run() {
-            // if this task is already processed, the executor shouldn't execute other tasks (that arrived later),
-            // to give other executors a chance to execute their tasks.
-            if (processed.get() == false) {
-                final ArrayList<UpdateTask> toExecute = new ArrayList<>();
-                final Map<String, ArrayList<Object>> processTasksBySource = new HashMap<>();
-                synchronized (updateTasksPerExecutor) {
-                    LinkedHashSet<UpdateTask> pending = updateTasksPerExecutor.remove(executor);
-                    if (pending != null) {
-                        for (UpdateTask task : pending) {
-                            if (task.processed.getAndSet(true) == false) {
-                                logger.trace("will process {}", task);
-                                toExecute.add(task);
-                                processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task.task);
-                            } else {
-                                logger.trace("skipping {}, already processed", task);
-                            }
-                        }
-                    }
-                }
-
-                if (toExecute.isEmpty() == false) {
-                    final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
-                        String tasks = executor.describeTasks(entry.getValue());
-                        return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                    }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
-
-                    runTasks(new TaskInputs(executor, toExecute, tasksSummary));
-                }
-            }
-        }
-
-        @Override
-        public String toString() {
-            String taskDescription = executor.describeTasks(Collections.singletonList(task));
-            if (taskDescription.isEmpty()) {
-                return "[" + source + "]";
-            } else {
-                return "[" + source + "[" + taskDescription + "]]";
-            }
         }
     }
 

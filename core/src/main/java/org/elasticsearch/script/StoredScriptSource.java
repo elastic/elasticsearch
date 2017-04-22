@@ -123,10 +123,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
          * Appends the user-defined compiler options with the internal compiler options.
          */
         private void setOptions(Map<String, String> options) {
-            if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
-                throw new IllegalArgumentException(Script.CONTENT_TYPE_OPTION + " cannot be user-specified");
-            }
-
             this.options.putAll(options);
         }
 
@@ -266,8 +262,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         //this is really for search templates, that need to be converted to json format
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.copyCurrentStructure(parser);
-                            return new StoredScriptSource(lang, builder.string(),
-                                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                            return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
                         }
                     }
 
@@ -283,8 +278,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     token = parser.nextToken();
 
                     if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(lang, parser.text(),
-                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                        return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                     }
                 }
 
@@ -297,8 +291,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         builder.copyCurrentStructure(parser);
                     }
 
-                    return new StoredScriptSource(lang, builder.string(),
-                        Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                    return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {

@@ -36,6 +36,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -74,7 +75,6 @@ import java.util.function.BiFunction;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
@@ -106,6 +106,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
+    private final Settings settings;
 
     /**
      * This BiFunction is used to apply various changes depending of the Reindex action and  the search hit,
@@ -115,18 +116,25 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
     public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
+                                           ActionListener<BulkByScrollResponse> listener) {
+        this(task, logger, client, threadPool, mainRequest, scriptService, clusterState, listener, client.settings());
+    }
+
+    public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
-            ActionListener<BulkByScrollResponse> listener) {
+            ActionListener<BulkByScrollResponse> listener, Settings settings) {
         this.task = task;
         this.logger = logger;
         this.client = client;
+        this.settings = settings;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.clusterState = clusterState;
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
-        bulkRetry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry));
+        bulkRetry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
@@ -309,7 +317,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            startNextScroll(thisBatchStartTime, 0);
+            startNextScroll(thisBatchStartTime, timeValueNanos(System.nanoTime()), 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
@@ -329,7 +337,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        bulkRetry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 onBulkResponse(thisBatchStartTime, response);
@@ -339,7 +347,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             public void onFailure(Exception e) {
                 finishHim(e);
             }
-        });
+        }, settings);
     }
 
     /**
@@ -392,7 +400,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            startNextScroll(thisBatchStartTime, response.getItems().length);
+            startNextScroll(thisBatchStartTime, timeValueNanos(System.nanoTime()), response.getItems().length);
         } catch (Exception t) {
             finishHim(t);
         }
@@ -404,12 +412,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param lastBatchSize the number of requests sent in the last batch. This is used to calculate the throttling values which are applied
      *        when the scroll returns
      */
-    void startNextScroll(TimeValue lastBatchStartTime, int lastBatchSize) {
+    void startNextScroll(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
         }
-        TimeValue extraKeepAlive = task.throttleWaitTime(lastBatchStartTime, lastBatchSize);
+        TimeValue extraKeepAlive = task.throttleWaitTime(lastBatchStartTime, now, lastBatchSize);
         scrollSource.startNextScroll(extraKeepAlive, response -> {
             onScrollResponse(lastBatchStartTime, lastBatchSize, response);
         });
@@ -791,8 +799,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             executable.setNextVar("ctx", context);
             executable.run();
 
-            Map<String, Object> resultCtx = (Map<String, Object>) executable.unwrap(context);
-            String newOp = (String) resultCtx.remove("op");
+            String newOp = (String) context.remove("op");
             if (newOp == null) {
                 throw new IllegalArgumentException("Script cleared operation type");
             }
@@ -801,25 +808,25 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * It'd be lovely to only set the source if we know its been modified
              * but it isn't worth keeping two copies of it around just to check!
              */
-            request.setSource((Map<String, Object>) resultCtx.remove(SourceFieldMapper.NAME));
+            request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
 
-            Object newValue = resultCtx.remove(IndexFieldMapper.NAME);
+            Object newValue = context.remove(IndexFieldMapper.NAME);
             if (false == doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
             }
-            newValue = resultCtx.remove(TypeFieldMapper.NAME);
+            newValue = context.remove(TypeFieldMapper.NAME);
             if (false == doc.getType().equals(newValue)) {
                 scriptChangedType(request, newValue);
             }
-            newValue = resultCtx.remove(IdFieldMapper.NAME);
+            newValue = context.remove(IdFieldMapper.NAME);
             if (false == doc.getId().equals(newValue)) {
                 scriptChangedId(request, newValue);
             }
-            newValue = resultCtx.remove(VersionFieldMapper.NAME);
+            newValue = context.remove(VersionFieldMapper.NAME);
             if (false == Objects.equals(oldVersion, newValue)) {
                 scriptChangedVersion(request, newValue);
             }
-            newValue = resultCtx.remove(ParentFieldMapper.NAME);
+            newValue = context.remove(ParentFieldMapper.NAME);
             if (false == Objects.equals(oldParent, newValue)) {
                 scriptChangedParent(request, newValue);
             }
@@ -827,7 +834,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * Its important that routing comes after parent in case you want to
              * change them both.
              */
-            newValue = resultCtx.remove(RoutingFieldMapper.NAME);
+            newValue = context.remove(RoutingFieldMapper.NAME);
             if (false == Objects.equals(oldRouting, newValue)) {
                 scriptChangedRouting(request, newValue);
             }
@@ -837,8 +844,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return scriptChangedOpType(request, oldOpType, newOpType);
             }
 
-            if (false == resultCtx.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", resultCtx.keySet()) + ']');
+            if (false == context.isEmpty()) {
+                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
             }
             return request;
         }

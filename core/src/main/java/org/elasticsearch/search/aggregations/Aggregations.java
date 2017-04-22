@@ -18,41 +18,84 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
- * Represents a set of computed addAggregation.
+ * Represents a set of {@link Aggregation}s
  */
-public interface Aggregations extends Iterable<Aggregation> {
+public abstract class Aggregations implements Iterable<Aggregation> {
+
+    protected List<? extends Aggregation> aggregations = Collections.emptyList();
+    protected Map<String, Aggregation> aggregationsAsMap;
+
+    protected Aggregations() {
+    }
+
+    protected Aggregations(List<? extends Aggregation> aggregations) {
+        this.aggregations = aggregations;
+    }
+
+    /**
+     * Iterates over the {@link Aggregation}s.
+     */
+    @Override
+    public final Iterator<Aggregation> iterator() {
+        return aggregations.stream().map((p) -> (Aggregation) p).iterator();
+    }
 
     /**
      * The list of {@link Aggregation}s.
      */
-    List<Aggregation> asList();
+    public final List<Aggregation> asList() {
+        return Collections.unmodifiableList(aggregations);
+    }
 
     /**
      * Returns the {@link Aggregation}s keyed by aggregation name.
      */
-    Map<String, Aggregation> asMap();
+    public final Map<String, Aggregation> asMap() {
+        return getAsMap();
+    }
 
     /**
      * Returns the {@link Aggregation}s keyed by aggregation name.
      */
-    Map<String, Aggregation> getAsMap();
+    public final Map<String, Aggregation> getAsMap() {
+        if (aggregationsAsMap == null) {
+            Map<String, Aggregation> newAggregationsAsMap = new HashMap<>(aggregations.size());
+            for (Aggregation aggregation : aggregations) {
+                newAggregationsAsMap.put(aggregation.getName(), aggregation);
+            }
+            this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
+        }
+        return aggregationsAsMap;
+    }
 
     /**
      * Returns the aggregation that is associated with the specified name.
      */
-    <A extends Aggregation> A get(String name);
+    @SuppressWarnings("unchecked")
+    public final <A extends Aggregation> A get(String name) {
+        return (A) asMap().get(name);
+    }
 
-    /**
-     * Get the value of specified path in the aggregation.
-     * 
-     * @param path
-     *            the path to the property in the aggregation tree
-     * @return the value of the property
-     */
-    Object getProperty(String path);
+    @Override
+    public final boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        return aggregations.equals(((Aggregations) obj).aggregations);
+    }
 
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), aggregations);
+    }
 }

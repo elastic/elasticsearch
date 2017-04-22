@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
@@ -69,7 +70,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         Option option = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(option, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(option, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 originalBytes = shuffleXContent(parser, randomBoolean()).bytes();

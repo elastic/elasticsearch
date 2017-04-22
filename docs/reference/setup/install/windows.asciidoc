@@ -121,7 +121,12 @@ The service 'elasticsearch-service-x64' has been installed.
 
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
-NOTE: Upgrading (or downgrading) JVM versions does not require the service to be reinstalled. However, upgrading across JVM types (e.g. JRE versus SE) is not supported, and does require the service to be reinstalled.
+NOTE: The system environment variable `JAVA_HOME` should be set to the path to
+the JDK installation that you want the service to use. If you upgrade the JDK,
+you are not required to the reinstall the service but you must set the value of
+the system environment variable `JAVA_HOME` to the path to the new JDK
+installation. However, upgrading across JVM types (e.g. JRE versus SE) is not
+supported, and does require the service to be reinstalled.
 
 [[windows-service-settings]]
 [float]

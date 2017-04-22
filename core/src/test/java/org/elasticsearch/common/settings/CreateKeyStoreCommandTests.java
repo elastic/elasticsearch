@@ -47,7 +47,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testNotPosix() throws Exception {
-        setupEnv(false);
+        env = setupEnv(false, fileSystems);
         execute();
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));

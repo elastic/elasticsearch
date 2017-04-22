@@ -60,7 +60,7 @@ public class CollectorResultTests extends ESTestCase {
         CollectorResult collectorResult = createTestItem(1);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(collectorResult, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(collectorResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         CollectorResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

@@ -227,41 +227,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }, field, ValueType.OBJECT_OR_BOOLEAN);
     }
 
-    /**
-     * Declares named objects in the style of highlighting's field element. These are usually named inside and object like this:
-     * <pre><code>
-     * {
-     *   "highlight": {
-     *     "fields": {        &lt;------ this one
-     *       "title": {},
-     *       "body": {},
-     *       "category": {}
-     *     }
-     *   }
-     * }
-     * </code></pre>
-     * but, when order is important, some may be written this way:
-     * <pre><code>
-     * {
-     *   "highlight": {
-     *     "fields": [        &lt;------ this one
-     *       {"title": {}},
-     *       {"body": {}},
-     *       {"category": {}}
-     *     ]
-     *   }
-     * }
-     * </code></pre>
-     * This is because json doesn't enforce ordering. Elasticsearch reads it in the order sent but tools that generate json are free to put
-     * object members in an unordered Map, jumbling them. Thus, if you care about order you can send the object in the second way.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke this.
-     *
-     * @param consumer sets the values once they have been parsed
-     * @param namedObjectParser parses each named object
-     * @param orderedModeCallback called when the named object is parsed using the "ordered" mode (the array of objects)
-     * @param field the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField field) {
         // This creates and parses the named object
@@ -311,26 +277,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }, field, ValueType.OBJECT_ARRAY);
     }
 
-    /**
-     * Declares named objects in the style of aggregations. These are named inside and object like this:
-     * <pre><code>
-     * {
-     *   "aggregations": {
-     *     "name_1": { "aggregation_type": {} },
-     *     "name_2": { "aggregation_type": {} },
-     *     "name_3": { "aggregation_type": {} }
-     *     }
-     *   }
-     * }
-     * </code></pre>
-     * Unlike the other version of this method, "ordered" mode (arrays of objects) is not supported.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke this.
-     *
-     * @param consumer sets the values once they have been parsed
-     * @param namedObjectParser parses each named object
-     * @param field the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             ParseField field) {
         Consumer<Value> orderedModeCallback = (v) -> {

@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for the {@link SnapshotsInProgress} class and its inner classes.
@@ -72,10 +73,6 @@ public class SnapshotsInProgressTests extends ESTestCase {
     }
 
     private State randomNonWaitingState() {
-        State state;
-        do {
-            state = randomFrom(State.values());
-        } while (state == State.WAITING);
-        return state;
+        return randomFrom(Arrays.stream(State.values()).filter(s -> s != State.WAITING).collect(Collectors.toSet()));
     }
 }

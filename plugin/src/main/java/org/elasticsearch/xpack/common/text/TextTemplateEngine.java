@@ -14,6 +14,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Collections;
@@ -55,13 +56,8 @@ public class TextTemplateEngine extends AbstractComponent {
             options.put(Script.CONTENT_TYPE_OPTION, mediaType);
         }
         Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
-        CompiledScript compiledScript = service.compile(script, Watcher.SCRIPT_CONTEXT);
-        ExecutableScript executable = service.executable(compiledScript, model);
-        Object result = executable.run();
-        if (result instanceof BytesReference) {
-            return ((BytesReference) result).utf8ToString();
-        }
-        return result.toString();
+        CompiledTemplate compiledTemplate = service.compileTemplate(script, Watcher.SCRIPT_CONTEXT);
+        return compiledTemplate.run(model).utf8ToString();
     }
 
     private String trimContentType(TextTemplate textTemplate) {

@@ -174,7 +174,7 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testWrongArity() {
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
             exec("Optional.empty().orElseGet(x -> x);");
         });
         assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
@@ -188,7 +188,7 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testWrongArityNotEnough() {
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
             exec("List l = new ArrayList(); l.add(1); l.add(1); "
                + "return l.stream().mapToInt(() -> 5).sum();");
         });

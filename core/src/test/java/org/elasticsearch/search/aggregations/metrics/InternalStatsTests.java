@@ -81,12 +81,6 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             assertEquals(aggregation.getMaxAsString(), parsed.getMaxAsString());
             assertEquals(aggregation.getSumAsString(), parsed.getSumAsString());
             assertEquals(aggregation.getAvgAsString(), parsed.getAvgAsString());
-            // NORELEASE there is no COUNT_AS_STRING in the json output, so we cannot get back a formatted value here
-            if (aggregation.format.equals(DocValueFormat.RAW)) {
-                assertEquals(aggregation.getCountAsString(), parsed.getCountAsString());
-            } else {
-                assertEquals(Double.toString(aggregation.getCount()), parsed.getCountAsString());
-            }
         }
     }
 

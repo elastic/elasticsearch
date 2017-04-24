@@ -67,11 +67,6 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     }
 
     @Override
-    public String getCountAsString() {
-        return Double.toString(count);
-    }
-
-    @Override
     public String getMinAsString() {
         return valueAsString.getOrDefault(Fields.MIN_AS_STRING, Double.toString(min));
     }

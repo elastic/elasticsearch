@@ -194,7 +194,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                             public void onFailure(Exception e) {
                                 listener.onFailure(e);
                             }
-                        });
+                        },
+                        true);
 
                     }, listener::onFailure);
         }

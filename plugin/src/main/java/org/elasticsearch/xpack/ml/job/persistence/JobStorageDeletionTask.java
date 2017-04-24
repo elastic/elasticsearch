@@ -87,6 +87,7 @@ public class JobStorageDeletionTask extends Task {
                     searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
                     request.setSlices(5);
                     request.setAbortOnVersionConflict(false);
+                    request.setRefresh(true);
 
                     client.execute(XPackDeleteByQueryAction.INSTANCE, request, dbqHandler);
                 },
@@ -123,7 +124,7 @@ public class JobStorageDeletionTask extends Task {
                         deleter.deleteModelSnapshot(deleteCandidate);
                     }
 
-                    deleter.commit(listener);
+                    deleter.commit(listener, true);
                 },
                 listener::onFailure);
     }

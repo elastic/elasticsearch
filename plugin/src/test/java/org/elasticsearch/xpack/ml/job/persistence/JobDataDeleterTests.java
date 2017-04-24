@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import static org.elasticsearch.mock.orig.Mockito.never;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
@@ -73,9 +75,14 @@ public class JobDataDeleterTests extends ESTestCase {
         };
 
         when(client.prepareBulk().numberOfActions()).thenReturn(new Integer((int)TOTAL_HIT_COUNT));
-        bulkDeleter.commit(bulkListener);
 
+        bulkDeleter.commit(bulkListener, true);
         verify(client.prepareBulk(), times(1)).execute(bulkListener);
+        verify(client.prepareBulk(), times(1)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        bulkDeleter.commit(bulkListener, false);
+        verify(client.prepareBulk(), times(2)).execute(bulkListener);
+        verify(client.prepareBulk(), times(1)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
     }
 
     public void testDeleteModelSnapShot() {

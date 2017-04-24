@@ -274,7 +274,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void deleteInterimResults(String jobId) {
         JobDataDeleter deleter = new JobDataDeleter(client, jobId, true);
         deleter.deleteInterimResults();
-        deleter.commit();
+        deleter.commit(false);
     }
 
     /**

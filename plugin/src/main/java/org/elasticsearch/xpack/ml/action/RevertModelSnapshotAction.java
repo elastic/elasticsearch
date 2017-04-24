@@ -338,7 +338,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                         public void onResponse(Boolean success) {
                             dataDeleter.commit(ActionListener.wrap(
                                     bulkItemResponses -> {listener.onResponse(response);},
-                                    listener::onFailure));
+                                    listener::onFailure),
+                                    true);
                         }
 
                         @Override

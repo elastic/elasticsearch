@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ssl;
 
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.bouncycastle.jce.spec.ECNamedCurveSpec;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -26,10 +28,13 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -150,5 +155,35 @@ public class CertUtilsTests extends ESTestCase {
 
         verify(address).isAnyLocalAddress();
         verifyNoMoreInteractions(address);
+    }
+
+    public void testReadEllipticCurveCertificateAndKey() throws Exception {
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
+        try (Reader reader = Files.newBufferedReader(keyPath)) {
+            verifyPrime256v1ECKey(reader);
+        }
+
+        Path keyNoSpecPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key-noparam.pem");
+        try (Reader reader = Files.newBufferedReader(keyNoSpecPath)) {
+            verifyPrime256v1ECKey(reader);
+        }
+
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
+        Certificate[] certs = CertUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
+        assertEquals(1, certs.length);
+        Certificate cert = certs[0];
+        assertNotNull(cert);
+        assertEquals("EC", cert.getPublicKey().getAlgorithm());
+    }
+
+    private void verifyPrime256v1ECKey(Reader reader) throws Exception {
+        PrivateKey privateKey = CertUtils.readPrivateKey(reader, () -> null);
+        assertNotNull(privateKey);
+        assertEquals("ECDSA", privateKey.getAlgorithm());
+        assertThat(privateKey, instanceOf(ECPrivateKey.class));
+        ECPrivateKey ecPrivateKey = (ECPrivateKey) privateKey;
+        assertThat(ecPrivateKey.getParams(), instanceOf(ECNamedCurveSpec.class));
+        ECNamedCurveSpec namedCurveSpec = (ECNamedCurveSpec) ecPrivateKey.getParams();
+        assertEquals("prime256v1", namedCurveSpec.getName());
     }
 }

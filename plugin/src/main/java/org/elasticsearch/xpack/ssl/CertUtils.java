@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -14,7 +15,6 @@ import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x509.Time;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -66,7 +66,6 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
@@ -106,7 +105,7 @@ public class CertUtils {
     /**
      * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
      */
-    static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+    public static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
@@ -234,38 +233,48 @@ public class CertUtils {
     /**
      * Reads the private key from the reader and optionally uses the password supplier to retrieve a password if the key is encrypted
      */
-    static PrivateKey readPrivateKey(Reader reader, Supplier<char[]> passwordSupplier) throws IOException {
+    public static PrivateKey readPrivateKey(Reader reader, Supplier<char[]> passwordSupplier) throws IOException {
         try (PEMParser parser = new PEMParser(reader)) {
-            final Object parsed = parser.readObject();
+            PrivateKeyInfo privateKeyInfo = innerReadPrivateKey(parser, passwordSupplier);
             if (parser.readObject() != null) {
                 throw new IllegalStateException("key file contained more that one entry");
             }
-
-            PrivateKeyInfo privateKeyInfo;
-            if (parsed instanceof PEMEncryptedKeyPair) {
-                char[] keyPassword = passwordSupplier.get();
-                if (keyPassword == null) {
-                    throw new IllegalArgumentException("cannot read encrypted key without a password");
-                }
-                // we have an encrypted key pair so we need to decrypt it
-                PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) parsed;
-                privateKeyInfo = encryptedKeyPair
-                        .decryptKeyPair(new JcePEMDecryptorProviderBuilder().setProvider(BC_PROV).build(keyPassword))
-                        .getPrivateKeyInfo();
-            } else if (parsed instanceof PEMKeyPair) {
-                privateKeyInfo = ((PEMKeyPair) parsed).getPrivateKeyInfo();
-            } else if (parsed instanceof PrivateKeyInfo) {
-                privateKeyInfo = (PrivateKeyInfo) parsed;
-            } else {
-                throw new IllegalArgumentException("parsed an unsupported object [" +
-                        parsed.getClass().getSimpleName() + "]");
-            }
-
             JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+            converter.setProvider(BC_PROV);
             return converter.getPrivateKey(privateKeyInfo);
         }
     }
 
+    private static PrivateKeyInfo innerReadPrivateKey(PEMParser parser, Supplier<char[]> passwordSupplier) throws IOException {
+        final Object parsed = parser.readObject();
+        if (parsed == null) {
+            throw new IllegalStateException("key file did not contain a supported key");
+        }
+
+        PrivateKeyInfo privateKeyInfo;
+        if (parsed instanceof PEMEncryptedKeyPair) {
+            char[] keyPassword = passwordSupplier.get();
+            if (keyPassword == null) {
+                throw new IllegalArgumentException("cannot read encrypted key without a password");
+            }
+            // we have an encrypted key pair so we need to decrypt it
+            PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) parsed;
+            privateKeyInfo = encryptedKeyPair
+                    .decryptKeyPair(new JcePEMDecryptorProviderBuilder().setProvider(BC_PROV).build(keyPassword))
+                    .getPrivateKeyInfo();
+        } else if (parsed instanceof PEMKeyPair) {
+            privateKeyInfo = ((PEMKeyPair) parsed).getPrivateKeyInfo();
+        } else if (parsed instanceof PrivateKeyInfo) {
+            privateKeyInfo = (PrivateKeyInfo) parsed;
+        } else if (parsed instanceof ASN1ObjectIdentifier) {
+            // skip this object and recurse into this method again to read the next object
+            return innerReadPrivateKey(parser, passwordSupplier);
+        } else {
+            throw new IllegalArgumentException("parsed an unsupported object [" + parsed.getClass().getSimpleName() + "]");
+        }
+
+        return privateKeyInfo;
+    }
     /**
      * Generates a CA certificate
      */

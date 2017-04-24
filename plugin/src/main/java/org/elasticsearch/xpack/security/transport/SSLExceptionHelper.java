@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.ssl.NotSslRecordException;
 
 import javax.net.ssl.SSLException;
@@ -23,5 +24,11 @@ public class SSLExceptionHelper {
         return e instanceof SSLException
                 && e.getCause() == null
                 && "Received close_notify during handshake".equals(e.getMessage());
+    }
+
+    public static boolean isReceivedCertificateUnknownException(Throwable e) {
+        return e instanceof DecoderException
+                && e.getCause() instanceof SSLException
+                && "Received fatal alert: certificate_unknown".equals(e.getCause().getMessage());
     }
 }

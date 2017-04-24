@@ -10,13 +10,11 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -28,6 +26,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESS
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
 
@@ -53,20 +52,25 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
         if (isNotSslRecordException(cause)) {
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                                "received plaintext http traffic on a https channel, closing connection {}",
-                                ctx.channel()),
-                        cause);
+                logger.trace(new ParameterizedMessage("received plaintext http traffic on a https channel, closing connection {}",
+                                ctx.channel()), cause);
             } else {
                 logger.warn("received plaintext http traffic on a https channel, closing connection {}", ctx.channel());
             }
             ctx.channel().close();
         } else if (isCloseDuringHandshakeException(cause)) {
             if (logger.isTraceEnabled()) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("connection {} closed during handshake", ctx.channel()), cause);
+                logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", ctx.channel()), cause);
             } else {
-                logger.warn("connection {} closed during handshake", ctx.channel());
+                logger.warn("connection {} closed during ssl handshake", ctx.channel());
+            }
+            ctx.channel().close();
+        } else if (isReceivedCertificateUnknownException(cause)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(new ParameterizedMessage("http client did not trust server's certificate, closing connection {}",
+                                ctx.channel()), cause);
+            } else {
+                logger.warn("http client did not trust this server's certificate, closing connection {}", ctx.channel());
             }
             ctx.channel().close();
         } else {

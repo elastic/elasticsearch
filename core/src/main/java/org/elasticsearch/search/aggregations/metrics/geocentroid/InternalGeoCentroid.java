@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +38,19 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     protected final GeoPoint centroid;
     protected final long count;
 
-    public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
+    public static long encodeLatLon(double lat, double lon) {
+        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(GeoEncodingUtils.encodeLongitude(lon));
+    }
+
+    public static double decodeLatitude(long encodedLatLon) {
+        return GeoEncodingUtils.decodeLatitude((int) (encodedLatLon >>> 32));
+    }
+
+    public static double decodeLongitude(long encodedLatLon) {
+        return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
+    }
+
+    InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         assert (centroid == null) == (count == 0);
@@ -55,7 +67,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         count = in.readVLong();
         if (in.readBoolean()) {
             final long hash = in.readLong();
-            centroid = new GeoPoint(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
+            centroid = new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
         } else {
             centroid = null;
         }
@@ -67,7 +79,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         if (centroid != null) {
             out.writeBoolean(true);
             // should we just write lat and lon separately?
-            out.writeLong(GeoPointField.encodeLatLon(centroid.lat(), centroid.lon()));
+            out.writeLong(encodeLatLon(centroid.lat(), centroid.lon()));
         } else {
             out.writeBoolean(false);
         }
@@ -132,7 +144,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     static class Fields {
-        public static final String CENTROID = "location";
+        static final String CENTROID = "location";
     }
 
     @Override

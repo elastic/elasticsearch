@@ -100,16 +100,20 @@ public class MatrixStatsAggregator extends MetricsAggregator {
             /**
              * return a map of field names and data
              */
-            private boolean includeDocument(int doc) {
+            private boolean includeDocument(int doc) throws IOException {
                 // loop over fields
                 for (int i = 0; i < fieldVals.length; ++i) {
                     final NumericDoubleValues doubleValues = values[i];
-                    final double value = doubleValues.get(doc);
-                    // skip if value is missing
-                    if (value == Double.NEGATIVE_INFINITY) {
+                    if (doubleValues.advanceExact(doc)) {
+                        final double value = doubleValues.doubleValue();
+                        if (value == Double.NEGATIVE_INFINITY) {
+                            // TODO: Fix matrix stats to treat neg inf as any other value
+                            return false;
+                        }
+                        fieldVals[i] = value;
+                    } else {
                         return false;
                     }
-                    fieldVals[i] = value;
                 }
                 return true;
             }

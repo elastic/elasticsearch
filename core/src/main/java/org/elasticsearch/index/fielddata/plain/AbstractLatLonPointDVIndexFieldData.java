@@ -19,13 +19,11 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -37,8 +35,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
-
-import java.io.IOException;
 
 public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndexFieldData
     implements IndexGeoPointFieldData {
@@ -58,16 +54,12 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
 
         @Override
         public AtomicGeoPointFieldData load(LeafReaderContext context) {
-            try {
-                LeafReader reader = context.reader();
-                FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
-                if (info != null) {
-                    checkCompatible(info);
-                }
-                return new LatLonPointDVAtomicFieldData(DocValues.getSortedNumeric(reader, fieldName));
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
+            LeafReader reader = context.reader();
+            FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
+            if (info != null) {
+                checkCompatible(info);
             }
+            return new LatLonPointDVAtomicFieldData(reader, fieldName);
         }
 
         @Override

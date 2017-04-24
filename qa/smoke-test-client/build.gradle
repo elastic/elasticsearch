@@ -37,6 +37,6 @@ singleNodeIntegTestCluster {
     setting 'discovery.type', 'single-node'
 }
 
-integTest.dependsOn(singleNodeIntegTestRunner, 'singleNodeIntegTestCluster#stop')
+integTestCluster.dependsOn(singleNodeIntegTestRunner, 'singleNodeIntegTestCluster#stop')
 
 check.dependsOn(integTest)

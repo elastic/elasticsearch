@@ -61,8 +61,8 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void analyze(Locals variables) {
-        captured = variables.getVariable(location, variable);
+    void analyze(Locals locals) {
+        captured = locals.getVariable(location, variable);
         if (expected == null) {
             if (captured.type.sort == Definition.Sort.DEF) {
                 // dynamic implementation
@@ -71,13 +71,13 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 // typed implementation
                 defPointer = "S" + captured.type.name + "." + call + ",1";
             }
-            actual = Definition.getType("String");
+            actual = locals.getDefinition().getType("String");
         } else {
             defPointer = null;
             // static case
             if (captured.type.sort != Definition.Sort.DEF) {
                 try {
-                    ref = new FunctionRef(expected, captured.type.name, call, 1);
+                    ref = new FunctionRef(locals.getDefinition(), expected, captured.type.name, call, 1);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {

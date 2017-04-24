@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -261,16 +262,20 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = searchScript.getLeafSearchScript(context);
-                        final BinaryDocValues values = new BinaryDocValues() {
+                        final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
-                            public BytesRef get(int docID) {
-                                leafScript.setDocument(docID);
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+                            @Override
+                            public BytesRef binaryValue() {
                                 spare.copyChars(leafScript.run().toString());
                                 return spare.get();
                             }
                         };
-                        return FieldData.singleton(values, null);
+                        return FieldData.singleton(values);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
@@ -286,12 +291,16 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript = searchScript.getLeafSearchScript(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
-                            public double get(int docID) {
-                                leafScript.setDocument(docID);
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return false;
+                            }
+                            @Override
+                            public double doubleValue() {
                                 return leafScript.runAsDouble();
                             }
                         };
-                        return FieldData.singleton(values, null);
+                        return FieldData.singleton(values);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {

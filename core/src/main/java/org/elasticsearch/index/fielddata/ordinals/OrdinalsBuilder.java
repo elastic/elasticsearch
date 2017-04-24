@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
@@ -414,23 +411,6 @@ public final class OrdinalsBuilder implements Closeable {
         }
     }
 
-    /**
-     * A {@link TermsEnum} that iterates only highest resolution geo prefix coded terms.
-     *
-     * @see #buildFromTerms(TermsEnum)
-     */
-    public static TermsEnum wrapGeoPointTerms(TermsEnum termsEnum) {
-        return new FilteredTermsEnum(termsEnum, false) {
-            @Override
-            protected AcceptStatus accept(BytesRef term) throws IOException {
-                // accept only the max resolution terms
-                // todo is this necessary?
-                return GeoPointField.getPrefixCodedShift(term) == GeoPointField.PRECISION_STEP * 4 ?
-                    AcceptStatus.YES : AcceptStatus.END;
-            }
-        };
-    }
-
 
     /**
      * Returns the maximum document ID this builder can associate with an ordinal
@@ -440,50 +420,11 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * A {@link TermsEnum} that iterates only full precision prefix coded 64 bit values.
-     *
-     * @see #buildFromTerms(TermsEnum)
-     */
-    public static TermsEnum wrapNumeric64Bit(TermsEnum termsEnum) {
-        return new FilteredTermsEnum(termsEnum, false) {
-            @Override
-            protected AcceptStatus accept(BytesRef term) throws IOException {
-                // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return LegacyNumericUtils.getPrefixCodedLongShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
-            }
-        };
-    }
-
-    /**
-     * A {@link TermsEnum} that iterates only full precision prefix coded 32 bit values.
-     *
-     * @see #buildFromTerms(TermsEnum)
-     */
-    public static TermsEnum wrapNumeric32Bit(TermsEnum termsEnum) {
-        return new FilteredTermsEnum(termsEnum, false) {
-
-            @Override
-            protected AcceptStatus accept(BytesRef term) throws IOException {
-                // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return LegacyNumericUtils.getPrefixCodedIntShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
-            }
-        };
-    }
-
-    /**
      * This method iterates all terms in the given {@link TermsEnum} and
      * associates each terms ordinal with the terms documents. The caller must
      * exhaust the returned {@link BytesRefIterator} which returns all values
      * where the first returned value is associated with the ordinal <tt>1</tt>
      * etc.
-     * <p>
-     * If the {@link TermsEnum} contains prefix coded numerical values the terms
-     * enum should be wrapped with either {@link #wrapNumeric32Bit(TermsEnum)}
-     * or {@link #wrapNumeric64Bit(TermsEnum)} depending on its precision. If
-     * the {@link TermsEnum} is not wrapped the returned
-     * {@link BytesRefIterator} will contain partial precision terms rather than
-     * only full-precision terms.
-     * </p>
      */
     public BytesRefIterator buildFromTerms(final TermsEnum termsEnum) throws IOException {
         return new BytesRefIterator() {

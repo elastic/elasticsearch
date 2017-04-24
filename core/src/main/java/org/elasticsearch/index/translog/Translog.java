@@ -85,14 +85,14 @@ import java.util.stream.Stream;
  * When a translog is opened the checkpoint is use to retrieve the latest translog file generation and subsequently to open the last written file to recovery operations.
  * The {@link org.elasticsearch.index.translog.Translog.TranslogGeneration}, given when the translog is opened / constructed is compared against
  * the latest generation and all consecutive translog files singe the given generation and the last generation in the checkpoint will be recovered and preserved until the next
- * generation is committed using {@link Translog#commit()}. In the common case the translog file generation in the checkpoint and the generation passed to the translog on creation are
- * the same. The only situation when they can be different is when an actual translog commit fails in between {@link Translog#prepareCommit()} and {@link Translog#commit()}. In such a case
+ * generation is committed using {@link Translog#commit(long)}. In the common case the translog file generation in the checkpoint and the generation passed to the translog on creation are
+ * the same. The only situation when they can be different is when an actual translog commit fails in between {@link Translog#prepareCommit()} and {@link Translog#commit(long)}. In such a case
  * the currently being committed translog file will not be deleted since it's commit was not successful. Yet, a new/current translog file is already opened at that point such that there is more than
  * one translog file present. Such an uncommitted translog file always has a <tt>translog-${gen}.ckp</tt> associated with it which is an fsynced copy of the it's last <tt>translog.ckp</tt> such that in
  * disaster recovery last fsynced offsets, number of operation etc. are still preserved.
  * </p>
  */
-public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable, TwoPhaseCommit {
+public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     /*
      * TODO
@@ -804,6 +804,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         long seqNo();
 
+        long primaryTerm();
+
         /**
          * Reads the type and the operation from the given stream. The operation must be written with
          * {@link Operation#writeType(Operation, StreamOutput)}
@@ -953,6 +955,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public long primaryTerm() {
             return primaryTerm;
         }
@@ -1104,6 +1107,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public long primaryTerm() {
             return primaryTerm;
         }
@@ -1180,6 +1184,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public long primaryTerm() {
             return primaryTerm;
         }
@@ -1348,6 +1353,31 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Gets the minimum generation that could contain any sequence number after the specified sequence number, or the current generation if
+     * there is no generation that could any such sequence number.
+     *
+     * @param seqNo the sequence number
+     * @return the minimum generation for the sequence number
+     */
+    public TranslogGeneration getMinGenerationForSeqNo(final long seqNo) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            /*
+             * When flushing, the engine will ask the translog for the minimum generation that could contain any sequence number after the
+             * local checkpoint. Immediately after flushing, there will be no such generation, so this minimum generation in this case will
+             * be the current translog generation as we do not need any prior generations to have a complete history up to the current local
+             * checkpoint.
+             */
+            long minTranslogFileGeneration = this.currentFileGeneration();
+            for (final TranslogReader reader : readers) {
+                if (seqNo <= reader.getCheckpoint().maxSeqNo) {
+                    minTranslogFileGeneration = Math.min(minTranslogFileGeneration, reader.getGeneration());
+                }
+            }
+            return new TranslogGeneration(translogUUID, minTranslogFileGeneration);
+        }
+    }
+
+    /**
      * Roll the current translog generation into a new generation. This does not commit the
      * translog.
      *
@@ -1375,27 +1405,38 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    @Override
-    public long prepareCommit() throws IOException {
+    /**
+     * Prepares a translog commit by setting the current committing generation and rolling the translog generation.
+     *
+     * @throws IOException if an I/O exception occurred while rolling the translog generation
+     */
+    public void prepareCommit() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
-                final String message = String.format(
-                        Locale.ROOT,
-                        "already committing a translog with generation [%d]",
-                        currentCommittingGeneration);
+                final String message =
+                        String.format(Locale.ROOT, "already committing a translog with generation [%d]", currentCommittingGeneration);
                 throw new IllegalStateException(message);
             }
             currentCommittingGeneration = current.getGeneration();
             rollGeneration();
         }
-        return 0;
     }
 
-    @Override
-    public long commit() throws IOException {
+    /**
+     * Commits the translog and sets the last committed translog generation to the specified generation. The specified committed generation
+     * will be used when trimming unreferenced translog generations such that generations from the committed generation will be preserved.
+     *
+     * If {@link Translog#prepareCommit()} was not called before calling commit, this method will be invoked too causing the translog
+     * generation to be rolled.
+     *
+     * @param committedGeneration the minimum translog generation to preserve after trimming unreferenced generations
+     * @throws IOException if an I/O exception occurred preparing the translog commit
+     */
+    public void commit(final long committedGeneration) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
+            assert assertCommittedGenerationIsInValidRange(committedGeneration);
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
                 prepareCommit();
             }
@@ -1403,26 +1444,39 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert readers.stream().anyMatch(r -> r.getGeneration() == currentCommittingGeneration)
                     : "readers missing committing generation [" + currentCommittingGeneration + "]";
             // set the last committed generation otherwise old files will not be cleaned up
-            lastCommittedTranslogFileGeneration = currentCommittingGeneration + 1;
+            lastCommittedTranslogFileGeneration = committedGeneration;
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }
-        return 0;
     }
 
+    private boolean assertCommittedGenerationIsInValidRange(final long committedGeneration) {
+        assert committedGeneration <= current.generation
+                : "tried to commit generation [" + committedGeneration + "] after current generation [" + current.generation + "]";
+        final long min = readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).orElse(Long.MIN_VALUE);
+        assert committedGeneration >= min
+                : "tried to commit generation [" + committedGeneration + "] before minimum generation [" + min + "]";
+        return true;
+    }
+
+    /**
+     * Trims unreferenced translog generations. The guarantee here is that translog generations will be preserved for all outstanding views
+     * and from the last committed translog generation defined by {@link Translog#lastCommittedTranslogFileGeneration}.
+     */
     void trimUnreferencedReaders() {
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {
-                // we're shutdown potentially on some tragic event - don't delete anything
+                // we're shutdown potentially on some tragic event, don't delete anything
                 return;
             }
-            long minReferencedGen = outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE);
-            minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
-            final long finalMinReferencedGen = minReferencedGen;
-            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
+            long minReferencedGen = Math.min(
+                    lastCommittedTranslogFileGeneration,
+                    outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE));
+            final List<TranslogReader> unreferenced =
+                    readers.stream().filter(r -> r.getGeneration() < minReferencedGen).collect(Collectors.toList());
             for (final TranslogReader unreferencedReader : unreferenced) {
-                Path translogPath = unreferencedReader.path();
-                logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
+                final Path translogPath = unreferencedReader.path();
+                logger.trace("delete translog file [{}], not referenced and not current anymore", translogPath);
                 IOUtils.closeWhileHandlingException(unreferencedReader);
                 IOUtils.deleteFilesIgnoringExceptions(translogPath,
                         translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
@@ -1440,13 +1494,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 IOUtils.close(toClose);
             }
         }
-    }
-
-
-    @Override
-    public void rollback() throws IOException {
-        ensureOpen();
-        close();
     }
 
     /**

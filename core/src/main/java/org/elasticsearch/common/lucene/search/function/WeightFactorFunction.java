@@ -52,7 +52,7 @@ public class WeightFactorFunction extends ScoreFunction {
         final LeafScoreFunction leafFunction = scoreFunction.getLeafScoreFunction(ctx);
         return new LeafScoreFunction() {
             @Override
-            public double score(int docId, float subQueryScore) {
+            public double score(int docId, float subQueryScore) throws IOException {
                 return leafFunction.score(docId, subQueryScore) * getWeight();
             }
 

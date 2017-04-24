@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -511,35 +510,40 @@ public class GeoUtils {
                                                            final GeoPoint... fromPoints) {
         final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
         if (singleValues != null && fromPoints.length == 1) {
-            final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
             return FieldData.singleton(new NumericDoubleValues() {
 
                 @Override
-                public double get(int docID) {
-                    if (docsWithField != null && !docsWithField.get(docID)) {
-                        return 0d;
-                    }
-                    final GeoPoint to = singleValues.get(docID);
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleValues.advanceExact(doc);
+                }
+
+                @Override
+                public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
+                    final GeoPoint to = singleValues.geoPointValue();
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 
-            }, docsWithField);
+            });
         } else {
             return new SortingNumericDoubleValues() {
                 @Override
-                public void setDocument(int doc) {
-                    geoPointValues.setDocument(doc);
-                    resize(geoPointValues.count() * fromPoints.length);
-                    int v = 0;
-                    for (GeoPoint from : fromPoints) {
-                        for (int i = 0; i < geoPointValues.count(); ++i) {
-                            final GeoPoint point = geoPointValues.valueAt(i);
-                            values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
-                            v++;
+                public boolean advanceExact(int target) throws IOException {
+                    if (geoPointValues.advanceExact(target)) {
+                        resize(geoPointValues.docValueCount() * fromPoints.length);
+                        int v = 0;
+                        for (int i = 0; i < geoPointValues.docValueCount(); ++i) {
+                            final GeoPoint point = geoPointValues.nextValue();
+                            for (GeoPoint from : fromPoints) {
+                                values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
+                                v++;
+                            }
                         }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
                     }
-                    sort();
                 }
             };
         }

@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -650,26 +651,46 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state,
+        String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state,
                 IndicesOptions.lenientExpandOpen(), "foo*");
 
-        assertEquals(1, indexNames.length);
-        assertEquals("foo_foo", indexNames[0]);
+        assertEquals(1, indexNamesIndexWildcard.length);
+        assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
-        indexNames = indexNameExpressionResolver.concreteIndexNames(state,
+        indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state,
                 IndicesOptions.lenientExpandOpen(), "*o");
 
-        assertEquals(1, indexNames.length);
-        assertEquals("foo_foo", indexNames[0]);
+        assertEquals(1, indexNamesIndexWildcard.length);
+        assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
-        indexNames = indexNameExpressionResolver.concreteIndexNames(state,
+        indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state,
                 IndicesOptions.lenientExpandOpen(), "f*o");
 
-        assertEquals(1, indexNames.length);
-        assertEquals("foo_foo", indexNames[0]);
+        assertEquals(1, indexNamesIndexWildcard.length);
+        assertEquals("foo_foo", indexNamesIndexWildcard[0]);
+
+        List<String> indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
+                IndicesOptions.lenientExpandOpen(), "foo*"));
+
+        assertEquals(2, indexNames.size());
+        assertTrue(indexNames.contains("foo_foo"));
+        assertTrue(indexNames.contains("bar_bar"));
+
+        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
+                IndicesOptions.lenientExpandOpen(), "*o"));
+
+        assertEquals(2, indexNames.size());
+        assertTrue(indexNames.contains("foo_foo"));
+        assertTrue(indexNames.contains("bar_bar"));
+
+        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
+                IndicesOptions.lenientExpandOpen(), "f*o"));
+
+        assertEquals(2, indexNames.size());
+        assertTrue(indexNames.contains("foo_foo"));
+        assertTrue(indexNames.contains("bar_bar"));
     }
 
-    
     /**
      * test resolving _all pattern (null, empty array or "_all") for random IndicesOptions
      */

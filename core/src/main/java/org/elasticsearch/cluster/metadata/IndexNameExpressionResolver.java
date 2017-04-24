@@ -79,6 +79,15 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
+     * Same as {@link #concreteIndexNames(ClusterState state, IndicesRequest request)}, but the
+     * indexExpressions are resolved only against indices
+     */
+    public String[] concreteIndexNamesIndexExpression(ClusterState state, IndicesRequest request) {
+        Context context = new Context(state, request.indicesOptions(), System.currentTimeMillis(), false, true);
+        return concreteIndexNames(context, request.indices());
+    }
+
+    /**
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request.
      */
@@ -101,6 +110,17 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * indices options in the context don't allow such a case.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(state, options);
+        return concreteIndexNames(context, indexExpressions);
+    }
+
+    /**
+     * Same as
+     * {@link #concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions)},
+     * but the indexExpressions are resolved only against indices
+     */
+
+    public String[] concreteIndexNamesIndexExpression(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options, System.currentTimeMillis(), false, true);
         return concreteIndexNames(context, indexExpressions);
     }

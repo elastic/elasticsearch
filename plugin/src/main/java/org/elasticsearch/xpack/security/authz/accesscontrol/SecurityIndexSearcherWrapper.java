@@ -63,6 +63,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
@@ -277,9 +278,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 params.put("_user", userModel);
                 // Always enforce mustache script lang:
                 script = new Script(script.getType(), "mustache", script.getIdOrCode(), script.getOptions(), params);
-                CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH);
-                ExecutableScript executable = scriptService.executable(compiledScript, script.getParams());
-                return (BytesReference) executable.run();
+                CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ScriptContext.Standard.SEARCH);
+                return compiledTemplate.run(script.getParams());
             } else {
                 return querySource;
             }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.common.text;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,6 +16,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
@@ -38,13 +40,11 @@ public class TextTemplateTests extends ESTestCase {
 
     private ScriptService service;
     private TextTemplateEngine engine;
-    private ExecutableScript script;
     private final String lang = "mustache";
 
     @Before
     public void init() throws Exception {
         service = mock(ScriptService.class);
-        script = mock(ExecutableScript.class);
         engine = new TextTemplateEngine(Settings.EMPTY, service);
     }
 
@@ -57,12 +57,10 @@ public class TextTemplateTests extends ESTestCase {
         merged = unmodifiableMap(merged);
         ScriptType type = randomFrom(ScriptType.values());
 
-        CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(type, lang, templateText,
+        CompiledTemplate compiledTemplate = templateParams -> new BytesArray("rendered_text");
+        when(service.compileTemplate(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
-                merged), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
-        when(service.executable(compiledScript, model)).thenReturn(script);
-        when(script.run()).thenReturn("rendered_text");
+                merged), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledTemplate);
 
         TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
@@ -74,12 +72,10 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
         ScriptType type = randomFrom(ScriptType.values());
 
-        CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(type, lang, templateText,
+        CompiledTemplate compiledTemplate = templateParams -> new BytesArray("rendered_text");
+        when(service.compileTemplate(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
-                model), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
-        when(service.executable(compiledScript, model)).thenReturn(script);
-        when(script.run()).thenReturn("rendered_text");
+                model), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledTemplate);
 
         TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
@@ -89,12 +85,10 @@ public class TextTemplateTests extends ESTestCase {
         String templateText = "_template";
         Map<String, Object> model = singletonMap("key", "model_val");
 
-        CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(ScriptType.INLINE, lang, templateText,
+        CompiledTemplate compiledTemplate = templateParams -> new BytesArray("rendered_text");
+        when(service.compileTemplate(new Script(ScriptType.INLINE, lang, templateText,
                 Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_CONTEXT))
-                .thenReturn(compiledScript);
-        when(service.executable(compiledScript, model)).thenReturn(script);
-        when(script.run()).thenReturn("rendered_text");
+                .thenReturn(compiledTemplate);
 
         TextTemplate template = new TextTemplate(templateText);
         assertThat(engine.render(template, model), is("rendered_text"));

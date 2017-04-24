@@ -100,18 +100,16 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        Definition definition = Definition.BUILTINS;
-        ScriptInterface scriptInterface = new ScriptInterface(definition, iface);
+        ScriptInterface scriptInterface = new ScriptInterface(settings.getDefinition(), iface);
 
-        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
-                null);
+        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, null);
 
-        root.analyze(definition);
+        root.analyze();
         root.write();
 
         try {
             Class<? extends PainlessScript> clazz = loader.define(CLASS_NAME, root.getBytes());
-            clazz.getField("$DEFINITION").set(null, definition);
+            clazz.getField("$DEFINITION").set(null, settings.getDefinition());
             java.lang.reflect.Constructor<? extends PainlessScript> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
@@ -134,13 +132,11 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        Definition definition = Definition.BUILTINS;
-        ScriptInterface scriptInterface = new ScriptInterface(definition, iface);
+        ScriptInterface scriptInterface = new ScriptInterface(settings.getDefinition(), iface);
 
-        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
-                debugStream);
+        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, debugStream);
 
-        root.analyze(definition);
+        root.analyze();
         root.write();
 
         return root.getBytes();

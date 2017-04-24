@@ -43,32 +43,31 @@ import java.util.Objects;
 import java.util.PrimitiveIterator;
 import java.util.Spliterator;
 
+import static java.util.Collections.unmodifiableList;
+
 /**
  * The entire API for Painless.  Also used as a whitelist for checking for legal
  * methods and fields during at both compile-time and runtime.
  */
 public final class Definition {
-
-    private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.txt",
-                      "java.lang.txt",
-                      "java.math.txt",
-                      "java.text.txt",
-                      "java.time.txt",
-                      "java.time.chrono.txt",
-                      "java.time.format.txt",
-                      "java.time.temporal.txt",
-                      "java.time.zone.txt",
-                      "java.util.txt",
-                      "java.util.function.txt",
-                      "java.util.regex.txt",
-                      "java.util.stream.txt",
-                      "joda.time.txt"));
-
     /**
      * Whitelist that is "built in" to Painless and required by all scripts.
      */
-    public static final Definition BUILTINS = new Definition();
+    public static final Definition BUILTINS = new Definition(unmodifiableList(Arrays.asList(
+            "org.elasticsearch.txt",
+            "java.lang.txt",
+            "java.math.txt",
+            "java.text.txt",
+            "java.time.txt",
+            "java.time.chrono.txt",
+            "java.time.format.txt",
+            "java.time.temporal.txt",
+            "java.time.zone.txt",
+            "java.util.txt",
+            "java.util.function.txt",
+            "java.util.regex.txt",
+            "java.util.stream.txt",
+            "joda.time.txt")));
 
     /** Some native types as constants: */
     public static final Type VOID_TYPE = BUILTINS.getType("void");
@@ -490,26 +489,26 @@ public final class Definition {
 
     /** Returns whether or not a non-array type exists. */
     public boolean isSimpleType(final String name) {
-        return BUILTINS.structsMap.containsKey(name);
+        return structsMap.containsKey(name);
     }
 
     /** Gets the type given by its name */
     public Type getType(final String name) {
-        return BUILTINS.getTypeInternal(name);
+        return getTypeInternal(name);
     }
 
     /** Creates an array type from the given Struct. */
     public Type getType(final Struct struct, final int dimensions) {
-        return BUILTINS.getTypeInternal(struct, dimensions);
+        return getTypeInternal(struct, dimensions);
     }
 
     public RuntimeClass getRuntimeClass(Class<?> clazz) {
-        return BUILTINS.runtimeMap.get(clazz);
+        return runtimeMap.get(clazz);
     }
 
     /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
-    static Collection<Type> allSimpleTypes() {
-        return BUILTINS.simpleTypesMap.values();
+    Collection<Type> allSimpleTypes() {
+        return simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -518,15 +517,15 @@ public final class Definition {
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
 
-    private Definition() {
+    private Definition(List<String> definitionFiles) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
         // parse the classes and return hierarchy (map of class name -> superclasses/interfaces)
-        Map<String, List<String>> hierarchy = addStructs();
+        Map<String, List<String>> hierarchy = addStructs(definitionFiles);
         // add every method for each class
-        addElements();
+        addElements(definitionFiles);
         // apply hierarchy: this means e.g. copying Object's methods into String (thats how subclasses work)
         for (Map.Entry<String,List<String>> clazz : hierarchy.entrySet()) {
             copyStruct(clazz.getKey(), clazz.getValue());
@@ -559,9 +558,9 @@ public final class Definition {
     }
 
     /** adds classes from definition. returns hierarchy */
-    private Map<String,List<String>> addStructs() {
+    private Map<String,List<String>> addStructs(List<String> definitionFiles) {
         final Map<String,List<String>> hierarchy = new HashMap<>();
-        for (String file : DEFINITION_FILES) {
+        for (String file : definitionFiles) {
             int currentLine = -1;
             try {
                 try (InputStream stream = Definition.class.getResourceAsStream(file);
@@ -628,8 +627,8 @@ public final class Definition {
     }
 
     /** adds class methods/fields/ctors */
-    private void addElements() {
-        for (String file : DEFINITION_FILES) {
+    private void addElements(List<String> definitionFiles) {
+        for (String file : definitionFiles) {
             int currentLine = -1;
             try {
                 try (InputStream stream = Definition.class.getResourceAsStream(file);

@@ -81,10 +81,10 @@ public abstract class ScriptTestCase extends ESTestCase {
             Definition definition = Definition.BUILTINS;
             ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
+            pickySettings.setDefinition(definition);
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptInterface, getTestName(), script, pickySettings,
-                    definition, null);
+            Walker.buildPainlessTree(scriptInterface, getTestName(), script, pickySettings, null);
         }
         // test actual script execution
         Object object = scriptEngine.compile(null, script, compileParams);

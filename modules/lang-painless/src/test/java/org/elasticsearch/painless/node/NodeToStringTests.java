@@ -898,12 +898,12 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SSource walk(String code) {
-        ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
         CompilerSettings compilerSettings = new CompilerSettings();
+        compilerSettings.setDefinition(definition);
+        ScriptInterface scriptInterface = new ScriptInterface(compilerSettings.getDefinition(), GenericElasticsearchScript.class);
         compilerSettings.setRegexesEnabled(true);
         try {
-            return Walker.buildPainlessTree(scriptInterface, getTestName(), code, compilerSettings,
-                    definition, null);
+            return Walker.buildPainlessTree(scriptInterface, getTestName(), code, compilerSettings, null);
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);
         }

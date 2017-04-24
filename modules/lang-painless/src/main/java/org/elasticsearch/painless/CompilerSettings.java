@@ -73,6 +73,11 @@ public final class CompilerSettings {
     private boolean regexesEnabled = false;
 
     /**
+     * The whitelist to compile against.
+     */
+    private Definition definition = Definition.BUILTINS;
+
+    /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
      * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
      * the counter is set to 0, no loop counter will be written.
@@ -136,5 +141,19 @@ public final class CompilerSettings {
      */
     public void setRegexesEnabled(boolean regexesEnabled) {
         this.regexesEnabled = regexesEnabled;
+    }
+
+    /**
+     * The whitelist to compile against.
+     */
+    public Definition getDefinition() {
+        return definition;
+    }
+
+    /**
+     * Set the whitelist to compile against.
+     */
+    public void setDefinition(Definition definition) {
+        this.definition = definition;
     }
 }

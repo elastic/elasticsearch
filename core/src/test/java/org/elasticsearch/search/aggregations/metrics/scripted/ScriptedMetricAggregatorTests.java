@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
@@ -67,17 +68,17 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     public static void initMockScripts() {
         SCRIPTS.put("initScript", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            agg.put("collector", new ArrayList<Integer>());
+            agg.put("collector", new ArrayList<Double>());
             return agg;
             });
         SCRIPTS.put("mapScript", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Integer>) agg.get("collector")).add(1); // just add 1 for each doc the script is run on
+            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
             return agg;
         });
         SCRIPTS.put("combineScript", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).sum();
+            return ((List<Double>) agg.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
         });
     }
 
@@ -117,7 +118,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 Map<String, Object> agg = (Map<String, Object>) scriptedMetric.aggregation();
-                assertEquals(numDocs, ((List<Integer>) agg.get("collector")).size());
+                assertEquals(numDocs, ((List<Double>) agg.get("collector")).size());
             }
         }
     }
@@ -139,7 +140,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 ScriptedMetric scriptedMetric = search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder);
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
-                assertEquals(numDocs, scriptedMetric.aggregation());
+                assertEquals((double) numDocs, scriptedMetric.aggregation());
             }
         }
     }

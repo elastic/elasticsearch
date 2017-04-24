@@ -63,7 +63,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         final LeafSearchScript leafMapScript = mapScript.getLeafSearchScript(ctx);
-        return new LeafBucketCollectorBase(sub, mapScript) {
+        return new LeafBucketCollectorBase(sub, leafMapScript) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : bucket;

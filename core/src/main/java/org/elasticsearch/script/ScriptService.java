@@ -322,7 +322,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    /** Compiles a template. Note this will be moved toa  separate TemplateService in the future. */
+    /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
     public CompiledTemplate compileTemplate(Script script, ScriptContext scriptContext) {
         assert script.getLang().equals("mustache"); // mustache is the only template language truly supported right now
         CompiledScript compiledScript = compile(script, scriptContext);

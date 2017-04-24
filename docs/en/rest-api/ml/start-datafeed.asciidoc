@@ -3,7 +3,7 @@
 ==== Start Data Feeds
 
 A data feed must be started in order to retrieve data from {es}.
-A data feed can be opened and closed multiple times throughout its lifecycle.
+A data feed can be started and stopped multiple times throughout its lifecycle.
 
 ===== Request
 

@@ -16,7 +16,6 @@ tutorial shows you how to:
 * Create a {ml} job
 * Use the results to identify possible anomalies in the data
 
-{nbsp}
 
 At the end of this tutorial, you should have a good idea of what {ml} is and
 will hopefully be inspired to use it to detect anomalies in your own data.
@@ -155,12 +154,13 @@ available publicly on https://github.com/elastic/examples
 //Download this data set by clicking here:
 //See  https://download.elastic.co/demos/kibana/gettingstarted/shakespeare.json[shakespeare.json].
 
-////
 Use the following commands to extract the files:
 
 [source,shell]
-gzip -d transactions.ndjson.gz
-////
+----------------------------------
+tar xvf server_metrics.tar.gz
+----------------------------------
+
 Each document in the server-metrics data set has the following schema:
 
 [source,js]
@@ -191,7 +191,12 @@ and specify a field's characteristics, such as the field's searchability or
 whether or not it's _tokenized_, or broken up into separate words.
 
 The sample data includes an `upload_server-metrics.sh` script, which you can use
-to create the mappings and load the data set. The script runs a command similar
+to create the mappings and load the data set. Before you run it, however, you
+must edit the USERNAME and PASSWORD variables with your actual user ID and
+password. If you want to test adding data to an existing data feed, you must
+also comment out the final two commands related to `server-metrics_4.json`.
+
+The script runs a command similar
 to the following example, which sets up a mapping for the data set:
 
 [source,shell]
@@ -247,8 +252,7 @@ http://localhost:9200/server-metrics -d '{
 ----------------------------------
 
 NOTE: If you run this command, you must replace `elasticpassword` with your
-actual password. Likewise, if you use the `upload_server-metrics.sh` script,
-you must edit the USERNAME and PASSWORD variables before you run it.
+actual password.
 
 ////
 This mapping specifies the following qualities for the data set:
@@ -262,7 +266,7 @@ This mapping specifies the following qualities for the data set:
 
 You can then use the Elasticsearch `bulk` API to load the data set. The
 `upload_server-metrics.sh` script runs commands similar to the following
-example, which loads the four JSON files:
+example, which loads three of the JSON files:
 
 [source,shell]
 ----------------------------------
@@ -276,10 +280,10 @@ http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_2.json
 curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_3.json"
 
-curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
-http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 ----------------------------------
 
+//curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
+//http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 These commands might take some time to run, depending on the computing resources
 available.
 
@@ -291,13 +295,13 @@ You can verify that the data was loaded successfully with the following command:
 curl 'http://localhost:9200/_cat/indices?v' -u elastic:elasticpassword
 ----------------------------------
 
-You should see output similar to the following:
+For three sample JSON files, you should see output similar to the following:
 
 [source,shell]
 ----------------------------------
 
 health status index ... pri rep docs.count  docs.deleted  store.size ...
-green  open   server-metrics ... 1 0 907200  0 134.9mb ...
+green  open   server-metrics ... 1 0 680400  0 101.7mb  ...
 ----------------------------------
 
 Next, you must define an index pattern for this data set:
@@ -423,12 +427,8 @@ at which alerting is required.
 //non-aggregating functions.
 --
 
-. Click **Use full transaction_counts data**.
-+
---
-A graph is generated, which represents the total number of requests over time.
-//TBD: What happens if you click the play button instead?
---
+. Click **Use full transaction_counts data**. A graph is generated,
+which represents the total number of requests over time.
 
 . Provide a name for the job, for example `total-requests`. The job name must
 be unique in your cluster. You can also optionally provide a description of the
@@ -442,10 +442,14 @@ the {ml} that occurs as the data is processed.
 //To explore the results, click **View Results**.
 //TBD: image::images/ml-gs-job1-results.jpg["The total-requests job is created"]
 
-[[ml-gs-job1-managa]]
+TIP: The `create_single_metic.sh` script creates a similar job and data feed by
+using the {ml} APIs. For API reference information, see <<ml-apis>>.
+
+[[ml-gs-job1-manage]]
 === Managing Jobs
 
 After you create a job, you can see its status in the **Job Management** tab:
+
 image::images/ml-gs-job1-manage.jpg["Status information for the total-requests job"]
 
 The following information is provided for each job:
@@ -458,13 +462,10 @@ The optional description of the job.
 
 Processed records::
 The number of records that have been processed by the job.
-+
---
+
 NOTE: Depending on how you send data to the job, the number of processed
 records is not always equal to the number of input records. For more information,
 see the `processed_record_count` description in <<ml-datacounts,Data Counts Objects>>.
-
---
 
 Memory status::
 The status of the mathematical models. When you create jobs by using the APIs or
@@ -510,70 +511,136 @@ the job.
 You can also click one of the **Actions** buttons to start the data feed, edit
 the job or data feed, and clone or delete the job, for example.
 
-* TBD: Demonstrate how to re-open the data feed and add additional data
+[float]
+[[ml-gs-job1-datafeed]]
+==== Managing Data Feeds
+
+A data feed can be started and stopped multiple times throughout its lifecycle.
+If you want to retrieve more data from Elasticsearch and the data feed is
+stopped, you must restart it.
+
+For example, if you only loaded three of the sample JSON files, you can now load
+the fourth using the Elasticsearch `bulk` API as follows:
+
+[source,shell]
+----------------------------------
+
+curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
+http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
+----------------------------------
+
+You can optionally verify that the data was loaded successfully with the
+following command:
+
+[source,shell]
+----------------------------------
+
+curl 'http://localhost:9200/_cat/indices?v' -u elastic:elasticpassword
+----------------------------------
+
+For the four sample JSON files, you should see output similar to the following:
+
+[source,shell]
+----------------------------------
+
+health status index ... pri rep docs.count  docs.deleted  store.size ...
+green  open   server-metrics ... 1 0 907200  0  136.2mb  ...
+----------------------------------
+
+To use this new data in your job:
+
+. In the **Machine Learning** / **Job Management** tab, click the following
+button to start the data feed: image::images/ml-start-feed.jpg["Start data feed"].
+
+. Choose a start time and end time. For example,
+click **Continue from 2017-04-22** and **No end time**, then click **Start**.
+image::images/ml-gs-job1-datafeed.jpg["Restarting a data feed"]
+
+* TBD: Why do I not see increases in the job count stats after this occurs?
+How can I determine that it has been successfully processed?
 
 
 [[ml-gs-jobresults]]
 === Exploring Job Results
 
-After you create a job, you can use the **Anomaly Explorer** or the
+The {xpack} {ml} features analyze the input stream of data, model its behavior,
+and perform analysis based on the detectors you defined in your job. When an
+event occurs outside of the model, that event is identified as an anomaly.
+
+Result records for each anomaly are stored in `.ml-notifications` and
+`.ml-anomalies*` indices in Elasticsearch. By default, the name of the
+index where {ml} results are stored is `shared`, which corresponds to
+the `.ml-anomalies-shared` index.
+//For example, these results include the probability of detecting that anomaly.
+
+You can use the **Anomaly Explorer** or the
 **Single Metric Viewer** in Kibana to view the analysis results.
 
 Anomaly Explorer::
-TBD
+  This view contains heatmap charts, where the color for each section of the
+  timeline is determined by the maximum anomaly score in that period.
+//TBD: Do the time periods in the heat map correspond to buckets?
 
 Single Metric Viewer::
-TBD
+  This view contains a time series chart that represents the analysis.
+  As in the **Anomaly Explorer**, anomalous data points are shown in
+  different colors depending on their probability.
 
 [float]
 [[ml-gs-job1-analyze]]
 ==== Exploring Single Metric Job Results
 
-TBD.
-
-* Walk through exploration of job results.
-** Based on this job configuration we analyze the input stream of data.
-We model the behavior of the data, perform analysis based upon the defined detectors
-and for the time interval. When we see an event occurring outside of our model,
-we identify this as an anomaly. For each anomaly detected, we store the
-result records of our analysis, which includes the probability of
-detecting that anomaly.
-** With high volumes of real-life data, many anomalies may be found.
-These vary in probability from very likely to highly unlikely i.e. from not
-particularly anomalous to highly anomalous. There can be none, one or two or
-tens, sometimes hundreds of anomalies found within each bucket.
-There can be many thousands found per job.
-In order to provide a sensible view of the results, we calculate an anomaly score
-for each time interval. An interval with a high anomaly score is significant
-and requires investigation.
-** The anomaly score is a sophisticated aggregation of the anomaly records.
-The calculation is optimized for high throughput, gracefully ages historical data,
-and reduces the signal to noise levels.
-It adjusts for variations in event rate, takes into account the frequency
-and the level of anomalous activity and is adjusted relative to past anomalous behavior.
-In addition, it is boosted if anomalous activity occurs for related entities,
-for example if disk IO and CPU are both behaving unusually for a given host.
-** Once an anomalous time interval has been identified, it can be expanded to
-view the detailed anomaly records which are the significant causal factors.
-* Provide brief overview of statistical models and/or link to more info.
-* Possibly discuss effect of altering bucket span.
-
-* Provide general overview of management of jobs (when/why to start or
-  stop them).
-
-Integrate the following images:
-
-. Single Metric Viewer: All
+By default when you view the results for a single metric job,
+the **Single Metric Viewer** opens:
 image::images/ml-gs-job1-analysis.jpg["Single Metric Viewer for total-requests job"]
 
-. Single Metric Viewer: Anomalies
+The blue line in the chart represents the actual data values. The shaded blue area
+represents the expected behavior that was calculated by the model.
+//TBD: What is meant by "95% prediction bounds"?
+
+If you slide the time selector from the beginning of the data to the end of the
+data, you can see how the model improves as it processes more data. At the
+beginning, the expected range of values is pretty broad and the model is not
+capturing the periodicity in the data. But it quickly learns and begins to
+reflect the daily variation.
+
+Any data points outside the range that was predicted by the model are marked
+as anomalies. When you have high volumes of real-life data, many anomalies
+might be found. These vary in probability from very likely to highly unlikely,
+that is to say, from not particularly anomalous to highly anomalous. There
+can be none, one or two or tens, sometimes hundreds of anomalies found within
+each bucket. There can be many thousands found per job. In order to provide
+a sensible view of the results, an _anomaly score_ is calculated for each bucket
+time interval. The anomaly score is a value from 0 to 100, which indicates
+the significance of the observed anomaly compared to previously seen anomalies.
+The highly anomalous values are shown in red and the low scored values are
+indicated in blue. An interval with a high anomaly score is significant and
+requires investigation.
+
+Slide the time selector to a section of the time series that contains a red data
+point. If you hover over the point, you can see more information about that
+data point. You can also see details in the **Anomalies** section of the viewer.
+For example:
+
 image::images/ml-gs-job1-anomalies.jpg["Single Metric Viewer Anomalies for total-requests job"]
 
-. Anomaly Explorer: All
+For each anomaly you can see key details such as the time, the actual and
+expected ("typical") values, and their probability.
+
+You can see the same information in a different format by using the **Anomaly Explorer**:
+
 image::images/ml-gs-job1-explorer.jpg["Anomaly Explorer for total-requests job"]
 
-. Anomaly Explorer: Selected a red area from the heatmap
+Click one of the red areas in the heatmap to see details about that anomaly. For
+example:
+
 image::images/ml-gs-job1-explorer-anomaly.jpg["Anomaly Explorer details for total-requests job"]
+
+After you have identified anomalies, often the next step is to try to determine
+the context of those situations. For example, are there other factors that are
+contributing to the problem? Are the anomalies confined to particular
+applications or servers? You can begin to troubleshoot these situations by
+layering additional jobs or creating multi-metric jobs.
 
 ////
 [float]
@@ -614,6 +681,22 @@ TBD.
 * Walk through exploration of job results.
 * Describe how influencer detection accelerates root cause identification.
 
+////
+////
+* Provide brief overview of statistical models and/or link to more info.
+* Possibly discuss effect of altering bucket span.
+
+The anomaly score is a sophisticated aggregation of the anomaly records in the
+bucket. The calculation is optimized for high throughput, gracefully ages
+historical data, and reduces the signal to noise levels. It adjusts for
+variations in event rate, takes into account the frequency and the level of
+anomalous activity and is adjusted relative to past anomalous behavior.
+In addition, [the anomaly score] is boosted if anomalous activity occurs for related entities,
+for example if disk IO and CPU are both behaving unusually for a given host.
+** Once an anomalous time interval has been identified, it can be expanded to
+view the detailed anomaly records which are the significant causal factors.
+////
+////
 [[ml-gs-alerts]]
 === Creating Alerts for Job Results
 

@@ -8,8 +8,10 @@ from an index called twitter, under a type called tweet, with id valued
 
 [source,js]
 --------------------------------------------------
-$ curl -XDELETE 'http://localhost:9200/twitter/tweet/1'
+DELETE /twitter/tweet/1
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The result of the above delete operation is:
 
@@ -17,18 +19,21 @@ The result of the above delete operation is:
 --------------------------------------------------
 {
     "_shards" : {
-        "total" : 10,
+        "total" : 2,
         "failed" : 0,
-        "successful" : 10
+        "successful" : 2
     },
     "found" : true,
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 2,
+    "_primary_term": 1,
+    "_seq_no": 5,
     "result": "deleted"
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
 
 [float]
 [[delete-versioning]]
@@ -48,10 +53,26 @@ When indexing using the ability to control the routing, in order to
 delete a document, the routing value should also be provided. For
 example:
 
+////
+Example to delete with routing
+
 [source,js]
 --------------------------------------------------
-$ curl -XDELETE 'http://localhost:9200/twitter/tweet/1?routing=kimchy'
+PUT /twitter/tweet/1?routing=kimhcy
+{
+    "test": "test"
+}
 --------------------------------------------------
+// CONSOLE
+////
+
+
+[source,js]
+--------------------------------------------------
+DELETE /twitter/tweet/1?routing=kimchy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The above will delete a tweet with id 1, but will be routed based on the
 user. Note, issuing a delete without the correct routing, will cause the
@@ -130,5 +151,7 @@ to 5 minutes:
 
 [source,js]
 --------------------------------------------------
-$ curl -XDELETE 'http://localhost:9200/twitter/tweet/1?timeout=5m'
+DELETE /twitter/tweet/1?timeout=5m
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

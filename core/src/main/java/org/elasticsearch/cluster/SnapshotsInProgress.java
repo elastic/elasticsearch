@@ -199,7 +199,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
                 if (entry.value.state() == State.WAITING) {
-                    List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndex());
+                    List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndexName());
                     if (waitingShards == null) {
                         waitingShards = new ArrayList<>();
                         waitingIndicesMap.put(entry.key.getIndexName(), waitingShards);

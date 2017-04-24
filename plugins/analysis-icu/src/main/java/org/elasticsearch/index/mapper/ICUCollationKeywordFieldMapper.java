@@ -27,17 +27,20 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
@@ -67,7 +70,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     public static final class CollationFieldType extends StringFieldType {
-        private final Object collatorLock = new Object();
         private Collator collator = null;
 
         public CollationFieldType() {
@@ -114,7 +116,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         public void setCollator(Collator collator) {
             checkIfFrozen();
-            this.collator = collator;
+            this.collator = collator.isFrozen() ? collator : collator.freeze();
         }
 
         @Override
@@ -141,15 +143,33 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             if (collator != null) {
-                RawCollationKey key;
-                synchronized (collatorLock) {
-                    key = collator.getRawCollationKey(value.toString(), null);
-                }
-
+                RawCollationKey key = collator.getRawCollationKey(value.toString(), null);
                 return new BytesRef(key.bytes, 0, key.size);
             } else {
                 throw new IllegalStateException("collator is null");
             }
+        }
+
+        @Override
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
+                                boolean transpositions) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+            throw new UnsupportedOperationException();
         }
 
         public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -441,7 +461,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 rbc.setHiraganaQuaternary(true);
             }
 
-            return collator;
+            // freeze so thread-safe
+            return collator.freeze();
         }
 
         @Override
@@ -505,11 +526,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                         builder.alternate(XContentMapValues.nodeStringValue(fieldNode, null));
                         iterator.remove();
                         break;
-                    case "caseLevel":
+                    case "case_level":
                         builder.caseLevel(XContentMapValues.nodeBooleanValue(fieldNode, false));
                         iterator.remove();
                         break;
-                    case "caseFirst":
+                    case "case_first":
                         builder.caseFirst(XContentMapValues.nodeStringValue(fieldNode, null));
                         iterator.remove();
                         break;
@@ -517,11 +538,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                         builder.numeric(XContentMapValues.nodeBooleanValue(fieldNode, false));
                         iterator.remove();
                         break;
-                    case "variableTop":
+                    case "variable_top":
                         builder.variableTop(XContentMapValues.nodeStringValue(fieldNode, null));
                         iterator.remove();
                         break;
-                    case "hiraganaQuaternaryMode":
+                    case "hiragana_quaternary_mode":
                         builder.hiraganaQuaternaryMode(XContentMapValues.nodeBooleanValue(fieldNode, false));
                         iterator.remove();
                         break;
@@ -566,7 +587,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.numeric = numeric;
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
-        this.collator = collator;
+        this.collator = collator.isFrozen() ? collator : collator.freeze();
     }
 
     @Override
@@ -620,11 +641,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (caseLevel != icuMergeWith.caseLevel) {
-            conflicts.add("Cannot update caseLevel setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update case_level setting for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(caseFirst, icuMergeWith.caseFirst)) {
-            conflicts.add("Cannot update caseFirst setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update case_first setting for [" + CONTENT_TYPE + "]");
         }
 
         if (numeric != icuMergeWith.numeric) {
@@ -632,11 +653,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (!Objects.equals(variableTop, icuMergeWith.variableTop)) {
-            conflicts.add("Cannot update variableTop setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update variable_top setting for [" + CONTENT_TYPE + "]");
         }
 
         if (hiraganaQuaternaryMode != icuMergeWith.hiraganaQuaternaryMode) {
-            conflicts.add("Cannot update hiraganaQuaternaryMode setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
         }
 
         if (!conflicts.isEmpty()) {
@@ -681,11 +702,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (includeDefaults || caseLevel) {
-            builder.field("caseLevel", caseLevel);
+            builder.field("case_level", caseLevel);
         }
 
         if (includeDefaults || caseFirst != null) {
-            builder.field("caseFirst", caseFirst);
+            builder.field("case_first", caseFirst);
         }
 
         if (includeDefaults || numeric) {
@@ -693,11 +714,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (includeDefaults || variableTop != null) {
-            builder.field("variableTop", variableTop);
+            builder.field("variable_top", variableTop);
         }
 
         if (includeDefaults || hiraganaQuaternaryMode) {
-            builder.field("hiraganaQuaternaryMode", hiraganaQuaternaryMode);
+            builder.field("hiragana_quaternary_mode", hiraganaQuaternaryMode);
         }
     }
 
@@ -719,11 +740,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        RawCollationKey key;
-        synchronized (collator) {
-            key = collator.getRawCollationKey(value, null);
-        }
-
+        RawCollationKey key = collator.getRawCollationKey(value, null);
         final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {

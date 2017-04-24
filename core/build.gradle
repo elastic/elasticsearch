@@ -99,6 +99,14 @@ dependencies {
   testCompile 'com.google.guava:guava:18.0'
 }
 
+configurations {
+  testOutput
+}
+
+dependencies {
+  testOutput sourceSets.test.output
+}
+
 if (isEclipse) {
   // in eclipse the project is under a fake root, we need to change around the source sets
   sourceSets {

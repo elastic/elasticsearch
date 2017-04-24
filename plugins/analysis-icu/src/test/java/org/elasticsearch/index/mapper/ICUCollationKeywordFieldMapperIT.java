@@ -237,7 +237,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("language", "en")
             .field("strength", "primary")
             .field("alternate", "shifted")
-            .field("variableTop", " ")
+            .field("variable_top", " ")
             .field("index", false)
             .endObject()
             .endObject().endObject();
@@ -318,7 +318,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "primary")
-            .field("caseLevel", true)
+            .field("case_level", true)
             .field("index", false)
             .endObject()
             .endObject().endObject();
@@ -361,7 +361,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "tertiary")
-            .field("caseFirst", "upper")
+            .field("case_first", "upper")
             .field("index", false)
             .endObject()
             .endObject().endObject();

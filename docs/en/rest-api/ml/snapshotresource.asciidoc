@@ -88,3 +88,4 @@ The `model_size_stats` object has the following properties:
 
 `total_partition_field_count`::
   (long) The number of _partition_ field values analyzed.
+////

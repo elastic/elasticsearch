@@ -114,10 +114,16 @@ public class SSLConfigurationReloader extends AbstractComponent {
 
         @Override
         public void onFileChanged(Path file) {
+            boolean reloaded = false;
             for (SSLConfiguration sslConfiguration : sslConfigurations) {
                 if (sslConfiguration.filesToMonitor(environment).contains(file)) {
                     reloadSSLContext(sslConfiguration);
+                    reloaded = true;
                 }
+            }
+
+            if (reloaded) {
+                logger.info("reloaded [{}] and updated ssl contexts using this file", file);
             }
         }
     }

@@ -48,13 +48,13 @@ relevance `_score` of each document:
 
 [source,js]
 -------------------------------------
-PUT my_index/my_type/1
+PUT my_index/my_type/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/my_type/2
+PUT my_index/my_type/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
@@ -93,7 +93,7 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,js]
 -------------------------------
-PUT my_index/my_type/1
+PUT my_index/my_type/1?refresh
 {
   "cost_price": 100
 }
@@ -186,7 +186,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/my_type/1?refresh
 {
   "title": "Mr",
   "first_name": "Barry",
@@ -229,4 +229,3 @@ The only time it really makes sense to use stored fields instead of the
 access a few small stored fields instead of the entire `_source`.
 
 =======================================================
-

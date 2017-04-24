@@ -126,7 +126,7 @@ public final class AliasFilter implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(aliases, filter, reparseAliases);
+        return Objects.hash(Arrays.hashCode(aliases), filter, reparseAliases);
     }
 
     @Override

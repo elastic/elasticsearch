@@ -20,6 +20,7 @@
 package org.elasticsearch.node;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,7 +39,13 @@ public class EvilNodeTests extends ESTestCase {
     public void testDefaultPathDataIncludedInPathData() throws IOException {
         final Path zero = createTempDir().toAbsolutePath();
         final Path one = createTempDir().toAbsolutePath();
-        final int random = randomIntBetween(0, 2);
+        // creating hard links to directories is okay on macOS so we exercise it here
+        final int random;
+        if (Constants.MAC_OS_X) {
+            random = randomFrom(0, 1, 2);
+        } else {
+            random = randomFrom(0, 1);
+        }
         final Path defaultPathData;
         final Path choice = randomFrom(zero, one);
         switch (random) {

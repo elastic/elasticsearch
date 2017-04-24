@@ -52,7 +52,9 @@ public interface Stats extends NumericMetricsAggregation.MultiValue {
 
     /**
      * @return The number of values that were aggregated as a String.
+     * @deprecated use String.valueOf(getCount()) instead if the count is needed as a string
      */
+    @Deprecated
     String getCountAsString();
 
     /**

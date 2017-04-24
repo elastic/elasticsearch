@@ -38,30 +38,38 @@ import java.util.function.Function;
 
 public class NetworkService extends AbstractComponent {
 
-    /** By default, we bind to loopback interfaces */
+    /**
+     * By default, we bind to loopback interfaces
+     */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
+    /**
+     * Warning message when binding by default to loopback interfaces
+     */
+    private static final String WARN_ON_DEFAULT_BINDING = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" + System.lineSeparator() +
+            "@ WARNING: NO NETWORK CONFIGURED, DEFAULTING TO LOCALHOST" + System.lineSeparator() +
+            "@ Set network.host to specify the host's listening address.";
 
     public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
-        Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), Function.identity(), Property.NodeScope);
+            Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING =
-        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
+            Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING =
-        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
+            Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
 
     public static final class TcpSettings {
         public static final Setting<Boolean> TCP_NO_DELAY =
-            Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
+                Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
         public static final Setting<Boolean> TCP_KEEP_ALIVE =
-            Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+                Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
         public static final Setting<Boolean> TCP_REUSE_ADDRESS =
-            Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
+                Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
         public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
-            Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
+                Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
         public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
-            Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
+                Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
         public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-            Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
+                Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
     }
 
     /**
@@ -114,6 +122,7 @@ public class NetworkService extends AbstractComponent {
                 }
                 // we know it's not here. get the defaults
                 bindHosts = GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+                logger.warn(WARN_ON_DEFAULT_BINDING);
             }
         }
 
@@ -198,7 +207,9 @@ public class NetworkService extends AbstractComponent {
         return addresses[0];
     }
 
-    /** resolves (and deduplicates) host specification */
+    /**
+     * resolves (and deduplicates) host specification
+     */
     private InetAddress[] resolveInetAddresses(String hosts[]) throws IOException {
         if (hosts.length == 0) {
             throw new IllegalArgumentException("empty host specification");
@@ -212,7 +223,9 @@ public class NetworkService extends AbstractComponent {
         return set.toArray(new InetAddress[set.size()]);
     }
 
-    /** resolves a single host specification */
+    /**
+     * resolves a single host specification
+     */
     private InetAddress[] resolveInternal(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);

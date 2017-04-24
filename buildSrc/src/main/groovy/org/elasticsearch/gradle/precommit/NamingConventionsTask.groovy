@@ -70,15 +70,7 @@ public class NamingConventionsTask extends LoggedExec {
 
         FileCollection classpath = project.sourceSets.test.runtimeClasspath
         inputs.files(classpath)
-        description = "Runs NamingConventionsCheck on ${classpath}"
-        if (project.sourceSets.names.contains('main')) {
-            /* If there are main classes we'll have a look at them just to make
-             * sure there aren't file named like test classes in there too. */
-            inputs.files(project.sourceSets.main.runtimeClasspath)
-            description += "and ${project.sourceSets.main.runtimeClasspath}"
-            classpath += project.sourceSets.main.runtimeClasspath
-            // NOCOMMIT test up-to-date-ness
-        }
+        description = "Tests that test classes aren't misnamed or misplaced"
         executable = new File(project.javaHome, 'bin/java')
 
         /*

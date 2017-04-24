@@ -56,9 +56,4 @@ public abstract class TestScript implements ExecutableScript{
         Objects.requireNonNull(_superset_freq, "_superset_freq");
         Objects.requireNonNull(_superset_size, "_superset_size");
     }
-
-    @Override
-    public Double unwrap(Object value) {
-        return ((Number) value).doubleValue();
-    }
 }

@@ -345,7 +345,6 @@ VM running trusty by running
 
 These are the linux flavors the Vagrantfile currently supports:
 
-* ubuntu-1204 aka precise
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
 * debian-8 aka jessie, the current debian stable distribution
@@ -431,7 +430,7 @@ gradle vagrantFedora24#up
 -------------------------------------------------
 
 Or any of vagrantCentos6#up, vagrantDebian8#up, vagrantFedora24#up, vagrantOel6#up,
-vagrantOel7#up, vagrantOpensuse13#up, vagrantSles12#up, vagrantUbuntu1204#up,
+vagrantOel7#up, vagrantOpensuse13#up, vagrantSles12#up, vagrantUbuntu1404#up,
 vagrantUbuntu1604#up.
 
 Once up, you can then connect to the VM using SSH from the elasticsearch directory:

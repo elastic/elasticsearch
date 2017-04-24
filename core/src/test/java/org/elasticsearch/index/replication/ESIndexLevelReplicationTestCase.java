@@ -22,21 +22,21 @@ package org.elasticsearch.index.replication;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -50,7 +50,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -58,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 
@@ -77,8 +77,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnPrimary;
-import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnReplica;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -147,9 +145,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
-                    .source("{}", XContentType.JSON);
-                final IndexResponse response = index(indexRequest);
-                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+                        .source("{}", XContentType.JSON);
+                final BulkItemResponse response = index(indexRequest);
+                if (response.isFailed()) {
+                    throw response.getFailure().getCause();
+                } else {
+                    assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
+                }
             }
             primary.updateGlobalCheckpointOnPrimary();
             return numOfDoc;
@@ -158,41 +160,27 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
-                final IndexResponse response = index(indexRequest);
-                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+                final BulkItemResponse response = index(indexRequest);
+                if (response.isFailed()) {
+                    throw response.getFailure().getCause();
+                } else if (response.isFailed() == false) {
+                    assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
+                }
             }
             primary.updateGlobalCheckpointOnPrimary();
             return numOfDoc;
         }
 
-        public IndexResponse index(IndexRequest indexRequest) throws Exception {
-            PlainActionFuture<IndexResponse> listener = new PlainActionFuture<>();
+        public BulkItemResponse index(IndexRequest indexRequest) throws Exception {
+            PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
             final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
-                    bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0].getResponse()),
+                    bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
                     listener::onFailure);
             BulkItemRequest[] items = new BulkItemRequest[1];
-            items[0] = new TestBulkItemRequest(0, indexRequest);
+            items[0] = new BulkItemRequest(0, indexRequest);
             BulkShardRequest request = new BulkShardRequest(shardId, indexRequest.getRefreshPolicy(), items);
             new IndexingAction(request, wrapBulkListener, this).execute();
             return listener.get();
-        }
-
-        /** BulkItemRequest exposing get/set primary response */
-        public class TestBulkItemRequest extends BulkItemRequest {
-
-            TestBulkItemRequest(int id, DocWriteRequest request) {
-                super(id, request);
-            }
-
-            @Override
-            protected void setPrimaryResponse(BulkItemResponse primaryResponse) {
-                super.setPrimaryResponse(primaryResponse);
-            }
-
-            @Override
-            protected BulkItemResponse getPrimaryResponse() {
-                return super.getPrimaryResponse();
-            }
         }
 
         public synchronized void startAll() throws IOException {
@@ -442,7 +430,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         protected abstract PrimaryResult performOnPrimary(IndexShard primary, Request request) throws Exception;
 
-        protected abstract void performOnReplica(ReplicaRequest request, IndexShard replica) throws IOException;
+        protected abstract void performOnReplica(ReplicaRequest request, IndexShard replica) throws Exception;
 
         class PrimaryRef implements ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult> {
 
@@ -539,46 +527,53 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
-            final IndexRequest indexRequest = (IndexRequest) request.items()[0].request();
-            indexRequest.process(null, request.index());
-            final IndexResponse indexResponse = indexOnPrimary(indexRequest, primary);
-            BulkItemResponse[] itemResponses = new BulkItemResponse[1];
-            itemResponses[0] = new BulkItemResponse(0, indexRequest.opType(), indexResponse);
-            ((ReplicationGroup.TestBulkItemRequest) request.items()[0]).setPrimaryResponse(itemResponses[0]);
-            return new PrimaryResult(request, new BulkShardResponse(primary.shardId(), itemResponses));
+            final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = executeShardBulkOnPrimary(primary, request);
+            return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
         }
 
         @Override
-        protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws IOException {
-            final ReplicationGroup.TestBulkItemRequest bulkItemRequest = ((ReplicationGroup.TestBulkItemRequest) request.items()[0]);
-            final DocWriteResponse primaryResponse = bulkItemRequest.getPrimaryResponse().getResponse();
-            indexOnReplica(primaryResponse, ((IndexRequest) bulkItemRequest.request()), replica);
+        protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+            executeShardBulkOnReplica(replica, request);
         }
+    }
+
+    private TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> executeShardBulkOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
+        for (BulkItemRequest itemRequest : request.items()) {
+            if (itemRequest.request() instanceof IndexRequest) {
+                ((IndexRequest) itemRequest.request()).process(null, index.getName());
+            }
+        }
+        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =
+                TransportShardBulkAction.performOnPrimary(request, primary, null,
+                System::currentTimeMillis, new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
+        request.primaryTerm(primary.getPrimaryTerm());
+        TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
+        return result;
+    }
+
+    private void executeShardBulkOnReplica(IndexShard replica, BulkShardRequest request) throws Exception {
+        final Translog.Location location = TransportShardBulkAction.performOnReplica(request, replica);
+        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 
     /**
      * indexes the given requests on the supplied primary, modifying it for replicas
      */
-    protected IndexResponse indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
-        final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
-                new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
-        request.primaryTerm(primary.getPrimaryTerm());
-        TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
-        return new IndexResponse(
-            primary.shardId(),
-            request.type(),
-            request.id(),
-            indexResult.getSeqNo(),
-            indexResult.getVersion(),
-            indexResult.isCreated());
+    BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
+        final BulkItemRequest bulkItemRequest = new BulkItemRequest(0, request);
+        BulkItemRequest[] bulkItemRequests = new BulkItemRequest[1];
+        bulkItemRequests[0] = bulkItemRequest;
+        final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(), bulkItemRequests);
+        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =
+                executeShardBulkOnPrimary(primary, bulkShardRequest);
+        return result.replicaRequest();
     }
 
     /**
      * indexes the given requests on the supplied replica shard
      */
-    protected void indexOnReplica(DocWriteResponse response, IndexRequest request, IndexShard replica) throws IOException {
-        final Engine.IndexResult result = executeIndexRequestOnReplica(response, request, replica);
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
+    void indexOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        executeShardBulkOnReplica(replica, request);
     }
 
     class GlobalCheckpointSync extends ReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest,

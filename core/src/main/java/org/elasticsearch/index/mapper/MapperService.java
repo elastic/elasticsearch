@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -438,6 +439,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkDepthLimit(fullPathObjectMappers.keySet());
         }
+        checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
 
         for (Map.Entry<String, DocumentMapper> entry : mappers.entrySet()) {
             if (entry.getKey().equals(DEFAULT_MAPPING)) {
@@ -616,6 +618,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("mapping type [" + newMapper.type() + "] must have routing "
                         + "required for partitioned index [" + indexSettings.getIndex().getName() + "]");
             }
+        }
+    }
+
+    private void checkIndexSortCompatibility(IndexSortConfig sortConfig, boolean hasNested) {
+        if (sortConfig.hasIndexSort() && hasNested) {
+            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
     }
 

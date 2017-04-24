@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.action.StartDatafeedActionTests;
+import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -341,7 +342,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         if (cancelled) {
-            task.stop("test");
+            task.stop("test", StopDatafeedAction.DEFAULT_TIMEOUT);
             verify(handler).accept(null);
             assertThat(datafeedManager.isRunning(task.getDatafeedId()), is(false));
         } else {

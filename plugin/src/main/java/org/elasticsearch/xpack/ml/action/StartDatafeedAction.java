@@ -393,11 +393,11 @@ public class StartDatafeedAction
 
         @Override
         protected void onCancelled() {
-            stop(getReasonCancelled());
-        }
-
-        public void stop(String reason) {
-            stop(reason, StopDatafeedAction.DEFAULT_TIMEOUT);
+            // If the persistent task framework wants us to stop then we should do so immediately and
+            // we should wait for an existing datafeed import to realize we want it to stop.
+            // Note that this only applied when task cancel is invoked and stop datafeed api doesn't use this.
+            // Also stop datafeed api will obey the timeout.
+            stop(getReasonCancelled(), TimeValue.ZERO);
         }
 
         public void stop(String reason, TimeValue timeout) {

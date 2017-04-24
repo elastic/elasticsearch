@@ -108,14 +108,14 @@ public class DatafeedManager extends AbstractComponent {
         }, handler);
     }
 
-    public synchronized void stopDatafeed(String datafeedId, String reason, TimeValue timeout) {
+    public void stopDatafeed(String datafeedId, String reason, TimeValue timeout) {
         Holder holder = runningDatafeeds.remove(datafeedId);
         if (holder != null) {
             holder.stop(reason, timeout, null);
         }
     }
 
-    public synchronized void stopAllDatafeeds(String reason) {
+    public void stopAllDatafeeds(String reason) {
         int numDatafeeds = runningDatafeeds.size();
         if (numDatafeeds != 0) {
             logger.info("Closing [{}] datafeeds, because [{}]", numDatafeeds, reason);

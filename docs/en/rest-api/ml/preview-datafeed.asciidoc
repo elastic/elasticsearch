@@ -11,8 +11,9 @@ The preview data feed API enables you to preview a data feed.
 
 ===== Description
 
-The API returns the first "page" of results from the `search` created using the current data feed settings.
-This shows the structure of the data that will be passed to the anomaly detection engine.
+The API returns the first "page" of results from the `search` that is created
+by using the current data feed settings. This preview shows the structure of
+the data that will be passed to the anomaly detection engine.
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see <<privileges-list-cluster>>.

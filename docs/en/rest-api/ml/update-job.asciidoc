@@ -26,16 +26,22 @@ The following properties can be updated after the job is created:
 
 `analysis_config`::
   (object) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>.  In particular, the following properties can be updated: `categorization_filters`, `detector_description`, TBD.
+  See <<ml-analysisconfig, analysis configuration objects>>. In particular,
+  the following properties can be updated: `categorization_filters`,
+  `detector_description`, TBD.
 
 `analysis_limits`::
   (object) Specifies runtime limits for the job.
-  See <<ml-apilimits,analysis limits>>. NOTE:
-  * You can update the `analysis_limits` only while the job is closed.
-  * The `model_memory_limit` property value cannot be decreased.
-  * If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
-  this means that it was unable to process some data. You may wish to re-run this job
-  with an increased `model_memory_limit`. 
+  See <<ml-apilimits,analysis limits>>.
+
+[NOTE]
+--
+* You can update the `analysis_limits` only while the job is closed.
+* The `model_memory_limit` property value cannot be decreased.
+* If the `memory_status` property in the `model_size_stats` object has a value
+of `hard_limit`, this means that it was unable to process some data. You might
+want to re-run this job with an increased `model_memory_limit`.
+--
 
 `description`::
   (string) An optional description of the job.

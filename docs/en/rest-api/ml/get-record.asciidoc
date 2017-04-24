@@ -30,11 +30,12 @@ roles provide these privileges. For more information, see
 `end`::
   (string) Returns records with timestamps earlier than this time.
 
+`exclude_interim`::
+  (boolean) If true, the output excludes interim results.
+  By default, interim results are included.
+
 `from`::
   (integer) Skips the specified number of records.
-
-`exclude_interim`::
-  (boolean) If true, the output excludes interim results. These are included by default.
 
 `record_score`::
   (double) Returns records with anomaly scores higher than this value.

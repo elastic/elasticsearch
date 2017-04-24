@@ -19,8 +19,9 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
 ===== Path Parameters
 
 `job_id`::
-  (string) A required identifier for the job. 
-  Does not support wildcards, however you may specify `_all` to get information about all jobs.
+  (string) A required identifier for the job.
+  This parameter does not support wildcards, but you can specify `_all` or omit
+  the `job_id` to get information about all jobs.
 
 
 ===== Results

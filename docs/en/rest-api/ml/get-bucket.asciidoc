@@ -39,14 +39,15 @@ roles provide these privileges. For more information, see
 `end`::
   (string) Returns buckets with timestamps earlier than this time.
 
+`exclude_interim`::
+  (boolean) If true, the output excludes interim results.
+  By default, interim results are included.
+
 `expand`::
   (boolean) If true, the output includes anomaly records.
 
 `from`::
   (integer) Skips the specified number of buckets.
-
-`exclude_interim`::
-  (boolean) If true, the output excludes interim results. These are included by default.
 
 `size`::
   (integer) Specifies the maximum number of buckets to obtain.

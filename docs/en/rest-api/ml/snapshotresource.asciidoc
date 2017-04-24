@@ -3,7 +3,8 @@
 ==== Model Snapshot Resources
 
 Model snapshots are saved to disk periodically.
-By default, this is occurs approximately every 3 hours to 4 hours and is configurable using the setting `background_persist_interval`.
+By default, this is occurs approximately every 3 hours to 4 hours and is
+configurable with the `background_persist_interval` property.
 
 By default, model snapshots are retained for one day. You can change this
 behavior by updating the `model_snapshot_retention_days` for the job.

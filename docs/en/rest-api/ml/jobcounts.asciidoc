@@ -96,13 +96,10 @@ or old results are deleted, the job counts are not reset.
   configured to analyze. Records with missing fields are still processed because
   it is possible that not all fields are missing. The value of
   `processed_record_count` includes this count. +
-+
---
+
 NOTE: If you are using data feeds or posting data to the job in JSON format, a
 high `missing_field_count` is often not an indication of data issues. It is not
 necessarily a cause for concern.
-
---
 
 `out_of_order_timestamp_count`::
   (long) The number of records that are out of time sequence and
@@ -171,19 +168,13 @@ The `model_size_stats` object has the following properties:
 
 `total_by_field_count`::
   (long) The number of `by` field values that were analyzed by the models.
-+
---
-NOTE: The `by` field values are counted separately for each detector and partition.
 
---
+NOTE: The `by` field values are counted separately for each detector and partition.
 
 `total_over_field_count`::
   (long) The number of `over` field values that were analyzed by the models.
-+
---
-NOTE: The `over` field values are counted separately for each detector and partition.
 
---
+NOTE: The `over` field values are counted separately for each detector and partition.
 
 `total_partition_field_count`::
   (long) The number of `partition` field values that were analyzed by the models.

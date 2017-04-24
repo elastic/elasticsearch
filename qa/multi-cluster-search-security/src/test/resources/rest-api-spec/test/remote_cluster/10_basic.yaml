@@ -86,3 +86,18 @@ setup:
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "test_index" }
+
+# The user is updated to remove its role mappings to show that we do not
+#  need the user to be assigned to a role on the remote cluster and that the
+#  roles sent with the user from the other cluster are used. The put user
+#  request clears the cached reference to the user so we do not need to do
+#  that manually
+  - do:
+      xpack.security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ ]
+            }
+  - match: { user: { created: false } }

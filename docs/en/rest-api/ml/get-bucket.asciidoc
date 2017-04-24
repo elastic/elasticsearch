@@ -45,8 +45,8 @@ roles provide these privileges. For more information, see
 `from`::
   (integer) Skips the specified number of buckets.
 
-`include_interim`::
-  (boolean) If true, the output includes interim results.
+`exclude_interim`::
+  (boolean) If true, the output excludes interim results. These are included by default.
 
 `size`::
   (integer) Specifies the maximum number of buckets to obtain.

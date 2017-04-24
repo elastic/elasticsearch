@@ -6,20 +6,20 @@ The preview data feed API enables you to preview a data feed.
 
 ===== Request
 
-`GET _xpack/ml/datafeeds/<feed_id>/_preview`
+`GET _xpack/ml/datafeeds/<datafeed_id>/_preview`
 
 
 ===== Description
 
-//TBD: How much data does it return?
-The API returns example data by using the current data feed settings.
+The API returns the first "page" of results from the `search` created using the current data feed settings.
+This shows the structure of the data that will be passed to the anomaly detection engine.
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
-`feed_id` (required)::
+`datafeed_id` (required)::
   (string) Identifier for the data feed
 
 ////
@@ -41,7 +41,7 @@ TBD
 ////
 ===== Examples
 
-The following example obtains a previews of the `datafeed-farequote` data feed:
+The following example obtains a preview of the `datafeed-farequote` data feed:
 
 [source,js]
 --------------------------------------------------

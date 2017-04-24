@@ -12,6 +12,13 @@ A job resource has the following properties:
   (object) Defines approximate limits on the memory resource requirements for the job.
   See <<ml-apilimits,analysis limits>>.
 
+`background_persist_interval`::
+  (time units) Advanced configuration option. 
+  The time between each periodic persistence of the model. 
+  The default value is a randomized value between 3 to 4 hours which avoid all jobs persisting at exactly the same time.
+  For very large models (several GB), persistence could take 10-20 minutes, so please do not set this value too low. 
+  The smallest allowed value is 1 hour. 
+
 `create_time`::
   (string) The time the job was created, in ISO 8601 format.
   For example, `1491007356077`.
@@ -29,7 +36,7 @@ A job resource has the following properties:
 
 `job_id`::
   (string) The unique identifier for the job.
-
+ 
 `job_type`::
   (string) Reserved for future use, currently set to `anomaly_detector`.
 
@@ -45,10 +52,21 @@ A job resource has the following properties:
   (long) The time in days that model snapshots are retained for the job.
   Older snapshots are deleted. The default value is 1 day.
 
+`renormalization_window_days`::
+  (long) Advanced configuration option.
+  The period over which adjustments to the score are applied, as new data is seen.
+  The default value is the longer of 30 days or 100 `bucket_spans`.
+
 `results_index_name`::
   (string) The name of the index in which to store the {ml} results.
   The default value is `shared`,
   which corresponds to the index name `.ml-anomalies-shared`
+
+`results_retention_days`::
+  (long) Advanced configuration option. 
+  The number of days for which job results are retained. 
+  Once per day at 00:30 (server time), results older than this period will be deleted from Elasticsearch. 
+  The default value is null, i.e. results are retained.
 
 [[ml-analysisconfig]]
 ===== Analysis Configuration Objects
@@ -62,7 +80,7 @@ An analysis configuration object has the following properties:
 `categorization_field_name`::
   (string) If not null, the values of the specified field will be categorized.
   The resulting categories can be used in a detector by setting `by_field_name`,
-  `over_field_name`, or `partition_field_name` to the keyword `prelertcategory`.
+  `over_field_name`, or `partition_field_name` to the keyword `mlcategory`.
 
 `categorization_filters`::
   (array of strings) If `categorization_field_name` is specified,

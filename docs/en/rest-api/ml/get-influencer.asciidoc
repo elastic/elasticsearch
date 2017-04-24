@@ -34,8 +34,8 @@ roles provide these privileges. For more information, see
 `from`::
   (integer) Skips the specified number of influencers.
 
-`include_interim`::
-  (boolean) If true, the output includes interim results.
+`exclude_interim`::
+  (boolean) If true, the output excludes interim results. These are included by default.
 
 `influencer_score`::
   (double) Returns influencers with anomaly scores higher than this value.

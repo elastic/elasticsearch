@@ -64,11 +64,11 @@ progress of a data feed. For example:
   The node that is running the query?
   `id`::: TBD. For example, "0-o0tOoRTwKFZifatTWKNw".
   `name`::: TBD. For example, "0-o0tOo".
-  `ephemeral_id::: TBD. For example, "DOZltLxLS_SzYpW6hQ9hyg".
-  `transport_address::: TBD. For example, "127.0.0.1:9300".
+  `ephemeral_id`::: TBD. For example, "DOZltLxLS_SzYpW6hQ9hyg".
+  `transport_address`::: TBD. For example, "127.0.0.1:9300".
   `attributes`::: TBD. For example, {"max_running_jobs": "10"}.
 
 `state`::
   (string) The status of the data feed, which can be one of the following values: +
-  started::: The data feed is actively receiving data.
-  stopped::: The data feed is stopped and will not receive data until it is re-started.
+  `started`::: The data feed is actively receiving data.
+  `stopped`::: The data feed is stopped and will not receive data until it is re-started.

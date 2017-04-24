@@ -13,7 +13,7 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * <<ml-api-jobs,+/anomaly_detectors/+>>: Create and manage {ml} jobs.
 * <<ml-api-datafeeds,+/datafeeds/+>>: Update data to be analyzed.
 * <<ml-api-results,+/results/+>>: Access the results of a {ml} job.
-* <<ml-api-snapshots,+/modelsnapshots/+>>: Manage model snapshots.
+* <<ml-api-snapshots,+/model_snapshots/+>>: Manage model snapshots.
 * <<ml-api-validate,+/validate/+>>: Validate subsections of job configurations.
 
 [float]
@@ -22,7 +22,7 @@ The main {ml} resources can be accessed with a variety of endpoints:
 
 * <<ml-put-job,POST /anomaly_detectors>>: Create a job
 * <<ml-open-job,POST /anomaly_detectors/<job_id>/_open>>: Open a job
-* <<ml-post-data,POST anomaly_detectors/<job_id>/_data>>: Send data to a job
+* <<ml-post-data,POST /anomaly_detectors/<job_id>/_data>>: Send data to a job
 * <<ml-get-job,GET /anomaly_detectors>>: List jobs
 * <<ml-get-job,GET /anomaly_detectors/<job_id+++>+++>>: Get job details
 * <<ml-get-job-stats,GET /anomaly_detectors/<job_id>/_stats>>: Get job statistics
@@ -35,15 +35,15 @@ The main {ml} resources can be accessed with a variety of endpoints:
 [[ml-api-datafeeds]]
 === /datafeeds/
 
-* <<ml-put-datafeed,PUT /datafeeds/<datafeedID+++>+++>>: Create a data feed
-* <<ml-start-datafeed,POST /datafeeds/<feed_id>/_start>>: Start a data feed
+* <<ml-put-datafeed,PUT /datafeeds/<datafeed_id+++>+++>>: Create a data feed
+* <<ml-start-datafeed,POST /datafeeds/<datafeed_id>/_start>>: Start a data feed
 * <<ml-get-datafeed,GET /datafeeds>>: List data feeds
-* <<ml-get-datafeed,GET /datafeeds/<feed_id+++>+++>>: Get data feed details
-* <<ml-get-datafeed-stats,GET /datafeeds/<feed_id>/_stats>>: Get statistical information for data feeds
-* <<ml-preview-datafeed,GET /datafeeds/<feed_id>/_preview>>: Get a preview of a data feed
-* <<ml-update-datafeed,POST /datafeeds/<feedid>/_update>>: Update certain settings for a data feed
-* <<ml-stop-datafeed,POST /datafeeds/<feed_id>/_stop>>: Stop a data feed
-* <<ml-delete-datafeed,DELETE /datafeeds/<feed_id+++>+++>>: Delete data feed
+* <<ml-get-datafeed,GET /datafeeds/<datafeed_id+++>+++>>: Get data feed details
+* <<ml-get-datafeed-stats,GET /datafeeds/<datafeed_id>/_stats>>: Get statistical information for data feeds
+* <<ml-preview-datafeed,GET /datafeeds/<datafeed_id>/_preview>>: Get a preview of a data feed
+* <<ml-update-datafeed,POST /datafeeds/<datafeedid>/_update>>: Update certain settings for a data feed
+* <<ml-stop-datafeed,POST /datafeeds/<datafeed_id>/_stop>>: Stop a data feed
+* <<ml-delete-datafeed,DELETE /datafeeds/<datafeed_id+++>+++>>: Delete data feed
 
 [float]
 [[ml-api-results]]

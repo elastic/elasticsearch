@@ -22,8 +22,7 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
 
 `feed_id`::
   (string) Identifier for the data feed.
-  If you do not specify this optional parameter, the API returns information
-  about all data feeds.
+  Does not support wildcards, however you may specify `_all` or leave blank to get information about all data feeds.
 
 ===== Results
 

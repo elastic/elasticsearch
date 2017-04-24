@@ -13,7 +13,7 @@ The update job API allows you to update certain properties of a job.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
-//TBD: Important:: Updates do not take effect until after then job is closed and new data is sent to it.
+//TBD: Important:: Updates do not take effect until after then job is closed and re-opened.
 
 ===== Path Parameters
 
@@ -34,7 +34,8 @@ The following properties can be updated after the job is created:
   * You can update the `analysis_limits` only while the job is closed.
   * The `model_memory_limit` property value cannot be decreased.
   * If the `memory_status` property in the `model_size_stats` object has a value of `hard_limit`,
-  increasing the `model_memory_limit` is not recommended.
+  this means that it was unable to process some data. You may wish to re-run this job
+  with an increased `model_memory_limit`. 
 
 `description`::
   (string) An optional description of the job.

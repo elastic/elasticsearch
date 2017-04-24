@@ -2,13 +2,11 @@
 [[ml-snapshot-resource]]
 ==== Model Snapshot Resources
 
-////
 Model snapshots are saved to disk periodically.
-By default, this is occurs approximately every 3 hours.
-//TBD: Can you change this setting?
+By default, this is occurs approximately every 3 hours to 4 hours and is configurable using the setting `background_persist_interval`.
 
 By default, model snapshots are retained for one day. You can change this
-behavior with by updating the `model_snapshot_retention_days` for the job.
+behavior by updating the `model_snapshot_retention_days` for the job.
 When choosing a new value, consider the following:
 
 * Persistence enables resilience in the event of a system failure.
@@ -23,30 +21,31 @@ A model snapshot resource has the following properties:
   (string) An optional description of the job.
 
 `job_id`::
-  (string) A numerical character string that uniquely identifies the job.
+  (string) A numerical character string that uniquely identifing the job that the snapshot was created for.
 
 `latest_record_time_stamp`::
-  () TBD. For example: 1455232663000.
+  (date) The timestamp of the latest processed record.
 
 `latest_result_time_stamp`::
-  () TBD. For example: 1455229800000.
+  (date) The timestamp of the latest bucket result.
 
 `model_size_stats`::
-  (object) TBD. See <<ml-snapshot-stats,Model Size Statistics>>.
+  (object) Summary information describing the model. See <<ml-snapshot-stats,Model Size Statistics>>.
 
 `retain`::
-  (boolean) TBD. For example: false.
+  (boolean) If true, this snapshot will not be deleted during automatic cleanup of snapshots older than `model_snapshot_retention_days`.
+  However, this snapshot will be deleted when the job is deleted.
+  The default value is false.
 
 `snapshot_id`::
   (string) A numerical character string that uniquely identifies the model
   snapshot. For example: "1491852978".
 
 `snapshot_doc_count`::
-  () TBD. For example: 1.
+  (long) For internal use only.
 
 `timestamp`::
-  (date) The creation timestamp for the snapshot, specified in ISO 8601 format.
-  For example: 1491852978000.
+  (date) The creation timestamp for the snapshot.
 
 [float]
 [[ml-snapshot-stats]]
@@ -55,31 +54,37 @@ A model snapshot resource has the following properties:
 The `model_size_stats` object has the following properties:
 
 `bucket_allocation_failures_count`::
-  () TBD. For example: 0.
+  (long) The number of buckets for which entites were not processed due to memory limit constraints.
 
 `job_id`::
   (string) A numerical character string that uniquely identifies the job.
 
 `log_time`::
-  () TBD. For example: 1491852978000.
+  (date) The timestamp that the `model_size_stats` were recorded, according to server-time.
 
 `memory_status`::
-  () TBD. For example: "ok".
+  (string) The status of the memory in relation to its `model_memory_limit`.
+  Contains one of the following values.
+  `ok`::: The internal models stayed below the configured value.
+  `soft_limit`::: The internal models require more than 60% of the configured memory limit and more aggressive pruning will
+  be performed in order to try to reclaim space.
+  `hard_limit`::: The internal models require more space that the configured memory limit.
+  Some incoming data could not be processed.
 
 `model_bytes`::
-  () TBD. For example: 100393.
+  (long) An approximation of the memory resources required for this analysis.
 
 `result_type`::
-  () TBD. For example: "model_size_stats".
+  (string) Internal. This value is always set to "model_size_stats".
 
 `timestamp`::
-  () TBD. For example: 1455229800000.
+  (date) The timestamp that the `model_size_stats` were recorded, according to the bucket timestamp of the data.
 
 `total_by_field_count`::
-  () TBD. For example: 13.
+  (long) The number of _by_ field values analyzed. Note that these are counted separately for each detector and partition.
 
 `total_over_field_count`::
-  () TBD. For example: 0.
+  (long) The number of _over_ field values analyzed. Note that these are counted separately for each detector and partition.
 
 `total_partition_field_count`::
-  () TBD. For example: 2.
+  (long) The number of _partition_ field values analyzed.

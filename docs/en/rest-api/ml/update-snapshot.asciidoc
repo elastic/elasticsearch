@@ -11,10 +11,10 @@ The update model snapshot API enables you to update certain properties of a snap
 
 ===== Description
 
-//TBD. Is the following still true?
+//TBD. Is the following still true? - not sure but close/open would be the method
 
 Updates to the configuration are only applied after the job has been closed
-and new data has been sent to it.
+and re-opened.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
@@ -32,10 +32,12 @@ For more information, see <<privileges-list-cluster>>.
 The following properties can be updated after the model snapshot is created:
 
 `description`::
-  (string) An optional description of the model snapshot.
+  (string) An optional description of the model snapshot. E.g. "Before black friday"
 
 `retain`::
-  (boolean) TBD.
+  (boolean) If true, this snapshot will not be deleted during automatic cleanup of snapshots older than `model_snapshot_retention_days`.
+  Note that this snapshot will still be deleted when the job is deleted.
+  The default value is false.
 
 ////
 ===== Responses

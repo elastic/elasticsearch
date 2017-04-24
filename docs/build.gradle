@@ -80,13 +80,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/shard-stores.asciidoc',
   'reference/ingest/ingest-node.asciidoc',
   'reference/mapping/dynamic/templates.asciidoc',
-  'reference/mapping/fields/all-field.asciidoc',
-  'reference/mapping/params/analyzer.asciidoc',
-  'reference/mapping/types/binary.asciidoc',
-  'reference/mapping/types/ip.asciidoc',
-  'reference/mapping/types/nested.asciidoc',
-  'reference/mapping/types/object.asciidoc',
-  'reference/mapping/types/percolator.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',

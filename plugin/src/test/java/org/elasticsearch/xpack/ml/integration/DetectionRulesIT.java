@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Condition;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -149,10 +147,6 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records.size(), equalTo(2));
         Set<String> secondHaldRecordByFieldValues = records.stream().map(AnomalyRecord::getByFieldValue).collect(Collectors.toSet());
         assertThat(secondHaldRecordByFieldValues, contains("by_field_value_1", "by_field_value_2"));
-    }
-
-    private static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {
-        return JsonXContent.contentBuilder().map(keyValueMap).string() + "\n";
     }
 
     private String joinBetween(int start, int end, List<String> input) {

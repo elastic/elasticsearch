@@ -11,6 +11,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.security.Security;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -183,17 +185,25 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
     protected void waitUntilJobIsClosed(String jobId) throws Exception {
         assertBusy(() -> {
             try {
-                GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-                GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).get();
-                assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.CLOSED));
+                assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.CLOSED));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         });
     }
 
+    protected List<GetJobsStatsAction.Response.JobStats> getJobStats(String jobId) throws Exception {
+        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+        GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).get();
+        return response.getResponse().results();
+    }
+
     protected List<Bucket> getBuckets(String jobId) throws Exception {
         GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+        return getBuckets(request);
+    }
+
+    protected List<Bucket> getBuckets(GetBucketsAction.Request request) throws Exception {
         GetBucketsAction.Response response = client().execute(GetBucketsAction.INSTANCE, request).get();
         return response.getBuckets().results();
     }
@@ -233,5 +243,9 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
     @Override
     protected void ensureClusterStateConsistency() throws IOException {
         // this method in ESIntegTestCase is not plugin-friendly - it does not account for plugin NamedWritableRegistries
+    }
+
+    protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {
+        return JsonXContent.contentBuilder().map(keyValueMap).string() + "\n";
     }
 }

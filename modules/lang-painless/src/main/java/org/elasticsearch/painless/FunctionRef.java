@@ -28,7 +28,10 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
+import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
+import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
+import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 
 /**
  * Reference to a function or lambda.
@@ -101,13 +104,13 @@ public class FunctionRef {
         }
 
         if ("<init>".equals(delegateMethod.name)) {
-            delegateInvokeType = Opcodes.H_NEWINVOKESPECIAL;
+            delegateInvokeType = H_NEWINVOKESPECIAL;
         } else if (Modifier.isStatic(delegateMethod.modifiers)) {
             delegateInvokeType = H_INVOKESTATIC;
         } else if (delegateMethod.owner.clazz.isInterface()) {
-            delegateInvokeType = Opcodes.H_INVOKEINTERFACE;
+            delegateInvokeType = H_INVOKEINTERFACE;
         } else {
-            delegateInvokeType = Opcodes.H_INVOKEVIRTUAL;
+            delegateInvokeType = H_INVOKEVIRTUAL;
         }
 
         delegateMethodName = delegateMethod.name;

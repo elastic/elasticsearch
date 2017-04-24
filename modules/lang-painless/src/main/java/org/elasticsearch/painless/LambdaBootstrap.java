@@ -81,7 +81,7 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * {@code
  * List list1 = new ArrayList(); "
  * list1.add(2); "
- * List1 list2 = new ArrayList(); "
+ * List list2 = new ArrayList(); "
  * list1.forEach(x -> list2.add(x));"
  * return list[0]"
  * }

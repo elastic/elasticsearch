@@ -210,6 +210,27 @@ public class TribeIT extends ESIntegTestCase {
 
     private Releasable startTribeNode(Predicate<InternalTestCluster> filter, Settings settings) throws Exception {
         final String node = internalCluster().startNode(createTribeSettings(filter).put(settings).build());
+
+        // wait for node to be connected to all tribe clusters
+        final Set<String> expectedNodes = Sets.newHashSet(internalCluster().getNodeNames());
+        doWithAllClusters(filter, c -> {
+            // Adds the tribe client node dedicated to this remote cluster
+            for (String tribeNode : internalCluster().getNodeNames()) {
+                expectedNodes.add(tribeNode + "/" + c.getClusterName());
+            }
+            // Adds the remote clusters nodes names
+            Collections.addAll(expectedNodes, c.getNodeNames());
+        });
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setNodes(true).get().getState();
+            Set<String> nodes = StreamSupport.stream(state.getNodes().spliterator(), false).map(DiscoveryNode::getName).collect(toSet());
+            assertThat(nodes, containsInAnyOrder(expectedNodes.toArray()));
+        });
+        // wait for join to be fully applied on all nodes in the tribe clusters, see https://github.com/elastic/elasticsearch/issues/23695
+        doWithAllClusters(filter, c -> {
+            assertFalse(c.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        });
+
         return () -> {
             try {
                 while(internalCluster().getNodeNames().length > 0) {
@@ -255,9 +276,6 @@ public class TribeIT extends ESIntegTestCase {
             assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
             ensureGreen(cluster2.client());
 
-            // Wait for the tribe node to connect to the two remote clusters
-            assertNodes(ALL);
-
             // Wait for the tribe node to retrieve the indices into its cluster state
             assertIndicesExist(client(), "test1", "test2");
 
@@ -293,9 +311,6 @@ public class TribeIT extends ESIntegTestCase {
             assertAcked(cluster2.client().admin().indices().prepareCreate("block_test2"));
             ensureGreen(cluster2.client());
 
-            // Wait for the tribe node to connect to the two remote clusters
-            assertNodes(ALL);
-
             // Wait for the tribe node to retrieve the indices into its cluster state
             assertIndicesExist(client(), "test1", "test2", "block_test1", "block_test2");
 
@@ -327,9 +342,6 @@ public class TribeIT extends ESIntegTestCase {
             assertAcked(cluster2.client().admin().indices().prepareCreate("conflict"));
             ensureGreen(cluster2.client());
 
-            // Wait for the tribe node to connect to the two remote clusters
-            assertNodes(ALL);
-
             // Wait for the tribe node to retrieve the indices into its cluster state
             assertIndicesExist(client(), "test1", "test2");
 
@@ -357,9 +369,6 @@ public class TribeIT extends ESIntegTestCase {
             assertAcked(cluster2.client().admin().indices().prepareCreate("shared"));
             ensureGreen(cluster2.client());
 
-            // Wait for the tribe node to connect to the two remote clusters
-            assertNodes(ALL);
-
             // Wait for the tribe node to retrieve the indices into its cluster state
             assertIndicesExist(client(), "test1", "test2", "shared");
 
@@ -381,9 +390,6 @@ public class TribeIT extends ESIntegTestCase {
 
             assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
             ensureGreen(cluster2.client());
-
-            // Wait for the tribe node to connect to the two remote clusters
-            assertNodes(ALL);
 
             // Wait for the tribe node to retrieve the indices into its cluster state
             assertIndicesExist(client(), "test1", "test2");
@@ -443,9 +449,6 @@ public class TribeIT extends ESIntegTestCase {
         assertTrue(cluster1.client().admin().indices().prepareClose("first").get().isAcknowledged());
 
         try (Releasable tribeNode = startTribeNode()) {
-            // Wait for the tribe node to connect to the two remote clusters
-            assertNodes(ALL);
-
             // The closed index is not part of the tribe node cluster state
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             assertFalse(clusterState.getMetaData().hasIndex("first"));
@@ -480,7 +483,6 @@ public class TribeIT extends ESIntegTestCase {
 
         for (Predicate<InternalTestCluster> predicate : predicates) {
             try (Releasable tribeNode = startTribeNode(predicate, Settings.EMPTY)) {
-                assertNodes(predicate);
             }
         }
     }
@@ -491,7 +493,6 @@ public class TribeIT extends ESIntegTestCase {
         MergableCustomMetaData1 customMetaData1 = new MergableCustomMetaData1("a");
         MergableCustomMetaData1 customMetaData2 = new MergableCustomMetaData1("b");
         try (Releasable tribeNode = startTribeNode()) {
-            assertNodes(ALL);
             putCustomMetaData(cluster1, customMetaData1);
             putCustomMetaData(cluster2, customMetaData2);
             assertCustomMetaDataUpdated(internalCluster(), customMetaData2);
@@ -509,7 +510,6 @@ public class TribeIT extends ESIntegTestCase {
         Collections.sort(customMetaDatas, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));
         final MergableCustomMetaData1 tribeNodeCustomMetaData = customMetaDatas.get(0);
         try (Releasable tribeNode = startTribeNode()) {
-            assertNodes(ALL);
             putCustomMetaData(cluster1, customMetaData1);
             assertCustomMetaDataUpdated(internalCluster(), customMetaData1);
             putCustomMetaData(cluster2, customMetaData2);
@@ -529,7 +529,6 @@ public class TribeIT extends ESIntegTestCase {
         Collections.sort(mergedCustomMetaDataType1, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));
         Collections.sort(mergedCustomMetaDataType2, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));
         try (Releasable tribeNode = startTribeNode()) {
-            assertNodes(ALL);
             // test putting multiple custom md types propagates to tribe
             putCustomMetaData(cluster1, firstCustomMetaDataType1);
             putCustomMetaData(cluster1, firstCustomMetaDataType2);
@@ -627,24 +626,6 @@ public class TribeIT extends ESIntegTestCase {
                     .get();
             assertThat(clusterHealthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertFalse(clusterHealthResponse.isTimedOut());
-        });
-    }
-
-    private static void assertNodes(Predicate<InternalTestCluster> filter) throws Exception {
-        final Set<String> expectedNodes = Sets.newHashSet(internalCluster().getNodeNames());
-        doWithAllClusters(filter, c -> {
-            // Adds the tribe client node dedicated to this remote cluster
-            for (String tribeNode : internalCluster().getNodeNames()) {
-                expectedNodes.add(tribeNode + "/" + c.getClusterName());
-            }
-            // Adds the remote clusters nodes names
-            Collections.addAll(expectedNodes, c.getNodeNames());
-        });
-
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().setNodes(true).get().getState();
-            Set<String> nodes = StreamSupport.stream(state.getNodes().spliterator(), false).map(DiscoveryNode::getName).collect(toSet());
-            assertThat(nodes, containsInAnyOrder(expectedNodes.toArray()));
         });
     }
 

@@ -109,7 +109,11 @@ public class NamingConventionsCheck {
         assertNoViolations(
                 () -> "Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]",
                 check.notImplementing);
-        assertNoViolations(() -> "Classes ending with [Tests] or [IT] must be in src/test/java", check.testsInMain);
+        assertNoViolations(
+                () -> "Classes ending with [Tests] or [IT] "
+                    + (check.testClass == null ? "" : "or extending [" + check.testClass.getSimpleName() + "]")
+                    + " must be in src/test/java",
+                check.testsInMain);
         if (skipIntegTestsInDisguise == false) {
             assertNoViolations(
                     () -> "Subclasses of " + check.integTestClass.getSimpleName() + " should end with IT as they are integration tests",
@@ -158,15 +162,14 @@ public class NamingConventionsCheck {
 
             @Override
             protected void visitOtherClass(Class<?> clazz) {
+                if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
+                    return;
+                }
                 if (isTestCase(clazz)) {
                     missingSuffix.add(clazz);
                 } else if (junit.framework.Test.class.isAssignableFrom(clazz)) {
                     pureUnitTest.add(clazz);
                 }
-            }
-
-            private boolean isTestCase(Class<?> clazz) {
-                return testClass.isAssignableFrom(clazz);
             }
         });
     }
@@ -185,7 +188,12 @@ public class NamingConventionsCheck {
 
             @Override
             protected void visitOtherClass(Class<?> clazz) {
-                // OK!
+                if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
+                    return;
+                }
+                if (isTestCase(clazz)) {
+                    testsInMain.add(clazz);
+                }
             }
         });
 
@@ -237,7 +245,7 @@ public class NamingConventionsCheck {
         }
     }
 
-    static abstract class TestClassVisitor implements FileVisitor<Path> {
+    abstract class TestClassVisitor implements FileVisitor<Path> {
         /**
          * The package name of the directory we are currently visiting. Kept as a string rather than something fancy because we load
          * just about every class and doing so requires building a string out of it anyway. At least this way we don't need to build the
@@ -245,8 +253,17 @@ public class NamingConventionsCheck {
          */
         private String packageName;
 
+        /**
+         * Visit classes named like a test.
+         */
         protected abstract void visitTestClass(Class<?> clazz);
+        /**
+         * Visit classes named like an integration test.
+         */
         protected abstract void visitIntegrationTestClass(Class<?> clazz);
+        /**
+         * Visit classes not named like a test at all.
+         */
         protected abstract void visitOtherClass(Class<?> clazz);
 
         @Override
@@ -278,11 +295,18 @@ public class NamingConventionsCheck {
                     visitTestClass(clazz);
                 } else if (clazz.getName().endsWith("IT")) {
                     visitIntegrationTestClass(clazz);
-                } else if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
+                } else {
                     visitOtherClass(clazz);
                 }
             }
             return FileVisitResult.CONTINUE;
+        }
+
+        /**
+         * Is this class a test case?
+         */
+        protected boolean isTestCase(Class<?> clazz) {
+            return testClass != null && testClass.isAssignableFrom(clazz);
         }
 
         @Override

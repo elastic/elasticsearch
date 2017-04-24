@@ -77,7 +77,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
         assertEquals(1, registeredChannels.size());
         assertTrue(registeredChannels.contains(serverChannel));
-        assertEquals(SelectionKey.OP_ACCEPT, selectionKey.interestOps());
     }
 
     public void testAcceptEvent() throws IOException {

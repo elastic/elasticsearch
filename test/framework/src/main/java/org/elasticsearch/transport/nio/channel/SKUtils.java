@@ -45,4 +45,9 @@ public final class SKUtils {
         SelectionKey selectionKey = channel.getSelectionKey();
         selectionKey.interestOps(selectionKey.interestOps() & ~SelectionKey.OP_CONNECT);
     }
+
+    public static void setAcceptInterested(NioServerSocketChannel channel) {
+        SelectionKey selectionKey = channel.getSelectionKey();
+        selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_ACCEPT);
+    }
 }

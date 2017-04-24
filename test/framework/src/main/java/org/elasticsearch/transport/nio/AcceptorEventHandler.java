@@ -24,6 +24,7 @@ import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.SKUtils;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -41,6 +42,7 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     public void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
+        SKUtils.setAcceptInterested(nioServerSocketChannel);
         openChannels.serverChannelOpened(nioServerSocketChannel);
     }
 

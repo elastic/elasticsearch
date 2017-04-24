@@ -62,7 +62,7 @@ public class AcceptingSelector extends ESSelector {
                 keyIterator.remove();
                 acceptChannel(sk);
             }
-            }
+        }
     }
 
     @Override
@@ -80,7 +80,6 @@ public class AcceptingSelector extends ESSelector {
         while ((newChannel = this.newChannels.poll()) != null) {
             if (newChannel.register(this)) {
                 SelectionKey selectionKey = newChannel.getSelectionKey();
-                selectionKey.interestOps(SelectionKey.OP_ACCEPT);
                 selectionKey.attach(newChannel);
                 registeredChannels.add(newChannel);
                 eventHandler.serverChannelRegistered(newChannel);

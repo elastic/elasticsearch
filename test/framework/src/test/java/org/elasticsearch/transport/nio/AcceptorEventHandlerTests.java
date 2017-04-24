@@ -21,11 +21,14 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
+import org.elasticsearch.transport.nio.channel.DoNotRegisterServerChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -53,7 +56,8 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         selectors.add(socketSelector);
         handler = new AcceptorEventHandler(logger, openChannels, new ChildSelectorStrategy(selectors));
 
-        channel = new NioServerSocketChannel("", mock(ServerSocketChannel.class), channelFactory);
+        channel = new DoNotRegisterServerChannel("", mock(ServerSocketChannel.class), channelFactory);
+        channel.register(mock(ESSelector.class));
     }
 
     public void testHandleRegisterAdjustsOpenChannels() {
@@ -62,6 +66,14 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         handler.serverChannelRegistered(channel);
 
         assertEquals(1, openChannels.serverChannelsCount());
+    }
+
+    public void testHandleRegisterSetsOP_ACCEPTInterest() {
+        assertEquals(0, channel.getSelectionKey().interestOps());
+
+        handler.serverChannelRegistered(channel);
+
+        assertEquals(SelectionKey.OP_ACCEPT, channel.getSelectionKey().interestOps());
     }
 
     public void testHandleAcceptRegistersWithSelector() throws IOException {

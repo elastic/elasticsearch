@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
@@ -153,5 +154,25 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             builder.startObject(Fields.CENTROID).field("lat", centroid.lat()).field("lon", centroid.lon()).endObject();
         }
         return builder;
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        InternalGeoCentroid that = (InternalGeoCentroid) o;
+        return count == that.count &&
+                Objects.equals(centroid, that.centroid);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(centroid, count);
+    }
+
+    @Override
+    public String toString() {
+        return "InternalGeoCentroid{" +
+                "centroid=" + centroid +
+                ", count=" + count +
+                '}';
     }
 }

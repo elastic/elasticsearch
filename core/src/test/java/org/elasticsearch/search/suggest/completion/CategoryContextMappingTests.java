@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -672,6 +673,31 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(ElasticsearchParseException.class, () -> mapping.parseQueryContext(createParseContext(parser)));
         assertEquals("category context must be an object, string, number or boolean", e.getMessage());
+    }
+    
+    public void testUnknownQueryContextParsing() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startArray("contexts")
+                .startObject()
+                .field("name", "ctx")
+                .field("type", "category")
+                .endObject()
+                .startObject()
+                .field("name", "type")
+                .field("type", "category")
+                .endObject()
+                .endArray()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+        CompletionFieldType completionFieldType = (CompletionFieldType) fieldMapper.fieldType();
+        
+        Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
+        assertEquals("Unknown context name [brand], must be one of [ctx, type]", e.getMessage());
     }
 
     public void testParsingContextFromDocument() throws Exception {

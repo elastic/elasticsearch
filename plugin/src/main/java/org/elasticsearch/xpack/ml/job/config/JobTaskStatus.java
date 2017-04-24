@@ -67,7 +67,7 @@ public class JobTaskStatus implements Task.Status {
         return state;
     }
 
-    public boolean staleStatus(PersistentTask<?> task) {
+    public boolean isStatusStale(PersistentTask<?> task) {
         return allocationId != task.getAllocationId();
     }
 

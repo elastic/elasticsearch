@@ -585,7 +585,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     }
                     JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
                     return jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                           jobTaskState.staleStatus(task); // previous executor node failed and
+                           jobTaskState.isStatusStale(task); // previous executor node failed and
                     // current executor node didn't have the chance to set job status to OPENING
                 }).size();
             } else {

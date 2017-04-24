@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -572,17 +571,10 @@ public class StartDatafeedAction
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
-        DiscoveryNodes nodes = clusterState.getNodes();
 
         PersistentTask<?> jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
         if (jobTask == null) {
             String reason = "cannot start datafeed [" + datafeed.getId() + "], job task doesn't yet exist";
-            logger.debug(reason);
-            return new Assignment(null, reason);
-        }
-        if (jobTask.needsReassignment(nodes)) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() +
-                    "] is unassigned or unassigned to a non existing node";
             logger.debug(reason);
             return new Assignment(null, reason);
         }
@@ -592,6 +584,11 @@ public class StartDatafeedAction
             String taskStatusAsString = taskStatus == null ? "null" : taskStatus.getState().toString();
             String reason = "cannot start datafeed [" + datafeed.getId() + "], because job's [" + datafeed.getJobId() +
                     "] state is [" + taskStatusAsString +  "] while state [" + JobState.OPENED + "] is required";
+            logger.debug(reason);
+            return new Assignment(null, reason);
+        }
+        if (taskStatus.isStatusStale(jobTask)) {
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() + "] status is stale";
             logger.debug(reason);
             return new Assignment(null, reason);
         }

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 
@@ -237,24 +238,20 @@ public class StartDatafeedActionTests extends ESTestCase {
         String nodeId = randomBoolean() ? "node_id2" : null;
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
+        // Set to lower allocationId, so job task is stale:
+        tasksBuilder.updateTaskStatus(MlMetadata.jobTaskId(job.getId()), new JobTaskStatus(JobState.OPENED, 0));
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_name", "node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
-                .build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder()
                         .putCustom(MlMetadata.TYPE, mlMetadata.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasks)
                         .put(indexMetaData, false))
-                .nodes(nodes)
                 .routingTable(generateRoutingTable(indexMetaData));
 
         Assignment result = StartDatafeedAction.selectNode(logger, "datafeed_id", cs.build(), resolver);
         assertNull(result.getExecutorNode());
-        assertEquals("cannot start datafeed [datafeed_id], job [job_id] is unassigned or unassigned to a non existing node",
+        assertEquals("cannot start datafeed [datafeed_id], job [job_id] status is stale",
                 result.getExplanation());
 
         tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -265,7 +262,6 @@ public class StartDatafeedActionTests extends ESTestCase {
                         .putCustom(MlMetadata.TYPE, mlMetadata.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasks)
                         .put(indexMetaData, false))
-                .nodes(nodes)
                 .routingTable(generateRoutingTable(indexMetaData));
         result = StartDatafeedAction.selectNode(logger, "datafeed_id", cs.build(), resolver);
         assertEquals("node_id1", result.getExecutorNode());

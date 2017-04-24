@@ -162,7 +162,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
         assertThat(stats.getSumAsString(), equalTo("0055.0"));
         assertThat(stats.getCount(), equalTo(10L));
-        assertThat(stats.getCountAsString(), equalTo("0010.0"));
     }
 
     @Override

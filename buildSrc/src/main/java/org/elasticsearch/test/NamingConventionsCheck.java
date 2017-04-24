@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Checks that all tests in a directory are named according to our naming conventions. This is important because tests that do not follow
@@ -46,7 +47,8 @@ public class NamingConventionsCheck {
     public static void main(String[] args) throws IOException {
         Class<?> testClass = null;
         Class<?> integTestClass = null;
-        Path rootPath = null;
+        Path testPath = null;
+        Path mainPath = null;
         boolean skipIntegTestsInDisguise = false;
         boolean selfTest = false;
         for (int i = 0; i < args.length; i++) {
@@ -65,7 +67,11 @@ public class NamingConventionsCheck {
                     selfTest = true;
                     break;
                 case "--":
-                    rootPath = Paths.get(args[++i]);
+                    i++; // Throw out --, paths are next
+                    testPath = Paths.get(args[i++]);
+                    if (i < args.length) {
+                        mainPath = Paths.get(args[i++]);
+                    }
                     break;
                 default:
                     fail("unsupported argument '" + arg + "'");
@@ -73,7 +79,12 @@ public class NamingConventionsCheck {
         }
 
         NamingConventionsCheck check = new NamingConventionsCheck(testClass, integTestClass);
-        check.check(rootPath, skipIntegTestsInDisguise);
+        if (Files.exists(testPath)) {
+            check.checkTests(testPath, skipIntegTestsInDisguise);
+        }
+        if (mainPath != null && Files.exists(mainPath)) {
+            check.checkMain(mainPath);
+        }
 
         if (selfTest) {
             assertViolation("WrongName", check.missingSuffix);
@@ -83,18 +94,26 @@ public class NamingConventionsCheck {
             assertViolation("InnerTests", check.innerClasses);
             assertViolation("NotImplementingTests", check.notImplementing);
             assertViolation("PlainUnit", check.pureUnitTest);
+            assertViolation(NamingConventionsCheckInMainTests.class.getName(), check.testsInMain);
+            assertViolation(NamingConventionsCheckInMainIT.class.getName(), check.testsInMain);
         }
 
         // Now we should have no violations
-        assertNoViolations("Not all subclasses of " + check.testClass.getSimpleName()
-                + " match the naming convention. Concrete classes must end with [Tests]", check.missingSuffix);
-        assertNoViolations("Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
-        assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
-        assertNoViolations("Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
-        assertNoViolations("Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]", check.notImplementing);
+        assertNoViolations(
+                () -> "Not all subclasses of " + check.testClass.getSimpleName()
+                    + " match the naming convention. Concrete classes must end with [Tests]",
+                check.missingSuffix);
+        assertNoViolations(() -> "Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
+        assertNoViolations(() -> "Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
+        assertNoViolations(() -> "Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
+        assertNoViolations(
+                () -> "Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]",
+                check.notImplementing);
+        assertNoViolations(() -> "Classes ending with [Tests] or [IT] must be in src/test/java", check.testsInMain);
         if (skipIntegTestsInDisguise == false) {
-            assertNoViolations("Subclasses of " + check.integTestClass.getSimpleName() +
-                    " should end with IT as they are integration tests", check.integTestsInDisguise);
+            assertNoViolations(
+                    () -> "Subclasses of " + check.integTestClass.getSimpleName() + " should end with IT as they are integration tests",
+                    check.integTestsInDisguise);
         }
     }
 
@@ -104,6 +123,7 @@ public class NamingConventionsCheck {
     private final Set<Class<?>> integTestsInDisguise = new HashSet<>();
     private final Set<Class<?>> notRunnable = new HashSet<>();
     private final Set<Class<?>> innerClasses = new HashSet<>();
+    private final Set<Class<?>> testsInMain = new HashSet<>();
 
     private final Class<?> testClass;
     private final Class<?> integTestClass;
@@ -113,84 +133,71 @@ public class NamingConventionsCheck {
         this.integTestClass = integTestClass;
     }
 
-    public void check(Path rootPath, boolean skipTestsInDisguised) throws IOException {
-        Files.walkFileTree(rootPath, new FileVisitor<Path>() {
-            /**
-             * The package name of the directory we are currently visiting. Kept as a string rather than something fancy because we load
-             * just about every class and doing so requires building a string out of it anyway. At least this way we don't need to build the
-             * first part of the string over and over and over again.
-             */
-            private String packageName;
-
+    public void checkTests(Path rootPath, boolean skipTestsInDisguised) throws IOException {
+        Files.walkFileTree(rootPath, new TestClassVisitor() {
             @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                // First we visit the root directory
-                if (packageName == null) {
-                    // And it package is empty string regardless of the directory name
-                    packageName = "";
-                } else {
-                    packageName += dir.getFileName() + ".";
+            protected void visitTestClass(Class<?> clazz) {
+                if (skipTestsInDisguised == false && integTestClass.isAssignableFrom(clazz)) {
+                    integTestsInDisguise.add(clazz);
                 }
-                return FileVisitResult.CONTINUE;
+                if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
+                    notRunnable.add(clazz);
+                } else if (isTestCase(clazz) == false) {
+                    notImplementing.add(clazz);
+                } else if (Modifier.isStatic(clazz.getModifiers())) {
+                    innerClasses.add(clazz);
+                }
             }
 
             @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                // Go up one package by jumping back to the second to last '.'
-                packageName = packageName.substring(0, 1 + packageName.lastIndexOf('.', packageName.length() - 2));
-                return FileVisitResult.CONTINUE;
+            protected void visitIntegrationTestClass(Class<?> clazz) {
+                if (isTestCase(clazz) == false) {
+                    notImplementing.add(clazz);
+                }
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                String filename = file.getFileName().toString();
-                if (filename.endsWith(".class")) {
-                    String className = filename.substring(0, filename.length() - ".class".length());
-                    Class<?> clazz = loadClassWithoutInitializing(packageName + className);
-                    if (clazz.getName().endsWith("Tests")) {
-                        if (skipTestsInDisguised == false && integTestClass.isAssignableFrom(clazz)) {
-                            integTestsInDisguise.add(clazz);
-                        }
-                        if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
-                            notRunnable.add(clazz);
-                        } else if (isTestCase(clazz) == false) {
-                            notImplementing.add(clazz);
-                        } else if (Modifier.isStatic(clazz.getModifiers())) {
-                            innerClasses.add(clazz);
-                        }
-                    } else if (clazz.getName().endsWith("IT")) {
-                        if (isTestCase(clazz) == false) {
-                            notImplementing.add(clazz);
-                        }
-                    } else if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
-                        if (isTestCase(clazz)) {
-                            missingSuffix.add(clazz);
-                        } else if (junit.framework.Test.class.isAssignableFrom(clazz)) {
-                            pureUnitTest.add(clazz);
-                        }
-                    }
+            protected void visitOtherClass(Class<?> clazz) {
+                if (isTestCase(clazz)) {
+                    missingSuffix.add(clazz);
+                } else if (junit.framework.Test.class.isAssignableFrom(clazz)) {
+                    pureUnitTest.add(clazz);
                 }
-                return FileVisitResult.CONTINUE;
             }
 
             private boolean isTestCase(Class<?> clazz) {
                 return testClass.isAssignableFrom(clazz);
             }
+        });
+    }
+
+    public void checkMain(Path rootPath) throws IOException {
+        Files.walkFileTree(rootPath, new TestClassVisitor() {
+            @Override
+            protected void visitTestClass(Class<?> clazz) {
+                testsInMain.add(clazz);
+            }
 
             @Override
-            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                throw exc;
+            protected void visitIntegrationTestClass(Class<?> clazz) {
+                testsInMain.add(clazz);
+            }
+
+            @Override
+            protected void visitOtherClass(Class<?> clazz) {
+                // OK!
             }
         });
+
     }
 
     /**
      * Fail the process if there are any violations in the set. Named to look like a junit assertion even though it isn't because it is
      * similar enough.
      */
-    private static void assertNoViolations(String message, Set<Class<?>> set) {
+    private static void assertNoViolations(Supplier<String> message, Set<Class<?>> set) {
         if (false == set.isEmpty()) {
-            System.err.println(message + ":");
+            System.err.println(message.get() + ":");
             for (Class<?> bad : set) {
                 System.err.println(" * " + bad.getName());
             }
@@ -203,7 +210,7 @@ public class NamingConventionsCheck {
      * similar enough.
      */
     private static void assertViolation(String className, Set<Class<?>> set) {
-        className = "org.elasticsearch.test.NamingConventionsCheckBadClasses$" + className;
+        className = className.startsWith("org") ? className : "org.elasticsearch.test.NamingConventionsCheckBadClasses$" + className;
         if (false == set.remove(loadClassWithoutInitializing(className))) {
             System.err.println("Error in NamingConventionsCheck! Expected [" + className + "] to be a violation but wasn't.");
             System.exit(1);
@@ -227,6 +234,60 @@ public class NamingConventionsCheck {
                     NamingConventionsCheck.class.getClassLoader());
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    static abstract class TestClassVisitor implements FileVisitor<Path> {
+        /**
+         * The package name of the directory we are currently visiting. Kept as a string rather than something fancy because we load
+         * just about every class and doing so requires building a string out of it anyway. At least this way we don't need to build the
+         * first part of the string over and over and over again.
+         */
+        private String packageName;
+
+        protected abstract void visitTestClass(Class<?> clazz);
+        protected abstract void visitIntegrationTestClass(Class<?> clazz);
+        protected abstract void visitOtherClass(Class<?> clazz);
+
+        @Override
+        public final FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+            // First we visit the root directory
+            if (packageName == null) {
+                // And it package is empty string regardless of the directory name
+                packageName = "";
+            } else {
+                packageName += dir.getFileName() + ".";
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public final FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            // Go up one package by jumping back to the second to last '.'
+            packageName = packageName.substring(0, 1 + packageName.lastIndexOf('.', packageName.length() - 2));
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public final FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            String filename = file.getFileName().toString();
+            if (filename.endsWith(".class")) {
+                String className = filename.substring(0, filename.length() - ".class".length());
+                Class<?> clazz = loadClassWithoutInitializing(packageName + className);
+                if (clazz.getName().endsWith("Tests")) {
+                    visitTestClass(clazz);
+                } else if (clazz.getName().endsWith("IT")) {
+                    visitIntegrationTestClass(clazz);
+                } else if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
+                    visitOtherClass(clazz);
+                }
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public final FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+            throw exc;
         }
     }
 }

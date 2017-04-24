@@ -41,16 +41,6 @@ public class NamingConventionsTask extends LoggedExec {
     File successMarker = new File(project.buildDir, 'markers/namingConventions')
 
     /**
-     * The classpath to run the naming conventions checks against. Must contain the files in the test
-     * output directory and everything required to load those classes.
-     *
-     * We don't declare the actual test files as a dependency or input because if they change then
-     * this will change.
-     */
-    @InputFiles
-    FileCollection classpath = project.sourceSets.test.runtimeClasspath
-
-    /**
      * Should we skip the integ tests in disguise tests? Defaults to true because only core names its
      * integ tests correctly.
      */
@@ -78,9 +68,19 @@ public class NamingConventionsTask extends LoggedExec {
         FileCollection extraClasspath = project.configurations.namingConventions
         dependsOn(extraClasspath)
 
+        FileCollection classpath = project.sourceSets.test.runtimeClasspath
+        inputs.files(classpath)
         description = "Runs NamingConventionsCheck on ${classpath}"
+        if (project.sourceSets.names.contains('main')) {
+            /* If there are main classes we'll have a look at them just to make
+             * sure there aren't file named like test classes in there too. */
+            inputs.files(project.sourceSets.main.runtimeClasspath)
+            description += "and ${project.sourceSets.main.runtimeClasspath}"
+            classpath += project.sourceSets.main.runtimeClasspath
+            // NOCOMMIT test up-to-date-ness
+        }
         executable = new File(project.javaHome, 'bin/java')
-        onlyIf { project.sourceSets.test.output.classesDir.exists() }
+
         /*
          * We build the arguments in a funny afterEvaluate/doFirst closure so that we can wait for the classpath to be
          * ready for us. Strangely neither one on their own are good enough.
@@ -89,11 +89,13 @@ public class NamingConventionsTask extends LoggedExec {
             doFirst {
                 args('-Djna.nosys=true')
                 args('-cp', (classpath + extraClasspath).asPath, 'org.elasticsearch.test.NamingConventionsCheck')
-                args('--test-class', testClass)
-                if (skipIntegTestInDisguise) {
-                    args('--skip-integ-tests-in-disguise')
-                } else {
-                    args('--integ-test-class', integTestClass)
+                if (project.sourceSets.test.output.classesDir.exists()) {
+                    args('--test-class', testClass)
+                    if (skipIntegTestInDisguise) {
+                        args('--skip-integ-tests-in-disguise')
+                    } else {
+                        args('--integ-test-class', integTestClass)
+                    }
                 }
                 /*
                  * The test framework has classes that fail the checks to validate that the checks fail properly.
@@ -104,7 +106,11 @@ public class NamingConventionsTask extends LoggedExec {
                 if (':build-tools'.equals(project.path)) {
                     args('--self-test')
                 }
-                args('--', project.sourceSets.test.output.classesDir.absolutePath)
+                args('--')
+                args(project.sourceSets.test.output.classesDir.absolutePath)
+                if (project.sourceSets.names.contains('main')) {
+                    args(project.sourceSets.main.output.classesDir.absolutePath)
+                }
             }
         }
         doLast { successMarker.setText("", 'UTF-8') }

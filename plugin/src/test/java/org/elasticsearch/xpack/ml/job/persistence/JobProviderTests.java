@@ -738,7 +738,7 @@ public class JobProviderTests extends ESTestCase {
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Influencer>[] holder = new QueryPage[1];
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).start("0").end("0").sortField("sort")
-                .sortDescending(true).anomalyScoreThreshold(0.0).includeInterim(true).build();
+                .sortDescending(true).influencerScoreThreshold(0.0).includeInterim(true).build();
         provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new, client);
         QueryPage<Influencer> page = holder[0];
         assertEquals(2L, page.count());

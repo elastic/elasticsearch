@@ -66,7 +66,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
-        public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
+        public static final ParseField INFLUENCER_SCORE = new ParseField("influencer_score");
         public static final ParseField SORT_FIELD = new ParseField("sort");
         public static final ParseField DESCENDING_SORT = new ParseField("desc");
 
@@ -78,7 +78,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             PARSER.declareStringOrNull(Request::setEnd, END);
             PARSER.declareBoolean(Request::setExcludeInterim, EXCLUDE_INTERIM);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
-            PARSER.declareDouble(Request::setAnomalyScore, ANOMALY_SCORE);
+            PARSER.declareDouble(Request::setInfluencerScore, INFLUENCER_SCORE);
             PARSER.declareString(Request::setSort, SORT_FIELD);
             PARSER.declareBoolean(Request::setDescending, DESCENDING_SORT);
         }
@@ -96,7 +96,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         private String end;
         private boolean excludeInterim = false;
         private PageParams pageParams = new PageParams();
-        private double anomalyScoreFilter = 0.0;
+        private double influencerScore = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean descending = false;
 
@@ -151,12 +151,12 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             return pageParams;
         }
 
-        public double getAnomalyScoreFilter() {
-            return anomalyScoreFilter;
+        public double getInfluencerScore() {
+            return influencerScore;
         }
 
-        public void setAnomalyScore(double anomalyScoreFilter) {
-            this.anomalyScoreFilter = anomalyScoreFilter;
+        public void setInfluencerScore(double anomalyScoreFilter) {
+            this.influencerScore = anomalyScoreFilter;
         }
 
         public String getSort() {
@@ -182,7 +182,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             end = in.readOptionalString();
             sort = in.readOptionalString();
             descending = in.readBoolean();
-            anomalyScoreFilter = in.readDouble();
+            influencerScore = in.readDouble();
         }
 
         @Override
@@ -195,7 +195,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             out.writeOptionalString(end);
             out.writeOptionalString(sort);
             out.writeBoolean(descending);
-            out.writeDouble(anomalyScoreFilter);
+            out.writeDouble(influencerScore);
         }
 
         @Override
@@ -208,14 +208,14 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             builder.field(END.getPreferredName(), end);
             builder.field(SORT_FIELD.getPreferredName(), sort);
             builder.field(DESCENDING_SORT.getPreferredName(), descending);
-            builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScoreFilter);
+            builder.field(INFLUENCER_SCORE.getPreferredName(), influencerScore);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, excludeInterim, pageParams, start, end, sort, descending, anomalyScoreFilter);
+            return Objects.hash(jobId, excludeInterim, pageParams, start, end, sort, descending, influencerScore);
         }
 
         @Override
@@ -231,7 +231,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
                     && Objects.equals(end, other.end)
                     && Objects.equals(excludeInterim, other.excludeInterim)
                     && Objects.equals(pageParams, other.pageParams)
-                    && Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter)
+                    && Objects.equals(influencerScore, other.influencerScore)
                     && Objects.equals(descending, other.descending)
                     && Objects.equals(sort, other.sort);
         }
@@ -323,7 +323,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
             InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().includeInterim(request.excludeInterim == false)
                     .start(request.start).end(request.end).from(request.pageParams.getFrom()).size(request.pageParams.getSize())
-                    .anomalyScoreThreshold(request.anomalyScoreFilter).sortField(request.sort).sortDescending(request.descending).build();
+                    .influencerScoreThreshold(request.influencerScore).sortField(request.sort).sortDescending(request.descending).build();
             jobProvider.influencers(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);
         }
     }

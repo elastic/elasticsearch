@@ -710,7 +710,7 @@ public class JobProvider {
                             Consumer<Exception> errorHandler, Client client) {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
-                .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
+                .score(Influencer.INFLUENCER_SCORE.getPreferredName(), query.getInfluencerScoreFilter())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .build();
 

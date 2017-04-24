@@ -1,7 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: get-influencers-test
         body:  >
           {
             "analysis_config" : {
@@ -15,16 +15,16 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-get-influencers-test
         type:   result
-        id:     farequote_1464739200000_1_1
+        id:     get-influencers-test_1464739200000_1_1
         body:
           {
-            "job_id": "farequote",
+            "job_id": "get-influencers-test",
             "timestamp": "2016-06-01T00:00:00Z",
             "influencer_field_name": "foo",
             "influencer_field_value": "bar",
-            "influencer_score": 80.0,
+            "influencer_score": 50.0,
             "result_type" : "influencer",
             "bucket_span" : 1,
             "sequence_num" : 1
@@ -32,60 +32,84 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-get-influencers-test
         type:   result
-        id:     farequote_1464825600000_1_2
+        id:     get-influencers-test_1464825600000_1_2
         body:
           {
-            "job_id": "farequote",
+            "job_id": "get-influencers-test",
             "timestamp": "2016-06-02T00:00:00Z",
             "influencer_field_name": "foo",
             "influencer_field_value": "zoo",
-            "influencer_score": 50.0,
+            "influencer_score": 80.0,
             "result_type" : "influencer",
             "bucket_span" : 1,
             "sequence_num" : 2,
             "is_interim": true
           }
+
+  - do:
+      index:
+        index:  .ml-anomalies-get-influencers-test
+        type:   result
+        id:     get-influencers-test_1464912000000_1_3
+        body:
+          {
+            "job_id": "get-influencers-test",
+            "timestamp": "2016-06-03T00:00:00Z",
+            "influencer_field_name": "foo",
+            "influencer_field_value": "zoo",
+            "influencer_score": 60.0,
+            "result_type" : "influencer",
+            "bucket_span" : 1,
+            "sequence_num" : 2
+          }
+
   - do:
       indices.refresh:
-        index: .ml-anomalies-farequote
+        index: .ml-anomalies-get-influencers-test
 
 ---
 "Test result influencers api":
   - do:
       xpack.ml.get_influencers:
-        job_id: "farequote"
+        job_id: "get-influencers-test"
 
-  - match: { count: 2 }
-  - match: { influencers.0.timestamp: 1464739200000 }
-  - match: { influencers.1.timestamp: 1464825600000 }
+  - match: { count: 3 }
+  - match: { influencers.0.influencer_score: 80 }
+  - match: { influencers.0.timestamp: 1464825600000 }
+  - match: { influencers.1.influencer_score: 60 }
+  - match: { influencers.1.timestamp: 1464912000000 }
+  - match: { influencers.2.influencer_score: 50 }
+  - match: { influencers.2.timestamp: 1464739200000 }
 
 ---
 "Test get influencers given exclude_interim false":
   - do:
       xpack.ml.get_influencers:
-        job_id: "farequote"
+        job_id: "get-influencers-test"
         exclude_interim: false
 
-  - match: { count: 2 }
+  - match: { count: 3 }
 
 ---
 "Test get influencers given exclude_interim true":
   - do:
       xpack.ml.get_influencers:
-        job_id: "farequote"
+        job_id: "get-influencers-test"
         exclude_interim: true
 
-  - match: { count: 1 }
-  - match: { influencers.0.timestamp: 1464739200000 }
+  - match: { count: 2 }
+  - match: { influencers.0.timestamp: 1464912000000 }
   - match: { influencers.0.is_interim: false }
+  - match: { influencers.1.timestamp: 1464739200000 }
+  - match: { influencers.1.is_interim: false }
 
 ---
 "Test result influencers api with time range":
   - do:
       xpack.ml.get_influencers:
-        job_id: "farequote"
+        job_id: "get-influencers-test"
         start: "2016-06-01T00:00:00Z"
         end: "2016-06-01T01:00:00Z"
 
@@ -98,3 +122,35 @@ setup:
       catch: missing
       xpack.ml.get_influencers:
         job_id: "non-existent-job"
+
+---
+"Test get influencers api with influencer score filter":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "get-influencers-test"
+        influencer_score: 70
+
+  - match: { count: 1 }
+  - match: { influencers.0.timestamp: 1464825600000 }
+
+---
+"Test get influencers api sort":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "get-influencers-test"
+        desc: false
+
+  - match: { count: 3 }
+  - match: { influencers.0.influencer_score: 50 }
+  - match: { influencers.1.influencer_score: 60 }
+  - match: { influencers.2.influencer_score: 80}
+
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "get-influencers-test"
+        sort: timestamp
+
+  - match: { count: 3 }
+  - match: { influencers.0.timestamp: 1464912000000 }
+  - match: { influencers.1.timestamp: 1464825600000 }
+  - match: { influencers.2.timestamp: 1464739200000 }

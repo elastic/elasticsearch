@@ -62,6 +62,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -484,5 +485,20 @@ public class UpdateRequestTests extends ESTestCase {
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+    }
+
+    public void testToValidateUpsertRequestAndVersion() {
+        UpdateRequest updateRequest = new UpdateRequest();
+        updateRequest.version(1L);
+        updateRequest.upsert(new IndexRequest("index","type", "1"));
+        assertThat(updateRequest.validate().validationErrors(), contains("index is missing",
+            "can't provide both upsert request and a version","type is missing","id is missing","script or doc is missing"));
+    }
+
+    public void testToValidateUpsertRequestWithVersion() {
+        UpdateRequest updateRequest = new UpdateRequest();
+        updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
+        assertEquals(updateRequest.validate().validationErrors(), contains("index is missing",
+            "can't provide version in upsert request","type is missing","id is missing","script or doc is missing"));
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -77,6 +78,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -896,6 +898,46 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
+    /* This test just verifies that we fill up local checkpoint up to max seen seqID on primary recovery */
+    public void testRecoverFromStoreWithNoOps() throws IOException {
+        final IndexShard shard = newStartedShard(true);
+        indexDoc(shard, "test", "0");
+        Engine.Index test = indexDoc(shard, "test", "1");
+        // start a replica shard and index the second doc
+        final IndexShard otherShard = newStartedShard(false);
+        test = otherShard.prepareIndexOnReplica(
+            SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
+                XContentType.JSON),
+            1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+        otherShard.index(test);
+
+        final ShardRouting primaryShardRouting = shard.routingEntry();
+        IndexShard newShard = reinitShard(otherShard, ShardRoutingHelper.initWithSameId(primaryShardRouting,
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        assertTrue(newShard.recoverFromStore());
+        assertEquals(1, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(1, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        Translog.Snapshot snapshot = newShard.getTranslog().newSnapshot();
+        Translog.Operation operation;
+        int numNoops = 0;
+        while((operation = snapshot.next()) != null) {
+            if (operation.opType() == Translog.Operation.Type.NO_OP) {
+                numNoops++;
+                assertEquals(1, operation.primaryTerm());
+                assertEquals(0, operation.seqNo());
+            }
+        }
+        assertEquals(1, numNoops);
+        newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());
+        assertDocCount(newShard, 1);
+        assertDocCount(shard, 2);
+        closeShards(newShard, shard);
+    }
+
     public void testRecoverFromCleanStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0");
@@ -1281,8 +1323,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
+                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(totalTranslogOps);
                     // Shard is still inactive since we haven't started recovering yet
                     assertFalse(replica.isActive());
 

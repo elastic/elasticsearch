@@ -50,7 +50,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
             final Object value;
             try {
-                value = leafScript.unwrap(leafScript.run());
+                value = leafScript.run();
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;

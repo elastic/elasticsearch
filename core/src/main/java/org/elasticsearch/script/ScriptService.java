@@ -470,13 +470,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     /**
-     * Compiles (or retrieves from cache) and executes the provided script
-     */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext) {
-        return executable(compile(script, scriptContext), script.getParams());
-    }
-
-    /**
      * Executes a previously compiled script provided as an argument
      */
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {

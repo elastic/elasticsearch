@@ -415,7 +415,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static {
         assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_5_0_0) == false:
                 "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
-                        " as the current minimum compatible version [" + 
+                        " as the current minimum compatible version [" +
                         Version.CURRENT.minimumCompatibilityVersion() + "] is after 5.0";
     }
 
@@ -565,7 +565,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final long version = primaryResponse.getVersion();
         final long seqNo = primaryResponse.getSeqNo();
         final SourceToParse sourceToParse =
-                SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(),
+                SourceToParse.source(shardId.getIndexName(),
                         request.type(), request.id(), request.source(), request.getContentType())
                 .routing(request.routing()).parent(request.parent());
         final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
@@ -578,7 +578,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /** Utility method to prepare an index operation on primary shards */
     private static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard primary) {
         final SourceToParse sourceToParse =
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(),
+                SourceToParse.source(request.index(), request.type(),
                         request.id(), request.source(), request.getContentType())
                 .routing(request.routing()).parent(request.parent());
         return primary.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType(),

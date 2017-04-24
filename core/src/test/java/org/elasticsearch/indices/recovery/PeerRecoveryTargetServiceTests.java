@@ -44,7 +44,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             long seqNo = 0;
             for (int i = 0; i < docs; i++) {
                 Engine.Index indexOp = replica.prepareIndexOnReplica(
-                    SourceToParse.source(SourceToParse.Origin.REPLICA, index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
+                    SourceToParse.source(index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
                     seqNo++, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                 replica.index(indexOp);
                 if (rarely()) {

@@ -528,12 +528,7 @@ public class Node implements Closeable {
                 continue;
             }
 
-            boolean includedInPathData = false;
-            for (final NodeEnvironment.NodePath dataPath : nodeEnv.nodePaths()) {
-                includedInPathData |= Files.isSameFile(dataPath.path, defaultNodeDirectory);
-            }
-
-            if (includedInPathData) {
+            if (isDefaultPathDataInPathData(nodeEnv, defaultNodeDirectory)) {
                 continue;
             }
 
@@ -563,6 +558,15 @@ public class Node implements Closeable {
                 "detected index data in default.path.data %s where there should not be any; check the logs for details",
                 Environment.DEFAULT_PATH_DATA_SETTING.get(settings));
         throw new IllegalStateException(message);
+    }
+
+    private static boolean isDefaultPathDataInPathData(final NodeEnvironment nodeEnv, final Path defaultNodeDirectory) throws IOException {
+        for (final NodeEnvironment.NodePath dataPath : nodeEnv.nodePaths()) {
+            if (Files.isSameFile(dataPath.path, defaultNodeDirectory)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressForbidden(reason = "read path that is not configured in environment")

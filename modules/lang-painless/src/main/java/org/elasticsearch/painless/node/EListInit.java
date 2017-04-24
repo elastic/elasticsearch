@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -60,13 +59,13 @@ public final class EListInit extends AExpression {
 
         actual = Definition.ARRAY_LIST_TYPE;
 
-        constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
+        constructor = actual.struct.getConstructor(0);
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = actual.struct.methods.get(new MethodKey("add", 1));
+        method = actual.struct.getMethod("add", 1);
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -88,7 +87,7 @@ public final class EListInit extends AExpression {
 
         writer.newInstance(actual.type);
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(constructor.owner.getType(), constructor.method);
 
         for (AExpression value : values) {
             writer.dup();

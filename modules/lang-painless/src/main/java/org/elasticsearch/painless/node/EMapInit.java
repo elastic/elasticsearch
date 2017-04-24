@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -66,13 +65,13 @@ public final class EMapInit extends AExpression {
 
         actual = Definition.HASH_MAP_TYPE;
 
-        constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
+        constructor = actual.struct.getConstructor(0);
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = actual.struct.methods.get(new MethodKey("put", 2));
+        method = actual.struct.getMethod("put", 2);
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -107,7 +106,7 @@ public final class EMapInit extends AExpression {
 
         writer.newInstance(actual.type);
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(constructor.owner.getType(), constructor.method);
 
         for (int index = 0; index < keys.size(); ++index) {
             AExpression key = keys.get(index);

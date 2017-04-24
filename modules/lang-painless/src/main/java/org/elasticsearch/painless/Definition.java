@@ -361,16 +361,16 @@ public final class Definition {
     }
 
     public static final class Struct {
-        public final String name;
-        public final Class<?> clazz;
-        public final org.objectweb.asm.Type type;
+        private final String name;
+        private final Class<?> clazz;
+        private final org.objectweb.asm.Type type;
 
-        public final Map<MethodKey, Method> constructors;
-        public final Map<MethodKey, Method> staticMethods;
-        public final Map<MethodKey, Method> methods;
+        private final Map<MethodKey, Method> constructors;
+        private final Map<MethodKey, Method> staticMethods;
+        private final Map<MethodKey, Method> methods;
 
-        public final Map<String, Field> staticMembers;
-        public final Map<String, Field> members;
+        private final Map<String, Field> staticMembers;
+        private final Map<String, Field> members;
 
         private final SetOnce<Method> functionalMethod;
 
@@ -426,6 +426,71 @@ public final class Definition {
         @Override
         public int hashCode() {
             return name.hashCode();
+        }
+
+        /** The name that Painless scripts use to refer to this {@linkplain Struct}. */
+        public String getName() {
+            return name;
+        }
+
+        /** The JVM {@link Class} that backs this {@linkplain Struct}. */
+        public Class<?> getClazz() {
+            return clazz;
+        }
+
+        /** The ASM {@link org.objectweb.asm.Type} that backs this {@linkplain Struct}. */
+        public org.objectweb.asm.Type getType() {
+            return type;
+        }
+
+        /** Get the static method with the specified name and arity or {@code null} if there is no such method. */
+        public Method getStaticMethod(String name, int arity) {
+            return staticMethods.get(new MethodKey(name, arity));
+        }
+
+        /** Get all the static methods. Used for documentation generation. */
+        Collection<Method> getStaticMethods() {
+            return staticMethods.values();
+        }
+
+        /** Get the constructor with the specified arity or {@code null} if there is no such constructor. */
+        public Method getConstructor(int arity) {
+            return constructors.get(new MethodKey("<init>", arity));
+        }
+
+        /** Get all the constructors. Used for documentation generation. */
+        Collection<Method> getConstructors() {
+            return constructors.values();
+        }
+
+        /** Get the non-static method with the specified name and arity or {@code null} if there is no such method. */
+        public Method getMethod(String name, int arity) {
+            return methods.get(new MethodKey(name, arity));
+        }
+
+        /** Get all the non-static methods. Used for documentation generation. */
+        Collection<Method> getMethods() {
+            return methods.values();
+        }
+
+        /** Get the named member or {@code null} if there is no such member. */
+        public Field getStaticMember(String name) {
+            return staticMembers.get(name);
+        }
+
+        /** Get all the static members. Used for documentation generation. */
+        Collection<Field> getStaticMembers() {
+            return staticMembers.values();
+        }
+
+        /** Get the named non-static member or {@code null} if there is no such member. */
+        public Field getMember(String name) {
+            return members.get(name);
+        }
+
+        /** Get all the non-static members. Used for documentation generation. */
+        Collection<Field> getMembers() {
+            return members.values();
         }
 
         /**

@@ -58,16 +58,16 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        getter = struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = struct.methods.get(new Definition.MethodKey("set", 2));
+        getter = struct.getMethod("get", 1);
+        setter = struct.getMethod("set", 2);
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
             getter.arguments.get(0).sort != Sort.INT)) {
-            throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + struct.getName() + "]."));
         }
 
         if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
-            throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + struct.getName() + "]."));
         }
 
         if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
@@ -82,7 +82,7 @@ final class PSubListShortcut extends AStoreable {
 
             actual = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + struct.getName() + "]."));
         }
     }
 

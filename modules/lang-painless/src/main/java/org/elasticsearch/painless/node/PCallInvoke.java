@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
@@ -76,8 +75,8 @@ public final class PCallInvoke extends AExpression {
             struct = locals.getDefinition().getType(prefix.actual.sort.boxed.getSimpleName()).struct;
         }
 
-        MethodKey methodKey = new MethodKey(name, arguments.size());
-        Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
+        Method method = prefix instanceof EStatic ?
+                struct.getStaticMethod(name, arguments.size()) : struct.getMethod(name, arguments.size());
 
         if (method != null) {
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
@@ -85,7 +84,7 @@ public final class PCallInvoke extends AExpression {
             sub = new PSubDefCall(location, name, arguments);
         } else {
             throw createError(new IllegalArgumentException(
-                "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
+                "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.getName() + "]."));
         }
 
         if (nullSafe) {

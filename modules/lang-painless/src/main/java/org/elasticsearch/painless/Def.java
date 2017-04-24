@@ -332,7 +332,7 @@ public final class Def {
          }
          int arity = interfaceMethod.arguments.size();
          Method implMethod = lookupMethodInternal(definition, receiverClass, name, arity);
-        return lookupReferenceInternal(definition, lookup, interfaceType, implMethod.owner.name,
+        return lookupReferenceInternal(definition, lookup, interfaceType, implMethod.owner.getName(),
                 implMethod.name, receiverClass);
      }
      

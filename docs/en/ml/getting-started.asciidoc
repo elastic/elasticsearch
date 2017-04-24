@@ -163,7 +163,7 @@ gzip -d transactions.ndjson.gz
 ////
 Each document in the server-metrics data set has the following schema:
 
-[source,json]
+[source,js]
 ----------------------------------
 
 {

@@ -29,7 +29,21 @@ public class InputStreamStreamInput extends StreamInput {
 
     private final InputStream is;
 
+    /**
+     * Creates a new stream input that uses assertions to ensure data is formatted properly.
+     * The downside with this is that when running in a actual node, errors can be missed as
+     * assertions are disabled by default and we can allow the use of invalid data!
+     */
     public InputStreamStreamInput(InputStream is) {
+        this(is, false);
+    }
+
+    /**
+     * Creates a new stream input that will throw exceptions on invalidly formatted values
+     * instead of relying on assertions.
+     */
+    public InputStreamStreamInput(InputStream is, boolean useExceptions) {
+        super(useExceptions);
         this.is = is;
     }
 

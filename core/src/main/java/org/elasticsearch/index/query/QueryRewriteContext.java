@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.template.CompiledTemplate;
 
 import java.util.function.LongSupplier;
 
@@ -115,8 +116,7 @@ public class QueryRewriteContext {
     }
 
     public BytesReference getTemplateBytes(Script template) {
-        CompiledScript compiledTemplate = scriptService.compile(template, ScriptContext.Standard.SEARCH);
-        ExecutableScript executable = scriptService.executable(compiledTemplate, template.getParams());
-        return (BytesReference) executable.run();
+        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.Standard.SEARCH);
+        return compiledTemplate.run(template.getParams());
     }
 }

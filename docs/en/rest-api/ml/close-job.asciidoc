@@ -22,10 +22,16 @@ Depending upon the size of the job, it could take several minutes to close and
 the equivalent time to re-open.
 
 After it is closed, the job has a minimal overhead on the cluster except for
-maintaining its meta data. 
-Therefore it is best practice to close jobs that are no longer required to process data.
+maintaining its meta data. Therefore it is a best practice to close jobs that
+are no longer required to process data.
 
-When a datafeed that has a specified end date stops, it will automatically close the job.
+When a data feed that has a specified end date stops, it automatically closes
+the job.
+
+NOTE: If you use the `force` query parameter, the request returns before the
+associated actions such as flushing buffers and persisting the model snapshots
+complete. Therefore, do not use that parameter in a script that expects the job
+to be in a consistent state after the close job API returns.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
@@ -38,13 +44,13 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Query Parameters
 
-`close_timeout`::
+`force`::
+  (boolean) Use to close a failed job, or to forcefully close a job which has not
+  responded to its initial close request.
+
+`timeout`::
   (time units) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
-
-`force`::
-  (boolean) Use to close a failed job, or to forcefully close a job which has not 
-  responded to its initial close request.
 
 
 ////

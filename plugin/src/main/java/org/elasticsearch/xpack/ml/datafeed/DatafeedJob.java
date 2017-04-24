@@ -165,6 +165,7 @@ class DatafeedJob {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
+                    LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -190,6 +191,8 @@ class DatafeedJob {
         }
 
         lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, end - 1);
+        LOGGER.debug("[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]", jobId, error, recordCount,
+                lastEndTimeMs, isRunning(), dataExtractor.isCancelled());
 
         // We can now throw any stored error as we have updated time.
         if (error != null) {
@@ -235,6 +238,7 @@ class DatafeedJob {
 
     private void flushJob(FlushJobAction.Request flushRequest) {
         try {
+            LOGGER.trace("[" + jobId + "] Sending flush request");
             client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
         } catch (Exception e) {
             LOGGER.debug("[" + jobId + "] error while flushing job", e);

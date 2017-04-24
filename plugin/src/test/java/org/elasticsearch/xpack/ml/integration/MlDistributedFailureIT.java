@@ -53,7 +53,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     @TestLogging("org.elasticsearch.xpack.ml.action:DEBUG,org.elasticsearch.xpack.persistent:TRACE," +
-            "org.elasticsearch.cluster.service:TRACE")
+            "org.elasticsearch.xpack.ml.datafeed:TRACE")
     public void testLoseDedicatedMasterNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

@@ -55,7 +55,7 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     public void acceptException(NioServerSocketChannel nioChannel, IOException exception) {
-        logger.trace("exception while accepting new channel", exception);
+        logger.debug("exception while accepting new channel", exception);
     }
 
     public void genericServerChannelException(NioServerSocketChannel channel, Exception e) {

@@ -40,8 +40,10 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
     public NioSocketChannel getChannel() {
         if (isDone()) {
             try {
-                return super.get(0, TimeUnit.NANOSECONDS);
-            } catch (InterruptedException | TimeoutException | ExecutionException e) {
+                // Get should always return without blocking as we already checked 'isDone'
+                return super.get();
+            } catch (InterruptedException | ExecutionException e) {
+                Thread.interrupted();
                 return null;
             }
         } else {
@@ -52,12 +54,15 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
     public Exception getException() {
         if (isDone()) {
             try {
-                super.get(0, TimeUnit.NANOSECONDS);
+                // Get should always return without blocking as we already checked 'isDone'
+                // We are called 'get' here in order to throw the ExecutionException
+                super.get();
                 return null;
             } catch (ExecutionException e) {
                 // We only make a public setters for IOException or RuntimeException
                 return (Exception) e.getCause();
-            } catch (InterruptedException | TimeoutException e) {
+            } catch (InterruptedException e) {
+                Thread.interrupted();
                 return null;
             }
         } else {

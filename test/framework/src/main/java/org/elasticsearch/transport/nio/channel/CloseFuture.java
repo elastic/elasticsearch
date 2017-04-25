@@ -63,6 +63,7 @@ public class CloseFuture extends BaseFuture<NioChannel> {
                 // We only make a setter for IOException
                 return (IOException) e.getCause();
             } catch (InterruptedException | TimeoutException e) {
+                Thread.interrupted();
                 return null;
             }
         } else {

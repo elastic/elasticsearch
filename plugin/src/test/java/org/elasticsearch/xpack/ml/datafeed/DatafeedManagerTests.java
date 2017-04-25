@@ -293,7 +293,7 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(handler).accept(analysisProblemCaptor.capture());
         assertThat(analysisProblemCaptor.getValue().getCause(), equalTo(conflictProblem));
         verify(auditor).error("job_id", "Datafeed is encountering errors submitting data for analysis: conflict");
-        assertThat(datafeedManager.isRunning(task.getDatafeedId()), is(false));
+        assertThat(datafeedManager.isRunning(task.getAllocationId()), is(false));
     }
 
     public void testRealTime_GivenPostAnalysisProblemIsNonConflict() throws Exception {
@@ -318,7 +318,7 @@ public class DatafeedManagerTests extends ESTestCase {
         datafeedManager.run(task, handler);
 
         verify(auditor).error("job_id", "Datafeed is encountering errors submitting data for analysis: just runtime");
-        assertThat(datafeedManager.isRunning(task.getDatafeedId()), is(true));
+        assertThat(datafeedManager.isRunning(task.getAllocationId()), is(true));
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
@@ -344,13 +344,13 @@ public class DatafeedManagerTests extends ESTestCase {
         if (cancelled) {
             task.stop("test", StopDatafeedAction.DEFAULT_TIMEOUT);
             verify(handler).accept(null);
-            assertThat(datafeedManager.isRunning(task.getDatafeedId()), is(false));
+            assertThat(datafeedManager.isRunning(task.getAllocationId()), is(false));
         } else {
             verify(client).execute(same(PostDataAction.INSTANCE),
                     eq(createExpectedPostDataRequest("job_id", contentBytes, xContentType)));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
             verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME), any());
-            assertThat(datafeedManager.isRunning(task.getDatafeedId()), is(true));
+            assertThat(datafeedManager.isRunning(task.getAllocationId()), is(true));
         }
     }
 

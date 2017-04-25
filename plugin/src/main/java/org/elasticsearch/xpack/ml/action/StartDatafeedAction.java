@@ -401,7 +401,7 @@ public class StartDatafeedAction
         }
 
         public void stop(String reason, TimeValue timeout) {
-            datafeedManager.stopDatafeed(datafeedId, reason, timeout);
+            datafeedManager.stopDatafeed(this, reason, timeout);
         }
     }
 

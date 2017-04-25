@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.InternalStatsBucket;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.ParsedStatsBucket;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests {
+public class InternalStatsBucketTests extends InternalStatsTests {
 
     @Override
-    protected InternalExtendedStatsBucket createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double sigma, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalExtendedStatsBucket(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators,
-                Collections.emptyMap());
+    protected InternalStatsBucket createInstance(String name, long count, double sum, double min, double max,
+            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalStatsBucket(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -46,18 +46,18 @@ public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests
     }
 
     @Override
-    protected void assertReduced(InternalExtendedStats reduced, List<InternalExtendedStats> inputs) {
+    protected void assertReduced(InternalStats reduced, List<InternalStats> inputs) {
         // no test since reduce operation is unsupported
     }
 
     @Override
-    protected Writeable.Reader<InternalExtendedStats> instanceReader() {
-        return InternalExtendedStatsBucket::new;
+    protected Writeable.Reader<InternalStats> instanceReader() {
+        return InternalStatsBucket::new;
     }
 
     @Override
-    protected void assertFromXContent(InternalExtendedStats aggregation, ParsedAggregation parsedAggregation) {
+    protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
         super.assertFromXContent(aggregation, parsedAggregation);
-        assertTrue(parsedAggregation instanceof ParsedExtendedStatsBucket);
+        assertTrue(parsedAggregation instanceof ParsedStatsBucket);
     }
 }

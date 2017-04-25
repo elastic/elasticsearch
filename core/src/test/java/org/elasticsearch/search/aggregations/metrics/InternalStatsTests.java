@@ -38,7 +38,12 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return new InternalStats(name, count, sum, min, max, format, pipelineAggregators, metaData);
+        return createInstance(name, count, sum, min, max, format, pipelineAggregators, metaData);
+    }
+
+    protected InternalStats createInstance(String name, long count, double sum, double min, double max, DocValueFormat formatter,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 
     @Override

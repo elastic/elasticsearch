@@ -49,7 +49,7 @@ public class TcpWriteContext implements WriteContext {
 
         WriteOperation writeOperation = new WriteOperation(channel, reference, listener);
         SocketSelector selector = channel.getSelector();
-        if (selector.onThread() == false) {
+        if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
             return;
         }
@@ -64,13 +64,13 @@ public class TcpWriteContext implements WriteContext {
 
     @Override
     public void queueWriteOperations(WriteOperation writeOperation) {
-        assert channel.getSelector().onThread();
+        assert channel.getSelector().isOnCurrentThread();
         queued.add(writeOperation);
     }
 
     @Override
     public void flushChannel() throws IOException {
-        assert channel.getSelector().onThread();
+        assert channel.getSelector().isOnCurrentThread();
         if (queued.size() == 1) {
             singleFlush(queued.pop());
         } else {
@@ -80,13 +80,13 @@ public class TcpWriteContext implements WriteContext {
 
     @Override
     public boolean hasQueuedWriteOps() {
-        assert channel.getSelector().onThread();
+        assert channel.getSelector().isOnCurrentThread();
         return queued.isEmpty() == false;
     }
 
     @Override
     public void clearQueuedWriteOps(Exception e) {
-        assert channel.getSelector().onThread();
+        assert channel.getSelector().isOnCurrentThread();
         for (WriteOperation op : queued) {
             op.getListener().onFailure(e);
         }

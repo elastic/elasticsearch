@@ -96,7 +96,7 @@ public class SocketSelector extends ESSelector {
     }
 
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
-        assert onThread() : "Must be on selector thread";
+        assert isOnCurrentThread() : "Must be on selector thread";
         NioSocketChannel channel = writeOperation.getChannel();
         WriteContext context = channel.getWriteContext();
         try {

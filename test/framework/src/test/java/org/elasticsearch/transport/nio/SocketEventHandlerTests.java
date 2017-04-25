@@ -66,7 +66,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         channel.register(socketSelector);
         channel.finishConnect();
 
-        when(socketSelector.onThread()).thenReturn(true);
+        when(socketSelector.isOnCurrentThread()).thenReturn(true);
     }
 
     public void testRegisterAddsOP_CONNECTAndOP_READInterest() throws IOException {

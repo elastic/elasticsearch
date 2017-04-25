@@ -90,8 +90,8 @@ public class OpenChannels implements Releasable {
     }
 
     public void closeServerChannels() {
-        for (Map.Entry<NioServerSocketChannel, Long> entry : openServerChannels.entrySet()) {
-            ensureClosedInternal(entry.getKey());
+        for (NioServerSocketChannel channel : openServerChannels.keySet()) {
+            ensureClosedInternal(channel);
         }
 
         openServerChannels.clear();
@@ -100,11 +100,11 @@ public class OpenChannels implements Releasable {
     @Override
     public void close() {
 
-        for (Map.Entry<NioSocketChannel, Long> entry : openClientChannels.entrySet()) {
-            ensureClosedInternal(entry.getKey());
+        for (NioSocketChannel channel : openClientChannels.keySet()) {
+            ensureClosedInternal(channel);
         }
-        for (Map.Entry<NioSocketChannel, Long> entry : openAcceptedChannels.entrySet()) {
-            ensureClosedInternal(entry.getKey());
+        for (NioSocketChannel channel : openAcceptedChannels.keySet()) {
+            ensureClosedInternal(channel);
         }
 
         openClientChannels.clear();

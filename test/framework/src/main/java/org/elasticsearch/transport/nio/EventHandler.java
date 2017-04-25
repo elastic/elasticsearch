@@ -38,8 +38,8 @@ public abstract class EventHandler {
     }
 
     public void uncaughtException(Exception e) {
-        logger.error("unexpected exception during select", e);
-        // TODO: maybe add settings to die on unexpected?
+        Thread thread = Thread.currentThread();
+        thread.getUncaughtExceptionHandler().uncaughtException(thread, e);
     }
 
     public void handleClose(NioChannel channel) throws IOException {

@@ -56,7 +56,7 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext = new TcpWriteContext(channel);
 
         when(channel.getSelector()).thenReturn(selector);
-        when(selector.onThread()).thenReturn(true);
+        when(selector.isOnCurrentThread()).thenReturn(true);
     }
 
     public void testWriteFailsIfChannelNotWritable() throws Exception {
@@ -72,7 +72,7 @@ public class TcpWriteContextTests extends ESTestCase {
         BytesArray bytesArray = new BytesArray(bytes);
         ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
 
-        when(selector.onThread()).thenReturn(false);
+        when(selector.isOnCurrentThread()).thenReturn(false);
         when(channel.isWritable()).thenReturn(true);
 
         writeContext.sendMessage(bytesArray, listener);

@@ -19,9 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.Selector;
@@ -31,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 
-public abstract class ESSelector {
+public abstract class ESSelector implements Closeable {
 
     protected static final int NOT_STARTED = 0;
     protected static final int RUNNING = 1;
@@ -89,11 +91,11 @@ public abstract class ESSelector {
 
     public abstract void doSelect(int timeout) throws IOException, ClosedSelectorException;
 
-    public void setThread() {
+    protected void setThread() {
         thread = Thread.currentThread();
     }
 
-    public boolean onThread() {
+    public boolean isOnCurrentThread() {
         return Thread.currentThread() == thread;
     }
 
@@ -106,11 +108,12 @@ public abstract class ESSelector {
         return registeredChannels;
     }
 
-    public CountDownLatch close() throws IOException {
-        return close(true);
+    @Override
+    public void close() throws IOException {
+        close(true);
     }
 
-    public CountDownLatch close(boolean shouldInterrupt) throws IOException {
+    public void close(boolean shouldInterrupt) throws IOException {
         int currentState = this.state;
         state = STOPPED;
         selector.close();
@@ -120,7 +123,11 @@ public abstract class ESSelector {
         if (currentState == NOT_STARTED) {
             shutdownLatch.countDown();
         }
-        return shutdownLatch;
+        try {
+            shutdownLatch.await();
+        } catch (InterruptedException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     public void queueChannelClose(NioChannel channel) {

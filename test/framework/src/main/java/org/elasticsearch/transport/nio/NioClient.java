@@ -108,6 +108,7 @@ public class NioClient {
                 closeChannels(connections, e);
                 throw e;
             } catch (InterruptedException e) {
+                Thread.interrupted();
                 closeChannels(connections, e);
                 throw new ElasticsearchException(e);
             }

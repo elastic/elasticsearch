@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,9 +60,8 @@ public class NioShutdown {
 
     private void shutdownSelector(ESSelector selector) {
         try {
-            CountDownLatch shutdownLatch = selector.close();
-            shutdownLatch.await();
-        } catch (IOException | InterruptedException e) {
+            selector.close();
+        } catch (IOException | ElasticsearchException e) {
             logger.warn("unexpected exception while stopping selector", e);
         }
     }

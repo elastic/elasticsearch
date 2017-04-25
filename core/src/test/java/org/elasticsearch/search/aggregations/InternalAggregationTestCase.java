@@ -63,6 +63,8 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.ParsedBucketMetricValue;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ParsedExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -105,6 +107,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         namedXContents.put(InternalBucketMetricValue.NAME, (p, c) -> ParsedBucketMetricValue.fromXContent(p, (String) c));
         namedXContents.put(StatsAggregationBuilder.NAME, (p, c) -> ParsedStats.fromXContent(p, (String) c));
         namedXContents.put(ExtendedStatsAggregationBuilder.NAME, (p, c) -> ParsedExtendedStats.fromXContent(p, (String) c));
+        namedXContents.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
 
         return namedXContents.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

@@ -137,7 +137,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertNotNull(tasks);
-            assertEquals(2, tasks.taskMap().size());
+            assertEquals("Expected 2 tasks, but got [" + tasks.taskMap() + "]", 2, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.tasks()) {
                 assertFalse(task.needsReassignment(clusterState.nodes()));
             }

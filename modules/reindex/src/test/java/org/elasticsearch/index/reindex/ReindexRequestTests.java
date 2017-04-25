@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.slice.SliceBuilder;
 
 import static java.util.Collections.emptyMap;
@@ -71,7 +70,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     @Override
     protected void extraRandomizationForSlice(ReindexRequest original) {
         if (randomBoolean()) {
-            original.setScript(new Script(randomAlphaOfLength(5)));
+            original.setScript(mockScript(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
             original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000),

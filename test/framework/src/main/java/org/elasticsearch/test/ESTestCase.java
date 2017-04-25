@@ -90,8 +90,10 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -133,7 +135,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1080,6 +1084,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+    }
+
+    /**
+     * Create a "mock" script for use either with {@link MockScriptEngine} or anywhere where you need a script but don't really care about
+     * its contents.
+     */
+    public static final Script mockScript(String id) {
+        return new Script(ScriptType.INLINE, MockScriptEngine.NAME, id, emptyMap());
+    }
+
+    /**
+     * Create a "mock" template.
+     */
+    public static final Script mockTemplate(String id) {
+        return new Script(ScriptType.INLINE, "mocktemplate", id, emptyMap(), singletonMap(Script.CONTENT_TYPE_OPTION, "application/json"));
     }
 
     /** Returns the suite failure marker: internal use only! */

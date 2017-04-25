@@ -154,6 +154,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         Detector.Builder d = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
 
         Job.Builder builder = new Job.Builder();
         builder.setId(jobId);

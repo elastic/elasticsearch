@@ -361,8 +361,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             Bucket firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
             if (firstBucket == null) {
                 if (bounds.getMin() != null && bounds.getMax() != null) {
-                    long key = bounds.getMin();
-                    long max = bounds.getMax();
+                    long key = bounds.getMin() + offset;
+                    long max = bounds.getMax() + offset;
                     while (key <= max) {
                         iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                         key = nextKey(key).longValue();
@@ -370,7 +370,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 }
             } else {
                 if (bounds.getMin() != null) {
-                    long key = bounds.getMin();
+                    long key = bounds.getMin() + offset;
                     if (key < firstBucket.key) {
                         while (key < firstBucket.key) {
                             iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
@@ -397,9 +397,9 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-        if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() > lastBucket.key) {
+        if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() + offset > lastBucket.key) {
             long key = nextKey(lastBucket.key).longValue();
-            long max = bounds.getMax();
+            long max = bounds.getMax() + offset;
             while (key <= max) {
                 iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                 key = nextKey(key).longValue();

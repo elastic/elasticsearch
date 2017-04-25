@@ -326,8 +326,7 @@ public class DateHistogramAggregationBuilder
         ExtendedBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
-            roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format())
-                    .round(rounding, offset);
+            roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format()).round(rounding);
         }
         return new DateHistogramAggregatorFactory(name, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
                 rounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);

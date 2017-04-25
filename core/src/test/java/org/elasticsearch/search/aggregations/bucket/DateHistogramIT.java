@@ -1062,7 +1062,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(indexDoc(index, DateTime.parse("2016-01-03T07:00:00.000Z"), 1));
+        builders.add(indexDoc(index, DateTime.parse("2016-01-03T08:00:00.000Z"), 1));
         builders.add(indexDoc(index, DateTime.parse("2016-01-03T08:00:00.000Z"), 2));
         builders.add(indexDoc(index, DateTime.parse("2016-01-06T08:00:00.000Z"), 3));
         builders.add(indexDoc(index, DateTime.parse("2016-01-06T08:00:00.000Z"), 4));
@@ -1078,7 +1078,6 @@ public class DateHistogramIT extends ESIntegTestCase {
                                 .extendedBounds(new ExtendedBounds("2016-01-01T06:00:00Z", "2016-01-08T08:00:00Z"))
                 ).execute().actionGet();
         assertSearchResponse(response);
-
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

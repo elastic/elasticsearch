@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -44,7 +45,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             final Executor executor,
             final SearchRequest request,
             final ActionListener<SearchResponse> listener,
-            final SearchShardsIterator shardsIts,
+            final GroupShardsIterator<SearchShardIterator> shardsIts,
             final TransportSearchAction.SearchTimeProvider timeProvider,
             final long clusterStateVersion,
             final SearchTask task) {

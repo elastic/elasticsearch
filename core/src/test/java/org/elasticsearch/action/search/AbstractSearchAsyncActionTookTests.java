@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
@@ -106,7 +107,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new SearchShardsIterator(Collections.singletonList(new SearchShardIterator(null, Collections.emptyList(), null))),
+                new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, Collections.emptyList(), null))),
                 timeProvider,
                 0,
                 null,

@@ -165,8 +165,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private List<ShardStateAction.ShardEntry> createExistingShards(ClusterState currentState, String reason) {
         List<ShardRouting> shards = new ArrayList<>();
-        GroupShardsIterator shardGroups =
-            currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
+        GroupShardsIterator<ShardIterator> shardGroups = currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
         for (ShardIterator shardIt : shardGroups) {
             for (ShardRouting shard : shardIt.asUnordered()) {
                 shards.add(shard);

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -75,7 +76,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         Map<DiscoveryNode, Set<Long>> nodeToContextMap = new HashMap<>();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        SearchShardsIterator shardsIter = getShardsIter("idx",
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
                 new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
                 randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
@@ -155,8 +156,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
     }
 
-    private static SearchShardsIterator getShardsIter(String index, OriginalIndices originalIndices, int numShards,
-                                                      boolean doReplicas, DiscoveryNode primaryNode, DiscoveryNode replicaNode) {
+    private static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, OriginalIndices originalIndices, int numShards,
+                                                     boolean doReplicas, DiscoveryNode primaryNode, DiscoveryNode replicaNode) {
         ArrayList<SearchShardIterator> list = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
             ArrayList<ShardRouting> started = new ArrayList<>();
@@ -187,7 +188,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             started.addAll(initializing);
             list.add(new SearchShardIterator(new ShardId(new Index(index, "_na_"), i), started, originalIndices));
         }
-        return new SearchShardsIterator(list);
+        return new GroupShardsIterator<>(list);
     }
 
     public static class TestSearchResponse extends SearchResponse {

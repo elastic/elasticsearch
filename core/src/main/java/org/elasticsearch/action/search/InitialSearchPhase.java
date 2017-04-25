@@ -46,12 +46,12 @@ import java.util.stream.Stream;
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
     private final SearchRequest request;
-    private final SearchShardsIterator shardsIts;
+    private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
 
-    InitialSearchPhase(String name, SearchRequest request, SearchShardsIterator shardsIts, Logger logger) {
+    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
         super(name);
         this.request = request;
         this.shardsIts = shardsIts;

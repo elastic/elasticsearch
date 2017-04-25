@@ -235,9 +235,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (int i = 0; i < indices.length; i++) {
             concreteIndices[i] = indices[i].getName();
         }
-        GroupShardsIterator localShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
+        GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
             searchRequest.preference());
-        SearchShardsIterator shardIterators = mergeShardsIterators(localShardsIterator, localIndices, remoteShardIterators);
+        GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices, remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -278,8 +278,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
-    private static SearchShardsIterator mergeShardsIterators(GroupShardsIterator localShardsIterator, OriginalIndices locallIndices,
-                                                            List<SearchShardIterator> remoteShardIterators) {
+    private static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
+                                                             OriginalIndices locallIndices,
+                                                             List<SearchShardIterator> remoteShardIterators) {
         List<SearchShardIterator> shards = new ArrayList<>();
         for (SearchShardIterator shardIterator : remoteShardIterators) {
             shards.add(shardIterator);
@@ -291,7 +292,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             shards.add(new SearchShardIterator(shardIterator.shardId(), shardRoutings, locallIndices));
         }
-        return new SearchShardsIterator(shards);
+        return new GroupShardsIterator<>(shards);
     }
 
     @Override
@@ -299,7 +300,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         throw new UnsupportedOperationException("the task parameter is required");
     }
 
-    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest, SearchShardsIterator shardIterators,
+    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
+                                                        GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider, Function<String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,

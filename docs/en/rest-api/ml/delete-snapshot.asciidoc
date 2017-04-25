@@ -3,6 +3,7 @@
 
 The delete model snapshot API enables you to delete an existing model snapshot.
 
+
 ===== Request
 
 `DELETE _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
@@ -12,9 +13,6 @@ The delete model snapshot API enables you to delete an existing model snapshot.
 
 IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
 first revert to a different one.
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 //TBD: Where do you see restorePriority? Per old docs, the active model snapshot
 //is "...the snapshot with the highest restorePriority".
@@ -26,17 +24,14 @@ For more information, see <<privileges-list-cluster>>.
 
 `snapshot_id` (required)::
   (string) Identifier for the model snapshot
-////
-===== Responses
 
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
 
-////
+===== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
+
 ===== Examples
 
 The following example deletes the `1491948163` snapshot:

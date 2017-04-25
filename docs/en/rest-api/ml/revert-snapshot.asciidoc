@@ -50,8 +50,6 @@ IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 Sending data to a closed job changes its status to `open`, so you must also
 ensure that you do not expect data imminently.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
@@ -72,17 +70,12 @@ NOTE: If you choose not to delete intervening results when reverting a snapshot,
 the job will not accept input data that is older than the current time.
 If you want to resend data, then delete the intervening results.
 
-////
-===== Responses
 
-TBD
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+===== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 
 ===== Examples
 

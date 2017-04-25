@@ -8,9 +8,11 @@ A job can be opened and closed multiple times throughout its lifecycle.
 A closed job cannot receive data or perform analysis
 operations, but you can still explore and navigate results.
 
+
 ===== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_close`
+
 
 ===== Description
 
@@ -33,14 +35,12 @@ associated actions such as flushing buffers and persisting the model snapshots
 complete. Therefore, do not use that parameter in a script that expects the job
 to be in a consistent state after the close job API returns.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
-
 
 ===== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
+
 
 ===== Query Parameters
 
@@ -53,16 +53,12 @@ For more information, see <<privileges-list-cluster>>.
   The default value is 30 minutes.
 
 
-////
-===== Responses
+===== Authorization
 
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
+
 ===== Examples
 
 The following example closes the `event_rate` job:

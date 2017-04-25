@@ -4,17 +4,14 @@
 
 The get jobs API enables you to retrieve configuration information for jobs.
 
+
 ===== Request
 
 `GET _xpack/ml/anomaly_detectors/` +
 
 `GET _xpack/ml/anomaly_detectors/<job_id>`
 
-
-===== Description
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+//===== Description
 
 ===== Path Parameters
 
@@ -22,6 +19,7 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
   (string) Identifier for the job.
   This parameter does not support wildcards, but you can specify `_all` or omit
   the `job_id` to get information about all jobs.
+
 
 ===== Results
 
@@ -31,16 +29,13 @@ The API returns the following information:
   (array) An array of job resources.
   For more information, see <<ml-job-resource,Job Resources>>.
 
-////
-===== Responses
 
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+===== Authorization
+
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
+
 ===== Examples
 
 The following example gets configuration information for the `farequote` job:

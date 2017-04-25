@@ -4,16 +4,16 @@
 
 The delete data feed API allows you to delete an existing data feed.
 
+
 ===== Request
 
 `DELETE _xpack/ml/datafeeds/<feed_id>`
+
 
 ===== Description
 
 NOTE: You must stop the data feed before you can delete it.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
@@ -29,6 +29,13 @@ For more information, see <<privileges-list-cluster>>.
 412
 (BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
 ////
+
+
+===== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 
 ===== Examples
 

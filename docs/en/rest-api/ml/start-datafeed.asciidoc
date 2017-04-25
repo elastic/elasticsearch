@@ -50,8 +50,6 @@ because the job might not have completely processed all data for that millisecon
 If you specify a `start` value that is earlier than the timestamp of the latest
 processed record, that value is ignored.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
@@ -72,16 +70,13 @@ For more information, see <<privileges-list-cluster>>.
   (time) Controls the amount of time to wait until a data feed starts.
   The default value is 20 seconds.
 
-////
-===== Responses
 
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+===== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
+
 ===== Examples
 
 The following example opens the `datafeed-it-ops-kpi` data feed:

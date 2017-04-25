@@ -9,12 +9,11 @@ The update job API allows you to update certain properties of a job.
 `POST _xpack/ml/anomaly_detectors/<job_id>/_update`
 
 
+////
 ===== Description
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 //TBD: Important:: Updates do not take effect until after then job is closed and re-opened.
-
+////
 ===== Path Parameters
 
 `job_id` (required)::
@@ -46,21 +45,12 @@ want to re-run this job with an increased `model_memory_limit`.
 `description`::
   (string) An optional description of the job.
 
-////
-This expects data to be sent in JSON format using the POST `_data` API.
 
-===== Responses
+===== Authorization
 
-TBD
-////
-////
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 
 ===== Examples
 

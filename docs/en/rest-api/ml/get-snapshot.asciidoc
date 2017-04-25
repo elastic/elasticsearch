@@ -4,16 +4,14 @@
 
 The get model snapshots API enables you to retrieve information about model snapshots.
 
+
 ===== Request
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots` +
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
-===== Description
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+//===== Description
 
 ===== Path Parameters
 
@@ -50,6 +48,7 @@ NOTE: It might be necessary to URL encode the description.
 `start`::
   (string) Returns snapshots with timestamps after this time.
 
+
 ===== Results
 
 The API returns the following information:
@@ -58,16 +57,12 @@ The API returns the following information:
   (array) An array of model snapshot objects. For more information, see
   <<ml-snapshot-resource,Model Snapshots>>.
 
-////
-===== Responses
 
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+===== Authorization
+
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
 
 ===== Examples
 

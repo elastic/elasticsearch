@@ -4,22 +4,23 @@
 
 The create data feed API enables you to instantiate a data feed.
 
+
 ===== Request
 
 `PUT _xpack/ml/datafeeds/<feed_id>`
+
 
 ===== Description
 
 You must create a job before you create a data feed.  You can associate only one
 data feed to each job.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
 `feed_id` (required)::
   (string) A numerical character string that uniquely identifies the data feed.
+
 
 ===== Request Body
 
@@ -55,18 +56,12 @@ For more information, see <<privileges-list-cluster>>.
 For more information about these properties,
 see <<ml-datafeed-resource, Data Feed Resources>>.
 
-////
-===== Responses
 
-TBD
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
+===== Authorization
 
-////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 ===== Examples
 
 The following example creates the `datafeed-it-ops-kpi` data feed:

@@ -4,6 +4,7 @@
 
 The preview data feed API enables you to preview a data feed.
 
+
 ===== Request
 
 `GET _xpack/ml/datafeeds/<datafeed_id>/_preview`
@@ -15,31 +16,19 @@ The API returns the first "page" of results from the `search` that is created
 by using the current data feed settings. This preview shows the structure of
 the data that will be passed to the anomaly detection engine.
 
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
 `datafeed_id` (required)::
   (string) Identifier for the data feed
 
-////
-===== Request Body
 
-None
+===== Authorization
 
-===== Responses
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
 
-TBD
-////
-////
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+
 ===== Examples
 
 The following example obtains a preview of the `datafeed-farequote` data feed:

@@ -4,27 +4,30 @@
 
 The flush job API forces any buffered data to be processed by the job.
 
+
 ===== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_flush`
 
+
 ===== Description
 
-The flush job API is only applicable when sending data for analysis using the <<ml-post-data,post data API>>. Depending on the content of the buffer, then it might additionally calculate new results.
+The flush job API is only applicable when sending data for analysis using the
+<<ml-post-data,post data API>>. Depending on the content of the buffer, then it
+might additionally calculate new results.
 
 Both flush and close operations are similar, however the flush is more efficient
-if you are expecting to send more data for analysis.
-When flushing, the job remains open and is available to continue analyzing data.
-A close operation additionally prunes and persists the model state to disk
-and the job must be opened again before analyzing further data.
+if you are expecting to send more data for analysis. When flushing, the job
+remains open and is available to continue analyzing data. A close operation
+additionally prunes and persists the model state to disk and the job must be
+opened again before analyzing further data.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
 `job_id` (required)::
-(string)    Identifier for the job
+(string) Identifier for the job
+
 
 ===== Query Parameters
 
@@ -43,15 +46,13 @@ For more information, see <<privileges-list-cluster>>.
   (string) When used in conjunction with `calc_interim`, specifies the range of
   buckets on which to calculate interim results.
 
-////
-===== Responses
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+
+===== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
+
 ===== Examples
 
 The following example flushes the `farequote` job:

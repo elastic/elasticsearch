@@ -5,19 +5,19 @@
 The get data feed statistics API enables you to retrieve usage information for
 data feeds.
 
+
 ===== Request
 
 `GET _xpack/ml/datafeeds/_stats` +
 
 `GET _xpack/ml/datafeeds/<feed_id>/_stats`
 
+
 ===== Description
 
 If the data feed is stopped, the only information you receive is the
 `datafeed_id` and the `state`.
 
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
@@ -25,6 +25,7 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
   (string) Identifier for the data feed.
   This parameter does not support wildcards, but you can specify `_all` or
   omit the `feed_id` to get information about all data feeds.
+
 
 ===== Results
 
@@ -34,16 +35,13 @@ The API returns the following information:
   (array) An array of data feed count objects.
   For more information, see <<ml-datafeed-counts,Data Feed Counts>>.
 
-////
-===== Responses
 
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+===== Authorization
+
+You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see <<privileges-list-cluster>>.
+
+
 ===== Examples
 
 The following example gets usage information for the

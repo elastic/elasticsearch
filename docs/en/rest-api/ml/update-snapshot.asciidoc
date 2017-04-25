@@ -12,12 +12,9 @@ The update model snapshot API enables you to update certain properties of a snap
 ===== Description
 
 //TBD. Is the following still true? - not sure but close/open would be the method
-
 Updates to the configuration are only applied after the job has been closed
 and re-opened.
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
 
 ===== Path Parameters
 
@@ -41,17 +38,12 @@ The following properties can be updated after the model snapshot is created:
   Note that this snapshot will still be deleted when the job is deleted.
   The default value is false.
 
-////
-===== Responses
 
-TBD
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+===== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see <<privileges-list-cluster>>.
+
 
 ===== Examples
 

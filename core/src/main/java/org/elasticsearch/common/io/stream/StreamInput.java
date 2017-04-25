@@ -203,7 +203,7 @@ public abstract class StreamInput extends InputStream {
         }
         b = readByte();
         if ((b & 0x80) != 0) {
-            throw new IOException("Invalid vInt " + Integer.toHexString(b) + " & 0x80 = " + Integer.toHexString((b & 0x80)));
+            throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
         }
         return i | ((b & 0x7F) << 28);
     }

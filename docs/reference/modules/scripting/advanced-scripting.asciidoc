@@ -10,6 +10,8 @@ script inside a <<query-dsl-function-score-query,function score query>>.
 Statistics over the document collection are computed *per shard*, not per
 index.
 
+It should be noted that the `_index` variable is not supported in the painless language, but `_index` is defined when using the groovy language.
+
 [float]
 === Nomenclature:
 

@@ -98,6 +98,7 @@ import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -152,7 +153,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;
     static {
-        PREBUILT_TOKENIZERS = new HashMap<>();
+        PREBUILT_TOKENIZERS = new EnumMap<>(PreBuiltTokenizers.class);
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {
@@ -289,7 +290,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltTokenFilters, Class<?>> PREBUILT_TOKENFILTERS;
     static {
-        PREBUILT_TOKENFILTERS = new HashMap<>();
+        PREBUILT_TOKENFILTERS = new EnumMap<>(PreBuiltTokenFilters.class);
         for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {
@@ -335,7 +336,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS;
     static {
-        PREBUILT_CHARFILTERS = new HashMap<>();
+        PREBUILT_CHARFILTERS = new EnumMap<>(PreBuiltCharFilters.class);
         for (PreBuiltCharFilters tokenizer : PreBuiltCharFilters.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {

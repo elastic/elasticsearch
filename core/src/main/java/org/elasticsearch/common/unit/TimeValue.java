@@ -31,6 +31,7 @@ import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -48,7 +49,7 @@ public class TimeValue implements Writeable, Comparable<TimeValue> {
     private static Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
 
     static {
-        final Map<TimeUnit, Byte> timeUnitByteMap = new HashMap<>();
+        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
         timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
         timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
         timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);

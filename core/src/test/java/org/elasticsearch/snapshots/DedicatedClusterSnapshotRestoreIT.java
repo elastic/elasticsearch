@@ -843,7 +843,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setWaitForCompletion(true).setIndices(shrunkIdx).get();
         assertEquals(SnapshotState.SUCCESS, createResponse.getSnapshotInfo().state());
 
-        logger.info("--> close index and stop the data node");
+        logger.info("--> delete index and stop the data node");
+        assertAcked(client.admin().indices().prepareDelete(sourceIdx).get());
         assertAcked(client.admin().indices().prepareDelete(shrunkIdx).get());
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1");

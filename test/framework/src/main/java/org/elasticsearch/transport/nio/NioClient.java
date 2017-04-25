@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
@@ -48,7 +49,7 @@ public class NioClient {
     private final Supplier<SocketSelector> selectorSupplier;
     private final TimeValue defaultConnectTimeout;
     private final ChannelFactory channelFactory;
-    private final AtomicInteger current = new AtomicInteger(0);
+    private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
 
     public NioClient(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier, TimeValue connectTimeout,
                      ChannelFactory channelFactory) {
@@ -61,7 +62,7 @@ public class NioClient {
 
     public boolean connectToChannels(DiscoveryNode node, NioSocketChannel[] channels, TimeValue connectTimeout,
                                      Consumer<NioChannel> closeListener) throws IOException {
-        boolean allowedToConnect = acquireAccess();
+        boolean allowedToConnect = semaphore.tryAcquire();
         if (allowedToConnect == false) {
             return false;
         }
@@ -112,26 +113,12 @@ public class NioClient {
             closeChannels(connections, e);
             throw new ElasticsearchException(e);
         } finally {
-            current.decrementAndGet();
+            semaphore.release();
         }
     }
 
     public void close() {
-        while (current.get() != 0 || current.compareAndSet(0, CLOSED) == false) {
-            LockSupport.parkNanos(1);
-        }
-    }
-
-    private boolean acquireAccess() {
-        for (; ; ) {
-            int i = current.get();
-            if (i == CLOSED) {
-                return false;
-            }
-            if (current.compareAndSet(i, i + 1)) {
-                return true;
-            }
-        }
+        semaphore.acquireUninterruptibly(Integer.MAX_VALUE);
     }
 
     private TimeValue getConnectTimeout(TimeValue connectTimeout) {

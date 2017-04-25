@@ -68,6 +68,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_parent").field("type", "parent_type").endObject()
                 .endObject().endObject().string();
         IndexService indexService = createIndex("test");
+        indexService.mapperService().merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
+                MergeReason.MAPPING_UPDATE, false);
         indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE, false);
         indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE, false);
 

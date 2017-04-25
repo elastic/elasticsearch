@@ -81,7 +81,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1", "some_long", "type=long"));
+        assertAcked(prepareCreate("test")
+                .addMapping("_default_", "_type", "enabled=true")
+                .addMapping("type1", "some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -357,7 +359,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
         logger.info("Creating index test");
         int numOfTypes = randomIntBetween(2, 10);
-        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test");
+        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
+                .addMapping("_default_", "_type", "enabled=true");
         for (int i = 0; i < numOfTypes; i++) {
             createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
                     .startObject("text").field("type", "text").endObject()

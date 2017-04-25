@@ -56,12 +56,14 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testSimpleGetMappings() throws Exception {
         client().admin().indices().prepareCreate("indexa")
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .addMapping("Atype", getMappingForType("Atype"))
                 .addMapping("Btype", getMappingForType("Btype"))
                 .execute().actionGet();
         client().admin().indices().prepareCreate("indexb")
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .addMapping("Atype", getMappingForType("Atype"))
@@ -74,12 +76,12 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         // Get all mappings
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().size(), equalTo(2));
-        assertThat(response.mappings().get("indexa").size(), equalTo(4));
+        assertThat(response.mappings().get("indexa").size(), equalTo(5));
         assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
         assertThat(response.mappings().get("indexa").get("typeB"), notNullValue());
         assertThat(response.mappings().get("indexa").get("Atype"), notNullValue());
         assertThat(response.mappings().get("indexa").get("Btype"), notNullValue());
-        assertThat(response.mappings().get("indexb").size(), equalTo(4));
+        assertThat(response.mappings().get("indexb").size(), equalTo(5));
         assertThat(response.mappings().get("indexb").get("typeA"), notNullValue());
         assertThat(response.mappings().get("indexb").get("typeB"), notNullValue());
         assertThat(response.mappings().get("indexb").get("Atype"), notNullValue());
@@ -88,12 +90,12 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         // Get all mappings, via wildcard support
         response = client().admin().indices().prepareGetMappings("*").setTypes("*").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(2));
-        assertThat(response.mappings().get("indexa").size(), equalTo(4));
+        assertThat(response.mappings().get("indexa").size(), equalTo(5));
         assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
         assertThat(response.mappings().get("indexa").get("typeB"), notNullValue());
         assertThat(response.mappings().get("indexa").get("Atype"), notNullValue());
         assertThat(response.mappings().get("indexa").get("Btype"), notNullValue());
-        assertThat(response.mappings().get("indexb").size(), equalTo(4));
+        assertThat(response.mappings().get("indexb").size(), equalTo(5));
         assertThat(response.mappings().get("indexb").get("typeA"), notNullValue());
         assertThat(response.mappings().get("indexb").get("typeB"), notNullValue());
         assertThat(response.mappings().get("indexb").get("Atype"), notNullValue());
@@ -110,7 +112,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         // Get all mappings in indexa
         response = client().admin().indices().prepareGetMappings("indexa").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").size(), equalTo(4));
+        assertThat(response.mappings().get("indexa").size(), equalTo(5));
         assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
         assertThat(response.mappings().get("indexa").get("typeB"), notNullValue());
         assertThat(response.mappings().get("indexa").get("Atype"), notNullValue());
@@ -143,6 +145,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testGetMappingsWithBlocks() throws IOException {
         client().admin().indices().prepareCreate("test")
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .execute().actionGet();
@@ -153,7 +156,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
                 enableIndexBlock("test", block);
                 GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
                 assertThat(response.mappings().size(), equalTo(1));
-                assertThat(response.mappings().get("test").size(), equalTo(2));
+                assertThat(response.mappings().get("test").size(), equalTo(3));
             } finally {
                 disableIndexBlock("test", block);
             }

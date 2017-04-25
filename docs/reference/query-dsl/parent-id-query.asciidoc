@@ -11,6 +11,11 @@ Given the following mapping definition:
 PUT /my_index
 {
     "mappings": {
+        "_default_": {
+            "_type": {
+                "enabled": true
+            }
+        },
         "blog_post": {
             "properties": {
                 "name": {

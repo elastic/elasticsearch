@@ -159,7 +159,9 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
+                MergeReason.MAPPING_UPDATE, false);
 
         mapperService.merge("type1", new CompressedXContent(mapping1.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge("type2", new CompressedXContent(mapping2.string()), MapperService.MergeReason.MAPPING_UPDATE, false);

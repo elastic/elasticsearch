@@ -5,6 +5,9 @@ setup:
           index: test_1
           body:
               mappings:
+                _default_:
+                  _type:
+                    enabled: true
                 type_1: {}
                 type_2: {}
   - do:
@@ -12,6 +15,9 @@ setup:
           index: test_2
           body:
               mappings:
+                _default_:
+                  _type:
+                    enabled: true
                 type_2: {}
                 type_3: {}
 
@@ -21,10 +27,10 @@ setup:
  - do:
     indices.get_mapping: {}
 
- - match: { test_1.mappings.type_1: {}}
- - match: { test_1.mappings.type_2: {}}
- - match: { test_2.mappings.type_2: {}}
- - match: { test_2.mappings.type_3: {}}
+ - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_3: { _type: { enabled: true}}}
 
 ---
 "Get /{index}/_mapping":
@@ -33,8 +39,8 @@ setup:
     indices.get_mapping:
         index: test_1
 
- - match: { test_1.mappings.type_1: {}}
- - match: { test_1.mappings.type_2: {}}
+ - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_2
 
 
@@ -46,8 +52,8 @@ setup:
         index: test_1
         type:  _all
 
- - match: { test_1.mappings.type_1: {}}
- - match: { test_1.mappings.type_2: {}}
+ - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_2
 
 ---
@@ -58,8 +64,8 @@ setup:
         index: test_1
         type:  '*'
 
- - match: { test_1.mappings.type_1: {}}
- - match: { test_1.mappings.type_2: {}}
+ - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_2
 
 ---
@@ -70,7 +76,7 @@ setup:
         index: test_1
         type:  type_1
 
- - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
  - is_false: test_1.mappings.type_2
  - is_false: test_2
 
@@ -82,8 +88,8 @@ setup:
         index: test_1
         type:  type_1,type_2
 
- - match: { test_1.mappings.type_1: {}}
- - match: { test_1.mappings.type_2: {}}
+ - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_2
 
 ---
@@ -94,7 +100,7 @@ setup:
         index: test_1
         type:  '*2'
 
- - match: { test_1.mappings.type_2: {}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2
 
@@ -105,8 +111,8 @@ setup:
     indices.get_mapping:
         type: type_2
 
- - match: { test_1.mappings.type_2: {}}
- - match: { test_2.mappings.type_2: {}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2.mappings.type_3
 
@@ -118,8 +124,8 @@ setup:
         index: _all
         type: type_2
 
- - match: { test_1.mappings.type_2: {}}
- - match: { test_2.mappings.type_2: {}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2.mappings.type_3
 
@@ -131,8 +137,8 @@ setup:
         index: '*'
         type: type_2
 
- - match: { test_1.mappings.type_2: {}}
- - match: { test_2.mappings.type_2: {}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2.mappings.type_3
 
@@ -144,8 +150,8 @@ setup:
         index: test_1,test_2
         type: type_2
 
- - match: { test_1.mappings.type_2: {}}
- - match: { test_2.mappings.type_2: {}}
+ - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_2.mappings.type_3
 
 ---
@@ -156,6 +162,6 @@ setup:
         index: '*2'
         type: type_2
 
- - match: { test_2.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
  - is_false: test_1
  - is_false: test_2.mappings.type_3

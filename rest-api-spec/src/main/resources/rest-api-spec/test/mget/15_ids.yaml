@@ -1,6 +1,15 @@
 ---
 "IDs":
   - do:
+        indices.create:
+          index: test_1
+          body:
+              mappings:
+                _default_:
+                  _type:
+                    enabled: true
+
+  - do:
       index:
           index:  test_1
           type:   test

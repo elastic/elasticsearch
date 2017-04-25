@@ -66,6 +66,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         logger.info("testing lazy loading...");
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("parent")
                 .addMapping("child", childMapping(false)));
         ensureGreen();
@@ -81,6 +82,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete("test").get());
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -96,6 +98,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete("test").get());
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("parent")
                 .addMapping("child", childMapping(true)));
         ensureGreen();
@@ -114,6 +117,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
     public void testChangingEagerParentFieldLoadingAtRuntime() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();

@@ -154,6 +154,11 @@ index, as follows:
 PUT my_index <1>
 {
   "mappings": {
+    "_default_": {
+      "_type": {
+        "enabled": true
+      }
+    },
     "user": { <2>
       "properties": { <3>
         "title":    { "type": "text"  }, <4>

@@ -1,6 +1,15 @@
 ---
 "Delete by type":
   - do:
+      indices.create:
+          index: test
+          body:
+              mappings:
+                _default_:
+                  _type:
+                    enabled: true
+
+  - do:
       index:
           index:  test
           type:   t1

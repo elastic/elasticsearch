@@ -35,7 +35,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -253,9 +252,10 @@ public class GetActionIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("type1", mapping1, XContentType.JSON)
                 .addMapping("type2", mapping2, XContentType.JSON)
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -527,10 +527,11 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsMetaData() throws Exception {
         assertAcked(prepareCreate("test")
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -594,7 +595,8 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .setSettings("index.refresh_interval", -1)
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
@@ -729,6 +731,9 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
+                "    \"_default_\":{\n" +
+                "      \"_type\": {\"enabled\": true}\n" +
+                "    },\n" +
                 "    \"parentdoc\": {\n" +
                 "    },\n" +
                 "    \"doc\": {\n" +
@@ -738,7 +743,8 @@ public class GetActionIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test")
+                .addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
         client().prepareIndex("test", "doc").setId("1").setSource("{}", XContentType.JSON).setParent("1").get();

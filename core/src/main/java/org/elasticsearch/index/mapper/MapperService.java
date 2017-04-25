@@ -457,6 +457,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
+        for (DocumentMapper mapper : mappers.values()) {
+            if (mapper.type().equals(DEFAULT_MAPPING) == false
+                    && mapper.typeMapper().enabled() == false) {
+                Set<String> actualTypes = new HashSet<>(mappers.keySet());
+                actualTypes.remove(DEFAULT_MAPPING);
+                if (actualTypes.size() > 1) {
+                    throw new IllegalArgumentException(
+                            "Rejecting mapping update as the [_type] field is disabled and the final mapping would have more than 1 type: " + actualTypes);
+                }
+            }
+        }
+
         // make structures immutable
         mappers = Collections.unmodifiableMap(mappers);
         results = Collections.unmodifiableMap(results);

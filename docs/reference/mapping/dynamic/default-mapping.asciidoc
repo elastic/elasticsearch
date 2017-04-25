@@ -14,6 +14,9 @@ PUT my_index
 {
   "mappings": {
     "_default_": { <1>
+      "_type": {
+        "enabled": true
+      },
       "_source": {
         "enabled": false
       }

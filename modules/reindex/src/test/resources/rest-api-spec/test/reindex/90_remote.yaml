@@ -165,6 +165,9 @@
           index: source
           body:
               mappings:
+                _default_:
+                  _type:
+                    enabled: true
                 foo: {}
                 bar:
                   _parent:
@@ -174,6 +177,9 @@
           index: dest
           body:
               mappings:
+                _default_:
+                  _type:
+                    enabled: true
                 foo: {}
                 bar:
                   _parent:

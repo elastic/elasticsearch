@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +78,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         assertEquals(Collections.emptySet(), mapperService.types());
 
-        mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.merge("type1", new CompressedXContent("{\"type1\":{\"_type\":{\"enabled\": true}}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
+        assertTrue(mapper.typeMapper().enabled());
         assertNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(Collections.singleton("type1"), mapperService.types());
 
@@ -86,7 +87,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(Collections.singleton("type1"), mapperService.types());
 
-        mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type2", new CompressedXContent("{\"type2\":{\"_type\":{\"enabled\": true}}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
+        assertTrue(mapper.typeMapper().enabled());
         assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(new HashSet<>(Arrays.asList("type1", "type2")), mapperService.types());
     }
@@ -210,6 +212,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
 
         CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("_type")
+                .field("enabled", true)
+            .endObject()
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
@@ -223,6 +228,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertSame(indexService.mapperService().documentMapper("type1"), documentMapper);
 
         CompressedXContent normsDisabledMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("_type")
+                .field("enabled", true)
+            .endObject()
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
@@ -308,5 +316,18 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 MergeReason.MAPPING_UPDATE, true));
         assertThat(invalidNestedException.getMessage(),
             containsString("cannot have nested fields when index sort is activated"));
+    }
+
+    public void testForbidMultipleTypes() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        TypeFieldMapper typeMapper = docMapper.metadataMapper(TypeFieldMapper.class);
+        assertFalse(typeMapper.enabled());
+
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update as the [_type] field is disabled and the final mapping would have more than 1 type: "));
     }
 }

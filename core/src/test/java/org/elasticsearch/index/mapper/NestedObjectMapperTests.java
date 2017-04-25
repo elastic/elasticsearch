@@ -382,8 +382,10 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                 .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), containsString("Limit of nested fields [1] in index [test3] has been exceeded"));
 
-        MapperService mapperService = createIndex("test4", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2)
-            .build()).mapperService();
+        MapperService mapperService = createIndex("test4", Settings.builder()
+                .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2).build()).mapperService();
+        mapperService.merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
+                MergeReason.MAPPING_UPDATE, false);
         mapperService.merge("type1", new CompressedXContent(mapping.apply("type1")), MergeReason.MAPPING_UPDATE, false);
         // merging same fields, but different type is ok
         mapperService.merge("type2", new CompressedXContent(mapping.apply("type2")), MergeReason.MAPPING_UPDATE, false);

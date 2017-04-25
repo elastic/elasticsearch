@@ -5,6 +5,9 @@
        index: test_1
        body:
          mappings:
+           _default_:
+             _type:
+               enabled: true
            type_1: {}
            type_2: {}
 

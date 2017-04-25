@@ -11,6 +11,17 @@ scripts, and when sorting:
 [source,js]
 --------------------------
 # Example documents
+PUT my_index
+{
+  "mappings": {
+    "_default_": {
+      "_type": {
+        "enabled": true
+      }
+    }
+  }
+}
+
 PUT my_index/type_1/1
 {
   "text": "Document with type 1"

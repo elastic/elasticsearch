@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -525,6 +526,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
         IndexService indexService = createIndex("test");
+        indexService.mapperService().merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
+                MergeReason.MAPPING_UPDATE, false);
         XContentBuilder mappings1 = jsonBuilder().startObject()
                 .startObject("type1")
                     .startArray("dynamic_templates")

@@ -386,10 +386,10 @@ public class TribeIT extends ESIntegTestCase {
     public void testTribeOnOneCluster() throws Exception {
         try (Releasable tribeNode = startTribeNode()) {
             // Creates 2 indices, test1 on cluster1 and test2 on cluster2
-            assertAcked(cluster1.client().admin().indices().prepareCreate("test1"));
+            assertAcked(cluster1.client().admin().indices().prepareCreate("test1").addMapping("_default_", "_type", "enabled=true"));
             ensureGreen(cluster1.client());
 
-            assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
+            assertAcked(cluster2.client().admin().indices().prepareCreate("test2").addMapping("_default_", "_type", "enabled=true"));
             ensureGreen(cluster2.client());
 
             // Wait for the tribe node to retrieve the indices into its cluster state

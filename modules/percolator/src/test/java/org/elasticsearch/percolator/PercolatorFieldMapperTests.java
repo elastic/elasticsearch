@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -113,8 +114,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Before
     public void init() throws Exception {
-        indexService = createIndex("test", Settings.EMPTY);
+        indexService = createIndex("test");
         mapperService = indexService.mapperService();
+        mapperService.merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
+                MergeReason.MAPPING_UPDATE, false);
 
         String mapper = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject() // makes testing easier

@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class SimpleNestedIT extends ESIntegTestCase {
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test")
+                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("type1", "nested1", "type=nested")
                 .addMapping("type2", "nested1", "type=nested"));
         ensureGreen();

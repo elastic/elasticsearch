@@ -9,6 +9,11 @@ fields to an existing type:
 PUT twitter <1>
 {
   "mappings": {
+    "_default_": {
+      "_type": {
+        "enabled": true
+      }
+    },
     "tweet": {
       "properties": {
         "message": {
@@ -148,6 +153,11 @@ For example, this fails:
 PUT my_index
 {
   "mappings": {
+    "_default_": {
+      "_type": {
+        "enabled": true
+      }
+    },
     "type_one": {
       "properties": {
         "text": { <1>

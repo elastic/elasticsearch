@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
 
     @Before
     public void init() {
-        percents = randomPercents();
+        percents = randomPercents(false);
         keyed = randomBoolean();
         docValueFormat = randomNumericDocValueFormat();
     }
@@ -70,11 +71,14 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
         }
     }
 
-    protected static double[] randomPercents() {
+    public static double[] randomPercents(boolean sorted) {
         List<Double> randomCdfValues = randomSubsetOf(randomIntBetween(1, 7), 0.01d, 0.05d, 0.25d, 0.50d, 0.75d, 0.95d, 0.99d);
         double[] percents = new double[randomCdfValues.size()];
         for (int i = 0; i < randomCdfValues.size(); i++) {
             percents[i] = randomCdfValues.get(i);
+        }
+        if (sorted) {
+            Arrays.sort(percents);
         }
         return percents;
     }

@@ -23,8 +23,8 @@ import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
@@ -70,7 +70,7 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
     }
 
     public void testIterator() {
-        final double[] percents =  randomPercents();
+        final double[] percents =  randomPercents(false);
         final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];
         for (int i = 0; i < values.length; ++i) {
             values[i] = randomDouble();

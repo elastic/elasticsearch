@@ -90,23 +90,6 @@ NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`
 is used in the settings and the process is run as a service or in the background.
 
 [float]
-=== Setting default settings
-
-New default settings may be specified on the command line using the
-`default.` prefix.  This will specify a value that will be used by
-default unless another value is specified in the config file.
-
-For instance, if Elasticsearch is started as follows:
-
-[source,sh]
----------------------------
-./bin/elasticsearch -Edefault.node.name=My_Node
----------------------------
-
-the value for `node.name` will be `My_Node`, unless it is overwritten on the
-command line with `es.node.name` or in the config file with `node.name`.
-
-[float]
 [[logging]]
 == Logging configuration
 
@@ -149,6 +132,10 @@ appender.rolling.policies.time.modulate = true <6>
 <5> Roll logs on a daily basis
 <6> Align rolls on the day boundary (as opposed to rolling every twenty-four
     hours)
+
+NOTE: Log4j's configuration parsing gets confused by any extraneous whitespace;
+if you copy and paste any Log4j settings on this page, or enter any Log4j
+configuration in general, be sure to trim any leading and trailing whitespace.
 
 If you append `.gz` or `.zip` to `appender.rolling.filePattern`, then the logs
 will be compressed as they are rolled.

@@ -6,7 +6,7 @@ contains any value other than `null`.  This field is used by the
 <<query-dsl-exists-query,`exists`>> query to find documents that
 either have or don't have any non-+null+ value for a particular field.
 
-The value of the `_field_name` field is accessible in queries:
+The value of the `_field_names` field is accessible in queries:
 
 [source,js]
 --------------------------

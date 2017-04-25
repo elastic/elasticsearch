@@ -85,7 +85,7 @@ public class BlendedTermQueryTests extends ESTestCase {
 
         {
             Term[] terms = new Term[]{new Term("firstname", "simon"), new Term("surname", "simon")};
-            BlendedTermQuery query = BlendedTermQuery.booleanBlendedQuery(terms, true);
+            BlendedTermQuery query = BlendedTermQuery.booleanBlendedQuery(terms);
             TopDocs search = searcher.search(query, 3);
             ScoreDoc[] scoreDocs = search.scoreDocs;
             assertEquals(3, scoreDocs.length);
@@ -93,7 +93,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         }
         {
             BooleanQuery.Builder query = new BooleanQuery.Builder();
-            query.setDisableCoord(true);
             query.add(new TermQuery(new Term("firstname", "simon")), BooleanClause.Occur.SHOULD);
             query.add(new TermQuery(new Term("surname", "simon")), BooleanClause.Occur.SHOULD);
             TopDocs search = searcher.search(query.build(), 1);
@@ -146,7 +145,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         {
             String[] fields = new String[]{"username", "song"};
             BooleanQuery.Builder query = new BooleanQuery.Builder();
-            query.setDisableCoord(true);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f), BooleanClause.Occur.SHOULD);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "fighters"), 0.1f), BooleanClause.Occur.SHOULD);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "generator"), 0.1f), BooleanClause.Occur.SHOULD);
@@ -156,7 +154,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         }
         {
             BooleanQuery.Builder query = new BooleanQuery.Builder();
-            query.setDisableCoord(true);
             DisjunctionMaxQuery uname = new DisjunctionMaxQuery(
                     Arrays.asList(new TermQuery(new Term("username", "foo")), new TermQuery(new Term("song", "foo"))), 0.0f);
 
@@ -186,13 +183,12 @@ public class BlendedTermQueryTests extends ESTestCase {
             }
             String term = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
             Term[] terms = toTerms(fields, term);
-            boolean disableCoord = random().nextBoolean();
             boolean useBoolean = random().nextBoolean();
             float tieBreaker = random().nextFloat();
-            BlendedTermQuery query = useBoolean ? BlendedTermQuery.booleanBlendedQuery(terms, disableCoord) : BlendedTermQuery.dismaxBlendedQuery(terms, tieBreaker);
+            BlendedTermQuery query = useBoolean ? BlendedTermQuery.booleanBlendedQuery(terms) : BlendedTermQuery.dismaxBlendedQuery(terms, tieBreaker);
             QueryUtils.check(query);
             terms = toTerms(fields, term);
-            BlendedTermQuery query2 = useBoolean ? BlendedTermQuery.booleanBlendedQuery(terms, disableCoord) : BlendedTermQuery.dismaxBlendedQuery(terms, tieBreaker);
+            BlendedTermQuery query2 = useBoolean ? BlendedTermQuery.booleanBlendedQuery(terms) : BlendedTermQuery.dismaxBlendedQuery(terms, tieBreaker);
             assertEquals(query, query2);
         }
     }
@@ -222,7 +218,7 @@ public class BlendedTermQueryTests extends ESTestCase {
         }
 
         BlendedTermQuery blendedTermQuery = random().nextBoolean() ? BlendedTermQuery.dismaxBlendedQuery(terms.toArray(new Term[0]), random().nextFloat()) :
-                BlendedTermQuery.booleanBlendedQuery(terms.toArray(new Term[0]), random().nextBoolean());
+                BlendedTermQuery.booleanBlendedQuery(terms.toArray(new Term[0]));
         Set<Term> extracted = new HashSet<>();
         IndexSearcher searcher = new IndexSearcher(new MultiReader());
         searcher.createNormalizedWeight(blendedTermQuery, false).extractTerms(extracted);

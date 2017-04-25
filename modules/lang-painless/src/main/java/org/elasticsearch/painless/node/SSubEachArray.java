@@ -64,9 +64,12 @@ final class SSubEachArray extends AStatement {
     void analyze(Locals locals) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
-        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
-        index = locals.addVariable(location, Definition.INT_TYPE, "#index" + location.getOffset(), true);
-        indexed = Definition.getType(expression.actual.struct, expression.actual.dimensions - 1);
+        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(),
+                true);
+        index = locals.addVariable(location, Definition.INT_TYPE, "#index" + location.getOffset(),
+                true);
+        indexed = locals.getDefinition().getType(expression.actual.struct,
+                expression.actual.dimensions - 1);
         cast = AnalyzerCaster.getLegalCast(location, indexed, variable.type, true, true);
     }
 

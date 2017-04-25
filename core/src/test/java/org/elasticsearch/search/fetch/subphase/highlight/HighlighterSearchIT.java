@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -100,6 +101,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class HighlighterSearchIT extends ESIntegTestCase {
+    // TODO as we move analyzers out of the core we need to move some of these into HighlighterWithAnalyzersTests
     private static final String[] ALL_TYPES = new String[] {"plain", "postings", "fvh", "unified"};
     private static final String[] UNIFIED_AND_NULL = new String[] {null, "unified"};
 
@@ -113,12 +115,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.startObject();
         mappings.startObject("type")
             .startObject("properties")
-            .startObject("text")
-            .field("type", "keyword")
-            .field("store", true)
-            .endObject()
-            .endObject()
-            .endObject();
+                .startObject("text")
+                    .field("type", "keyword")
+                    .field("store", true)
+                .endObject()
+            .endObject().endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
@@ -139,14 +140,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.startObject();
         mappings.startObject("type")
                 .startObject("properties")
-                .startObject("text")
-                .field("type", "text")
-                .field("analyzer", "keyword")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .endObject()
-                .endObject()
-                .endObject();
+                    .startObject("text")
+                        .field("type", "text")
+                        .field("analyzer", "keyword")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                    .endObject()
+                .endObject().endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type", mappings));
@@ -166,23 +166,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.startObject();
         mappings.startObject("type")
                 .startObject("_source")
-                .field("enabled", false)
+                    .field("enabled", false)
                 .endObject()
                 .startObject("properties")
-                .startObject("unstored_field")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .field("type", "text")
-                .field("store", false)
-                .endObject()
-                .startObject("text")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .field("type", "text")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject();
+                    .startObject("unstored_field")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                        .field("type", "text")
+                        .field("store", false)
+                    .endObject()
+                    .startObject("text")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                        .field("type", "text")
+                        .field("store", true)
+                    .endObject()
+                .endObject().endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type", mappings));
@@ -216,103 +215,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "abc")))
                 .highlighter(new HighlightBuilder().field("name")).get();
         assertHighlight(search, 0, "name", 0, startsWith("<em>abc</em> <em>abc</em> <em>abc</em> <em>abc</em>"));
-    }
-
-    public void testNgramHighlightingWithBrokenPositions() throws IOException {
-        assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
-                        .startObject()
-                        .startObject("test")
-                        .startObject("properties")
-                        .startObject("name")
-                        .startObject("fields")
-                        .startObject("autocomplete")
-                        .field("type", "text")
-                        .field("analyzer", "autocomplete")
-                        .field("search_analyzer", "search_autocomplete")
-                        .field("term_vector", "with_positions_offsets")
-                        .endObject()
-                        .endObject()
-                        .field("type", "text")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject())
-                .setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put("analysis.tokenizer.autocomplete.max_gram", 20)
-                        .put("analysis.tokenizer.autocomplete.min_gram", 1)
-                        .put("analysis.tokenizer.autocomplete.token_chars", "letter,digit")
-                        .put("analysis.tokenizer.autocomplete.type", "nGram")
-                        .put("analysis.filter.wordDelimiter.type", "word_delimiter")
-                        .putArray("analysis.filter.wordDelimiter.type_table",
-                                "& => ALPHANUM", "| => ALPHANUM", "! => ALPHANUM",
-                                "? => ALPHANUM", ". => ALPHANUM", "- => ALPHANUM", "# => ALPHANUM", "% => ALPHANUM",
-                                "+ => ALPHANUM", ", => ALPHANUM", "~ => ALPHANUM", ": => ALPHANUM", "/ => ALPHANUM",
-                                "^ => ALPHANUM", "$ => ALPHANUM", "@ => ALPHANUM", ") => ALPHANUM", "( => ALPHANUM",
-                                "] => ALPHANUM", "[ => ALPHANUM", "} => ALPHANUM", "{ => ALPHANUM")
-
-                        .put("analysis.filter.wordDelimiter.type.split_on_numerics", false)
-                        .put("analysis.filter.wordDelimiter.generate_word_parts", true)
-                        .put("analysis.filter.wordDelimiter.generate_number_parts", false)
-                        .put("analysis.filter.wordDelimiter.catenate_words", true)
-                        .put("analysis.filter.wordDelimiter.catenate_numbers", true)
-                        .put("analysis.filter.wordDelimiter.catenate_all", false)
-
-                        .put("analysis.analyzer.autocomplete.tokenizer", "autocomplete")
-                        .putArray("analysis.analyzer.autocomplete.filter", "lowercase", "wordDelimiter")
-                        .put("analysis.analyzer.search_autocomplete.tokenizer", "whitespace")
-                        .putArray("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter")));
-        client().prepareIndex("test", "test", "1")
-            .setSource("name", "ARCOTEL Hotels Deutschland").get();
-        refresh();
-        SearchResponse search = client().prepareSearch("test").setTypes("test")
-                .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
-                .highlighter(new HighlightBuilder().field("name.autocomplete")).execute().actionGet();
-        assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
-    }
-
-    public void testMultiPhraseCutoff() throws IOException {
-        /*
-         * MultiPhraseQuery can literally kill an entire node if there are too many terms in the
-         * query. We cut off and extract terms if there are more than 16 terms in the query
-         */
-        assertAcked(prepareCreate("test")
-                .addMapping("test",
-                        "body", "type=text,analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
-                .setSettings(
-                        Settings.builder().put(indexSettings())
-                                .put("analysis.filter.wordDelimiter.type", "word_delimiter")
-                                .put("analysis.filter.wordDelimiter.type.split_on_numerics", false)
-                                .put("analysis.filter.wordDelimiter.generate_word_parts", true)
-                                .put("analysis.filter.wordDelimiter.generate_number_parts", true)
-                                .put("analysis.filter.wordDelimiter.catenate_words", true)
-                                .put("analysis.filter.wordDelimiter.catenate_numbers", true)
-                                .put("analysis.filter.wordDelimiter.catenate_all", false)
-                                .put("analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter"))
-        );
-
-        ensureGreen();
-        client().prepareIndex("test", "test", "1")
-            .setSource("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com "
-                    + "http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: "
-                    + "http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com "
-                    + "http://twitter.com this is a test for highlighting feature")
-            .get();
-        refresh();
-        SearchResponse search = client().prepareSearch().setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
-                .highlighter(new HighlightBuilder().field("body")).execute().actionGet();
-        assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
-        search = client()
-                .prepareSearch()
-                .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com "
-                        + "http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: "
-                        + "http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com "
-                        + "http://twitter.com this is a test for highlighting feature"))
-                .highlighter(new HighlightBuilder().field("body")).execute().actionGet();
-        assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: <em>http://www.facebook.com</em> "
-                + "<em>http://elasticsearch.org</em> <em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"));
     }
 
     public void testNgramHighlighting() throws IOException {

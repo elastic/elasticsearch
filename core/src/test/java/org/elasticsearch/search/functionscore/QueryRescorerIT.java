@@ -587,12 +587,12 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2),
                         English.intToEnglish(i + 3) };
 
-                QueryBuilder query = boolQuery().disableCoord(true)
+                QueryBuilder query = boolQuery()
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[0]), weightFactorFunction(2.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[1]), weightFactorFunction(3.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[2]), weightFactorFunction(5.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[3]), weightFactorFunction(0.2f)).boostMode(REPLACE));
-                QueryRescorerBuilder rescoreQuery = queryRescorer(boolQuery().disableCoord(true)
+                QueryRescorerBuilder rescoreQuery = queryRescorer(boolQuery()
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[0]), weightFactorFunction(5.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[1]), weightFactorFunction(7.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[3]), weightFactorFunction(0.0f)).boostMode(REPLACE)));

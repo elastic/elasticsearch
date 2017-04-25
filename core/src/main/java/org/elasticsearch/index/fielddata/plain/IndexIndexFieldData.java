@@ -22,13 +22,14 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -75,9 +77,11 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         @Override
-        public RandomAccessOrds getOrdinalsValues() {
+        public SortedSetDocValues getOrdinalsValues() {
             final BytesRef term = new BytesRef(index);
-            final SortedDocValues sortedValues = new SortedDocValues() {
+            final SortedDocValues sortedValues = new AbstractSortedDocValues() {
+
+                private int docID = -1;
 
                 @Override
                 public BytesRef lookupOrd(int ord) {
@@ -90,11 +94,22 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 }
 
                 @Override
-                public int getOrd(int docID) {
+                public int ordValue() {
                     return 0;
                 }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    docID = target;
+                    return true;
+                }
+
+                @Override
+                public int docID() {
+                    return docID;
+                }
             };
-            return (RandomAccessOrds) DocValues.singleton(sortedValues);
+            return (SortedSetDocValues) DocValues.singleton(sortedValues);
         }
 
         @Override

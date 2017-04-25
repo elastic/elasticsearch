@@ -21,7 +21,9 @@ package org.elasticsearch.index.fielddata;
 
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -32,7 +34,9 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
 
+import java.io.IOException;
 import java.util.AbstractList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.UnaryOperator;
@@ -46,7 +50,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     /**
      * Set the current doc ID.
      */
-    public abstract void setNextDocId(int docId);
+    public abstract void setNextDocId(int docId) throws IOException;
 
     /**
      * Return a copy of the list of the values for the current document.
@@ -83,24 +87,48 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Strings extends ScriptDocValues<String> {
 
-        private final SortedBinaryDocValues values;
+        private final SortedBinaryDocValues in;
+        private BytesRefBuilder[] values = new BytesRefBuilder[0];
+        private int count;
 
-        public Strings(SortedBinaryDocValues values) {
-            this.values = values;
+        public Strings(SortedBinaryDocValues in) {
+            this.in = in;
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i].copyBytes(in.nextValue());
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            if (newSize > values.length) {
+                final int oldLength = values.length;
+                values = ArrayUtil.grow(values, count);
+                for (int i = oldLength; i < values.length; ++i) {
+                    values[i] = new BytesRefBuilder();
+                }
+            }
         }
 
         public SortedBinaryDocValues getInternalValues() {
-            return this.values;
+            return this.in;
         }
 
         public BytesRef getBytesValue() {
-            if (values.count() > 0) {
-                return values.valueAt(0);
+            if (size() > 0) {
+                return values[0].get();
             } else {
                 return null;
             }
@@ -117,12 +145,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            return values.valueAt(index).utf8ToString();
+            return values[index].get().utf8ToString();
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
         }
 
     }
@@ -130,61 +158,81 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Longs extends ScriptDocValues<Long> {
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
 
-        private final SortedNumericDocValues values;
+        private final SortedNumericDocValues in;
+        private long[] values = new long[0];
+        private int count;
         private Dates dates;
+        private int docId = -1;
 
-        public Longs(SortedNumericDocValues values) {
-            this.values = values;
+        public Longs(SortedNumericDocValues in) {
+            this.in = in;
+
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
-            if (dates != null) {
-                dates.refreshArray();
+        public void setNextDocId(int docId) throws IOException {
+            this.docId = docId;
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i] = in.nextValue();
+                }
+            } else {
+                resize(0);
             }
+            if (dates != null) {
+                dates.setNextDocId(docId);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            values = ArrayUtil.grow(values, count);
         }
 
         public SortedNumericDocValues getInternalValues() {
-            return this.values;
+            return this.in;
         }
 
         public long getValue() {
-            int numValues = values.count();
-            if (numValues == 0) {
+            if (count == 0) {
                 return 0L;
             }
-            return values.valueAt(0);
+            return values[0];
         }
 
         @Deprecated
-        public ReadableDateTime getDate() {
+        public ReadableDateTime getDate() throws IOException {
             deprecationLogger.deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(values);
-                dates.refreshArray();
+                dates = new Dates(in);
+                dates.setNextDocId(docId);
             }
             return dates.getValue();
         }
 
         @Deprecated
-        public List<ReadableDateTime> getDates() {
+        public List<ReadableDateTime> getDates() throws IOException {
             deprecationLogger.deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(values);
-                dates.refreshArray();
+                dates = new Dates(in);
+                dates.setNextDocId(docId);
             }
             return dates;
         }
 
         @Override
         public Long get(int index) {
-            return values.valueAt(index);
+            return values[index];
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
         }
     }
 
@@ -193,22 +241,24 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
 
-        private final SortedNumericDocValues values;
+        private final SortedNumericDocValues in;
         /**
          * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
          * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
          */
         private MutableDateTime[] dates;
+        private int count;
 
-        public Dates(SortedNumericDocValues values) {
-            this.values = values;
+        public Dates(SortedNumericDocValues in) {
+            this.in = in;
         }
 
         /**
-         * Fetch the first field value or 0 millis after epoch if there are no values.
+         * Fetch the first field value or 0 millis after epoch if there are no
+         * in.
          */
         public ReadableDateTime getValue() {
-            if (values.count() == 0) {
+            if (count == 0) {
                 return EPOCH;
             }
             return get(0);
@@ -234,113 +284,159 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public ReadableDateTime get(int index) {
-            if (index >= values.count()) {
+            if (index >= count) {
                 throw new IndexOutOfBoundsException(
-                        "attempted to fetch the [" + index + "] date when there are only [" + values.count() + "] dates.");
+                        "attempted to fetch the [" + index + "] date when there are only ["
+                                + count + "] dates.");
             }
             return dates[index];
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                count = in.docValueCount();
+            } else {
+                count = 0;
+            }
             refreshArray();
         }
 
         /**
          * Refresh the backing array. Package private so it can be called when {@link Longs} loads dates.
          */
-        void refreshArray() {
-            if (values.count() == 0) {
+        void refreshArray() throws IOException {
+            if (count == 0) {
                 return;
             }
             if (dates == null) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new MutableDateTime[values.count()];
+                dates = new MutableDateTime[count];
                 for (int i = 0; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
+                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
                 }
                 return;
             }
-            if (values.count() > dates.length) {
+            if (count > dates.length) {
                 // Happens when we move to a new document and it has more dates than any documents before it.
                 MutableDateTime[] backup = dates;
-                dates = new MutableDateTime[values.count()];
+                dates = new MutableDateTime[count];
                 System.arraycopy(backup, 0, dates, 0, backup.length);
                 for (int i = 0; i < backup.length; i++) {
-                    dates[i].setMillis(values.valueAt(i));
+                    dates[i].setMillis(in.nextValue());
                 }
                 for (int i = backup.length; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
+                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
                 }
                 return;
             }
-            for (int i = 0; i < values.count(); i++) {
-                dates[i].setMillis(values.valueAt(i));
+            for (int i = 0; i < count; i++) {
+                dates[i].setMillis(in.nextValue());
             }
         }
     }
 
     public static final class Doubles extends ScriptDocValues<Double> {
 
-        private final SortedNumericDoubleValues values;
+        private final SortedNumericDoubleValues in;
+        private double[] values = new double[0];
+        private int count;
 
-        public Doubles(SortedNumericDoubleValues values) {
-            this.values = values;
+        public Doubles(SortedNumericDoubleValues in) {
+            this.in = in;
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i] = in.nextValue();
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            values = ArrayUtil.grow(values, count);
         }
 
         public SortedNumericDoubleValues getInternalValues() {
-            return this.values;
+            return this.in;
         }
 
         public double getValue() {
-            int numValues = values.count();
-            if (numValues == 0) {
+            if (count == 0) {
                 return 0d;
             }
-            return values.valueAt(0);
+            return values[0];
         }
 
         @Override
         public Double get(int index) {
-            return values.valueAt(index);
+            return values[index];
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
         }
     }
 
     public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
 
-        private final MultiGeoPointValues values;
+        private final MultiGeoPointValues in;
+        private GeoPoint[] values = new GeoPoint[0];
+        private int count;
 
-        public GeoPoints(MultiGeoPointValues values) {
-            this.values = values;
+        public GeoPoints(MultiGeoPointValues in) {
+            this.in = in;
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    GeoPoint point = in.nextValue();
+                    values[i].reset(point.lat(), point.lon());
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            if (newSize > values.length) {
+                int oldLength = values.length;
+                values = ArrayUtil.grow(values, count);
+                for (int i = oldLength; i < values.length; ++i) {
+                values[i] = new GeoPoint();
+                }
+            }
         }
 
         public GeoPoint getValue() {
-            int numValues = values.count();
-            if (numValues == 0) {
+            if (count == 0) {
                 return null;
             }
-            return values.valueAt(0);
+            return values[0];
         }
 
         public double getLat() {
@@ -371,13 +467,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
-            final GeoPoint point = values.valueAt(index);
+            final GeoPoint point = values[index];
             return new GeoPoint(point.lat(), point.lon());
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
         }
 
         public double arcDistance(double lat, double lon) {
@@ -420,66 +516,114 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Booleans extends ScriptDocValues<Boolean> {
 
-        private final SortedNumericDocValues values;
+        private final SortedNumericDocValues in;
+        private boolean[] values = new boolean[0];
+        private int count;
 
-        public Booleans(SortedNumericDocValues values) {
-            this.values = values;
+        public Booleans(SortedNumericDocValues in) {
+            this.in = in;
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i] = in.nextValue() == 1;
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            values = grow(values, count);
         }
 
         public boolean getValue() {
-            return values.count() != 0 && values.valueAt(0) == 1;
+            return count != 0 && values[0];
         }
 
         @Override
         public Boolean get(int index) {
-            return values.valueAt(index) == 1;
+            return values[index];
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
+        }
+
+        private static boolean[] grow(boolean[] array, int minSize) {
+            assert minSize >= 0 : "size must be positive (got " + minSize
+                    + "): likely integer overflow?";
+            if (array.length < minSize) {
+                return Arrays.copyOf(array, ArrayUtil.oversize(minSize, 1));
+            } else
+                return array;
         }
 
     }
 
     public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        private final SortedBinaryDocValues values;
+        private final SortedBinaryDocValues in;
+        private BytesRef[] values;
+        private int count;
 
-        public BytesRefs(SortedBinaryDocValues values) {
-            this.values = values;
+        public BytesRefs(SortedBinaryDocValues in) {
+            this.in = in;
         }
 
         @Override
-        public void setNextDocId(int docId) {
-            values.setDocument(docId);
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i] = in.nextValue();
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            if (values == null) {
+                values = new BytesRef[newSize];
+            } else {
+                values = ArrayUtil.grow(values, count);
+            }
         }
 
         public SortedBinaryDocValues getInternalValues() {
-            return this.values;
+            return this.in;
         }
 
         public BytesRef getValue() {
-            int numValues = values.count();
-            if (numValues == 0) {
+            if (count == 0) {
                 return new BytesRef();
             }
-            return values.valueAt(0);
+            return values[0];
         }
 
         @Override
         public BytesRef get(int index) {
-            return values.valueAt(index);
+            return values[index];
         }
 
         @Override
         public int size() {
-            return values.count();
+            return count;
         }
     }
 }

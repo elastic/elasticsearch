@@ -80,16 +80,6 @@ public final class ProfileWeight extends Weight {
     }
 
     @Override
-    public float getValueForNormalization() throws IOException {
-        return subQueryWeight.getValueForNormalization();
-    }
-
-    @Override
-    public void normalize(float norm, float topLevelBoost) {
-        subQueryWeight.normalize(norm, topLevelBoost);
-    }
-
-    @Override
     public void extractTerms(Set<Term> set) {
         subQueryWeight.extractTerms(set);
     }

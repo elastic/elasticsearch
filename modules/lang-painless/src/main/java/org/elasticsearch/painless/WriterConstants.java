@@ -65,7 +65,9 @@ public final class WriterConstants {
     public static final Type STACK_OVERFLOW_ERROR_TYPE   = Type.getType(StackOverflowError.class);
     public static final Type EXCEPTION_TYPE              = Type.getType(Exception.class);
     public static final Type PAINLESS_EXPLAIN_ERROR_TYPE = Type.getType(PainlessExplainError.class);
-    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders");
+    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders", Definition.class);
+
+    public static final Type DEFINITION_TYPE = Type.getType(Definition.class);
 
     public static final Type COLLECTIONS_TYPE = Type.getType(Collections.class);
     public static final Method EMPTY_MAP_METHOD = getAsmMethod(Map.class, "emptyMap");
@@ -82,9 +84,10 @@ public final class WriterConstants {
     public static final Type UTILITY_TYPE = Type.getType(Utility.class);
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
-    
+
+
     public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
-    
+
     public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
@@ -98,13 +101,13 @@ public final class WriterConstants {
     public static final Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
     public static final Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
 
-    /** dynamic callsite bootstrap signature */
-    static final MethodType DEF_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, 
-                              int.class, int.class, Object[].class);
-    static final Handle DEF_BOOTSTRAP_HANDLE =
-        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
-            "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
+    public static final Method DEF_BOOTSTRAP_METHOD = getAsmMethod(CallSite.class, "$bootstrapDef", MethodHandles.Lookup.class,
+            String.class, MethodType.class, int.class, int.class, Object[].class);
+    static final Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), "$bootstrapDef",
+            DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
+    public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
+    public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", Definition.class,
+            MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
     public static final Method DEF_TO_BOOLEAN         = getAsmMethod(boolean.class, "DefToboolean"       , Object.class);
@@ -127,10 +130,15 @@ public final class WriterConstants {
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =
             MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class,
-                                  MethodType.class, Object[].class);
+                                  MethodType.class, MethodType.class, String.class, int.class, String.class, MethodType.class);
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
-            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaMetafactory.class),
-                "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
+            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
+                "lambdaBootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
+    public static final MethodType DELEGATE_BOOTSTRAP_TYPE =
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class);
+    public static final Handle DELEGATE_BOOTSTRAP_HANDLE =
+        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
+            "delegateBootstrap", DELEGATE_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public static final Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;

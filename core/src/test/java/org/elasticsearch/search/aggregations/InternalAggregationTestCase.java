@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -33,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
@@ -121,5 +123,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    /**
+     * @return a random {@link DocValueFormat} that can be used in aggregations which
+     * compute numbers.
+     */
+    protected static DocValueFormat randomNumericDocValueFormat() {
+        final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
+        formats.add(() -> DocValueFormat.RAW);
+        formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
+        return randomFrom(formats).get();
     }
 }

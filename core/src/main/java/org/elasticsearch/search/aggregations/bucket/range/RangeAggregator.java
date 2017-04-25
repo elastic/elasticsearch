@@ -236,11 +236,12 @@ public class RangeAggregator extends BucketsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                values.setDocument(doc);
-                final int valuesCount = values.count();
-                for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                    final double value = values.valueAt(i);
-                    lo = collect(doc, value, bucket, lo);
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                        final double value = values.nextValue();
+                        lo = collect(doc, value, bucket, lo);
+                    }
                 }
             }
 

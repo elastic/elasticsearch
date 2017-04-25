@@ -297,8 +297,9 @@ purge_elasticsearch() {
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
     local index=$2
+    local commandLineArgs=$3
 
-    run_elasticsearch_service 0
+    run_elasticsearch_service 0 $commandLineArgs
 
     wait_for_elasticsearch_status $desiredStatus $index
 
@@ -330,8 +331,10 @@ run_elasticsearch_service() {
     if [ ! -z "$CONF_DIR" ] ; then
         if is_dpkg ; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+            echo "ES_JVM_OPTIONS=$ES_JVM_OPTIONS" >> /etc/default/elasticsearch;
         elif is_rpm; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+            echo "ES_JVM_OPTIONS=$ES_JVM_OPTIONS" >> /etc/sysconfig/elasticsearch
         fi
     fi
 
@@ -525,6 +528,7 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
+    assert_file_exist "$ESCONFIG/jvm.options"
     assert_file_exist "$ESCONFIG/log4j2.properties"
 }
 

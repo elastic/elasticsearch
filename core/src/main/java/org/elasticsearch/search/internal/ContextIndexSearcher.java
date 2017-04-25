@@ -110,7 +110,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public Weight createWeight(Query query, boolean needsScores) throws IOException {
+    public Weight createWeight(Query query, boolean needsScores, float boost) throws IOException {
         if (profiler != null) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
@@ -119,7 +119,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             profile.startTime(QueryTimingType.CREATE_WEIGHT);
             final Weight weight;
             try {
-                weight = super.createWeight(query, needsScores);
+                weight = super.createWeight(query, needsScores, boost);
             } finally {
                 profile.stopAndRecordTime();
                 profiler.pollLastElement();
@@ -127,7 +127,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new ProfileWeight(query, weight, profile);
         } else {
             // needs to be 'super', not 'in' in order to use aggregated DFS
-            return super.createWeight(query, needsScores);
+            return super.createWeight(query, needsScores, boost);
         }
     }
 

@@ -101,25 +101,26 @@ class HistogramAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                double previousKey = Double.NEGATIVE_INFINITY;
-                for (int i = 0; i < valuesCount; ++i) {
-                    double value = values.valueAt(i);
-                    double key = Math.floor((value - offset) / interval);
-                    assert key >= previousKey;
-                    if (key == previousKey) {
-                        continue;
+                    double previousKey = Double.NEGATIVE_INFINITY;
+                    for (int i = 0; i < valuesCount; ++i) {
+                        double value = values.nextValue();
+                        double key = Math.floor((value - offset) / interval);
+                        assert key >= previousKey;
+                        if (key == previousKey) {
+                            continue;
+                        }
+                        long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
+                        if (bucketOrd < 0) { // already seen
+                            bucketOrd = -1 - bucketOrd;
+                            collectExistingBucket(sub, doc, bucketOrd);
+                        } else {
+                            collectBucket(sub, doc, bucketOrd);
+                        }
+                        previousKey = key;
                     }
-                    long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
-                    if (bucketOrd < 0) { // already seen
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        collectBucket(sub, doc, bucketOrd);
-                    }
-                    previousKey = key;
                 }
             }
         };

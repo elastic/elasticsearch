@@ -15,27 +15,39 @@ If the following mapping configures the `percolator` field type for the
 
 [source,js]
 --------------------------------------------------
+PUT my_index
 {
-    "properties": {
-        "query": {
-            "type": "percolator"
+    "mappings": {
+        "doc": {
+            "properties": {
+                "query": {
+                    "type": "percolator"
+                },
+                "field": {
+                    "type": "text"
+                }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
-Then the following json snippet can be indexed as a native query:
+Then you can index a query:
 
 [source,js]
 --------------------------------------------------
+PUT my_index/doc/match_value
 {
     "query" : {
-		"match" : {
-			"field" : "value"
-		}
-	}
+        "match" : {
+            "field" : "value"
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 [IMPORTANT]
 =====================================

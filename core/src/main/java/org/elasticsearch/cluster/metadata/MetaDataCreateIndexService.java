@@ -374,9 +374,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 throw e;
                             }
 
+                            if (request.shrinkFrom() == null) {
+                                // now that the mapping is merged we can validate the index sort.
+                                // we cannot validate for index shrinking since the mapping is empty
+                                // at this point. The validation will take place later in the process
+                                // (when all shards are copied in a single place).
+                                indexService.getIndexSortSupplier().get();
+                            }
+
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                             // timestamp
                             final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
                                     aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
@@ -581,10 +590,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
         final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
+
         final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
             mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
-        final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.");
+        final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
+            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
         indexSettingsBuilder
             // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
             // once we are allocated.
@@ -592,11 +602,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
             // we only try once and then give up with a shrink index
             .put("index.allocation.max_retries", 1)
-            // now copy all similarity / analysis settings - this overrides all settings from the user unless they
+            // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
             // wanna add extra settings
             .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
-            .put(sourceMetaData.getSettings().filter(analysisSimilarityPredicate))
+            .put(sourceMetaData.getSettings().filter(sourceSettingsPredicate))
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());

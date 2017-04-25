@@ -279,7 +279,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             });
             IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
                 new NoneCircuitBreakerService(), mapperService);
-            indexShard = new IndexShard(routing, indexSettings, shardPath, store, indexCache, mapperService, similarityService,
+            indexShard = new IndexShard(routing, indexSettings, shardPath, store, () ->null, indexCache, mapperService, similarityService,
                 indexFieldDataService, engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
                 BigArrays.NON_RECYCLING_INSTANCE, warmer, globalCheckpointSyncer, Collections.emptyList(), Arrays.asList(listeners));
             success = true;
@@ -484,7 +484,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Engine.Index index;
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source),
+                SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source),
                     xContentType),
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
@@ -492,7 +492,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 false);
         } else {
             index = shard.prepareIndexOnReplica(
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source),
+                SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source),
                     xContentType),
                 randomInt(1 << 10), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }

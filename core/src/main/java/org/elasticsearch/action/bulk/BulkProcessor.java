@@ -184,12 +184,7 @@ public class BulkProcessor implements Closeable {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
-
-        if (concurrentRequests == 0) {
-            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, threadPool);
-        } else {
-            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, threadPool, concurrentRequests);
-        }
+        this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, threadPool, concurrentRequests);
 
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);

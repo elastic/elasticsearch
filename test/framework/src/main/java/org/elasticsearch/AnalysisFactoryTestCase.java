@@ -20,14 +20,12 @@
 package org.elasticsearch;
 
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.index.analysis.ASCIIFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
 import org.elasticsearch.index.analysis.ArabicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ArabicStemTokenFilterFactory;
@@ -92,7 +90,6 @@ import org.elasticsearch.index.analysis.TruncateTokenFilterFactory;
 import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
@@ -101,6 +98,7 @@ import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -110,7 +108,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Alerts us if new analyzers are added to lucene, so we don't miss them.
+ * Alerts us if new analysis components are added to Lucene, so we don't miss them.
  * <p>
  * If we don't want to expose one for a specific reason, just map it to Void.
  * The deprecated ones can be mapped to Deprecated.class.
@@ -155,7 +153,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;
     static {
-        PREBUILT_TOKENIZERS = new HashMap<>();
+        PREBUILT_TOKENIZERS = new EnumMap<>(PreBuiltTokenizers.class);
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {
@@ -178,7 +176,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("apostrophe",                ApostropheFilterFactory.class)
         .put("arabicnormalization",       ArabicNormalizationFilterFactory.class)
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
-        .put("asciifolding",              ASCIIFoldingTokenFilterFactory.class)
+        .put("asciifolding",              MovedToAnalysisCommon.class)
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
         .put("bulgarianstem",             StemmerTokenFilterFactory.class)
         .put("cjkbigram",                 CJKBigramFilterFactory.class)
@@ -253,8 +251,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
-        .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
-        .put("worddelimitergraph",        WordDelimiterGraphFilterFactory.class)
+        .put("worddelimiter",             MovedToAnalysisCommon.class)
+        .put("worddelimitergraph",        MovedToAnalysisCommon.class)
         .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
@@ -285,12 +283,14 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("fingerprint",               Void.class)
         // for tee-sinks
         .put("daterecognizer",            Void.class)
+        // for token filters that generate bad offsets, which are now rejected since Lucene 7
+        .put("fixbrokenoffsets",          Void.class)
 
         .immutableMap();
 
     static final Map<PreBuiltTokenFilters, Class<?>> PREBUILT_TOKENFILTERS;
     static {
-        PREBUILT_TOKENFILTERS = new HashMap<>();
+        PREBUILT_TOKENFILTERS = new EnumMap<>(PreBuiltTokenFilters.class);
         for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {
@@ -336,7 +336,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS;
     static {
-        PREBUILT_CHARFILTERS = new HashMap<>();
+        PREBUILT_CHARFILTERS = new EnumMap<>(PreBuiltCharFilters.class);
         for (PreBuiltCharFilters tokenizer : PreBuiltCharFilters.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {
@@ -399,6 +399,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
             }
         }
         expected.remove(Void.class);
+        expected.remove(MovedToAnalysisCommon.class);
         expected.remove(Deprecated.class);
 
         Collection<Class<?>> actual = new HashSet<>();
@@ -487,4 +488,11 @@ public class AnalysisFactoryTestCase extends ESTestCase {
                 classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }
 
+    /**
+     * Marker class for components that have moved to the analysis-common modules. This will be
+     * removed when the module is complete and these analysis components aren't available to core.
+     */
+    protected static final class MovedToAnalysisCommon {
+        private MovedToAnalysisCommon() {}
+    }
 }

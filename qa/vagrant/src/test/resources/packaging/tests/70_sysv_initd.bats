@@ -147,6 +147,10 @@ setup() {
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
     echo "-Xmx512m" >> "$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
     echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE

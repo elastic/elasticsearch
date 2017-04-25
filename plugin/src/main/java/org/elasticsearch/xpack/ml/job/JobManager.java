@@ -169,12 +169,12 @@ public class JobManager extends AbstractComponent {
         jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
-                auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
 
                 clusterService.submitStateUpdateTask("put-job-" + job.getId(),
                         new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
                             @Override
                             protected PutJobAction.Response newResponse(boolean acknowledged) {
+                                auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
                                 return new PutJobAction.Response(acknowledged, job);
                             }
 

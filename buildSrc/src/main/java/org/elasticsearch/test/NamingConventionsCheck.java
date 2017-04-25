@@ -28,8 +28,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Checks that all tests in a directory are named according to our naming conventions. This is important because tests that do not follow
@@ -47,10 +47,10 @@ public class NamingConventionsCheck {
     public static void main(String[] args) throws IOException {
         Class<?> testClass = null;
         Class<?> integTestClass = null;
-        Path testPath = null;
-        Path mainPath = null;
+        Path rootPath = null;
         boolean skipIntegTestsInDisguise = false;
         boolean selfTest = false;
+        boolean checkMainClasses = false;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             switch (arg) {
@@ -66,12 +66,11 @@ public class NamingConventionsCheck {
                 case "--self-test":
                     selfTest = true;
                     break;
+                case "--main":
+                    checkMainClasses = true;
+                    break;
                 case "--":
-                    i++; // Throw out --, paths are next
-                    testPath = Paths.get(args[i++]);
-                    if (i < args.length) {
-                        mainPath = Paths.get(args[i++]);
-                    }
+                    rootPath = Paths.get(args[++i]);
                     break;
                 default:
                     fail("unsupported argument '" + arg + "'");
@@ -79,44 +78,44 @@ public class NamingConventionsCheck {
         }
 
         NamingConventionsCheck check = new NamingConventionsCheck(testClass, integTestClass);
-        if (Files.exists(testPath)) {
-            check.checkTests(testPath, skipIntegTestsInDisguise);
-        }
-        if (mainPath != null && Files.exists(mainPath)) {
-            check.checkMain(mainPath);
+        if (checkMainClasses) {
+            check.checkMain(rootPath);
+        } else {
+            check.checkTests(rootPath, skipIntegTestsInDisguise);
         }
 
         if (selfTest) {
-            assertViolation("WrongName", check.missingSuffix);
-            assertViolation("WrongNameTheSecond", check.missingSuffix);
-            assertViolation("DummyAbstractTests", check.notRunnable);
-            assertViolation("DummyInterfaceTests", check.notRunnable);
-            assertViolation("InnerTests", check.innerClasses);
-            assertViolation("NotImplementingTests", check.notImplementing);
-            assertViolation("PlainUnit", check.pureUnitTest);
-            assertViolation(NamingConventionsCheckInMainTests.class.getName(), check.testsInMain);
-            assertViolation(NamingConventionsCheckInMainIT.class.getName(), check.testsInMain);
+            if (checkMainClasses) {
+                assertViolation(NamingConventionsCheckInMainTests.class.getName(), check.testsInMain);
+                assertViolation(NamingConventionsCheckInMainIT.class.getName(), check.testsInMain);
+            } else {
+                assertViolation("WrongName", check.missingSuffix);
+                assertViolation("WrongNameTheSecond", check.missingSuffix);
+                assertViolation("DummyAbstractTests", check.notRunnable);
+                assertViolation("DummyInterfaceTests", check.notRunnable);
+                assertViolation("InnerTests", check.innerClasses);
+                assertViolation("NotImplementingTests", check.notImplementing);
+                assertViolation("PlainUnit", check.pureUnitTest);
+            }
         }
 
         // Now we should have no violations
         assertNoViolations(
-                () -> "Not all subclasses of " + check.testClass.getSimpleName()
+                "Not all subclasses of " + check.testClass.getSimpleName()
                     + " match the naming convention. Concrete classes must end with [Tests]",
                 check.missingSuffix);
-        assertNoViolations(() -> "Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
-        assertNoViolations(() -> "Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
-        assertNoViolations(() -> "Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
+        assertNoViolations("Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
+        assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
+        assertNoViolations("Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
         assertNoViolations(
-                () -> "Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]",
+                "Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]",
                 check.notImplementing);
         assertNoViolations(
-                () -> "Classes ending with [Tests] or [IT] "
-                    + (check.testClass == null ? "" : "or extending [" + check.testClass.getSimpleName() + "]")
-                    + " must be in src/test/java",
+                "Classes ending with [Tests] or [IT] or extending [" + check.testClass.getSimpleName() + "] must be in src/test/java",
                 check.testsInMain);
         if (skipIntegTestsInDisguise == false) {
             assertNoViolations(
-                    () -> "Subclasses of " + check.integTestClass.getSimpleName() + " should end with IT as they are integration tests",
+                    "Subclasses of " + check.integTestClass.getSimpleName() + " should end with IT as they are integration tests",
                     check.integTestsInDisguise);
         }
     }
@@ -133,7 +132,7 @@ public class NamingConventionsCheck {
     private final Class<?> integTestClass;
 
     public NamingConventionsCheck(Class<?> testClass, Class<?> integTestClass) {
-        this.testClass = testClass;
+        this.testClass = Objects.requireNonNull(testClass, "--test-class is required");
         this.integTestClass = integTestClass;
     }
 
@@ -203,9 +202,9 @@ public class NamingConventionsCheck {
      * Fail the process if there are any violations in the set. Named to look like a junit assertion even though it isn't because it is
      * similar enough.
      */
-    private static void assertNoViolations(Supplier<String> message, Set<Class<?>> set) {
+    private static void assertNoViolations(String message, Set<Class<?>> set) {
         if (false == set.isEmpty()) {
-            System.err.println(message.get() + ":");
+            System.err.println(message + ":");
             for (Class<?> bad : set) {
                 System.err.println(" * " + bad.getName());
             }
@@ -306,7 +305,7 @@ public class NamingConventionsCheck {
          * Is this class a test case?
          */
         protected boolean isTestCase(Class<?> clazz) {
-            return testClass != null && testClass.isAssignableFrom(clazz);
+            return testClass.isAssignableFrom(clazz);
         }
 
         @Override

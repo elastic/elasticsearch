@@ -169,7 +169,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    protected XContentBuilder otherStatsToXCotent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.SUM_OF_SQRS, count != 0 ? sumOfSqrs : null);
         builder.field(Fields.VARIANCE, count != 0 ? getVariance() : null);
         builder.field(Fields.STD_DEVIATION, count != 0 ? getStdDeviation() : null);

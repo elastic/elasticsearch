@@ -54,7 +54,7 @@ public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
         PARSER.declareField((agg, normalized) -> {
             agg.normalizedValue = normalized;
             agg.hasNormalizationFactor = true;
-        }, (parser, context) -> parseValue(parser, Double.NaN), NORMALIZED, ValueType.DOUBLE_OR_NULL);
+        }, (parser, context) -> parseDouble(parser, Double.NaN), NORMALIZED, ValueType.DOUBLE_OR_NULL);
         PARSER.declareString((agg, normalAsString) -> agg.normalizedAsString = normalAsString, NORMALIZED_AS_STRING);
     }
 

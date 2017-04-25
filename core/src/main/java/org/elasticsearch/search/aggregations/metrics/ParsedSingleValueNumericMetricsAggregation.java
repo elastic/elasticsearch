@@ -20,54 +20,41 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-
-import java.io.IOException;
 
 public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation
         implements NumericMetricsAggregation.SingleValue {
 
-        protected double value;
-        protected String valueAsString;
+    protected double value;
+    protected String valueAsString;
 
-        @Override
-        public String getValueAsString() {
-            if (valueAsString != null) {
-                return valueAsString;
-            } else {
-                return Double.toString(value);
-            }
+    @Override
+    public String getValueAsString() {
+        if (valueAsString != null) {
+            return valueAsString;
+        } else {
+            return Double.toString(value);
         }
+    }
 
-        @Override
-        public double value() {
-            return value;
-        }
+    @Override
+    public double value() {
+        return value;
+    }
 
-        protected void setValue(double value) {
-            this.value = value;
-        }
+    protected void setValue(double value) {
+        this.value = value;
+    }
 
-        protected void setValueAsString(String valueAsString) {
-            this.valueAsString = valueAsString;
-        }
-
-        protected static double parseValue(XContentParser parser, double defaultNullValue) throws IOException {
-            Token currentToken = parser.currentToken();
-            if (currentToken == XContentParser.Token.VALUE_NUMBER || currentToken == XContentParser.Token.VALUE_STRING) {
-                return parser.doubleValue();
-            } else {
-                return defaultNullValue;
-            }
-        }
+    protected void setValueAsString(String valueAsString) {
+        this.valueAsString = valueAsString;
+    }
 
     protected static void declareSingleValueFields(ObjectParser<? extends ParsedSingleValueNumericMetricsAggregation, Void> objectParser,
             double defaultNullValue) {
         declareAggregationFields(objectParser);
         objectParser.declareField(ParsedSingleValueNumericMetricsAggregation::setValue,
-                (parser, context) -> parseValue(parser, defaultNullValue), CommonFields.VALUE, ValueType.DOUBLE_OR_NULL);
+                (parser, context) -> parseDouble(parser, defaultNullValue), CommonFields.VALUE, ValueType.DOUBLE_OR_NULL);
         objectParser.declareString(ParsedSingleValueNumericMetricsAggregation::setValueAsString, CommonFields.VALUE_AS_STRING);
     }
 }

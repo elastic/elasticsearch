@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -77,4 +79,17 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
     }
 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
+
+    /**
+     * Parse a token of type XContentParser.Token.VALUE_NUMBER or XContentParser.Token.STRING to a double.
+     * In other cases the default value is returned instead.
+     */
+    protected static double parseDouble(XContentParser parser, double defaultNullValue) throws IOException {
+        Token currentToken = parser.currentToken();
+        if (currentToken == XContentParser.Token.VALUE_NUMBER || currentToken == XContentParser.Token.VALUE_STRING) {
+            return parser.doubleValue();
+        } else {
+            return defaultNullValue;
+        }
+    }
 }

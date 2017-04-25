@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static org.elasticsearch.mock.orig.Mockito.never;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;

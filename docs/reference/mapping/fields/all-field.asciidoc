@@ -74,6 +74,8 @@ The `_all` field is not free: it requires extra CPU cycles and uses more disk
 space. For this reason, it is disabled by default. If needed, it can be
 <<enabling-all-field,enabled>>.
 
+If a field is not <<mapping-index,indexed>>, it will also not be included in `_all`.
+
 [[querying-all-field]]
 ==== Using the `_all` field in queries
 

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.ConnectFuture;
-
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetAddress;

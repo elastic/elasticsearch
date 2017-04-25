@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -71,24 +70,6 @@ public class CloseFuture extends BaseFuture<NioChannel> {
         }
     }
 
-    public boolean channelClosed(NioChannel channel) {
-        boolean set = set(channel);
-        if (set) {
-            listener.accept(channel);
-        }
-        return set;
-    }
-
-    public boolean channelCloseThrewException(NioChannel channel, IOException ex) {
-        boolean set = setException(ex);
-        // TODO: What should we do in regards to exception?
-        if (set) {
-            listener.accept(channel);
-        }
-        return set;
-    }
-
-
     public boolean isClosed() {
         return super.isDone();
     }
@@ -96,6 +77,22 @@ public class CloseFuture extends BaseFuture<NioChannel> {
     public void setListener(Consumer<NioChannel> listener) {
         assert this.listener == voidR : "Should only set listener once";
         this.listener = listener;
+    }
+
+    void channelClosed(NioChannel channel) {
+        boolean set = set(channel);
+        if (set) {
+            listener.accept(channel);
+        }
+    }
+
+
+    void channelCloseThrewException(NioChannel channel, IOException ex) {
+        boolean set = setException(ex);
+        // TODO: What should we do in regards to exception?
+        if (set) {
+            listener.accept(channel);
+        }
     }
 
 }

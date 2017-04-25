@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.CloseFuture;
-import org.elasticsearch.transport.nio.ConnectFuture;
 import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 

@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -74,15 +73,15 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
         return getException() != null;
     }
 
-    public boolean setConnectionComplete(NioSocketChannel channel) {
-        return set(channel);
+    void setConnectionComplete(NioSocketChannel channel) {
+        set(channel);
     }
 
-    public boolean setConnectionFailed(IOException e) {
-        return setException(e);
+    void setConnectionFailed(IOException e) {
+        setException(e);
     }
 
-    public boolean setConnectionFailed(RuntimeException e) {
-        return setException(e);
+    void setConnectionFailed(RuntimeException e) {
+        setException(e);
     }
 }

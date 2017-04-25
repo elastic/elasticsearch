@@ -80,24 +80,6 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
 public abstract class StreamInput extends InputStream {
     private Version version = Version.CURRENT;
 
-    private final boolean useExceptions;
-
-    /**
-     * Creates a new stream input that uses assertions to ensure data is formatted properly.
-     * The downside with this is that when running in a actual node, errors can be missed as
-     * assertions are disabled by default and we can allow the use of invalid data!
-     */
-    protected StreamInput() {
-        this(false);
-    }
-
-    /**
-     * Creates a new stream input that will throw exceptions on invalidly formatted values
-     */
-    protected StreamInput(boolean useExceptions) {
-        this.useExceptions = useExceptions;
-    }
-
     /**
      * The version of the node on the other side of this stream.
      */
@@ -220,12 +202,8 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        if (useExceptions) {
-            if ((b & 0x80) != 0) {
-                throw new IOException("Invalid vInt " + Integer.toHexString(b) + " & 0x80 = " + Integer.toHexString((b & 0x80)));
-            }
-        } else {
-            assert (b & 0x80) == 0;
+        if ((b & 0x80) != 0) {
+            throw new IOException("Invalid vInt " + Integer.toHexString(b) + " & 0x80 = " + Integer.toHexString((b & 0x80)));
         }
         return i | ((b & 0x7F) << 28);
     }
@@ -391,11 +369,7 @@ public abstract class StreamInput extends InputStream {
                     buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
                 default:
-                    if (useExceptions) {
-                        throw new IOException("Invalud string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
-                    } else {
-                        assert false : "unexpected character: " + c + " hex: " + Integer.toHexString(c);
-                    }
+                    throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
             }
         }
         return spare.toString();
@@ -836,11 +810,7 @@ public abstract class StreamInput extends InputStream {
                 case 17:
                     return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
                 default:
-                    if (useExceptions) {
-                        throw new IOException("no such exception for id: " + key);
-                    } else {
-                        assert false : "no such exception for id: " + key;
-                    }
+                    throw new IOException("no such exception for id: " + key);
             }
         }
         return null;

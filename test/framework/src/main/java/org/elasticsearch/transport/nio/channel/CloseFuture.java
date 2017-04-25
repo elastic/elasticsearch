@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;
@@ -29,9 +30,7 @@ import java.util.function.Consumer;
 
 public class CloseFuture extends BaseFuture<NioChannel> {
 
-    private static final Consumer<NioChannel> voidR = (c) -> {};
-
-    private volatile Consumer<NioChannel> listener = voidR;
+    private final SetOnce<Consumer<NioChannel>> listener = new SetOnce<>();
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
@@ -76,14 +75,16 @@ public class CloseFuture extends BaseFuture<NioChannel> {
     }
 
     public void setListener(Consumer<NioChannel> listener) {
-        assert this.listener == voidR : "Should only set listener once";
-        this.listener = listener;
+        this.listener.set(listener);
     }
 
     void channelClosed(NioChannel channel) {
         boolean set = set(channel);
         if (set) {
-            listener.accept(channel);
+            Consumer<NioChannel> listener = this.listener.get();
+            if (listener != null) {
+                listener.accept(channel);
+            }
         }
     }
 
@@ -92,7 +93,10 @@ public class CloseFuture extends BaseFuture<NioChannel> {
         boolean set = setException(ex);
         // TODO: What should we do in regards to exception?
         if (set) {
-            listener.accept(channel);
+            Consumer<NioChannel> listener = this.listener.get();
+            if (listener != null) {
+                listener.accept(channel);
+            }
         }
     }
 

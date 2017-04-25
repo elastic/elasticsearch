@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -137,7 +138,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1092,13 +1092,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static final Script mockScript(String id) {
         return new Script(ScriptType.INLINE, MockScriptEngine.NAME, id, emptyMap());
-    }
-
-    /**
-     * Create a "mock" template.
-     */
-    public static final Script mockTemplate(String id) {
-        return new Script(ScriptType.INLINE, "mocktemplate", id, emptyMap(), singletonMap(Script.CONTENT_TYPE_OPTION, "application/json"));
     }
 
     /** Returns the suite failure marker: internal use only! */

@@ -107,9 +107,7 @@ public class NamingConventionsCheck {
         assertNoViolations("Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
         assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
         assertNoViolations("Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
-        assertNoViolations(
-                "Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]",
-                check.notImplementing);
+        assertNoViolations("Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]", check.notImplementing);
         assertNoViolations(
                 "Classes ending with [Tests] or [IT] or extending [" + check.testClass.getSimpleName() + "] must be in src/test/java",
                 check.testsInMain);

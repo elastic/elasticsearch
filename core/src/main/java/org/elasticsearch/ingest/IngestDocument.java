@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -554,7 +555,7 @@ public final class IngestDocument {
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
     public Map<MetaData, String> extractMetadata() {
-        Map<MetaData, String> metadataMap = new HashMap<>();
+        Map<MetaData, String> metadataMap = new EnumMap<>(MetaData.class);
         for (MetaData metaData : MetaData.values()) {
             metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
         }

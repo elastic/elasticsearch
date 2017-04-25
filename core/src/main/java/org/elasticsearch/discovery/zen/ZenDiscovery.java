@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.PublishedClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -361,7 +360,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 throw new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes");
             }
 
-            boolean processed = processNextPendingClusterState("master " + newState.nodes().getMasterNode() +
+            boolean processed = processNextCommittedClusterState("master " + newState.nodes().getMasterNode() +
                 " committed version [" + newState.version() + "] source [" + clusterChangedEvent.source() + "]");
             if (processed == false) {
                 assert false : "CS published to itself not processed";
@@ -565,7 +564,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     // visible for testing
-    static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, PublishedClusterStateTaskListener {
+    static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, ClusterStateTaskListener {
 
         private final AllocationService allocationService;
         private final ElectMasterService electMasterService;
@@ -731,7 +730,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     // return true if state has been sent to applier
-    boolean processNextPendingClusterState(String reason) {
+    boolean processNextCommittedClusterState(String reason) {
         assert Thread.holdsLock(stateMutex);
 
         final ClusterState newClusterState = publishClusterState.pendingStatesQueue().getNextClusterStateToProcess();
@@ -1089,7 +1088,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         @Override
         public void onNewClusterState(String reason) {
             synchronized (stateMutex) {
-                processNextPendingClusterState(reason);
+                processNextCommittedClusterState(reason);
             }
         }
     }

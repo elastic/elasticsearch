@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
-public interface AckedClusterStateTaskListener extends PublishedClusterStateTaskListener {
+public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
 
     /**
      * Called to determine which nodes the acknowledgement is expected from

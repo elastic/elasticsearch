@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
-import org.elasticsearch.cluster.PublishedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -130,9 +130,9 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         class UpdateTask extends BatchedTask {
-            final PublishedClusterStateTaskListener listener;
+            final ClusterStateTaskListener listener;
 
-            UpdateTask(Priority priority, String source, Object task, PublishedClusterStateTaskListener listener,
+            UpdateTask(Priority priority, String source, Object task, ClusterStateTaskListener listener,
                        ClusterStateTaskExecutor<?> executor) {
                 super(priority, source, executor, task);
                 this.listener = listener;
@@ -294,14 +294,14 @@ public class MasterService extends AbstractLifecycleComponent {
 
     /**
      * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
-     * ClusterStateTaskExecutor, PublishedClusterStateTaskListener)}, submitted updates will not be batched.
+     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
      *
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      *                   task
      *
      */
-    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & PublishedClusterStateTaskListener>
+    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener>
         void submitStateUpdateTask(
         String source, T updateTask) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
@@ -329,7 +329,7 @@ public class MasterService extends AbstractLifecycleComponent {
     public <T> void submitStateUpdateTask(String source, T task,
                                           ClusterStateTaskConfig config,
                                           ClusterStateTaskExecutor<T> executor,
-                                          PublishedClusterStateTaskListener listener) {
+                                          ClusterStateTaskListener listener) {
         submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
     }
 
@@ -446,7 +446,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
-    private SafeClusterStateTaskListener safe(PublishedClusterStateTaskListener listener) {
+    private SafeClusterStateTaskListener safe(ClusterStateTaskListener listener) {
         if (listener instanceof AckedClusterStateTaskListener) {
             return new SafeAckedClusterStateTaskListener((AckedClusterStateTaskListener) listener, logger);
         } else {
@@ -454,11 +454,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class SafeClusterStateTaskListener implements PublishedClusterStateTaskListener {
-        private final PublishedClusterStateTaskListener listener;
+    private static class SafeClusterStateTaskListener implements ClusterStateTaskListener {
+        private final ClusterStateTaskListener listener;
         private final Logger logger;
 
-        SafeClusterStateTaskListener(PublishedClusterStateTaskListener listener, Logger logger) {
+        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Logger logger) {
             this.listener = listener;
             this.logger = logger;
         }
@@ -726,7 +726,7 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      */
     public <T> void submitStateUpdateTasks(final String source,
-                                           final Map<T, PublishedClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
+                                           final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
                                            final ClusterStateTaskExecutor<T> executor) {
         if (!lifecycle.started()) {
             return;

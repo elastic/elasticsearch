@@ -27,9 +27,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
-import org.elasticsearch.cluster.PublishedClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -191,7 +191,7 @@ public class MasterServiceTests extends ESTestCase {
                     latch.countDown();
                 }
             },
-            new PublishedClusterStateTaskListener() {
+            new ClusterStateTaskListener() {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     throw new IllegalStateException(source);
@@ -425,7 +425,7 @@ public class MasterServiceTests extends ESTestCase {
             totalTaskCount += taskCount;
         }
         final CountDownLatch updateLatch = new CountDownLatch(totalTaskCount);
-        final PublishedClusterStateTaskListener listener = new PublishedClusterStateTaskListener() {
+        final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
             public void onFailure(String source, Exception e) {
                 fail(ExceptionsHelper.detailedMessage(e));
@@ -459,7 +459,7 @@ public class MasterServiceTests extends ESTestCase {
                                 executor,
                                 listener);
                         } else {
-                            Map<Task, PublishedClusterStateTaskListener> taskListeners = new HashMap<>();
+                            Map<Task, ClusterStateTaskListener> taskListeners = new HashMap<>();
                             tasks.stream().forEach(t -> taskListeners.put(t, listener));
                             masterService.submitStateUpdateTasks(
                                 threadName,
@@ -518,7 +518,7 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterState newClusterState = ClusterState.builder(currentState).build();
                 return ClusterStateTaskExecutor.ClusterTasksResult.builder().successes(tasks).build(newClusterState);
             },
-            new PublishedClusterStateTaskListener() {
+            new ClusterStateTaskListener() {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     BaseFuture<Void> future = new BaseFuture<Void>() {};

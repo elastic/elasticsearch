@@ -28,7 +28,7 @@ import java.util.List;
  * Used to apply state updates on nodes that are not necessarily master
  */
 public abstract class LocalClusterUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<LocalClusterUpdateTask>,
-    PublishedClusterStateTaskListener {
+    ClusterStateTaskListener {
 
     private final Priority priority;
 

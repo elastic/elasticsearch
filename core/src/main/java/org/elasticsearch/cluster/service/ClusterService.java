@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
-import org.elasticsearch.cluster.PublishedClusterStateTaskListener;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -222,14 +222,14 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     /**
      * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
-     * ClusterStateTaskExecutor, PublishedClusterStateTaskListener)}, submitted updates will not be batched.
+     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
      *
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      *                   task
      *
      */
-    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & PublishedClusterStateTaskListener>
+    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener>
         void submitStateUpdateTask(String source, T updateTask) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
     }
@@ -256,7 +256,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     public <T> void submitStateUpdateTask(String source, T task,
                                           ClusterStateTaskConfig config,
                                           ClusterStateTaskExecutor<T> executor,
-                                          PublishedClusterStateTaskListener listener) {
+                                          ClusterStateTaskListener listener) {
         submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
     }
 
@@ -274,7 +274,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      *
      */
     public <T> void submitStateUpdateTasks(final String source,
-                                           final Map<T, PublishedClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
+                                           final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
                                            final ClusterStateTaskExecutor<T> executor) {
         masterService.submitStateUpdateTasks(source, tasks, config, executor);
     }

@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.PublishedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -213,7 +213,7 @@ public class ShardStateAction extends AbstractComponent {
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
-                new PublishedClusterStateTaskListener() {
+                new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Exception e) {
                         logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
@@ -384,7 +384,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardEntry>, PublishedClusterStateTaskListener {
+    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardEntry>, ClusterStateTaskListener {
         private final AllocationService allocationService;
         private final Logger logger;
 

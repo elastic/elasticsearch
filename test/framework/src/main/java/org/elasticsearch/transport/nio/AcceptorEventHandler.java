@@ -33,7 +33,6 @@ public class AcceptorEventHandler extends EventHandler {
 
     private final ChildSelectorStrategy strategy;
     private final OpenChannels openChannels;
-    private final AcceptedChannelCloseListener closeListener = new AcceptedChannelCloseListener();
 
     public AcceptorEventHandler(Logger logger, OpenChannels openChannels, ChildSelectorStrategy strategy) {
         super(logger);
@@ -50,7 +49,7 @@ public class AcceptorEventHandler extends EventHandler {
         ChannelFactory channelFactory = nioChannel.getChannelFactory();
         NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioChannel);
         openChannels.acceptedChannelOpened(nioSocketChannel);
-        nioSocketChannel.getCloseFuture().setListener(closeListener);
+        nioSocketChannel.getCloseFuture().setListener(openChannels::channelClosed);
         strategy.next().registerSocketChannel(nioSocketChannel);
     }
 
@@ -60,13 +59,5 @@ public class AcceptorEventHandler extends EventHandler {
 
     public void genericServerChannelException(NioServerSocketChannel channel, Exception e) {
         logger.trace("event handling exception", e);
-    }
-
-    class AcceptedChannelCloseListener implements Consumer<NioChannel> {
-
-        @Override
-        public void accept(final NioChannel channel) {
-            openChannels.channelClosed(channel);
-        }
     }
 }

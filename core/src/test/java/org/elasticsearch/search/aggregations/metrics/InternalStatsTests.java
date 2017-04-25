@@ -67,10 +67,10 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
         assertTrue(parsedAggregation instanceof ParsedStats);
         ParsedStats parsed = (ParsedStats) parsedAggregation;
-        commonStatsAssertions(aggregation, parsed);
+        assertStats(aggregation, parsed);
     }
 
-    static void commonStatsAssertions(InternalStats aggregation, ParsedStats parsed) {
+    static void assertStats(InternalStats aggregation, ParsedStats parsed) {
         long count = aggregation.getCount();
         assertEquals(count, parsed.getCount());
         // for count == 0, fields are rendered as `null`, so  we test that we parse to default values used also in the reduce phase

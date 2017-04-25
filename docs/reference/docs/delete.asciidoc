@@ -11,7 +11,7 @@ from an index called twitter, under a type called tweet, with id valued
 DELETE /twitter/tweet/1
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/24303]
+// TEST[setup:twitter]
 
 The result of the above delete operation is:
 

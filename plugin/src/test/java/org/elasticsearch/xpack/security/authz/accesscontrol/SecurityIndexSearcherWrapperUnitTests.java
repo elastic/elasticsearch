@@ -68,13 +68,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
@@ -458,10 +457,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                     }
                 };
 
-        CompiledScript compiledScript = mock(CompiledScript.class);
-        when(scriptService.compile(any(Script.class), eq(ScriptContext.Standard.SEARCH))).thenReturn(compiledScript);
-        ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(eq(compiledScript), any())).thenReturn(executableScript);
+        CompiledTemplate compiledScript = mock(CompiledTemplate.class);
+        when(scriptService.compileTemplate(any(Script.class), eq(ScriptContext.Standard.SEARCH))).thenReturn(compiledScript);
 
         XContentBuilder builder = jsonBuilder();
         String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
@@ -472,7 +469,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).compile(argument.capture(), eq(ScriptContext.Standard.SEARCH));
+        verify(scriptService).compileTemplate(argument.capture(), eq(ScriptContext.Standard.SEARCH));
         Script usedScript = argument.getValue();
         assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
         assertThat(usedScript.getType(), equalTo(script.getType()));

@@ -68,7 +68,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
 
-    public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterService#updateTask";
+    public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterApplierService#updateTask";
 
     private final ClusterSettings clusterSettings;
     protected final ThreadPool threadPool;

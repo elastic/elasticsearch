@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -26,7 +25,6 @@ import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -39,13 +37,17 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return new InternalStats(name, count, sum, min, max, format, pipelineAggregators, Collections.emptyMap());
+        return new InternalStats(name, count, sum, min, max, format, pipelineAggregators, metaData);
     }
 
     @Override
     protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
         assertTrue(parsedAggregation instanceof ParsedStats);
         ParsedStats parsed = (ParsedStats) parsedAggregation;
+        assertStats(aggregation, parsed);
+    }
+
+    static void assertStats(InternalStats aggregation, ParsedStats parsed) {
         long count = aggregation.getCount();
         assertEquals(count, parsed.getCount());
         // for count == 0, fields are rendered as `null`, so  we test that we parse to default values used also in the reduce phase

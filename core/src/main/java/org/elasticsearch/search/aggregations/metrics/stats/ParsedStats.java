@@ -119,20 +119,28 @@ public class ParsedStats extends ParsedAggregation implements Stats {
             ParsedStats::new);
 
     static {
-        declareAggregationFields(PARSER);
-        PARSER.declareLong((agg, value) -> agg.count = value, new ParseField(Fields.COUNT));
-        PARSER.declareField((agg, value) -> agg.min = value, (parser, context) -> parseDouble(parser, Double.POSITIVE_INFINITY),
+        declareStatsFields(PARSER);
+    }
+
+    protected static void declareStatsFields(ObjectParser<? extends ParsedStats, Void> objectParser) {
+        declareAggregationFields(objectParser);
+        objectParser.declareLong((agg, value) -> agg.count = value, new ParseField(Fields.COUNT));
+        objectParser.declareField((agg, value) -> agg.min = value, (parser, context) -> parseDouble(parser, Double.POSITIVE_INFINITY),
                 new ParseField(Fields.MIN), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.max = value, (parser, context) -> parseDouble(parser, Double.NEGATIVE_INFINITY),
+        objectParser.declareField((agg, value) -> agg.max = value, (parser, context) -> parseDouble(parser, Double.NEGATIVE_INFINITY),
                 new ParseField(Fields.MAX), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.avg = value, (parser, context) -> parseDouble(parser, 0), new ParseField(Fields.AVG),
+        objectParser.declareField((agg, value) -> agg.avg = value, (parser, context) -> parseDouble(parser, 0), new ParseField(Fields.AVG),
                 ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.sum = value, (parser, context) -> parseDouble(parser, 0), new ParseField(Fields.SUM),
+        objectParser.declareField((agg, value) -> agg.sum = value, (parser, context) -> parseDouble(parser, 0), new ParseField(Fields.SUM),
                 ValueType.DOUBLE_OR_NULL);
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.MIN_AS_STRING, value), new ParseField(Fields.MIN_AS_STRING));
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.MAX_AS_STRING, value), new ParseField(Fields.MAX_AS_STRING));
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.AVG_AS_STRING, value), new ParseField(Fields.AVG_AS_STRING));
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.SUM_AS_STRING, value), new ParseField(Fields.SUM_AS_STRING));
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.MIN_AS_STRING, value),
+                new ParseField(Fields.MIN_AS_STRING));
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.MAX_AS_STRING, value),
+                new ParseField(Fields.MAX_AS_STRING));
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.AVG_AS_STRING, value),
+                new ParseField(Fields.AVG_AS_STRING));
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.SUM_AS_STRING, value),
+                new ParseField(Fields.SUM_AS_STRING));
     }
 
     public static ParsedStats fromXContent(XContentParser parser, final String name) {

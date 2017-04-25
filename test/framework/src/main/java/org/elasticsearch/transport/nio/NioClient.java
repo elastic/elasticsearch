@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class NioClient {
 
@@ -44,16 +45,16 @@ public class NioClient {
 
     private final Logger logger;
     private final OpenChannels openChannels;
-    private final ChildSelectorStrategy strategy;
+    private final Supplier<SocketSelector> selectorSupplier;
     private final TimeValue defaultConnectTimeout;
     private final ChannelFactory channelFactory;
     private final AtomicInteger current = new AtomicInteger(0);
 
-    public NioClient(Logger logger, OpenChannels openChannels, ChildSelectorStrategy strategy, TimeValue connectTimeout,
+    public NioClient(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier, TimeValue connectTimeout,
                      ChannelFactory channelFactory) {
         this.logger = logger;
         this.openChannels = openChannels;
-        this.strategy = strategy;
+        this.selectorSupplier = selectorSupplier;
         this.defaultConnectTimeout = connectTimeout;
         this.channelFactory = channelFactory;
     }
@@ -70,7 +71,7 @@ public class NioClient {
             final ArrayList<NioSocketChannel> connections = new ArrayList<>(channels.length);
             final InetSocketAddress address = node.getAddress().address();
             for (int i = 0; i < channels.length; i++) {
-                SocketSelector socketSelector = strategy.next();
+                SocketSelector socketSelector = selectorSupplier.get();
                 NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address);
                 openChannels.clientChannelOpened(nioSocketChannel);
                 nioSocketChannel.getCloseFuture().setListener(closeListener);

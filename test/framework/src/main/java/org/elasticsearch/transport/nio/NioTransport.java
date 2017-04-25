@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -160,8 +161,8 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
                 for (int i = 0; i < acceptorCount; ++i) {
-                    ChildSelectorStrategy strategy = new ChildSelectorStrategy(socketSelectors);
-                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, strategy);
+                    Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
+                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier);
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler, bigArrays);
                     acceptors.add(acceptor);
                 }
@@ -260,9 +261,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     private NioClient createClient() {
-        ChildSelectorStrategy strategy = new ChildSelectorStrategy(socketSelectors);
+        Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
         ChannelFactory channelFactory = new ChannelFactory(settings, tcpReadHandler);
-        return new NioClient(logger, openChannels, strategy, defaultConnectionProfile.getConnectTimeout(), channelFactory);
+        return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
     }
 
     class ClientChannelCloseListener implements Consumer<NioChannel> {

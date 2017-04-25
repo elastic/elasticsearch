@@ -28,16 +28,17 @@ import org.elasticsearch.transport.nio.channel.SKUtils;
 
 import java.io.IOException;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class AcceptorEventHandler extends EventHandler {
 
-    private final ChildSelectorStrategy strategy;
+    private final Supplier<SocketSelector> selectorSupplier;
     private final OpenChannels openChannels;
 
-    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, ChildSelectorStrategy strategy) {
+    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier) {
         super(logger);
         this.openChannels = openChannels;
-        this.strategy = strategy;
+        this.selectorSupplier = selectorSupplier;
     }
 
     public void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
@@ -50,7 +51,7 @@ public class AcceptorEventHandler extends EventHandler {
         NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioChannel);
         openChannels.acceptedChannelOpened(nioSocketChannel);
         nioSocketChannel.getCloseFuture().setListener(openChannels::channelClosed);
-        strategy.next().registerSocketChannel(nioSocketChannel);
+        selectorSupplier.get().registerSocketChannel(nioSocketChannel);
     }
 
     public void acceptException(NioServerSocketChannel nioChannel, IOException exception) {

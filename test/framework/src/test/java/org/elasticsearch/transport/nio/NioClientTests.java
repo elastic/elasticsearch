@@ -38,6 +38,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -63,8 +64,8 @@ public class NioClientTests extends ESTestCase {
 
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(selector);
-        ChildSelectorStrategy strategy = new ChildSelectorStrategy(selectors);
-        client = new NioClient(logger, openChannels, strategy, TimeValue.timeValueMillis(5), channelFactory);
+        Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(selectors);
+        client = new NioClient(logger, openChannels, selectorSupplier, TimeValue.timeValueMillis(5), channelFactory);
 
         channels = new NioSocketChannel[2];
         address = new TransportAddress(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));

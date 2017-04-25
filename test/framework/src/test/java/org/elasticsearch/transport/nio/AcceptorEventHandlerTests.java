@@ -24,7 +24,6 @@ import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterServerChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -54,7 +53,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         openChannels = new OpenChannels(logger);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
-        handler = new AcceptorEventHandler(logger, openChannels, new ChildSelectorStrategy(selectors));
+        handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors));
 
         channel = new DoNotRegisterServerChannel("", mock(ServerSocketChannel.class), channelFactory);
         channel.register(mock(ESSelector.class));

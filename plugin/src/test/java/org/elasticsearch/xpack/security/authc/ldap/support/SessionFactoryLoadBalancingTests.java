@@ -12,12 +12,19 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.mocksocket.MockSocket;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -26,6 +33,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that the server sets properly load balance connections without throwing exceptions
  */
+@TestLogging("org.elasticsearch.xpack.security.authc.ldap.support:DEBUG")
 public class SessionFactoryLoadBalancingTests extends LdapTestCase {
 
     public void testRoundRobin() throws Exception {
@@ -62,33 +70,66 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         final int numberToKill = randomIntBetween(1, numberOfLdapServers - 1);
         logger.debug("killing [{}] servers", numberToKill);
 
-        // get a subset to kil
+        // get a subset to kill
         final List<InMemoryDirectoryServer> ldapServersToKill = randomSubsetOf(numberToKill, ldapServers);
         final List<InMemoryDirectoryServer> ldapServersList = Arrays.asList(ldapServers);
-        for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
-            final int index = ldapServersList.indexOf(ldapServerToKill);
-            assertThat(index, greaterThanOrEqualTo(0));
-            final Integer port = Integer.valueOf(ldapServers[index].getListenPort());
-            logger.debug("shutting down server index [{}] listening on [{}]", index, port);
-            assertTrue(ports.remove(port));
-            ldapServers[index].shutDown(true);
-            assertThat(ldapServers[index].getListenPort(), is(-1));
-        }
+        final List<MockServerSocket> boundSockets = new ArrayList<>();
+        final List<Thread> listenThreads = new ArrayList<>();
+        final CountDownLatch latch = new CountDownLatch(ldapServersToKill.size());
+        try {
+            for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
+                final int index = ldapServersList.indexOf(ldapServerToKill);
+                assertThat(index, greaterThanOrEqualTo(0));
+                final Integer port = Integer.valueOf(ldapServers[index].getListenPort());
+                logger.debug("shutting down server index [{}] listening on [{}]", index, port);
+                assertTrue(ports.remove(port));
+                ldapServers[index].shutDown(true);
 
-        final int numberOfIterations = randomIntBetween(1, 5);
-        for (int iteration = 0; iteration < numberOfIterations; iteration++) {
-            logger.debug("iteration [{}]", iteration);
-            for (Integer port : ports) {
-                LDAPConnection connection = null;
-                try {
+                // when running multiple test jvms, there is a chance that something else could
+                // start listening on this port so we try to avoid this by binding again to this
+                // port with a server socket. The server socket only has a backlog of size one and
+                // we start a thread that connects to this socket but the connection is never
+                // accepted so other connections will be rejected. The socket attempts a blocking
+                // read, which will hold up the thread until the server socket is closed at the end
+                // of the test.
+                // NOTE: this is not perfect as there is a small amount of time between the shutdown
+                // of the ldap server and the opening of the socket
+                logger.debug("opening mock server socket listening on [{}]", port);
+                MockServerSocket mockServerSocket = new MockServerSocket(port, 1, InetAddress.getByName("localhost"));
+                Runnable runnable = () -> {
+                    try (Socket socket = new MockSocket(InetAddress.getByName("localhost"), port)) {
+                        logger.debug("opened socket [{}] and blocking other connections", socket);
+                        latch.countDown();
+                        socket.getInputStream().read();
+                    } catch (IOException e) {
+                        logger.trace("caught io exception", e);
+                    }
+                };
+                Thread thread = new Thread(runnable);
+                thread.start();
+                boundSockets.add(mockServerSocket);
+                listenThreads.add(thread);
+
+                assertThat(ldapServers[index].getListenPort(), is(-1));
+            }
+
+            latch.await();
+            final int numberOfIterations = randomIntBetween(1, 5);
+            for (int iteration = 0; iteration < numberOfIterations; iteration++) {
+                logger.debug("iteration [{}]", iteration);
+                for (Integer port : ports) {
                     logger.debug("attempting connection with expected port [{}]", port);
-                    connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
-                    assertThat(connection.getConnectedPort(), is(port));
-                } finally {
-                    if (connection != null) {
-                        connection.close();
+                    try (LDAPConnection connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection)) {
+                        assertThat(connection.getConnectedPort(), is(port));
                     }
                 }
+            }
+        } finally {
+            for (MockServerSocket socket : boundSockets) {
+                socket.close();
+            }
+            for (Thread t : listenThreads) {
+                t.join();
             }
         }
     }

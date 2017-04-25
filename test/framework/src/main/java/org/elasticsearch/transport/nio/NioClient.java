@@ -66,10 +66,10 @@ public class NioClient {
             return false;
         }
 
+        final ArrayList<NioSocketChannel> connections = new ArrayList<>(channels.length);
+        connectTimeout = getConnectTimeout(connectTimeout);
+        final InetSocketAddress address = node.getAddress().address();
         try {
-            connectTimeout = getConnectTimeout(connectTimeout);
-            final ArrayList<NioSocketChannel> connections = new ArrayList<>(channels.length);
-            final InetSocketAddress address = node.getAddress().address();
             for (int i = 0; i < channels.length; i++) {
                 SocketSelector socketSelector = selectorSupplier.get();
                 NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address);
@@ -79,40 +79,38 @@ public class NioClient {
                 socketSelector.registerSocketChannel(nioSocketChannel);
             }
 
-            try {
-                Exception ex = null;
-                boolean allConnected = true;
-                for (NioSocketChannel socketChannel : connections) {
-                    ConnectFuture connectFuture = socketChannel.getConnectFuture();
-                    boolean success = connectFuture.awaitConnectionComplete(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
-                    if (success == false) {
-                        allConnected = false;
-                        Exception exception = connectFuture.getException();
-                        if (exception != null) {
-                            ex = exception;
-                            break;
-                        }
+            Exception ex = null;
+            boolean allConnected = true;
+            for (NioSocketChannel socketChannel : connections) {
+                ConnectFuture connectFuture = socketChannel.getConnectFuture();
+                boolean success = connectFuture.awaitConnectionComplete(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
+                if (success == false) {
+                    allConnected = false;
+                    Exception exception = connectFuture.getException();
+                    if (exception != null) {
+                        ex = exception;
+                        break;
                     }
                 }
-
-                if (allConnected == false) {
-                    if (ex == null) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]");
-                    } else {
-                        throw new ConnectTransportException(node, "connect_exception", ex);
-                    }
-                }
-                addConnectionsToList(channels, connections);
-                return true;
-            } catch (final RuntimeException e) {
-                closeChannels(connections, e);
-                throw e;
-            } catch (InterruptedException e) {
-                Thread.interrupted();
-                closeChannels(connections, e);
-                throw new ElasticsearchException(e);
             }
 
+            if (allConnected == false) {
+                if (ex == null) {
+                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]");
+                } else {
+                    throw new ConnectTransportException(node, "connect_exception", ex);
+                }
+            }
+            addConnectionsToList(channels, connections);
+            return true;
+
+        } catch (IOException | RuntimeException e) {
+            closeChannels(connections, e);
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.interrupted();
+            closeChannels(connections, e);
+            throw new ElasticsearchException(e);
         } finally {
             current.decrementAndGet();
         }
@@ -125,7 +123,7 @@ public class NioClient {
     }
 
     private boolean acquireAccess() {
-        for (;;) {
+        for (; ; ) {
             int i = current.get();
             if (i == CLOSED) {
                 return false;
@@ -163,5 +161,4 @@ public class NioClient {
             }
         }
     }
-
 }

@@ -127,7 +127,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return isConnected;
     }
 
-    public ConnectFuture getConnectFuture() throws IOException {
+    public ConnectFuture getConnectFuture() {
         return connectFuture;
     }
 

@@ -236,7 +236,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                             final RestHandler handler, final PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
         if (checkRequestParameters(request, channel) == false) {
             channel
-                .sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,BAD_REQUEST, "error traces in responses are disabled."));
+                .sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
             return true;
         } else {
             for (String key : headersToCopy) {

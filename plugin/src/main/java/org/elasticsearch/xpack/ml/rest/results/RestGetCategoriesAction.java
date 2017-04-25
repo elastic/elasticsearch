@@ -49,9 +49,10 @@ public class RestGetCategoriesAction extends BaseRestHandler {
         if (bodyBytes != null && bodyBytes.length() > 0) {
             XContentParser parser = restRequest.contentParser();
             request = GetCategoriesAction.Request.parseRequest(jobId, parser);
-            request.setCategoryId(categoryId);
+            if (!Strings.isNullOrEmpty(categoryId)) {
+                request.setCategoryId(categoryId);
+            }
         } else {
-
             request = new Request(jobId);
             if (!Strings.isNullOrEmpty(categoryId)) {
                 request.setCategoryId(categoryId);

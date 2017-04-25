@@ -26,14 +26,14 @@ public class PageParams extends ToXContentToBytes implements Writeable {
     public static final int DEFAULT_SIZE = 100;
 
 
-    public static final ConstructingObjectParser<PageParams, Void> PARSER = new ConstructingObjectParser<>(
-            PAGE.getPreferredName(), a -> new PageParams((int) a[0], (int) a[1]));
+    public static final ConstructingObjectParser<PageParams, Void> PARSER = new ConstructingObjectParser<>(PAGE.getPreferredName(),
+            a -> new PageParams(a[0] == null ? DEFAULT_FROM : (int) a[0], a[1] == null ? DEFAULT_SIZE : (int) a[1]));
 
     public static final int MAX_FROM_SIZE_SUM = 10000;
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), FROM);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SIZE);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), FROM);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), SIZE);
     }
 
     private final int from;

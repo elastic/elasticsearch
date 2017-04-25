@@ -250,7 +250,7 @@ public abstract class RecoverySource implements Writeable, ToXContent {
         }
     }
 
-    private static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES = EnumSet.of(Type.EMPTY_STORE, Type.LOCAL_SHARDS, Type.SNAPSHOT);
+    private static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES = EnumSet.of(Type.EMPTY_STORE, Type.LOCAL_SHARDS);
 
     /**
      * returns true for recovery types that indicate that a primary is being allocated for the very first time.

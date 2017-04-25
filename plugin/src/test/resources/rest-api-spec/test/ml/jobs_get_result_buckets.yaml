@@ -70,6 +70,8 @@ setup:
   - match: { buckets.1.timestamp: 1470009600000 }
   - match: { buckets.1.job_id: farequote}
   - match: { buckets.1.result_type: bucket}
+  - is_false: buckets.0.partition_scores
+  - is_false: buckets.1.partition_scores
 
 ---
 "Test get buckets given exclude_interim is false":

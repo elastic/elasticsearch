@@ -162,14 +162,16 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
         builder.field(RECORD_COUNT.getPreferredName(), recordCount);
-        if (!records.isEmpty()) {
+        if (records.isEmpty() == false) {
             builder.field(RECORDS.getPreferredName(), records);
         }
         builder.field(EVENT_COUNT.getPreferredName(), eventCount);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);
         builder.field(BUCKET_INFLUENCERS.getPreferredName(), bucketInfluencers);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
-        builder.field(PARTITION_SCORES.getPreferredName(), partitionScores);
+        if (partitionScores.isEmpty() == false) {
+            builder.field(PARTITION_SCORES.getPreferredName(), partitionScores);
+        }
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.endObject();
         return builder;

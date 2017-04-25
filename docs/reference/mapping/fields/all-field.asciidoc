@@ -16,7 +16,7 @@ PUT my_index/user/1 <1>
 {
   "first_name":    "John",
   "last_name":     "Smith",
-  "date_of_birth": "1970-10-24"
+  "date_of_birth": "2016-10-24"
 }
 
 GET my_index/_search

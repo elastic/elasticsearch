@@ -348,7 +348,7 @@
 
             Note that this relies that the build infrastructure sets the environment variable "OSDISTRO" correctly with facter.
             This means that the build *can* fail if the property is not set. In that case, please check the output of
-            "facter os.distro.description" and create a new profile here.
+            "$(facter os.name) $(facter os.release.major)" and create a new profile here.
 
             For local builds on developer machines that are affected use either the "skipSign" profile or also set
             the environment variable OSDISTRO to the respective value.
@@ -361,7 +361,7 @@
             <activation>
                 <property>
                     <name>env.OSDISTRO</name>
-                        <value>Fedora release 24 (Twenty Four)</value>
+                        <value>Fedora 24</value>
                 </property>
             </activation>
             <properties>

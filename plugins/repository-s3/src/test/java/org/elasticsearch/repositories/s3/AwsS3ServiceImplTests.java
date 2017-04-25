@@ -93,7 +93,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
             null, 10, false, 50000);
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             S3Repository.Repositories.MAX_RETRIES_SETTING
         });
     }
@@ -114,7 +114,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
             null, 20, false, 50000);
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             S3Repository.Repositories.MAX_RETRIES_SETTING,
             S3Repository.Repository.MAX_RETRIES_SETTING
         });
@@ -126,7 +126,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
             null, 3, true, 50000);
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING
         });
     }
@@ -147,7 +147,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
             null, 3, true, 50000);
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
             S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING
         });

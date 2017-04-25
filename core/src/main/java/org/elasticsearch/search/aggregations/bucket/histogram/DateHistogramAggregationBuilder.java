@@ -164,7 +164,7 @@ public class DateHistogramAggregationBuilder
     }
 
     /** Get the current interval in milliseconds that is set on this builder. */
-    public double interval() {
+    public long interval() {
         return interval;
     }
 
@@ -196,7 +196,7 @@ public class DateHistogramAggregationBuilder
     }
 
     /** Get the offset to use when rounding, which is a number of milliseconds. */
-    public double offset() {
+    public long offset() {
         return offset;
     }
 

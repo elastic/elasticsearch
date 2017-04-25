@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +37,7 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
 
     private final Text nodeId;
     private final ShardId shardId;
+    private final transient OriginalIndices originalIndices;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
@@ -44,15 +46,18 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
             nodeId = null;
         }
         shardId = ShardId.readShardId(in);
+        this.originalIndices = null;
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId) {
+    public SearchShardTarget(String nodeId, ShardId shardId, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
+        this.originalIndices = originalIndices;
     }
 
     public SearchShardTarget(String nodeId, Index index, int shardId) {
-        this(nodeId,  new ShardId(index, shardId));
+        //TODO this is only used in tests, upgrade usages to provide OriginalIndices
+        this(nodeId,  new ShardId(index, shardId), null);
     }
 
     @Nullable
@@ -70,6 +75,10 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    public OriginalIndices getOriginalIndices() {
+        return originalIndices;
     }
 
     @Override

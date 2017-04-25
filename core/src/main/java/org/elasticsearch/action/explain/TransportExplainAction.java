@@ -92,7 +92,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
             new String[]{request.type()}, request.nowInMillis, request.filteringAlias());
-        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);
+        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, null, SearchService.NO_TIMEOUT, null);
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = null;
         try {

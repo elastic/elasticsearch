@@ -22,11 +22,12 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,7 +48,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -183,9 +184,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             final int rounds = scaledRandomIntBetween(100, 10000);
             for (int i = 0; i < rounds; i++) {
                 try {
+                    SearchRequest searchRequest = new SearchRequest();
+                    searchRequest.source(new SearchSourceBuilder());
+                    searchRequest.requestCache(false);
+                    OriginalIndices originalIndices = new OriginalIndices(searchRequest);
                     SearchPhaseResult searchPhaseResult = service.executeQueryPhase(
-                        new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
+                            new ShardSearchTransportRequest(originalIndices, searchRequest, indexShard.shardId(), 1,
+                                    new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1),
                         new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
@@ -212,36 +217,33 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
-        final SearchContext contextWithDefaultTimeout = service.createContext(
-            new ShardSearchLocalRequest(
-                indexShard.shardId(),
-                1,
-                SearchType.DEFAULT,
-                new SearchSourceBuilder(),
-                new String[0],
-                false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
-                1.0f),
-            null);
-        try {
-            // the search context should inherit the default timeout
-            assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
-        } finally {
-            contextWithDefaultTimeout.decRef();
-            service.freeContext(contextWithDefaultTimeout.id());
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder());
+            searchRequest.requestCache(false);
+            OriginalIndices originalIndices = new OriginalIndices(searchRequest);
+            final SearchContext contextWithDefaultTimeout = service.createContext(
+                    new ShardSearchTransportRequest(originalIndices, searchRequest, indexShard.shardId(),
+                            1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1),
+                    null);
+            try {
+                // the search context should inherit the default timeout
+                assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+            } finally {
+                contextWithDefaultTimeout.decRef();
+                service.freeContext(contextWithDefaultTimeout.id());
+            }
         }
 
         final long seconds = randomIntBetween(6, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)));
+        searchRequest.requestCache(false);
+        OriginalIndices originalIndices = new OriginalIndices(searchRequest);
+
         final SearchContext context = service.createContext(
-            new ShardSearchLocalRequest(
-                indexShard.shardId(),
-                1,
-                SearchType.DEFAULT,
-                new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
-                new String[0],
-                false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
-                1.0f),
+                new ShardSearchTransportRequest(originalIndices, searchRequest, indexShard.shardId(), 1,
+                        new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1),
             null);
         try {
             // the search context should inherit the query timeout

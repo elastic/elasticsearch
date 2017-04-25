@@ -128,7 +128,7 @@ public class SearchHitTests extends ESTestCase {
         }
         if (randomBoolean()) {
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                    new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt())));
+                    new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt()), null));
         }
         return hit;
     }

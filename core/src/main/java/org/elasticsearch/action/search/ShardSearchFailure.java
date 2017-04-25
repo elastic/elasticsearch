@@ -212,7 +212,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
             }
         }
         return new ShardSearchFailure(exception,
-                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId)));
+                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), null));
     }
 
     @Override

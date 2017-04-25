@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
@@ -108,7 +106,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new GroupShardsIterator(Collections.singletonList(it)),
+                new SearchShardsIterator(Collections.singletonList(new SearchShardIterator(null, Collections.emptyList(), null))),
                 timeProvider,
                 0,
                 null,
@@ -123,7 +121,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
 
             @Override
             protected void executePhaseOnShard(
-                    final ShardIterator shardIt,
+                    final SearchShardIterator shardIt,
                     final ShardRouting shard,
                     final SearchActionListener<SearchPhaseResult> listener) {
 
@@ -157,5 +155,4 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
             assertThat(actual, greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
         }
     }
-
 }

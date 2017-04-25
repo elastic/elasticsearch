@@ -758,9 +758,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[]{
                         new ShardSearchFailure(new ParsingException(0, 0, "Parsing g", null),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61))),
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null)),
                         new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62))),
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)),
                         new ShardSearchFailure(new SearchContextMissingException(0L), null)
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);

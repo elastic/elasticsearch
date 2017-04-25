@@ -20,8 +20,10 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -204,7 +206,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testProcessRemoteShards() throws IOException {
         try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, null)) {
             assertFalse(service.isCrossClusterSearchEnabled());
-            List<ShardIterator> iteratorList = new ArrayList<>();
+            List<SearchShardIterator> iteratorList = new ArrayList<>();
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
             DiscoveryNode[] nodes = new DiscoveryNode[] {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -225,8 +227,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED)})
             };
             searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
+            //TODO add more clusters
+            Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+            remoteIndicesByCluster.put("test_cluster_1",
+                    new OriginalIndices(new String[]{"foo", "bar"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
-            service.processRemoteShards(searchShardsResponseMap, iteratorList, remoteAliases);
+            service.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList, remoteAliases);
             assertEquals(3, iteratorList.size());
             for (ShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {

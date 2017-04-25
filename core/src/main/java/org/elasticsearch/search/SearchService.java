@@ -24,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -71,6 +72,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -216,7 +218,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         keepAliveReaper.cancel();
     }
 
-    public DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchTask task) throws IOException {
+    public DfsSearchResult executeDfsPhase(ShardSearchTransportRequest request, SearchTask task) throws IOException {
         final SearchContext context = createAndPutContext(request);
         context.incRef();
         try {
@@ -247,7 +249,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws IOException {
+    public SearchPhaseResult executeQueryPhase(ShardSearchTransportRequest request, SearchTask task) throws IOException {
         final SearchContext context = createAndPutContext(request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
@@ -439,7 +441,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
-    final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
+    final SearchContext createAndPutContext(ShardSearchTransportRequest request) throws IOException {
         SearchContext context = createContext(request, null);
         boolean success = false;
         try {
@@ -457,8 +459,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
-        final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
+    final SearchContext createContext(ShardSearchTransportRequest request, @Nullable Engine.Searcher searcher) throws IOException {
+        final DefaultSearchContext context = createSearchContext(request, request.getOriginalIndices(), defaultSearchTimeout, searcher);
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
@@ -494,11 +496,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
-    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher)
+    public DefaultSearchContext createSearchContext(ShardSearchRequest request, OriginalIndices originalIndices,
+                                                    TimeValue timeout, @Nullable Engine.Searcher searcher)
         throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(), indexShard.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(), indexShard.shardId(), originalIndices);
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,

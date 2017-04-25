@@ -255,4 +255,24 @@ public class BulkRequestTests extends ESTestCase {
         assertEquals(1, request.sourceAsMap().size());
         assertEquals("value", request.sourceAsMap().get("field"));
     }
+
+    public void testToValidateUpsertRequestAndVersionInBulkRequest() {
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.version(1L);
+        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.upsert(new IndexRequest("index","type", "id").source("{}", XContentType.JSON));
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(updateRequest);
+        assertThat(bulkRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
+    }
+
+    public void testToValidateUpsertRequestWithVersionInBulkRequest() {
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.upsert(new IndexRequest("index","type",   "id").version(1L).source("{}", XContentType.JSON));
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(updateRequest);
+        assertThat(bulkRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
+    }
+
 }

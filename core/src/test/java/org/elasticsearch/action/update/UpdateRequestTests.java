@@ -59,6 +59,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentHelper.update;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -488,17 +489,17 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testToValidateUpsertRequestAndVersion() {
-        UpdateRequest updateRequest = new UpdateRequest();
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
         updateRequest.version(1L);
-        updateRequest.upsert(new IndexRequest("index","type", "1"));
-        assertThat(updateRequest.validate().validationErrors(), contains("index is missing",
-            "can't provide both upsert request and a version","type is missing","id is missing","script or doc is missing"));
+        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.upsert(new IndexRequest("index","type", "id"));
+        assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
     }
 
     public void testToValidateUpsertRequestWithVersion() {
-        UpdateRequest updateRequest = new UpdateRequest();
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
-        assertEquals(updateRequest.validate().validationErrors(), contains("index is missing",
-            "can't provide version in upsert request","type is missing","id is missing","script or doc is missing"));
+        assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
     }
 }

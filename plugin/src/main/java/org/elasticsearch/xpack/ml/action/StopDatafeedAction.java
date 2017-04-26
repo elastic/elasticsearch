@@ -39,6 +39,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -261,7 +262,7 @@ public class StopDatafeedAction
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService, PersistentTasksService persistentTasksService) {
             super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new, Response::new, ThreadPool.Names.MANAGEMENT);
+                    indexNameExpressionResolver, Request::new, Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.persistentTasksService = persistentTasksService;
         }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -133,7 +134,7 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             logger.info("Deleting expired data");
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> deleteExpiredData(listener));
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> deleteExpiredData(listener));
         }
 
         private void deleteExpiredData(ActionListener<Response> listener) {

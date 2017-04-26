@@ -149,7 +149,7 @@ public class MachineLearning implements ActionPlugin {
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String AUTODETECT_THREAD_POOL_NAME = NAME + "_autodetect";
-    public static final String NORMALIZER_THREAD_POOL_NAME = NAME + "_normalizer";
+    public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     public static final Setting<Boolean> AUTODETECT_PROCESS =
             Setting.boolSetting("xpack.ml.autodetect_process", true, Property.NodeScope);
@@ -296,7 +296,7 @@ public class MachineLearning implements ActionPlugin {
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
-                threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME));
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry, auditor);
@@ -437,15 +437,17 @@ public class MachineLearning implements ActionPlugin {
             return emptyList();
         }
         int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
-        // 4 threads: for cpp logging, result processing, state processing and
+        // 4 threads per job: for cpp logging, result processing, state processing and
         // AutodetectProcessManager worker thread:
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_THREAD_POOL_NAME,
                 maxNumberOfJobs * 4, 4, "xpack.ml.autodetect_thread_pool");
 
-        // 3 threads: normalization (cpp logging, result handling) and
-        // renormalization (ShortCircuitingRenormalizer):
-        FixedExecutorBuilder renormalizer = new FixedExecutorBuilder(settings, NORMALIZER_THREAD_POOL_NAME,
-                maxNumberOfJobs * 3, 200, "xpack.ml.normalizer_thread_pool");
+        // 4 threads per job: processing logging, result and state of the renormalization process.
+        // Renormalization does't run for the entire lifetime of a job, so additionally autodetect process
+        // based operation (open, close, flush, post data), datafeed based operations (start and stop)
+        // and deleting expired data use this threadpool too and queue up if all threads are busy.
+        FixedExecutorBuilder renormalizer = new FixedExecutorBuilder(settings, UTILITY_THREAD_POOL_NAME,
+                maxNumberOfJobs * 4, 500, "xpack.ml.utility_thread_pool");
 
         // TODO: if datafeed and non datafeed jobs are considered more equal and the datafeed and
         // autodetect process are created at the same time then these two different TPs can merge.

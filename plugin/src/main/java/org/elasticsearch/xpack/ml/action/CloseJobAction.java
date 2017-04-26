@@ -362,7 +362,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             JobTaskStatus taskStatus = new JobTaskStatus(JobState.CLOSING, jobTask.getAllocationId());
             jobTask.updatePersistentStatus(taskStatus, ActionListener.wrap(task -> {
                 // we need to fork because we are now on a network threadpool and closeJob method may take a while to complete:
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         listener.onFailure(e);

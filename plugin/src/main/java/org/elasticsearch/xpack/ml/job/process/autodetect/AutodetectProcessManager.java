@@ -213,7 +213,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         jobProvider.getAutodetectParams(job, params -> {
             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     handler.accept(e);
@@ -272,7 +272,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
                 normalizerFactory);
-        ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME);
+        ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                 renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
 

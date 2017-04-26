@@ -202,7 +202,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                 recoveryTarget.indexShard().prepareForIndexRecovery();
 
-                request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
+                request = new StartRecoveryRequest(recoveryTarget.shardId(),
+                    recoveryTarget.indexShard().routingEntry().allocationId().getId(), recoveryTarget.sourceNode(),
                     clusterService.localNode(), metadataSnapshot, recoveryTarget.state().getPrimary(), recoveryTarget.recoveryId());
                 cancellableThreads = recoveryTarget.CancellableThreads();
                 timer = recoveryTarget.state().getTimer();

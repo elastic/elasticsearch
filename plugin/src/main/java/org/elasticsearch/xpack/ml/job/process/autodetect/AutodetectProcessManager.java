@@ -94,7 +94,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
-    private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
+    private final ConcurrentMap<Long, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
     private final int maxAllowedRunningJobs;
 
@@ -128,8 +128,8 @@ public class AutodetectProcessManager extends AbstractComponent {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
         }
 
-        for (Map.Entry<String, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
-            closeJob(entry.getKey(), false, reason);
+        for (Map.Entry<Long, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
+            closeJob(entry.getValue().getJobTask(), false, reason);
         }
     }
 
@@ -146,17 +146,17 @@ public class AutodetectProcessManager extends AbstractComponent {
      * <li>If a high proportion of the records chronologically out of order</li>
      * </ol>
      *
-     * @param jobId  the jobId
-     * @param input  Data input stream
+     * @param jobTask       The job task
+     * @param input         Data input stream
      * @param xContentType  the {@link XContentType} of the input
-     * @param params Data processing parameters
-     * @param handler   Delegate error or datacount results (Count of records, fields, bytes, etc written)
+     * @param params        Data processing parameters
+     * @param handler       Delegate error or datacount results (Count of records, fields, bytes, etc written)
      */
-    public void processData(String jobId, InputStream input, XContentType xContentType,
+    public void processData(JobTask jobTask, InputStream input, XContentType xContentType,
                             DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {
-            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobId + "] is not open");
+            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
         }
         communicator.writeToJob(input, xContentType, params, handler);
     }
@@ -166,15 +166,15 @@ public class AutodetectProcessManager extends AbstractComponent {
      * opportunity to process all data previously sent to it with none left
      * sitting in buffers.
      *
-     * @param jobId  The job to flush
-     * @param params Parameters about whether interim results calculation
-     *               should occur and for which period of time
+     * @param jobTask   The job task
+     * @param params    Parameters about whether interim results calculation
+     *                  should occur and for which period of time
      */
-    public void flushJob(String jobId, InterimResultsParams params, Consumer<Exception> handler) {
-        logger.debug("Flushing job {}", jobId);
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+    public void flushJob(JobTask jobTask, InterimResultsParams params, Consumer<Exception> handler) {
+        logger.debug("Flushing job {}", jobTask.getJobId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobId);
+            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
             logger.debug(message);
             throw ExceptionsHelper.conflictStatusException(message);
         }
@@ -183,18 +183,18 @@ public class AutodetectProcessManager extends AbstractComponent {
             if (e == null) {
                 handler.accept(null);
             } else {
-                String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
+                String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobTask.getJobId());
                 logger.error(msg);
                 handler.accept(ExceptionsHelper.serverError(msg, e));
             }
         });
     }
 
-    public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config,
+    public void writeUpdateProcessMessage(JobTask jobTask, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config,
                                           Consumer<Exception> handler) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {
-            String message = "Cannot process update model debug config because job [" + jobId + "] is not open";
+            String message = "Cannot process update model debug config because job [" + jobTask.getJobId() + "] is not open";
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -208,7 +208,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    public void openJob(String jobId, JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {
+    public void openJob(JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {
+        String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         jobProvider.getAutodetectParams(job, params -> {
@@ -222,8 +223,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                 @Override
                 protected void doRun() throws Exception {
                     try {
-                        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id ->
-                                create(id, jobTask, params, ignoreDowntime, handler));
+                        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobTask.getAllocationId(),
+                                id -> create(jobTask, params, ignoreDowntime, handler));
                         communicator.writeJobInputHeader();
                         setJobState(jobTask, JobState.OPENED);
                     } catch (Exception e1) {
@@ -243,13 +244,14 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    AutodetectCommunicator create(String jobId, JobTask jobTask, AutodetectParams autodetectParams,
+    AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams,
                                   boolean ignoreDowntime, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
         }
 
+        String jobId = jobTask.getJobId();
         notifyLoadingSnapshot(jobId, autodetectParams);
 
         if (autodetectParams.dataCounts().getProcessedRecordCount() > 0) {
@@ -296,8 +298,8 @@ public class AutodetectProcessManager extends AbstractComponent {
             }
             throw e;
         }
-        return new AutodetectCommunicator(job, process, dataCountsReporter, processor,
-                handler, xContentRegistry, autodetectWorkerExecutor);
+        return new AutodetectCommunicator(job, jobTask, process, dataCountsReporter, processor, handler, xContentRegistry,
+                autodetectWorkerExecutor);
 
     }
 
@@ -327,22 +329,22 @@ public class AutodetectProcessManager extends AbstractComponent {
     /**
      * Stop the running job and mark it as finished.<br>
      *
-     * @param jobId   The job to stop
+     * @param jobTask   The job to stop
      * @param restart Whether the job should be restarted by persistent tasks
      * @param reason  The reason for closing the job
      */
-    public void closeJob(String jobId, boolean restart, String reason) {
-        logger.debug("Attempting to close job [{}], because [{}]", jobId, reason);
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobId);
+    public void closeJob(JobTask jobTask, boolean restart, String reason) {
+        logger.debug("Attempting to close job [{}], because [{}]", jobTask, reason);
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
         if (communicator == null) {
-            logger.debug("Cannot close: no active autodetect process for job {}", jobId);
+            logger.debug("Cannot close: no active autodetect process for job {}", jobTask);
             return;
         }
 
         if (reason == null) {
-            logger.info("Closing job [{}]", jobId);
+            logger.info("Closing job [{}]", jobTask);
         } else {
-            logger.info("Closing job [{}], because [{}]", jobId, reason);
+            logger.info("Closing job [{}], because [{}]", jobTask, reason);
         }
 
         try {
@@ -357,12 +359,12 @@ public class AutodetectProcessManager extends AbstractComponent {
         return autoDetectCommunicatorByJob.size();
     }
 
-    boolean jobHasActiveAutodetectProcess(String jobId) {
-        return autoDetectCommunicatorByJob.get(jobId) != null;
+    boolean jobHasActiveAutodetectProcess(JobTask jobTask) {
+        return autoDetectCommunicatorByJob.get(jobTask.getAllocationId()) != null;
     }
 
-    public Optional<Duration> jobOpenTime(String jobId) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+    public Optional<Duration> jobOpenTime(JobTask jobTask) {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             return Optional.empty();
         }
@@ -407,8 +409,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                 });
     }
 
-    public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+    public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             return Optional.empty();
         }

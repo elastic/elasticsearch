@@ -341,7 +341,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         void closeJob(String reason) {
-            autodetectProcessManager.closeJob(jobId, false, reason);
+            autodetectProcessManager.closeJob(this, false, reason);
         }
 
         static boolean match(Task task, String expectedJobId) {
@@ -515,7 +515,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         protected void nodeOperation(AllocatedPersistentTask task, JobParams params) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
-            autodetectProcessManager.openJob(params.getJobId(), jobTask, params.isIgnoreDowntime(), e2 -> {
+            autodetectProcessManager.openJob(jobTask, params.isIgnoreDowntime(), e2 -> {
                 if (e2 == null) {
                     task.markAsCompleted();
                 } else {

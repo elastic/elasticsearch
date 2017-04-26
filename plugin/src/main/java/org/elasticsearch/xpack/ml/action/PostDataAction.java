@@ -255,8 +255,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             try {
-                processManager.processData(request.getJobId(),
-                        request.content.streamInput(), request.getXContentType(), params, (dataCounts, e) -> {
+                processManager.processData(task, request.content.streamInput(), request.getXContentType(), params, (dataCounts, e) -> {
                     if (dataCounts != null) {
                         listener.onResponse(new Response(dataCounts));
                     } else {

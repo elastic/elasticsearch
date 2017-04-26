@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
@@ -34,7 +35,6 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -51,6 +51,7 @@ public class AutodetectCommunicator implements Closeable {
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
+    private final JobTask jobTask;
     private final DataCountsReporter dataCountsReporter;
     private final AutodetectProcess autodetectProcess;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
@@ -58,11 +59,11 @@ public class AutodetectCommunicator implements Closeable {
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
 
-    AutodetectCommunicator(Job job, AutodetectProcess process,
-            DataCountsReporter dataCountsReporter,
-            AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler,
-            NamedXContentRegistry xContentRegistry, ExecutorService autodetectWorkerExecutor) {
+    AutodetectCommunicator(Job job, JobTask jobTask, AutodetectProcess process, DataCountsReporter dataCountsReporter,
+                           AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler,
+                           NamedXContentRegistry xContentRegistry, ExecutorService autodetectWorkerExecutor) {
         this.job = job;
+        this.jobTask = jobTask;
         this.autodetectProcess = process;
         this.dataCountsReporter = dataCountsReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
@@ -200,6 +201,10 @@ public class AutodetectCommunicator implements Closeable {
             LOGGER.error(message);
             throw new ElasticsearchException(message.getFormattedMessage());
         }
+    }
+
+    public JobTask getJobTask() {
+        return jobTask;
     }
 
     public ZonedDateTime getProcessStartTime() {

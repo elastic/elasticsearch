@@ -268,7 +268,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
                 timeRangeBuilder.endTime(request.getEnd());
             }
             paramsBuilder.forTimeRange(timeRangeBuilder.build());
-            processManager.flushJob(request.getJobId(), paramsBuilder.build(), e ->  {
+            processManager.flushJob(task, paramsBuilder.build(), e ->  {
                 if (e == null) {
                     listener.onResponse(new Response(true));
                 } else {

@@ -199,7 +199,7 @@ public class UpdateProcessAction extends
         @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             try {
-                processManager.writeUpdateProcessMessage(request.getJobId(), request.getDetectorUpdates(),
+                processManager.writeUpdateProcessMessage(task, request.getDetectorUpdates(),
                         request.getModelPlotConfig(), e -> {
                             if (e == null) {
                                 listener.onResponse(new Response());

@@ -413,13 +413,13 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             logger.debug("Get stats for job [{}]", jobId);
             ClusterState state = clusterService.state();
             PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(jobId);
+            Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
             if (stats.isPresent()) {
                 PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
                 DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
                 JobState jobState = MlMetadata.getJobState(jobId, tasks);
                 String assignmentExplanation = pTask.getAssignment().getExplanation();
-                TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(jobId));
+                TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
                 Response.JobStats jobStats = new Response.JobStats(jobId, stats.get().v1(), stats.get().v2(), jobState,
                         node, assignmentExplanation, openTime);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));

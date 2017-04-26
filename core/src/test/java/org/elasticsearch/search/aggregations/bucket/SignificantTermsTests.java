@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Scrip
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -54,21 +54,8 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
         String name = randomAlphaOfLengthBetween(3, 20);
         SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(name, null);
         String field = randomAlphaOfLengthBetween(3, 20);
-        int randomFieldBranch = randomInt(2);
-        switch (randomFieldBranch) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(new Script("_value + 1"));
-            break;
-        case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
-            break;
-        default:
-            fail();
-        }
+        randomFieldOrScript(factory, field);
+
         if (randomBoolean()) {
             factory.missing("MISSING");
         }
@@ -179,7 +166,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
                 break;
             case 4:
-                significanceHeuristic = new ScriptHeuristic(new Script("foo"));
+                significanceHeuristic = new ScriptHeuristic(mockScript("foo"));
                 break;
             case 5:
                 significanceHeuristic = new JLHScore();

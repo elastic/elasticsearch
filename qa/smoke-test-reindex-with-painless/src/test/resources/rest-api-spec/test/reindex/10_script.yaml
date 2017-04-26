@@ -188,6 +188,8 @@
       indices.create:
           index: new_twitter
           body:
+            settings:
+              mapping.single_type: false
             mappings:
               tweet:
                 _parent: { type: "user" }

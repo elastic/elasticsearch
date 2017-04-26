@@ -37,12 +37,12 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     static final int CLOSED = 3;
 
     protected final S socketChannel;
-    protected ESSelector selector;
     protected final AtomicInteger state = new AtomicInteger(UNREGISTERED);
 
     private final InetSocketAddress localAddress;
     private final String profile;
     private final CloseFuture closeFuture = new CloseFuture();
+    private ESSelector selector;
     private SelectionKey selectionKey;
 
     public AbstractNioChannel(String profile, S socketChannel) throws IOException {

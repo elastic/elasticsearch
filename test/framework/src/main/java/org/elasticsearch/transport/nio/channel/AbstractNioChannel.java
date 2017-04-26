@@ -67,22 +67,31 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public CloseFuture close() {
-        return close(true);
-    }
-
-    @Override
-    public CloseFuture close(boolean attemptToCloseImmediately) {
+    public CloseFuture closeAsync() {
         int state = this.state.get();
-        if (attemptToCloseImmediately && (state == UNREGISTERED || selector.isOnCurrentThread())) {
-            if (state != UNREGISTERED) {
-                close0();
-            } else if (this.state.compareAndSet(UNREGISTERED, CLOSING)) {
-                close0();
+        if (state == UNREGISTERED) {
+            if (this.state.compareAndSet(UNREGISTERED, CLOSING)) {
+                close0(CLOSING);
             }
         } else if (state == REGISTERED && this.state.compareAndSet(REGISTERED, CLOSING)) {
             selector.queueChannelClose(this);
         }
+        return closeFuture;
+    }
+
+    @Override
+    public CloseFuture close() {
+        int state = this.state.get();
+        if (state == UNREGISTERED) {
+            if (this.state.compareAndSet(UNREGISTERED, CLOSING)) {
+                close0(CLOSING);
+            }
+        } else if (selector.isOnCurrentThread() == false) {
+            throw new IllegalStateException("Cannot close() a channel that has been registered from a non-selector thread");
+        } else if (state != CLOSED) {
+            close0(state);
+        }
+
         return closeFuture;
     }
 
@@ -126,8 +135,8 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         this.selectionKey = selectionKey;
     }
 
-    private void close0() {
-        if (this.state.compareAndSet(CLOSING, CLOSED) && closeFuture.isDone() == false) {
+    private void close0(int currentState) {
+        if (this.state.compareAndSet(currentState, CLOSED)) {
             try {
                 socketChannel.close();
                 closeFuture.channelClosed(this);

@@ -141,8 +141,8 @@ public class NioClientTests extends ESTestCase {
             assertTrue(e.getMessage().contains("connect_timeout[5ms]"));
         }
 
-        verify(channel1).close();
-        verify(channel2).close();
+        verify(channel1).closeAsync();
+        verify(channel2).closeAsync();
 
         assertNull(channels[0]);
         assertNull(channels[1]);
@@ -174,8 +174,8 @@ public class NioClientTests extends ESTestCase {
             assertSame(ioException, e.getCause());
         }
 
-        verify(channel1).close();
-        verify(channel2).close();
+        verify(channel1).closeAsync();
+        verify(channel2).closeAsync();
 
         assertNull(channels[0]);
         assertNull(channels[1]);

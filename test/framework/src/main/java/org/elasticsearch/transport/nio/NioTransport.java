@@ -108,7 +108,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
                 try {
-                    channel.close().awaitClose();
+                    channel.closeAsync().awaitClose();
                 } catch (Exception e) {
                     if (closingExceptions == null) {
                         closingExceptions = new IOException("failed to close channels");

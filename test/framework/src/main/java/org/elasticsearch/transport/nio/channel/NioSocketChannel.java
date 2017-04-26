@@ -42,14 +42,13 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     @Override
-    public CloseFuture close(boolean attemptToCloseImmediately) {
+    public CloseFuture close() {
         // Even if the channel has already been closed we will clear any pending write operations just in case
-        if (attemptToCloseImmediately && state.get() > UNREGISTERED && getSelector().isOnCurrentThread()
-            && writeContext.hasQueuedWriteOps()) {
+        if (state.get() > UNREGISTERED && getSelector().isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
             writeContext.clearQueuedWriteOps(new ClosedChannelException());
         }
 
-        return super.close(attemptToCloseImmediately);
+        return super.close();
     }
 
     @Override

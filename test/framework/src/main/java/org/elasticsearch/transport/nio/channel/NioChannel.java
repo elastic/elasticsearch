@@ -36,9 +36,9 @@ public interface NioChannel {
 
     String getProfile();
 
-    CloseFuture close();
+    CloseFuture closeAsync();
 
-    CloseFuture close(boolean attemptToCloseImmediately);
+    CloseFuture close();
 
     boolean markRegistered(ESSelector selector);
 

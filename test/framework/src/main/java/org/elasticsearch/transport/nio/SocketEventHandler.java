@@ -60,7 +60,7 @@ public class SocketEventHandler extends EventHandler {
     public void handleRead(NioSocketChannel channel) throws IOException {
         int bytesRead = channel.getReadContext().read();
         if (bytesRead == -1) {
-            channel.close(false);
+            channel.closeAsync();
         }
     }
 

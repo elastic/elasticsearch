@@ -141,7 +141,7 @@ public class NioClient {
     private void closeChannels(ArrayList<NioSocketChannel> connections, Exception e) {
         for (final NioSocketChannel socketChannel : connections) {
             try {
-                socketChannel.close().awaitClose();
+                socketChannel.closeAsync().awaitClose();
             } catch (Exception inner) {
                 logger.trace("exception while closing channel", e);
                 e.addSuppressed(inner);

@@ -99,7 +99,6 @@ public class OpenChannels implements Releasable {
 
     @Override
     public void close() {
-
         for (NioSocketChannel channel : openClientChannels.keySet()) {
             ensureClosedInternal(channel);
         }
@@ -113,7 +112,7 @@ public class OpenChannels implements Releasable {
 
     private void ensureClosedInternal(NioChannel channel) {
         try {
-            channel.close().get();
+            channel.closeAsync().get();
         } catch (Exception e) {
             logger.trace("exception while closing channels", e);
         }

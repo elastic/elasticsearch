@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public final class OriginalIndices implements IndicesRequest {
 
-    //constant to use when original indices are not applicable and will not be serialized across the wire (throws NPE if you do so)
+    //constant to use when original indices are not applicable and will not be serialized across the wire
     public static final OriginalIndices NONE = new OriginalIndices(null, null);
 
     private final String[] indices;
@@ -60,6 +60,7 @@ public final class OriginalIndices implements IndicesRequest {
     }
 
     public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
+        assert originalIndices != NONE;
         out.writeStringArrayNullable(originalIndices.indices);
         originalIndices.indicesOptions.writeIndicesOptions(out);
     }

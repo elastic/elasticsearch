@@ -42,7 +42,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     private final InetSocketAddress localAddress;
     private final String profile;
     private final CloseFuture closeFuture = new CloseFuture();
-    private ESSelector selector;
+    private volatile ESSelector selector;
     private SelectionKey selectionKey;
 
     public AbstractNioChannel(String profile, S socketChannel) throws IOException {

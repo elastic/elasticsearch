@@ -40,8 +40,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -145,7 +143,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {
         RecoverySource.Type recoveryType = randomFrom(RecoverySource.Type.EMPTY_STORE,
-            RecoverySource.Type.LOCAL_SHARDS, RecoverySource.Type.SNAPSHOT);
+            RecoverySource.Type.LOCAL_SHARDS);
         MetaData.Builder metaData = MetaData.builder();
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(settings);
         final IndexMetaData sourceIndex;
@@ -164,20 +162,12 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         }
         final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("idx").settings(indexSettings)
             .numberOfShards(1).numberOfReplicas(1);
-        if (recoveryType == RecoverySource.Type.SNAPSHOT) {
-            indexMetaDataBuilder.putInSyncAllocationIds(0, Collections.singleton("_snapshot_restore"));
-        }
         final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
         metaData.put(indexMetaData, false);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         switch (recoveryType) {
             case EMPTY_STORE:
                 routingTableBuilder.addAsNew(indexMetaData);
-                break;
-            case SNAPSHOT:
-                routingTableBuilder.addAsRestore(indexMetaData, new RecoverySource.SnapshotRecoverySource(
-                    new Snapshot("repository", new SnapshotId("snapshot_name", "snapshot_uuid")),
-                    Version.CURRENT, indexMetaData.getIndex().getName()));
                 break;
             case LOCAL_SHARDS:
                 routingTableBuilder.addAsFromCloseToOpen(sourceIndex);

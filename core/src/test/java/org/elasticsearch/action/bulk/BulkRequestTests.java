@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -256,23 +257,38 @@ public class BulkRequestTests extends ESTestCase {
         assertEquals("value", request.sourceAsMap().get("field"));
     }
 
-    public void testToValidateUpsertRequestAndVersionInBulkRequest() {
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-        updateRequest.version(1L);
-        updateRequest.doc("{}", XContentType.JSON);
-        updateRequest.upsert(new IndexRequest("index","type", "id").source("{}", XContentType.JSON));
+    public void testToValidateUpsertRequestAndVersionInBulkRequest() throws IOException {
+        XContentType xContentType = XContentType.SMILE;
+        BytesReference data;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+                builder.startObject();
+                builder.startObject("update");
+                builder.field("_index", "index");
+                builder.field("_type", "type");
+                builder.field("_id", "id");
+                builder.field("_version", 1L);
+                builder.endObject();
+                builder.endObject();
+            }
+            out.write(xContentType.xContent().streamSeparator());
+            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+                builder.startObject();
+                builder.field("doc", "{}");
+                Map<String,Object> values = new HashMap<>();
+                values.put("_version", 2L);
+                values.put("_index", "index");
+                values.put("_type", "type");
+                builder.field("upsert", values);
+                builder.endObject();
+            }
+            out.write(xContentType.xContent().streamSeparator());
+            data = out.bytes();
+        }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(updateRequest);
-        assertThat(bulkRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
-    }
-
-    public void testToValidateUpsertRequestWithVersionInBulkRequest() {
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-        updateRequest.doc("{}", XContentType.JSON);
-        updateRequest.upsert(new IndexRequest("index","type",   "id").version(1L).source("{}", XContentType.JSON));
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(updateRequest);
-        assertThat(bulkRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
+        bulkRequest.add(data, null, null, xContentType);
+        assertThat(bulkRequest.validate().validationErrors(), contains("can't provide both upsert request and a version",
+            "can't provide version in upsert request"));
     }
 
 }

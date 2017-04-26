@@ -23,12 +23,16 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -52,28 +56,32 @@ import static java.util.Collections.emptyMap;
  */
 public interface AnalysisPlugin {
     /**
-     * Override to add additional {@link CharFilter}s.
+     * Override to add additional {@link CharFilter}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return emptyMap();
     }
 
     /**
-     * Override to add additional {@link TokenFilter}s.
+     * Override to add additional {@link TokenFilter}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         return emptyMap();
     }
 
     /**
-     * Override to add additional {@link Tokenizer}s.
+     * Override to add additional {@link Tokenizer}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return emptyMap();
     }
 
     /**
-     * Override to add additional {@link Analyzer}s.
+     * Override to add additional {@link Analyzer}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return emptyMap();
@@ -84,5 +92,22 @@ public interface AnalysisPlugin {
      */
     default Map<String, org.apache.lucene.analysis.hunspell.Dictionary> getHunspellDictionaries() {
         return emptyMap();
+    }
+
+    /**
+     * Mark an {@link AnalysisProvider} as requiring the index's settings.
+     */
+    static <T> AnalysisProvider<T> requriesAnalysisSettings(AnalysisProvider<T> provider) {
+        return new AnalysisProvider<T>() {
+            @Override
+            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
+                return provider.get(indexSettings, environment, name, settings);
+            }
+
+            @Override
+            public boolean requiresAnalysisSettings() {
+                return true;
+            }
+        };
     }
 }

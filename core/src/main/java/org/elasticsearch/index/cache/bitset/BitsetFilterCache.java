@@ -121,8 +121,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements I
         }
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
-        if (shardId != null // can't require it because of the percolator
-                && indexSettings.getIndex().equals(shardId.getIndex()) == false) {
+        if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // insanity
             throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
                     + " with cache of index " + indexSettings.getIndex());

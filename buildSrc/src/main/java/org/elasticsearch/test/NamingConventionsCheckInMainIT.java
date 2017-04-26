@@ -17,13 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.test;
 
-import java.io.Reader;
-
-public interface CharFilterFactory {
-
-    String name();
-
-    Reader create(Reader reader);
+/**
+ * This class should fail the naming conventions self test.
+ */
+public class NamingConventionsCheckInMainIT {
 }

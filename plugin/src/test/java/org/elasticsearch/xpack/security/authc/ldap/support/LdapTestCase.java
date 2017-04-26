@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
@@ -106,6 +107,7 @@ public abstract class LdapTestCase extends ESTestCase {
         Settings.Builder builder = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
                 .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
+                .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, TimeValue.timeValueSeconds(1L))
                 .put(SessionFactory.IGNORE_REFERRAL_ERRORS_SETTING.getKey(), ignoreReferralErrors)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", scope)

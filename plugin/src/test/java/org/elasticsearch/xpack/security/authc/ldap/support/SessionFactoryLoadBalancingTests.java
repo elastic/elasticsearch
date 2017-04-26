@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -76,6 +78,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         final List<MockServerSocket> boundSockets = new ArrayList<>();
         final List<Thread> listenThreads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(ldapServersToKill.size());
+        final CountDownLatch closeLatch = new CountDownLatch(1);
         try {
             for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
                 final int index = ldapServersList.indexOf(ldapServerToKill);
@@ -99,10 +102,17 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 Runnable runnable = () -> {
                     try (Socket socket = new MockSocket(InetAddress.getByName("localhost"), port)) {
                         logger.debug("opened socket [{}] and blocking other connections", socket);
+                        // ensure we cannot open another socket
+                        IOException e = expectThrows(IOException.class, () -> {
+                            try (MockSocket mockSocket = new MockSocket()) {
+                                mockSocket.connect(new InetSocketAddress(InetAddress.getByName("localhost"), port), 500);
+                            }
+                        });
+                        assertThat(e.getMessage(), containsString("timed out"));
                         latch.countDown();
-                        socket.getInputStream().read();
-                    } catch (IOException e) {
-                        logger.trace("caught io exception", e);
+                        closeLatch.await();
+                    } catch (IOException | InterruptedException e) {
+                        logger.debug("caught exception", e);
                     }
                 };
                 Thread thread = new Thread(runnable);
@@ -125,6 +135,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 }
             }
         } finally {
+            closeLatch.countDown();
             for (MockServerSocket socket : boundSockets) {
                 socket.close();
             }

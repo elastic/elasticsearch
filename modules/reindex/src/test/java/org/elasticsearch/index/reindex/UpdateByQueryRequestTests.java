@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.script.Script;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
@@ -68,7 +67,7 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     @Override
     protected void extraRandomizationForSlice(UpdateByQueryRequest original) {
         if (randomBoolean()) {
-            original.setScript(new Script(randomAlphaOfLength(5)));
+            original.setScript(mockScript(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
             original.setPipeline(randomAlphaOfLength(5));

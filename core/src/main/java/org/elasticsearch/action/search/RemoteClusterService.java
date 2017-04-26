@@ -22,14 +22,13 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -243,18 +242,18 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return remoteClusters.containsKey(clusterName);
     }
 
-    void collectSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,
+    void collectSearchShards(SearchRequest searchRequest, Map<String, OriginalIndices> remoteIndicesByCluster,
                              ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
         final AtomicReference<TransportException> transportException = new AtomicReference<>();
-        for (Map.Entry<String, List<String>> entry : remoteIndicesByCluster.entrySet()) {
+        for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterName = entry.getKey();
             RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
             if (remoteClusterConnection == null) {
                 throw new IllegalArgumentException("no such remote cluster: " + clusterName);
             }
-            final List<String> indices = entry.getValue();
+            final String[] indices = entry.getValue().indices();
             remoteClusterConnection.fetchSearchShards(searchRequest, indices,
                 new ActionListener<ClusterSearchShardsResponse>() {
                     @Override
@@ -288,16 +287,16 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         }
     }
 
-
     Function<String, Transport.Connection> processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,
-                                                                       List<ShardIterator> remoteShardIterators,
-                                                                       Map<String, AliasFilter> aliasFilterMap) {
+                                                               Map<String, OriginalIndices> remoteIndicesByCluster,
+                                                               List<SearchShardIterator> remoteShardIterators,
+                                                               Map<String, AliasFilter> aliasFilterMap) {
         Map<String, Supplier<Transport.Connection>> nodeToCluster = new HashMap<>();
         for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
-            String clusterName = entry.getKey();
+            String clusterAlias = entry.getKey();
             ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
             for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
-                nodeToCluster.put(remoteNode.getId(), () -> getConnection(remoteNode, clusterName));
+                nodeToCluster.put(remoteNode.getId(), () -> getConnection(remoteNode, clusterAlias));
             }
             Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
@@ -305,9 +304,11 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
                 Index remoteIndex = shardId.getIndex();
-                Index index = new Index(clusterName + REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(), remoteIndex.getUUID());
-                ShardIterator shardIterator = new PlainShardIterator(new ShardId(index, shardId.getId()),
-                    Arrays.asList(clusterSearchShardsGroup.getShards()));
+                Index index = new Index(clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(), remoteIndex.getUUID());
+                OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
+                assert originalIndices != null;
+                SearchShardIterator shardIterator = new SearchShardIterator(new ShardId(index, shardId.getId()),
+                    Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
                 remoteShardIterators.add(shardIterator);
                 AliasFilter aliasFilter;
                 if (indicesAndFilters == null) {

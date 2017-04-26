@@ -299,6 +299,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
+    private static final boolean MOCK_MODULES_ENABLED = "true".equals(System.getProperty(TESTS_ENABLE_MOCK_MODULES, "true"));
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
@@ -1882,7 +1883,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /** Return the mock plugins the cluster should use */
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
-        if (randomBoolean()) { // sometimes run without those completely
+        if (MOCK_MODULES_ENABLED && randomBoolean()) { // sometimes run without those completely
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }

@@ -59,11 +59,6 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public Object unwrap(Object value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void setScorer(Scorer scorer) {
         }
 

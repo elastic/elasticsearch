@@ -565,11 +565,6 @@ public class SumIT extends AbstractNumericTestCase {
                     return new LeafSearchScript() {
 
                         @Override
-                        public Object unwrap(Object value) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public void setNextVar(String name, Object value) {
                             vars.put(name, value);
                         }

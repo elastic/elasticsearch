@@ -523,15 +523,21 @@ public class Node implements Closeable {
 
         boolean clean = true;
         for (final String defaultPathData : Environment.DEFAULT_PATH_DATA_SETTING.get(settings)) {
-            final Path nodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
-            if (Files.exists(nodeDirectory) == false) {
+            final Path defaultNodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
+            if (Files.exists(defaultNodeDirectory) == false) {
                 continue;
             }
-            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(nodeDirectory);
+
+            if (isDefaultPathDataInPathData(nodeEnv, defaultNodeDirectory)) {
+                continue;
+            }
+
+            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(defaultNodeDirectory);
             final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodePath);
             if (availableIndexFolders.isEmpty()) {
                 continue;
             }
+
             clean = false;
             logger.error("detected index data in default.path.data [{}] where there should not be any", nodePath.indicesPath);
             for (final String availableIndexFolder : availableIndexFolders) {
@@ -552,6 +558,15 @@ public class Node implements Closeable {
                 "detected index data in default.path.data %s where there should not be any; check the logs for details",
                 Environment.DEFAULT_PATH_DATA_SETTING.get(settings));
         throw new IllegalStateException(message);
+    }
+
+    private static boolean isDefaultPathDataInPathData(final NodeEnvironment nodeEnv, final Path defaultNodeDirectory) throws IOException {
+        for (final NodeEnvironment.NodePath dataPath : nodeEnv.nodePaths()) {
+            if (Files.isSameFile(dataPath.path, defaultNodeDirectory)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressForbidden(reason = "read path that is not configured in environment")

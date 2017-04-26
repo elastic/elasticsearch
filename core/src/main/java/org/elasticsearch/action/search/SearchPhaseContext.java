@@ -20,7 +20,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
@@ -97,16 +97,16 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      * @see org.elasticsearch.search.fetch.FetchSearchResult#getRequestId()
      *
      */
-    default void sendReleaseSearchContext(long contextId, Transport.Connection connection) {
+    default void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         if (connection != null) {
-            getSearchTransport().sendFreeContext(connection, contextId, getRequest());
+            getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
     }
 
     /**
      * Builds an request for the initial search phase.
      */
-    ShardSearchTransportRequest buildShardSearchRequest(ShardIterator shardIt, ShardRouting shard);
+    ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt, ShardRouting shard);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

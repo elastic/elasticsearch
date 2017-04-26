@@ -195,14 +195,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return snapshot.toString();
         }
 
-        private ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+        // package private for testing
+        ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
                 if (entry.value.state() == State.WAITING) {
-                    List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndex());
+                    final String indexName = entry.key.getIndexName();
+                    List<ShardId> waitingShards = waitingIndicesMap.get(indexName);
                     if (waitingShards == null) {
                         waitingShards = new ArrayList<>();
-                        waitingIndicesMap.put(entry.key.getIndexName(), waitingShards);
+                        waitingIndicesMap.put(indexName, waitingShards);
                     }
                     waitingShards.add(entry.key);
                 }
@@ -216,7 +218,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             return waitingIndicesBuilder.build();
         }
-
     }
 
     /**

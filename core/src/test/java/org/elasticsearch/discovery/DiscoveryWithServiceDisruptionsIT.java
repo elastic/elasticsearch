@@ -585,6 +585,12 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     ensureStableCluster(nodes.size(), TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
                         DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
                 }
+                // in case of a bridge partition, shard allocation can fail "index.allocation.max_retries" times if the master
+                // is the super-connected node and recovery source and target are on opposite sides of the bridge
+                if (disruptionScheme instanceof NetworkDisruption &&
+                    ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
+                    assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
+                }
                 ensureGreen("test");
 
                 logger.info("validating successful docs");

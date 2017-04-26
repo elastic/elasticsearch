@@ -33,7 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.fail;
@@ -42,7 +42,7 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                                                           new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT);
+                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
         return createClusterService(threadPool, discoveryNode);
     }
 

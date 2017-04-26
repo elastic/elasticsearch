@@ -38,14 +38,4 @@ public interface ExecutableScript {
      * Executes the script.
      */
     Object run();
-
-    /**
-     * Unwraps a possible script value. For example, when passing vars and
-     * expecting the returned value to be part of the vars. Javascript and
-     * Python need this but other scripting engines just return the values
-     * passed in.
-     */
-    default Object unwrap(Object value) {
-        return value;
-    }
 }

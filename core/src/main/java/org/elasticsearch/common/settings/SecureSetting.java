@@ -21,12 +21,9 @@ package org.elasticsearch.common.settings;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.EnumSet;
 import java.util.Set;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.ArrayUtils;
 
 
@@ -36,9 +33,7 @@ import org.elasticsearch.common.util.ArrayUtils;
  * This class allows access to settings from the Elasticsearch keystore.
  */
 public abstract class SecureSetting<T> extends Setting<T> {
-    private static final Set<Property> ALLOWED_PROPERTIES = new HashSet<>(
-        Arrays.asList(Property.Deprecated, Property.Shared)
-    );
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.Shared);
 
     private static final Property[] FIXED_PROPERTIES = {
         Property.NodeScope

@@ -75,12 +75,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
 
-        Integer maxRetries = getValue(repositorySettings, settings,
-            S3Repository.Repository.MAX_RETRIES_SETTING,
-            S3Repository.Repositories.MAX_RETRIES_SETTING);
-        boolean useThrottleRetries = getValue(repositorySettings, settings,
-            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING,
-            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
         // If the user defined a path style access setting, we rely on it,
         // otherwise we use the default value set by the SDK
         Boolean pathStyleAccess = null;
@@ -91,12 +85,11 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
                 S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
         }
 
-        logger.debug("creating S3 client with client_name [{}], endpoint [{}], max_retries [{}], " +
-                "use_throttle_retries [{}], path_style_access [{}]",
-            clientName, clientSettings.endpoint, maxRetries, useThrottleRetries, pathStyleAccess);
+        logger.debug("creating S3 client with client_name [{}], endpoint [{}], path_style_access [{}]",
+            clientName, clientSettings.endpoint, pathStyleAccess);
 
         AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
-        ClientConfiguration configuration = buildConfiguration(clientSettings, maxRetries, useThrottleRetries);
+        ClientConfiguration configuration = buildConfiguration(clientSettings, repositorySettings);
 
         client = new AmazonS3Client(credentials, configuration);
 
@@ -113,7 +106,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings, Integer maxRetries, boolean useThrottleRetries) {
+    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings, Settings repositorySettings) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -128,10 +121,13 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
 
+        Integer maxRetries = getRepoValue(repositorySettings, S3Repository.Repository.MAX_RETRIES_SETTING, clientSettings.maxRetries);
         if (maxRetries != null) {
             // If not explicitly set, default to 3 with exponential backoff policy
             clientConfiguration.setMaxErrorRetry(maxRetries);
         }
+        boolean useThrottleRetries = getRepoValue(repositorySettings,
+            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING, clientSettings.throttleRetries);
         clientConfiguration.setUseThrottleRetries(useThrottleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
 
@@ -147,6 +143,14 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             logger.debug("Using basic key/secret credentials");
             return new StaticCredentialsProvider(clientSettings.credentials);
         }
+    }
+
+    /** Returns the value for a given setting from the repository, or returns the fallback value. */
+    private static <T> T getRepoValue(Settings repositorySettings, Setting<T> repositorySetting, T fallback) {
+        if (repositorySetting.exists(repositorySettings)) {
+            return repositorySetting.get(repositorySettings);
+        }
+        return fallback;
     }
 
     @Override

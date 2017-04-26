@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class LongGCDisruptionTest extends ESTestCase {
+public class LongGCDisruptionTests extends ESTestCase {
 
     static class LockedExecutor {
         ReentrantLock lock = new ReentrantLock();

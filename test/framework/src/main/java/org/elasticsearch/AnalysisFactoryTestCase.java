@@ -113,7 +113,7 @@ import java.util.regex.Pattern;
  * If we don't want to expose one for a specific reason, just map it to Void.
  * The deprecated ones can be mapped to Deprecated.class.
  */
-public class AnalysisFactoryTestCase extends ESTestCase {
+public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
 

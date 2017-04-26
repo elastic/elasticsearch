@@ -37,6 +37,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 // turn down token expiration interval and crank up the deletion interval
                 .put(TokenService.TOKEN_EXPIRATION.getKey(), TimeValue.timeValueSeconds(1L))
                 .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
+                .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(2L))
                 .build();
     }
 

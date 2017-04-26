@@ -101,6 +101,8 @@ public final class TokenService extends AbstractComponent {
             TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.token.delete.interval",
                     TimeValue.timeValueMinutes(30L), Property.NodeScope);
+    public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
+            TimeValue.MINUS_ONE, Property.NodeScope);
     public static final String DEFAULT_PASSPHRASE = "changeme is a terrible password, so let's not use it anymore!";
 
     static final String DOC_TYPE = "invalidated-token";

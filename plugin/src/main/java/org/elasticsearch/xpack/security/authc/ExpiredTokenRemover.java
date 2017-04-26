@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,16 +33,22 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     private final InternalClient client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final Logger logger;
+    private final TimeValue timeout;
 
     ExpiredTokenRemover(Settings settings, InternalClient internalClient) {
         this.client = internalClient;
         this.logger = Loggers.getLogger(getClass(), settings);
+        this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
     }
 
     @Override
     public void doRun() {
         SearchRequest searchRequest = new SearchRequest(TokenService.INDEX_NAME);
         DeleteByQueryRequest dbq = new DeleteByQueryRequest(searchRequest);
+        if (timeout != TimeValue.MINUS_ONE) {
+            dbq.setTimeout(timeout);
+            searchRequest.source().timeout(timeout);
+        }
         searchRequest.source()
                 .query(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE))

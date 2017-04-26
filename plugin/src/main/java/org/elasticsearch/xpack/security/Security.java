@@ -452,6 +452,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.TOKEN_PASSPHRASE);
         settingsList.add(TokenService.DELETE_INTERVAL);
+        settingsList.add(TokenService.DELETE_TIMEOUT);
 
         // encryption settings
         CryptoService.addSettings(settingsList);

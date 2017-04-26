@@ -205,7 +205,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
             listener.onResponse(DISABLED_USER_INFO);
-        } else if (securityLifecycleService.securityIndexExists() == false) {
+        } else if (securityLifecycleService.isSecurityIndexExisting() == false) {
             listener.onResponse(DEFAULT_USER_INFO);
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {

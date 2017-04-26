@@ -70,7 +70,7 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
      *                 {@link ActionListener#onResponse(Object) onResponse(true)} if an upgrade is performed, or
      *                 {@link ActionListener#onResponse(Object) onResponse(false)} if no upgrade was required.
      * @see SecurityLifecycleService#securityIndexMappingAndTemplateSufficientToRead(ClusterState, Logger)
-     * @see SecurityLifecycleService#canWriteToSecurityIndex
+     * @see SecurityLifecycleService#isSecurityIndexWriteable
      * @see IndexLifecycleManager#mappingVersion
      */
     @Override

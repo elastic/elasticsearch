@@ -93,6 +93,8 @@ cluster:admin/xpack/security/user/has_privileges
 cluster:admin/xpack/security/role/put
 cluster:admin/xpack/security/role/delete
 cluster:admin/xpack/security/role/get
+cluster:admin/xpack/security/token/create
+cluster:admin/xpack/security/token/invalidate
 cluster:admin/xpack/watcher/service
 cluster:admin/xpack/watcher/watch/delete
 cluster:admin/xpack/watcher/watch/execute

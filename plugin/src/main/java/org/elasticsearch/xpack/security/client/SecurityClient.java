@@ -30,6 +30,14 @@ import org.elasticsearch.xpack.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.security.action.token.CreateTokenRequest;
+import org.elasticsearch.xpack.security.action.token.CreateTokenRequestBuilder;
+import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequest;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequestBuilder;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
@@ -229,5 +237,21 @@ public class SecurityClient {
 
     public void putRole(PutRoleRequest request, ActionListener<PutRoleResponse> listener) {
         client.execute(PutRoleAction.INSTANCE, request, listener);
+    }
+
+    public CreateTokenRequestBuilder prepareCreateToken() {
+        return new CreateTokenRequestBuilder(client);
+    }
+
+    public void createToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+        client.execute(CreateTokenAction.INSTANCE, request, listener);
+    }
+
+    public InvalidateTokenRequestBuilder prepareInvalidateToken(String token) {
+        return new InvalidateTokenRequestBuilder(client).setTokenString(token);
+    }
+
+    public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
+        client.execute(InvalidateTokenAction.INSTANCE, request, listener);
     }
 }

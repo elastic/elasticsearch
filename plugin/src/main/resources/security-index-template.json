@@ -125,6 +125,21 @@
           "type": "boolean"
         }
       }
+    },
+    "doc": {
+      "_meta": {
+        "security-version": "${security.template.version}"
+      },
+      "dynamic": "strict",
+      "properties": {
+        "doc_type": {
+          "type" : "keyword"
+        },
+        "expiration_time": {
+          "type": "date",
+          "format": "date_time"
+        }
+      }
     }
   }
 }

@@ -22,6 +22,8 @@ cluster:admin/xpack/security/user/put
 cluster:admin/xpack/security/user/delete
 cluster:admin/xpack/security/user/get
 cluster:admin/xpack/security/user/set_enabled
+cluster:admin/xpack/security/token/create
+cluster:admin/xpack/security/token/invalidate
 indices:admin/analyze[s]
 indices:admin/cache/clear[n]
 indices:admin/forcemerge[n]

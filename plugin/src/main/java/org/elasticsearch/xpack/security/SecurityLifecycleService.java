@@ -20,6 +20,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
+import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 
@@ -71,13 +72,12 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.securityIndex = new IndexLifecycleManager(settings, client,
-                SECURITY_INDEX_NAME, SECURITY_TEMPLATE_NAME, migrator);
+        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME, SECURITY_TEMPLATE_NAME, migrator);
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop();
+                close();
             }
         });
     }
@@ -93,12 +93,10 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
 
         securityIndex.clusterChanged(event);
-
-        final boolean master = event.localNodeMaster();
         try {
             if (Security.indexAuditLoggingEnabled(settings) &&
                     indexAuditTrail.state() == IndexAuditTrail.State.INITIALIZED) {
-                if (indexAuditTrail.canStart(event, master)) {
+                if (indexAuditTrail.canStart(event, event.localNodeMaster())) {
                     threadPool.generic().execute(new AbstractRunnable() {
 
                         @Override
@@ -109,7 +107,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
                         @Override
                         public void doRun() {
-                            indexAuditTrail.start(master);
+                            indexAuditTrail.start(event.localNodeMaster());
                         }
                     });
                 }
@@ -119,19 +117,19 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
     }
 
-    protected IndexLifecycleManager securityIndex() {
+    IndexLifecycleManager securityIndex() {
         return securityIndex;
     }
 
-    public boolean securityIndexExists() {
+    public boolean isSecurityIndexExisting() {
         return securityIndex.indexExists();
     }
 
-    public boolean securityIndexAvailable() {
+    public boolean isSecurityIndexAvailable() {
         return securityIndex.isAvailable();
     }
 
-    public boolean canWriteToSecurityIndex() {
+    public boolean isSecurityIndexWriteable() {
         return securityIndex.isWritable();
     }
 
@@ -146,7 +144,8 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         return securityIndex.checkMappingVersion(requiredVersion);
     }
 
-    public void stop() {
+    // this is called in a lifecycle listener beforeStop on the cluster service
+    private void close() {
         if (indexAuditTrail != null) {
             try {
                 indexAuditTrail.stop();
@@ -175,6 +174,6 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     public static List<String> indexNames() {
-        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME));
+        return Collections.singletonList(SECURITY_INDEX_NAME);
     }
 }

@@ -223,7 +223,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
     }
 
     private void checkMappingUpdateWorkCorrectly(ClusterState.Builder clusterStateBuilder, Version expectedOldVersion) {
-        final int expectedNumberOfListeners = 3; // we have three types in the mapping
+        final int expectedNumberOfListeners = 4; // we have four types in the mapping
 
         AtomicReference<Version> migratorVersionRef = new AtomicReference<>(null);
         AtomicReference<ActionListener<Boolean>> migratorListenerRef = new AtomicReference<>(null);

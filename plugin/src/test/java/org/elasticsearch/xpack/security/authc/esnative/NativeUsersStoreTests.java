@@ -129,9 +129,9 @@ public class NativeUsersStoreTests extends ESTestCase {
 
     private NativeUsersStore startNativeUsersStore() {
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
-        when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
-        when(securityLifecycleService.securityIndexExists()).thenReturn(true);
-        when(securityLifecycleService.canWriteToSecurityIndex()).thenReturn(true);
+        when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityLifecycleService.isSecurityIndexWriteable()).thenReturn(true);
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(Settings.EMPTY, internalClient, securityLifecycleService);
         return nativeUsersStore;
     }

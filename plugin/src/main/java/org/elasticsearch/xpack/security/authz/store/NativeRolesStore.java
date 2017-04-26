@@ -130,7 +130,7 @@ public class NativeRolesStore extends AbstractComponent {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
             return;
-        } else if (securityLifecycleService.canWriteToSecurityIndex() == false) {
+        } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("role cannot be deleted as service cannot write until template and " +
                     "mappings are up to date"));
             return;
@@ -164,7 +164,7 @@ public class NativeRolesStore extends AbstractComponent {
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be created or modified using a tribe node"));
-        } else if (securityLifecycleService.canWriteToSecurityIndex() == false) {
+        } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("role cannot be created or modified as service cannot write until template and " +
                     "mappings are up to date"));
         } else if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
@@ -203,7 +203,7 @@ public class NativeRolesStore extends AbstractComponent {
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>();
-        if (securityLifecycleService.securityIndexExists() == false) {
+        if (securityLifecycleService.isSecurityIndexExisting() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
@@ -261,7 +261,7 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {
-        if (securityLifecycleService.securityIndexExists() == false) {
+        if (securityLifecycleService.isSecurityIndexExisting() == false) {
             roleActionListener.onResponse(null);
         } else {
             executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {

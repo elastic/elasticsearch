@@ -116,7 +116,7 @@ public class TransportPutUserActionTests extends ESTestCase {
     public void testReservedUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
-        when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
+        when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ReservedRealm reservedRealm = new ReservedRealm(new Environment(settings), settings, usersStore,

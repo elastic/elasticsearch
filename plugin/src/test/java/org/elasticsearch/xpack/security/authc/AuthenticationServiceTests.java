@@ -6,17 +6,24 @@
 package org.elasticsearch.xpack.security.authc;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
@@ -25,10 +32,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
@@ -38,6 +50,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
+import org.junit.After;
 import org.junit.Before;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
@@ -77,6 +90,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     private AuthenticationToken token;
     private ThreadPool threadPool;
     private ThreadContext threadContext;
+    private TokenService tokenService;
+    private SecurityLifecycleService lifecycleService;
+    private Client client;
 
     @Before
     public void init() throws Exception {
@@ -102,10 +118,22 @@ public class AuthenticationServiceTests extends ESTestCase {
                 threadContext, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm), Collections.singletonList(firstRealm));
 
         auditTrail = mock(AuditTrailService.class);
-        threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        client = mock(Client.class);
+        threadPool = new ThreadPool(settings,
+                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
+        threadContext = threadPool.getThreadContext();
+        InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
+        lifecycleService = mock(SecurityLifecycleService.class);
+        tokenService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
+                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
+    }
+
+    @After
+    public void shutdownThreadpool() throws InterruptedException {
+        if (threadPool != null) {
+            terminate(threadPool);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -345,58 +373,74 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AtomicBoolean completed = new AtomicBoolean(false);
         final SetOnce<Authentication> authRef = new SetOnce<>();
         final SetOnce<String> authHeaderRef = new SetOnce<>();
-        service.authenticate("_action", message, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
-            assertThat(authentication, notNullValue());
-            assertThat(authentication.getUser(), sameInstance(user1));
-            assertThreadContextContainsAuthentication(authentication);
-            authRef.set(authentication);
-            authHeaderRef.set(threadContext.getHeader(Authentication.AUTHENTICATION_KEY));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            service.authenticate("_action", message, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
+
+                assertThat(authentication, notNullValue());
+                assertThat(authentication.getUser(), sameInstance(user1));
+                assertThreadContextContainsAuthentication(authentication);
+                authRef.set(authentication);
+                authHeaderRef.set(threadContext.getHeader(Authentication.AUTHENTICATION_KEY));
+                setCompletedToTrue(completed);
+            }, this::logAndFail));
+        }
         assertTrue(completed.compareAndSet(true, false));
         reset(firstRealm);
 
         // checking authentication from the context
         InternalMessage message1 = new InternalMessage();
-        final ThreadContext threadContext1 = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext1);
-        service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(Settings.EMPTY));
+        ThreadPool threadPool1 = new TestThreadPool("testAutheticateTransportContextAndHeader1");
+        try {
+            ThreadContext threadContext1 = threadPool1.getThreadContext();
+            service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
+                    new DefaultAuthenticationFailureHandler(), threadPool1, new AnonymousUser(Settings.EMPTY), tokenService);
 
-        threadContext1.putTransient(Authentication.AUTHENTICATION_KEY, authRef.get());
-        threadContext1.putHeader(Authentication.AUTHENTICATION_KEY, authHeaderRef.get());
-        service.authenticate("_action", message1, SystemUser.INSTANCE, ActionListener.wrap(ctxAuth -> {
-            assertThat(ctxAuth, sameInstance(authRef.get()));
-            assertThat(threadContext1.getHeader(Authentication.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
-        assertTrue(completed.compareAndSet(true, false));
-        verifyZeroInteractions(firstRealm);
-        reset(firstRealm);
+
+            threadContext1.putTransient(Authentication.AUTHENTICATION_KEY, authRef.get());
+            threadContext1.putHeader(Authentication.AUTHENTICATION_KEY, authHeaderRef.get());
+            service.authenticate("_action", message1, SystemUser.INSTANCE, ActionListener.wrap(ctxAuth -> {
+                assertThat(ctxAuth, sameInstance(authRef.get()));
+                assertThat(threadContext1.getHeader(Authentication.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
+                setCompletedToTrue(completed);
+            }, this::logAndFail));
+            assertTrue(completed.compareAndSet(true, false));
+            verifyZeroInteractions(firstRealm);
+            reset(firstRealm);
+        } finally {
+            terminate(threadPool1);
+        }
 
         // checking authentication from the user header
-        ThreadContext threadContext2 = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext2);
-        service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(Settings.EMPTY));
-        threadContext2.putHeader(Authentication.AUTHENTICATION_KEY, authHeaderRef.get());
+        ThreadPool threadPool2 = new TestThreadPool("testAutheticateTransportContextAndHeader2");
+        try {
+            ThreadContext threadContext2 = threadPool2.getThreadContext();
+            final String header;
+            try (ThreadContext.StoredContext ignore = threadContext2.stashContext()) {
+                service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
+                        new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
+                threadContext2.putHeader(Authentication.AUTHENTICATION_KEY, authHeaderRef.get());
 
-        BytesStreamOutput output = new BytesStreamOutput();
-        threadContext2.writeTo(output);
-        StreamInput input = output.bytes().streamInput();
-        threadContext2 = new ThreadContext(Settings.EMPTY);
-        threadContext2.readHeaders(input);
+                BytesStreamOutput output = new BytesStreamOutput();
+                threadContext2.writeTo(output);
+                StreamInput input = output.bytes().streamInput();
+                threadContext2 = new ThreadContext(Settings.EMPTY);
+                threadContext2.readHeaders(input);
+                header = threadContext2.getHeader(Authentication.AUTHENTICATION_KEY);
+            }
 
-        when(threadPool.getThreadContext()).thenReturn(threadContext2);
-        service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(Settings.EMPTY));
-        service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
-            assertThat(result, notNullValue());
-            assertThat(result.getUser(), equalTo(user1));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
-        assertTrue(completed.get());
-        verifyZeroInteractions(firstRealm);
+            threadPool2.getThreadContext().putHeader(Authentication.AUTHENTICATION_KEY, header);
+            service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
+                    new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
+            service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
+                assertThat(result, notNullValue());
+                assertThat(result.getUser(), equalTo(user1));
+                setCompletedToTrue(completed);
+            }, this::logAndFail));
+            assertTrue(completed.get());
+            verifyZeroInteractions(firstRealm);
+        } finally {
+            terminate(threadPool2);
+        }
     }
 
     public void testAuthenticateTamperedUser() throws Exception {
@@ -412,35 +456,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    public void testAttachIfMissing() throws Exception {
-        User user;
-        if (randomBoolean()) {
-            user = SystemUser.INSTANCE;
-        } else {
-            user = new User("username", "r1", "r2");
-        }
-        assertThat(threadContext.getTransient(Authentication.AUTHENTICATION_KEY), nullValue());
-        assertThat(threadContext.getHeader(Authentication.AUTHENTICATION_KEY), nullValue());
-        service.attachUserIfMissing(user);
-
-        Authentication authentication = threadContext.getTransient(Authentication.AUTHENTICATION_KEY);
-        assertThat(authentication, notNullValue());
-        assertThat(authentication.getUser(), sameInstance((Object) user));
-        assertThat(authentication.getLookedUpBy(), nullValue());
-        assertThat(authentication.getAuthenticatedBy().getName(), is("__attach"));
-        assertThat(authentication.getAuthenticatedBy().getType(), is("__attach"));
-        assertThat(authentication.getAuthenticatedBy().getNodeName(), is("authc_test"));
-        assertThat(threadContext.getHeader(Authentication.AUTHENTICATION_KEY), equalTo((Object) authentication.encode()));
-    }
-
-    public void testAttachIfMissingExists() throws Exception {
-        Authentication authentication = new Authentication(new User("username", "r1", "r2"), new RealmRef("test", "test", "foo"), null);
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-        threadContext.putHeader(Authentication.AUTHENTICATION_KEY, authentication.encode());
-        service.attachUserIfMissing(new User("username2", "r3", "r4"));
-        assertThreadContextContainsAuthentication(authentication);
-    }
-
     public void testAnonymousUserRest() throws Exception {
         String username = randomBoolean() ? AnonymousUser.DEFAULT_ANONYMOUS_USERNAME : "user1";
         Settings.Builder builder = Settings.builder()
@@ -451,7 +466,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Settings settings = builder.build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(),
-                threadPool, anonymousUser);
+                threadPool, anonymousUser, tokenService);
         RestRequest request = new FakeRestRequest();
 
         Authentication result = authenticateBlocking(request);
@@ -469,7 +484,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService);
         InternalMessage message = new InternalMessage();
 
         Authentication result = authenticateBlocking("_action", message, null);
@@ -484,7 +499,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService);
 
         InternalMessage message = new InternalMessage();
 
@@ -762,6 +777,78 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(auditTrail).authenticationFailed(token, restRequest);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
+    }
+
+    public void testAuthenticateWithToken() throws Exception {
+        User user = new User("_username", "r1");
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
+        String token = tokenService.getUserTokenString(tokenService.createUserToken(expected));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader("Authorization", "Bearer " + token);
+            service.authenticate("_action", message, null, ActionListener.wrap(result -> {
+                assertThat(result, notNullValue());
+                assertThat(result.getUser(), is(user));
+                assertThat(result.getLookedUpBy(), is(nullValue()));
+                assertThat(result.getAuthenticatedBy(), is(notNullValue()));
+                assertEquals(expected, result);
+                setCompletedToTrue(completed);
+            }, this::logAndFail));
+        }
+        assertTrue(completed.get());
+        verify(auditTrail).authenticationSuccess("realm", user, "_action", message);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testInvalidToken() throws Exception {
+        final User user = new User("_username", "r1");
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, user);
+        final int numBytes = randomIntBetween(TokenService.MINIMUM_BYTES, TokenService.MINIMUM_BYTES + 32);
+        final byte[] randomBytes = new byte[numBytes];
+        random().nextBytes(randomBytes);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Authentication expected = new Authentication(user, new RealmRef(firstRealm.name(), firstRealm.type(), "authc_test"), null);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader("Authorization", "Bearer " + Base64.getEncoder().encodeToString(randomBytes));
+            service.authenticate("_action", message, null, ActionListener.wrap(result -> {
+                assertThat(result, notNullValue());
+                assertThat(result.getUser(), is(user));
+                assertThat(result.getLookedUpBy(), is(nullValue()));
+                assertThat(result.getAuthenticatedBy(), is(notNullValue()));
+                assertThreadContextContainsAuthentication(result);
+                assertEquals(expected, result);
+                latch.countDown();
+            }, this::logAndFail));
+        }
+
+        // we need to use a latch here because the key computation goes async on another thread!
+        latch.await();
+        verify(auditTrail).authenticationSuccess(firstRealm.name(), user, "_action", message);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testExpiredToken() throws Exception {
+        User user = new User("_username", "r1");
+        final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
+        String token = tokenService.getUserTokenString(tokenService.createUserToken(expected));
+        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[2];
+            GetResponse response = mock(GetResponse.class);
+            when(response.isExists()).thenReturn(true);
+            listener.onResponse(response);
+            return Void.TYPE;
+        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
+
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader("Authorization", "Bearer " + token);
+            ElasticsearchSecurityException e =
+                    expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
+            assertEquals(RestStatus.UNAUTHORIZED, e.status());
+            assertEquals("token expired", e.getMessage());
+        }
     }
 
     private static class InternalMessage extends TransportMessage {

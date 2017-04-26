@@ -13,6 +13,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -25,10 +26,10 @@ import org.elasticsearch.xpack.common.IteratingActionListener;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -53,11 +54,13 @@ public class AuthenticationService extends AbstractComponent {
     private final ThreadContext threadContext;
     private final String nodeName;
     private final AnonymousUser anonymousUser;
+    private final TokenService tokenService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
-                                 AuthenticationFailureHandler failureHandler, ThreadPool threadPool, AnonymousUser anonymousUser) {
+                                 AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
+                                 AnonymousUser anonymousUser, TokenService tokenService) {
         super(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
@@ -67,6 +70,7 @@ public class AuthenticationService extends AbstractComponent {
         this.anonymousUser = anonymousUser;
         this.runAsEnabled = RUN_AS_ENABLED.get(settings);
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
+        this.tokenService = tokenService;
     }
 
     /**
@@ -84,7 +88,7 @@ public class AuthenticationService extends AbstractComponent {
      * Authenticates the user that is associated with the given message. If the user was authenticated successfully (i.e.
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
      * the user and that user is then "attached" to the message's context. If no user was found to be attached to the given
-     * message, the the given fallback user will be returned instead.
+     * message, then the given fallback user will be returned instead.
      *
      * @param action        The action of the message
      * @param message       The message to be authenticated
@@ -98,14 +102,17 @@ public class AuthenticationService extends AbstractComponent {
     }
 
     /**
-     * Checks if there's already a user header attached to the given message. If missing, a new header is
-     * set on the message with the given user (encoded).
+     * Authenticates the username and password that are provided as parameters. This will not look
+     * at the values in the ThreadContext for Authentication.
      *
-     * @param user      The user to be attached if the header is missing
+     * @param action        The action of the message
+     * @param message       The message that resulted in this authenticate call
+     * @param username      The username to be used for authentication
+     * @param password      The password to be used for authentication
      */
-    void attachUserIfMissing(User user) throws IOException {
-        Authentication authentication = new Authentication(user, new RealmRef("__attach", "__attach", nodeName), null);
-        authentication.writeToContextIfMissing(threadContext);
+    public void authenticate(String action, TransportMessage message, String username,
+                             SecureString password, ActionListener<Authentication> listener) {
+        new Authenticator(action, message, null, listener, username, password).authenticateAsync();
     }
 
     // pkg private method for testing
@@ -140,6 +147,13 @@ public class AuthenticationService extends AbstractComponent {
             this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message), fallbackUser, listener);
         }
 
+        Authenticator(String action, TransportMessage message, User fallbackUser,
+                      ActionListener<Authentication> listener, String username,
+                      SecureString password) {
+            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message), fallbackUser, listener);
+            this.authenticationToken = new UsernamePasswordToken(username, password);
+        }
+
         private Authenticator(AuditableRequest auditableRequest, User fallbackUser, ActionListener<Authentication> listener) {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
@@ -152,6 +166,7 @@ public class AuthenticationService extends AbstractComponent {
          *
          * <ol>
          *     <li>look for existing authentication {@link #lookForExistingAuthentication(Consumer)}</li>
+         *     <li>look for a user token</li>
          *     <li>token extraction {@link #extractToken(Consumer)}</li>
          *     <li>token authentication {@link #consumeToken(AuthenticationToken)}</li>
          *     <li>user lookup for run as if necessary {@link #consumeUser(User)} and
@@ -164,7 +179,21 @@ public class AuthenticationService extends AbstractComponent {
                 if (authentication != null) {
                     listener.onResponse(authentication);
                 } else {
-                    extractToken(this::consumeToken);
+                    tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
+                        if (userToken != null) {
+                            writeAuthToContext(userToken.getAuthentication());
+                        } else {
+                            extractToken(this::consumeToken);
+                        }
+                    }, e -> {
+                        if (e instanceof ElasticsearchSecurityException &&
+                                tokenService.isExpiredTokenException((ElasticsearchSecurityException) e) == false) {
+                            // intentionally ignore the returned exception; we call this primarily
+                            // for the auditing as we already have a purpose built exception
+                            request.tamperedRequest();
+                        }
+                        listener.onFailure(e);
+                    }));
                 }
             });
         }
@@ -190,9 +219,8 @@ public class AuthenticationService extends AbstractComponent {
                 action = () -> listener.onFailure(request.tamperedRequest());
             }
 
-            // we use the success boolean as we need to know if the executed code block threw an exception and we already called on
-            // failure; if we did call the listener we do not need to continue. While we could place this call in the try block, the
-            // issue is that we catch all exceptions and could catch exceptions that have nothing to do with a tampered request.
+            // While we could place this call in the try block, the issue is that we catch all exceptions and could catch exceptions that
+            // have nothing to do with a tampered request.
             action.run();
         }
 
@@ -205,11 +233,15 @@ public class AuthenticationService extends AbstractComponent {
         void extractToken(Consumer<AuthenticationToken> consumer) {
             Runnable action = () -> consumer.accept(null);
             try {
-                for (Realm realm : realms) {
-                    final AuthenticationToken token = realm.token(threadContext);
-                    if (token != null) {
-                        action = () -> consumer.accept(token);
-                        break;
+                if (authenticationToken != null) {
+                    action = () -> consumer.accept(authenticationToken);
+                } else {
+                    for (Realm realm : realms) {
+                        final AuthenticationToken token = realm.token(threadContext);
+                        if (token != null) {
+                            action = () -> consumer.accept(token);
+                            break;
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -379,19 +411,27 @@ public class AuthenticationService extends AbstractComponent {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                request.authenticationSuccess(authenticatedBy.getName(), finalUser);
                 final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
-                Runnable action = () -> listener.onResponse(finalAuth);
-                try {
-                    finalAuth.writeToContext(threadContext);
-                } catch (Exception e) {
-                    action = () -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
-                }
-
-                // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing
-                // when an exception bubbles up even after successful authentication
-                action.run();
+                writeAuthToContext(finalAuth);
             }
+        }
+
+        /**
+         * Writes the authentication to the {@link ThreadContext} and then calls the listener if
+         * successful
+         */
+        void writeAuthToContext(Authentication authentication) {
+            request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
+            Runnable action = () -> listener.onResponse(authentication);
+            try {
+                authentication.writeToContext(threadContext);
+            } catch (Exception e) {
+                action = () -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
+            }
+
+            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing
+            // when an exception bubbles up even after successful authentication
+            action.run();
         }
     }
 

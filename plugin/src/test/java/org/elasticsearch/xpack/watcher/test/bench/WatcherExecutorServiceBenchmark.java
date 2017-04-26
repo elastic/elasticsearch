@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
@@ -207,8 +208,8 @@ public class WatcherExecutorServiceBenchmark {
     public static final class XPackBenchmarkPlugin extends XPackPlugin {
 
 
-        public XPackBenchmarkPlugin(Settings settings) throws IOException, CertificateException, UnrecoverableKeyException,
-                NoSuchAlgorithmException, KeyStoreException, DestroyFailedException, OperatorCreationException {
+        public XPackBenchmarkPlugin(Settings settings) throws IOException, DestroyFailedException, OperatorCreationException,
+                GeneralSecurityException {
             super(settings);
             watcher = new BenchmarkWatcher(settings);
         }

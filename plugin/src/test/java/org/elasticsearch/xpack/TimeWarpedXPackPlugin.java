@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
@@ -21,8 +22,8 @@ import java.time.Clock;
 public class TimeWarpedXPackPlugin extends XPackPlugin {
     private final ClockMock clock = new ClockMock();
 
-    public TimeWarpedXPackPlugin(Settings settings) throws IOException, CertificateException, UnrecoverableKeyException,
-            NoSuchAlgorithmException, KeyStoreException, DestroyFailedException, OperatorCreationException {
+    public TimeWarpedXPackPlugin(Settings settings) throws IOException,
+            DestroyFailedException, OperatorCreationException, GeneralSecurityException {
         super(settings);
         watcher = new TimeWarpedWatcher(settings);
     }

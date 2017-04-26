@@ -72,6 +72,9 @@ public class XPackSettings {
     public static final Setting<Boolean> RESERVED_REALM_ENABLED_SETTING =
             enabledSetting(XPackPlugin.SECURITY + ".authc.reserved_realm", true);
 
+    /** Setting for enabling or disabling the token service. Defaults to true */
+    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = enabledSetting("security.authc.token", true);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)

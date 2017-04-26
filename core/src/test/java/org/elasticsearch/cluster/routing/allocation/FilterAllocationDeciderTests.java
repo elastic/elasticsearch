@@ -142,8 +142,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {
-        RecoverySource.Type recoveryType = randomFrom(RecoverySource.Type.EMPTY_STORE,
-            RecoverySource.Type.LOCAL_SHARDS);
+        RecoverySource.Type recoveryType = randomFrom(FilterAllocationDecider.INITIAL_RECOVERY_TYPES);
         MetaData.Builder metaData = MetaData.builder();
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(settings);
         final IndexMetaData sourceIndex;

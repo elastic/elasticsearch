@@ -202,7 +202,9 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        assert (b & 0x80) == 0;
+        if ((b & 0x80) != 0) {
+            throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
+        }
         return i | ((b & 0x7F) << 28);
     }
 
@@ -367,7 +369,7 @@ public abstract class StreamInput extends InputStream {
                     buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
                 default:
-                    new AssertionError("unexpected character: " + c + " hex: " + Integer.toHexString(c));
+                    throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
             }
         }
         return spare.toString();
@@ -808,7 +810,7 @@ public abstract class StreamInput extends InputStream {
                 case 17:
                     return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
                 default:
-                    assert false : "no such exception for id: " + key;
+                    throw new IOException("no such exception for id: " + key);
             }
         }
         return null;

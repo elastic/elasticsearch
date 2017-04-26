@@ -144,7 +144,7 @@ cleared as soon as the scroll is not being used anymore using the
 ---------------------------------------
 DELETE /_search/scroll
 {
-    "scroll_id" : ["DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="]
+    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ---------------------------------------
 // CONSOLE

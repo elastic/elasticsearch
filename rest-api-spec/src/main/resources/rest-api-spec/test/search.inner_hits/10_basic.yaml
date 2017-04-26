@@ -19,6 +19,10 @@ setup:
 
 ---
 "Nested inner hits":
+    - skip:
+        version: " - 5.99.99"
+        reason:  _type/enabled was added in 6.0
+
     - do:
         index:
           index: test
@@ -46,6 +50,10 @@ setup:
 
 ---
 "Parent/child inner hits":
+    - skip:
+        version: " - 5.99.99"
+        reason:  _type/enabled was added in 6.0
+
     - do:
         index:
           index: test

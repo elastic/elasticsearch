@@ -24,6 +24,10 @@ setup:
 ---
 "Get /_mapping":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping: {}
 
@@ -34,6 +38,10 @@ setup:
 
 ---
 "Get /{index}/_mapping":
+
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
 
  - do:
     indices.get_mapping:
@@ -47,6 +55,10 @@ setup:
 ---
 "Get /{index}/_mapping/_all":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping:
         index: test_1
@@ -58,6 +70,10 @@ setup:
 
 ---
 "Get /{index}/_mapping/*":
+
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
 
  - do:
     indices.get_mapping:
@@ -71,6 +87,10 @@ setup:
 ---
 "Get /{index}/_mapping/{type}":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping:
         index: test_1
@@ -82,6 +102,10 @@ setup:
 
 ---
 "Get /{index}/_mapping/{type,type}":
+
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
 
  - do:
     indices.get_mapping:
@@ -95,6 +119,10 @@ setup:
 ---
 "Get /{index}/_mapping/{type*}":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping:
         index: test_1
@@ -107,6 +135,10 @@ setup:
 ---
 "Get /_mapping/{type}":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping:
         type: type_2
@@ -118,6 +150,10 @@ setup:
 
 ---
 "Get /_all/_mapping/{type}":
+
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
 
  - do:
     indices.get_mapping:
@@ -132,6 +168,10 @@ setup:
 ---
 "Get /*/_mapping/{type}":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping:
         index: '*'
@@ -145,6 +185,10 @@ setup:
 ---
 "Get /index,index/_mapping/{type}":
 
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
+
  - do:
     indices.get_mapping:
         index: test_1,test_2
@@ -156,6 +200,10 @@ setup:
 
 ---
 "Get /index*/_mapping/{type}":
+
+ - skip:
+    version: " - 5.99.99"
+    reason:  _type/enabled was added in 6.0
 
  - do:
     indices.get_mapping:

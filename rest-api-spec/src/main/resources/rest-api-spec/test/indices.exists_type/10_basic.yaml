@@ -1,5 +1,9 @@
 ---
 "Exists type":
+ - skip:
+     version: " - 5.99.99"
+     reason:  _type/enabled was added in 6.0
+
  - do:
      indices.create:
        index: test_1

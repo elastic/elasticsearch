@@ -42,8 +42,10 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
             try {
                 // Get should always return without blocking as we already checked 'isDone'
                 return super.get();
-            } catch (InterruptedException | ExecutionException e) {
-                Thread.interrupted();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            } catch (ExecutionException e) {
                 return null;
             }
         } else {
@@ -62,7 +64,7 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
                 // We only make a public setters for IOException or RuntimeException
                 return (Exception) e.getCause();
             } catch (InterruptedException e) {
-                Thread.interrupted();
+                Thread.currentThread().interrupt();
                 return null;
             }
         } else {

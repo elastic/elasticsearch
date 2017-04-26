@@ -109,7 +109,7 @@ public class NioClient {
             closeChannels(connections, e);
             throw e;
         } catch (InterruptedException e) {
-            Thread.interrupted();
+            Thread.currentThread().interrupt();
             closeChannels(connections, e);
             throw new ElasticsearchException(e);
         } finally {
@@ -142,6 +142,10 @@ public class NioClient {
         for (final NioSocketChannel socketChannel : connections) {
             try {
                 socketChannel.closeAsync().awaitClose();
+            } catch (InterruptedException inner) {
+                logger.trace("exception while closing channel", e);
+                e.addSuppressed(inner);
+                Thread.currentThread().interrupt();
             } catch (Exception inner) {
                 logger.trace("exception while closing channel", e);
                 e.addSuppressed(inner);

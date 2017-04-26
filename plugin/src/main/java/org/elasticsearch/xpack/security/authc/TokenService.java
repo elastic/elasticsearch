@@ -467,6 +467,10 @@ public final class TokenService extends AbstractComponent {
         return headers != null && headers.stream().anyMatch(EXPIRED_TOKEN_WWW_AUTH_VALUE::equals);
     }
 
+    boolean isExpirationInProgress() {
+        return expiredTokenRemover.isExpirationInProgress();
+    }
+
     private class KeyComputingRunnable extends AbstractRunnable {
 
         private final StreamInput in;

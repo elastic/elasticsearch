@@ -68,6 +68,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         }
     }
 
+    boolean isExpirationInProgress() {
+        return inProgress.get();
+    }
+
     @Override
     public void onFailure(Exception e) {
         logger.error("failed to delete expired tokens", e);

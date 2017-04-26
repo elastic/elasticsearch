@@ -99,7 +99,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     @After
-    public void wipeSecurityIndex() {
+    public void wipeSecurityIndex() throws InterruptedException {
+        // get the token service and wait until token expiration is not in progress!
+        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
+            final boolean done = awaitBusy(() -> tokenService.isExpirationInProgress() == false);
+            assertTrue(done);
+        }
+
         try {
             // this is a hack to clean up the .security index since only superusers can delete it and the default test user is not a
             // superuser since the role used there is a file based role since we cannot guarantee the superuser role is always available

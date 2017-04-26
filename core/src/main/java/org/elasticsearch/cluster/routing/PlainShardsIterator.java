@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -76,7 +77,7 @@ public class PlainShardsIterator implements ShardsIterator {
 
     @Override
     public List<ShardRouting> getShardRoutings() {
-        return shards;
+        return Collections.unmodifiableList(shards);
     }
 
     @Override

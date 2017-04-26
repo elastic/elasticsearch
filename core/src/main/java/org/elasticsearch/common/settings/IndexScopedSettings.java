@@ -195,11 +195,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
                 return true;
             default:
-                if (key.startsWith(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey())) {
-                    return true;
-                } else {
-                    return false;
-                }
+                return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
 }

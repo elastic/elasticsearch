@@ -142,26 +142,21 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     private static final ObjectParser<ParsedExtendedStats, Void> PARSER = new ObjectParser<>(ParsedExtendedStats.class.getSimpleName(),
             true, ParsedExtendedStats::new);
 
-    static {
-        declareExtendedStatsFields(PARSER);
-    }
-
-
     private static final ConstructingObjectParser<Tuple<Double, Double>, Void> STD_BOUNDS_PARSER = new ConstructingObjectParser<>(
             ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS", true, args -> new Tuple<>((Double) args[0], (Double) args[1]));
+
+    private static final ConstructingObjectParser<Tuple<String, String>, Void> STD_BOUNDS_AS_STRING_PARSER = new ConstructingObjectParser<>(
+            ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS_AS_STRING", true,
+            args -> new Tuple<>((String) args[0], (String) args[1]));
+
     static {
         STD_BOUNDS_PARSER.declareField(constructorArg(), (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.LOWER), ValueType.DOUBLE_OR_NULL);
         STD_BOUNDS_PARSER.declareField(constructorArg(), (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.UPPER), ValueType.DOUBLE_OR_NULL);
-    }
-
-    private static final ConstructingObjectParser<Tuple<String, String>, Void> STD_BOUNDS_AS_STRING_PARSER = new ConstructingObjectParser<>(
-            ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS_AS_STRING", true,
-            args -> new Tuple<>((String) args[0], (String) args[1]));
-    static {
         STD_BOUNDS_AS_STRING_PARSER.declareString(constructorArg(), new ParseField(Fields.LOWER));
         STD_BOUNDS_AS_STRING_PARSER.declareString(constructorArg(), new ParseField(Fields.UPPER));
+        declareExtendedStatsFields(PARSER);
     }
 
     protected static void declareExtendedStatsFields(ObjectParser<? extends ParsedExtendedStats, Void> objectParser) {

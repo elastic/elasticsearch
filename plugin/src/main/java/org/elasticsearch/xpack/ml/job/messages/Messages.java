@@ -31,8 +31,8 @@ public final class Messages {
 
     public static final String INCONSISTENT_ID =
             "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
-    public static final String INVALID_ID =
-            "Invalid {0}; ''{1}'' must be lowercase alphanumeric, may contain hyphens or underscores, may not start with underscore";
+    public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
+            "underscores; must start and end with alphanumeric";
 
     public static final String JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";

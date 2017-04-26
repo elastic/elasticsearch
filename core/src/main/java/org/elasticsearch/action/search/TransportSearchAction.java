@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -286,11 +285,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             shards.add(shardIterator);
         }
         for (ShardIterator shardIterator : localShardsIterator) {
-            List<ShardRouting> shardRoutings = new ArrayList<>();
-            for (ShardRouting shardRouting : shardIterator.asUnordered()) {
-                shardRoutings.add(shardRouting);
-            }
-            shards.add(new SearchShardIterator(shardIterator.shardId(), shardRoutings, locallIndices));
+            shards.add(new SearchShardIterator(shardIterator.shardId(), shardIterator.getShardRoutings(), locallIndices));
         }
         return new GroupShardsIterator<>(shards);
     }

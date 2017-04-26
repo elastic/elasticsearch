@@ -68,10 +68,10 @@ public class ShardsTests extends MonitoringIntegTestCase {
         updateMonitoringInterval(1L, TimeUnit.SECONDS);
         waitForMonitoringIndices();
 
-        awaitMonitoringDocsCount(greaterThan(0L), ShardsResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ShardsResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", ShardsResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ShardsResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch().setTypes(ShardsResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -98,11 +98,12 @@ public class ShardsTests extends MonitoringIntegTestCase {
         updateMonitoringInterval(1L, TimeUnit.SECONDS);
         waitForMonitoringIndices();
 
-        awaitMonitoringDocsCount(greaterThan(0L), ShardsResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ShardsResolver.TYPE);
 
         SearchRequestBuilder searchRequestBuilder = client()
                 .prepareSearch()
                 .setTypes(ShardsResolver.TYPE)
+                .setPreference("_primary")
                 .setQuery(QueryBuilders.termQuery("shard.index", indexName));
 
         String[] notAnalyzedFields = {"state_uuid", "shard.state", "shard.index", "shard.node"};

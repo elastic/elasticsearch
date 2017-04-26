@@ -67,13 +67,13 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
         updateMonitoringInterval(3L, TimeUnit.SECONDS);
         waitForMonitoringIndices();
 
-        awaitMonitoringDocsCount(greaterThan(0L), IndexRecoveryResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), IndexRecoveryResolver.TYPE);
 
         String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
         logger.debug("--> searching for monitoring documents of type [{}]", IndexRecoveryResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -97,11 +97,13 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
         refresh();
 
         logger.debug("--> checking that cluster_uuid field is correctly indexed");
-        response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setSize(0).setQuery(existsQuery("cluster_uuid")).get();
+        response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setPreference("_primary").setSize(0)
+                .setQuery(existsQuery("cluster_uuid")).get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that timestamp field is correctly indexed");
-        response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setSize(0).setQuery(existsQuery("timestamp")).get();
+        response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setPreference("_primary").setSize(0)
+                .setQuery(existsQuery("timestamp")).get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that other fields are not indexed");
@@ -115,7 +117,8 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
         };
 
         for (String field : fields) {
-            response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setSize(0).setQuery(existsQuery(field)).get();
+            response = client().prepareSearch().setTypes(IndexRecoveryResolver.TYPE).setPreference("_primary").setSize(0)
+                    .setQuery(existsQuery(field)).get();
             assertHitCount(response, 0L);
         }
 

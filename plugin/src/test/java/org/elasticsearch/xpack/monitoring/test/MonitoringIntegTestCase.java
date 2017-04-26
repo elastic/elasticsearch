@@ -247,18 +247,19 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
     }
 
-    protected void awaitMonitoringDocsCount(Matcher<Long> matcher, String... types) throws Exception {
-        assertBusy(() -> assertMonitoringDocsCount(matcher, types), 30, TimeUnit.SECONDS);
+    protected void awaitMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) throws Exception {
+        assertBusy(() -> assertMonitoringDocsCountOnPrimary(matcher, types), 30, TimeUnit.SECONDS);
     }
 
     protected void ensureMonitoringIndicesYellow() {
         ensureYellow(".monitoring-es-*");
     }
 
-    protected void assertMonitoringDocsCount(Matcher<Long> matcher, String... types) {
+    protected void assertMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) {
         flushAndRefresh(MONITORING_INDICES_PREFIX + "*");
-        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0).setTypes(types).get().getHits().getTotalHits();
-        logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
+        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0).setTypes(types)
+                .setPreference("_primary").get().getHits().getTotalHits();
+        logger.trace("--> searched for [{}] documents on primary, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
         assertThat(count, matcher);
     }
 

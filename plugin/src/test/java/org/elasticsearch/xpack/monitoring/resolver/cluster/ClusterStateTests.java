@@ -63,10 +63,10 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
 
     public void testClusterState() throws Exception {
         logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCount(greaterThan(0L), ClusterStateResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ClusterStateResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch().setTypes(ClusterStateResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -88,17 +88,16 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
      */
     public void testNoNodesIndexing() throws Exception {
         logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCount(greaterThan(0L), ClusterStateResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ClusterStateResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch().setTypes(ClusterStateResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         DiscoveryNodes nodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
 
         logger.debug("--> ensure that the 'nodes' attributes of the cluster state document is not indexed");
-        assertHitCount(client().prepareSearch().setSize(0)
-                .setTypes(ClusterStateResolver.TYPE)
+        assertHitCount(client().prepareSearch().setSize(0).setTypes(ClusterStateResolver.TYPE).setPreference("_primary")
                 .setQuery(matchQuery("cluster_state.nodes." + nodes.getMasterNodeId() + ".name",
                         nodes.getMasterNode().getName())).get(), 0L);
     }
@@ -114,10 +113,11 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
         awaitIndexExists(timestampedIndex);
 
         logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateNodeMonitoringDoc.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThanOrEqualTo(nbNodes), ClusterStateNodeMonitoringDoc.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateNodeMonitoringDoc.TYPE);
-        SearchResponse response = client().prepareSearch(timestampedIndex).setTypes(ClusterStateNodeMonitoringDoc.TYPE).get();
+        SearchResponse response = client().prepareSearch(timestampedIndex).setTypes(ClusterStateNodeMonitoringDoc.TYPE)
+                .setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -143,6 +143,7 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
         assertThat(client().prepareSearch().setSize(0)
                 .setIndices(timestampedIndex)
                 .setTypes(ClusterStateNodeMonitoringDoc.TYPE)
+                .setPreference("_primary")
                 .setQuery(QueryBuilders.matchQuery(MonitoringIndexNameResolver.Fields.SOURCE_NODE + ".attributes.custom", randomInt))
                 .get().getHits().getTotalHits(), greaterThan(0L));
 
@@ -159,10 +160,10 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
         awaitIndexExists(dataIndex);
 
         logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCount(greaterThanOrEqualTo(nbNodes), DiscoveryNodeResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThanOrEqualTo(nbNodes), DiscoveryNodeResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", DiscoveryNodeResolver.TYPE);
-        SearchResponse response = client().prepareSearch(dataIndex).setTypes(DiscoveryNodeResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch(dataIndex).setTypes(DiscoveryNodeResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -193,11 +194,13 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
             final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
 
             logger.debug("--> getting monitoring document for node id [{}]", nodeId);
-            assertThat(client().prepareGet(dataIndex, DiscoveryNodeResolver.TYPE, nodeId).get().isExists(), is(true));
+            assertThat(client().prepareGet(dataIndex, DiscoveryNodeResolver.TYPE, nodeId).setPreference("_primary").get().isExists(),
+                    is(true));
 
             // checks that document is not indexed
             assertHitCount(client().prepareSearch(dataIndex).setSize(0)
                     .setTypes(DiscoveryNodeResolver.TYPE)
+                    .setPreference("_primary")
                     .setQuery(QueryBuilders.boolQuery()
                             .should(matchQuery("node.id", nodeId))
                             .should(matchQuery("node.name", nodeName))).get(), 0);

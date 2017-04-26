@@ -54,9 +54,9 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
         updateMonitoringInterval(3L, TimeUnit.SECONDS);
         waitForMonitoringIndices();
 
-        awaitMonitoringDocsCount(greaterThan(0L), NodeStatsResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), NodeStatsResolver.TYPE);
 
-        SearchResponse response = client().prepareSearch().setTypes(NodeStatsResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch().setTypes(NodeStatsResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         for (SearchHit searchHit : response.getHits().getHits()) {

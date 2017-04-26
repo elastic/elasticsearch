@@ -73,10 +73,10 @@ public class IndicesStatsTests extends MonitoringIntegTestCase {
         waitForMonitoringIndices();
 
         logger.debug("--> wait for indices stats collector to collect global stat");
-        awaitMonitoringDocsCount(greaterThan(0L), IndicesStatsResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), IndicesStatsResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", IndicesStatsResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(IndicesStatsResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch().setTypes(IndicesStatsResolver.TYPE).setPreference("_primary").get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");

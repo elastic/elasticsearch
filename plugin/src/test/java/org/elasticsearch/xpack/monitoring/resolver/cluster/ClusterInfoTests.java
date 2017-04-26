@@ -66,10 +66,10 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         awaitIndexExists(dataIndex);
 
         // waiting for cluster info collector to collect data
-        awaitMonitoringDocsCount(equalTo(1L), ClusterInfoMonitoringDoc.TYPE);
+        awaitMonitoringDocsCountOnPrimary(equalTo(1L), ClusterInfoMonitoringDoc.TYPE);
 
         // retrieving cluster info document
-        GetResponse response = client().prepareGet(dataIndex, ClusterInfoMonitoringDoc.TYPE, clusterUUID).get();
+        GetResponse response = client().prepareGet(dataIndex, ClusterInfoMonitoringDoc.TYPE, clusterUUID).setPreference("_primary").get();
         assertTrue("cluster_info document does not exist in data index", response.isExists());
 
         assertThat(response.getIndex(), equalTo(dataIndex));
@@ -141,6 +141,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         assertHitCount(client().prepareSearch().setSize(0)
                 .setIndices(dataIndex)
                 .setTypes(ClusterInfoMonitoringDoc.TYPE)
+                .setPreference("_primary")
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.ACTIVE.label()))

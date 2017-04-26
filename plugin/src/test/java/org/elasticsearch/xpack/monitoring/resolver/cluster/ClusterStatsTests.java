@@ -60,13 +60,13 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
         // ok.. we'll start collecting now...
         updateMonitoringInterval(3L, TimeUnit.SECONDS);
 
-        awaitMonitoringDocsCount(greaterThan(0L), ClusterStatsResolver.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ClusterStatsResolver.TYPE);
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 logger.debug("--> checking that every document contains the expected fields");
-                SearchResponse response = client().prepareSearch().setTypes(ClusterStatsResolver.TYPE).get();
+                SearchResponse response = client().prepareSearch().setTypes(ClusterStatsResolver.TYPE).setPreference("_primary").get();
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     Map<String, Object> fields = searchHit.getSourceAsMap();
 

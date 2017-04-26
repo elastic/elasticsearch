@@ -144,7 +144,7 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
         }
 
         assertThat(exceptions, empty());
-        awaitMonitoringDocsCount(greaterThanOrEqualTo(total.get()), "concurrent");
+        awaitMonitoringDocsCountOnPrimary(greaterThanOrEqualTo(total.get()), "concurrent");
     }
 
     public void testUnsupportedSystem() throws Exception {

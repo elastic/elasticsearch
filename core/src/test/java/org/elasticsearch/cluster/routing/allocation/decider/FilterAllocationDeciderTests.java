@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,19 +29,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -144,8 +139,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {
-        RecoverySource.Type recoveryType = randomFrom(RecoverySource.Type.EMPTY_STORE,
-            RecoverySource.Type.LOCAL_SHARDS, RecoverySource.Type.SNAPSHOT);
+        RecoverySource.Type recoveryType = randomFrom(FilterAllocationDecider.INITIAL_RECOVERY_TYPES);
         MetaData.Builder metaData = MetaData.builder();
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(settings);
         final IndexMetaData sourceIndex;
@@ -164,20 +158,12 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         }
         final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("idx").settings(indexSettings)
             .numberOfShards(1).numberOfReplicas(1);
-        if (recoveryType == RecoverySource.Type.SNAPSHOT) {
-            indexMetaDataBuilder.putInSyncAllocationIds(0, Collections.singleton("_snapshot_restore"));
-        }
         final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
         metaData.put(indexMetaData, false);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         switch (recoveryType) {
             case EMPTY_STORE:
                 routingTableBuilder.addAsNew(indexMetaData);
-                break;
-            case SNAPSHOT:
-                routingTableBuilder.addAsRestore(indexMetaData, new RecoverySource.SnapshotRecoverySource(
-                    new Snapshot("repository", new SnapshotId("snapshot_name", "snapshot_uuid")),
-                    Version.CURRENT, indexMetaData.getIndex().getName()));
                 break;
             case LOCAL_SHARDS:
                 routingTableBuilder.addAsFromCloseToOpen(sourceIndex);
@@ -192,7 +178,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        return service.reroute(clusterState, "reroute", false);
+        return service.reroute(clusterState, "reroute");
     }
 
     public void testInvalidIPFilter() {

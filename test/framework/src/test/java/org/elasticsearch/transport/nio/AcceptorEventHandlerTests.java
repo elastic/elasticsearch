@@ -92,7 +92,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
         assertEquals(new HashSet<>(Arrays.asList(childChannel)), openChannels.getAcceptedChannels());
 
-        childChannel.close();
+        childChannel.closeAsync();
 
         assertEquals(new HashSet<>(), openChannels.getAcceptedChannels());
     }

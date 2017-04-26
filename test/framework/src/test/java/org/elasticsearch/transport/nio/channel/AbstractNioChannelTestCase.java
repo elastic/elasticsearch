@@ -78,7 +78,7 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
         assertFalse(closeFuture.isClosed());
         assertTrue(socketChannel.getRawChannel().isOpen());
 
-        socketChannel.close();
+        socketChannel.closeAsync();
 
         closeFuture.awaitClose(100, TimeUnit.SECONDS);
 

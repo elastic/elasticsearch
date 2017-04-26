@@ -38,9 +38,7 @@ public interface NioChannel {
 
     CloseFuture closeAsync();
 
-    CloseFuture close();
-
-    boolean markRegistered(ESSelector selector);
+    void closeFromSelector();
 
     boolean register(ESSelector selector) throws ClosedChannelException;
 

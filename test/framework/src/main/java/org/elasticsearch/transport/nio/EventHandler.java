@@ -43,7 +43,8 @@ public abstract class EventHandler {
     }
 
     public void handleClose(NioChannel channel) throws IOException {
-        CloseFuture closeFuture = channel.close();
+        channel.closeFromSelector();
+        CloseFuture closeFuture = channel.getCloseFuture();
         assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
         IOException closeException = closeFuture.getCloseException();
         if (closeException != null) {

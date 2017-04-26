@@ -55,11 +55,7 @@ public class TcpWriteContext implements WriteContext {
         }
 
         // TODO: Eval if we will allow writes from sendMessage
-//        if (queued.isEmpty() == false) {
         selector.queueWriteInChannelBuffer(writeOperation);
-//        } else {
-//            singleFlush(writeOperation);
-//        }
     }
 
     @Override
@@ -80,13 +76,13 @@ public class TcpWriteContext implements WriteContext {
 
     @Override
     public boolean hasQueuedWriteOps() {
-        assert channel.getSelector().isOnCurrentThread();
+        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
         return queued.isEmpty() == false;
     }
 
     @Override
     public void clearQueuedWriteOps(Exception e) {
-        assert channel.getSelector().isOnCurrentThread();
+        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to clear queued writes";
         for (WriteOperation op : queued) {
             op.getListener().onFailure(e);
         }

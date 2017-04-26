@@ -42,13 +42,23 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     @Override
-    public CloseFuture close() {
+    public CloseFuture closeAsync() {
         // Even if the channel has already been closed we will clear any pending write operations just in case
         if (state.get() > UNREGISTERED && getSelector().isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
             writeContext.clearQueuedWriteOps(new ClosedChannelException());
         }
 
-        return super.close();
+        return super.closeAsync();
+    }
+
+    @Override
+    public void closeFromSelector() {
+        // Even if the channel has already been closed we will clear any pending write operations just in case
+        if (state.get() > UNREGISTERED && getSelector().isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
+            writeContext.clearQueuedWriteOps(new ClosedChannelException());
+        }
+
+        super.closeFromSelector();
     }
 
     @Override
@@ -57,7 +67,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     @Override
-    public boolean markRegistered(ESSelector selector) {
+    boolean markRegistered(ESSelector selector) {
         this.socketSelector = (SocketSelector) selector;
         return super.markRegistered(selector);
     }
@@ -105,6 +115,15 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return state.get() == REGISTERED;
     }
 
+    /**
+     * This method will attempt to complete the connection process for this channel. It should be called for
+     * new channels or for a channel that has produced a OP_CONNECT events. If this method returns true then
+     * the connection is complete and the channel is ready for reads and writes. If it returns false, the
+     * channel is not yet connected.
+     *
+     * @return true if the connection process is complete
+     * @throws IOException
+     */
     public boolean finishConnect() throws IOException {
         if (connectFuture.isConnectComplete()) {
             return true;

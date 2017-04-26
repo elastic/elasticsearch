@@ -29,6 +29,25 @@ import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * This is a basic channel abstraction used by the {@link org.elasticsearch.transport.nio.NioTransport}.
+ *
+ * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
+ * true until the channel is explicitly closed.
+ *
+ * A channel lifecycle has four stages:
+ *
+ * 1. UNREGISTERED - When a channel is created and prior to it being registered with a selector.
+ * 2. REGISTERED - When a channel has been registered with a selector. This is the state of a channel that
+ * can perform normal operations.
+ * 3. CLOSING - When a channel has been marked for closed, but is not yet closed. {@link #isOpen()} will
+ * still return true. Normal operations should be rejected. The most common scenario for a channel to be
+ * CLOSING is when channel that was REGISTERED has {@link #closeAsync()} called, but the selector thread
+ * has not yet closed the channel.
+ * 4. CLOSED - The channel has been closed.
+ *
+ * @param <S> the type of raw channel this AbstractNioChannel uses
+ */
 public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkChannel> implements NioChannel {
 
     static final int UNREGISTERED = 0;
@@ -66,39 +85,59 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         return profile;
     }
 
+    /**
+     * Registers a channel to be closed by the selector event loop with which it is registered.
+     *
+     * If the current state is UNREGISTERED, the call will attempt to transition the state from UNREGISTERED
+     * to CLOSING. If this transition is successful, the channel can no longer be registered with an event
+     * loop and the channel will be synchronously closed in this method call. If the channel
+     *
+     * If the channel is REGISTERED and the state can be transitioned to CLOSING, the close operation will
+     * be scheduled with the event loop.
+     *
+     * If the channel is CLOSING or CLOSED, nothing will be done.
+     *
+     * @return future that will be complete when the channel is closed
+     */
     @Override
     public CloseFuture closeAsync() {
-        int state = this.state.get();
-        if (state == UNREGISTERED) {
-            if (this.state.compareAndSet(UNREGISTERED, CLOSING)) {
-                close0(CLOSING);
+        for (;;) {
+            int state = this.state.get();
+            if (state == UNREGISTERED && this.state.compareAndSet(UNREGISTERED, CLOSING)) {
+                close0();
+                break;
+            } else if (state == REGISTERED && this.state.compareAndSet(REGISTERED, CLOSING)) {
+                selector.queueChannelClose(this);
+                break;
+            } else if (state == CLOSING || state == CLOSED) {
+                break;
             }
-        } else if (state == REGISTERED && this.state.compareAndSet(REGISTERED, CLOSING)) {
-            selector.queueChannelClose(this);
         }
         return closeFuture;
     }
 
+    /**
+     * Closes the channel synchronously. This method should only be called from the selector thread. If it is
+     * called on an UNREGISTERED channel or from a non-selector thread an exception will be thrown.
+     *
+     * Once this method returns, the channel will be closed.
+     */
     @Override
-    public CloseFuture close() {
-        int state = this.state.get();
-        if (state == UNREGISTERED) {
-            if (this.state.compareAndSet(UNREGISTERED, CLOSING)) {
-                close0(CLOSING);
+    public void closeFromSelector() {
+        for (;;) {
+            int state = this.state.get();
+            if (state == UNREGISTERED) {
+                throw new IllegalStateException("Cannot close() an unregistered channel. Use closeAsync()");
+            } else if (selector.isOnCurrentThread() == false) {
+                throw new IllegalStateException("Cannot close() a channel from a non-selector thread");
+            } else if (state == REGISTERED && this.state.compareAndSet(REGISTERED, CLOSING)) {
+                close0();
+            } else if (state == CLOSING) {
+                close0();
+            } else if (state == CLOSED) {
+                break;
             }
-        } else if (selector.isOnCurrentThread() == false) {
-            throw new IllegalStateException("Cannot close() a channel that has been registered from a non-selector thread");
-        } else if (state != CLOSED) {
-            close0(state);
         }
-
-        return closeFuture;
-    }
-
-    @Override
-    public boolean markRegistered(ESSelector selector) {
-        this.selector = selector;
-        return state.compareAndSet(UNREGISTERED, REGISTERED);
     }
 
     @Override
@@ -135,8 +174,13 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         this.selectionKey = selectionKey;
     }
 
-    private void close0(int currentState) {
-        if (this.state.compareAndSet(currentState, CLOSED)) {
+    boolean markRegistered(ESSelector selector) {
+        this.selector = selector;
+        return state.compareAndSet(UNREGISTERED, REGISTERED);
+    }
+
+    private void close0() {
+        if (this.state.compareAndSet(CLOSING, CLOSED)) {
             try {
                 socketChannel.close();
                 closeFuture.channelClosed(this);

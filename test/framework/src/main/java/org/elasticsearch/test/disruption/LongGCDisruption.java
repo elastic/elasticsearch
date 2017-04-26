@@ -106,6 +106,15 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     logger.warn("failed to stop node [{}]'s threads within [{}] millis. Stopping thread stack trace:\n {}"
                         , disruptedNode, getStoppingTimeoutInMillis(), stackTrace(stoppingThread.getStackTrace()));
                     stoppingThread.interrupt(); // best effort;
+                    try {
+                        /*
+                         * We need to join on the stopping thread in case it has stopped a thread that is in a critical section and needs to
+                         * be resumed.
+                         */
+                        stoppingThread.join();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                     throw new RuntimeException("stopping node threads took too long");
                 }
                 // block detection checks if other threads are blocked waiting on an object that is held by one
@@ -228,23 +237,39 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 if (thread.isAlive() && nodeThreads.add(thread)) {
                     liveThreadsFound = true;
                     logger.trace("stopping thread [{}]", threadName);
-                    thread.suspend();
-                    // double check the thread is not in a shared resource like logging. If so, let it go and come back..
-                    boolean safe = true;
-                    safe:
-                    for (StackTraceElement stackElement : thread.getStackTrace()) {
-                        String className = stackElement.getClassName();
-                        for (Pattern unsafePattern : getUnsafeClasses()) {
-                            if (unsafePattern.matcher(className).find()) {
-                                safe = false;
-                                break safe;
+                    // we assume it is not safe to suspend the thread
+                    boolean safe = false;
+                    try {
+                        /*
+                         * At the bottom of this try-block we will know whether or not it is safe to suspend this thread; we start by
+                         * assuming that it is safe.
+                         */
+                        boolean definitelySafe = true;
+                        thread.suspend();
+                        // double check the thread is not in a shared resource like logging; if so, let it go and come back
+                        safe:
+                        for (StackTraceElement stackElement : thread.getStackTrace()) {
+                            String className = stackElement.getClassName();
+                            for (Pattern unsafePattern : getUnsafeClasses()) {
+                                if (unsafePattern.matcher(className).find()) {
+                                    // it is definitely not safe to suspend the thread
+                                    definitelySafe = false;
+                                    break safe;
+                                }
                             }
                         }
-                    }
-                    if (!safe) {
-                        logger.trace("resuming thread [{}] as it is in a critical section", threadName);
-                        thread.resume();
-                        nodeThreads.remove(thread);
+                        safe = definitelySafe;
+                    } finally {
+                        if (!safe) {
+                            /*
+                             * Do not log before resuming as we might be interrupted while logging in which case we will throw an
+                             * interrupted exception and never resume the stopped thread that is in a critical section. Also, logging before
+                             * resuming makes for confusing log messages if we never hit the resume.
+                             */
+                            thread.resume();
+                            logger.trace("resumed thread [{}] as it is in a critical section", threadName);
+                            nodeThreads.remove(thread);
+                        }
                     }
                 }
             }

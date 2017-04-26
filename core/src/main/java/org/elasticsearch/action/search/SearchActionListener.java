@@ -49,5 +49,4 @@ abstract class SearchActionListener<T extends SearchPhaseResult> implements Acti
     }
 
     protected abstract void innerOnResponse(T response);
-
 }

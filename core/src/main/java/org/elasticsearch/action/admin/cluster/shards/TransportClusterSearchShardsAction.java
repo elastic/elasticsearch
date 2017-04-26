@@ -88,7 +88,7 @@ public class TransportClusterSearchShardsAction extends
         }
 
         Set<String> nodeIds = new HashSet<>();
-        GroupShardsIterator groupShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices,
+        GroupShardsIterator<ShardIterator> groupShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices,
                 routingMap, request.preference());
         ShardRouting shard;
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];

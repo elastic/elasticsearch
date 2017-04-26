@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -162,9 +163,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         long getRelativeCurrentNanos() {
             return relativeCurrentNanosProvider.getAsLong();
         }
-
     }
-
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
@@ -173,17 +172,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final SearchTimeProvider timeProvider =
                 new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
 
-        final String[] localIndices;
-        final Map<String, List<String>> remoteClusterIndices;
+        final OriginalIndices localIndices;
+        final Map<String, OriginalIndices> remoteClusterIndices;
         final ClusterState clusterState = clusterService.state();
         if (remoteClusterService.isCrossClusterSearchEnabled()) {
-            remoteClusterIndices = remoteClusterService.groupClusterIndices( searchRequest.indices(), // empty string is not allowed
+            final Map<String, List<String>> groupedIndices = remoteClusterService.groupClusterIndices(searchRequest.indices(),
+                // empty string is not allowed
                 idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-            List<String> remove = remoteClusterIndices.remove(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
-            localIndices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
+            List<String> remove = groupedIndices.remove(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+            String[] indices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
+            localIndices = new OriginalIndices(indices, searchRequest.indicesOptions());
+            Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<String> originalIndices = entry.getValue();
+                originalIndicesMap.put(clusterAlias,
+                        new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), searchRequest.indicesOptions()));
+            }
+            remoteClusterIndices = Collections.unmodifiableMap(originalIndicesMap);
         } else {
             remoteClusterIndices = Collections.emptyMap();
-            localIndices = searchRequest.indices();
+            localIndices = new OriginalIndices(searchRequest);
         }
 
         if (remoteClusterIndices.isEmpty()) {
@@ -192,18 +201,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             remoteClusterService.collectSearchShards(searchRequest, remoteClusterIndices,
                 ActionListener.wrap((searchShardsResponses) -> {
-                    List<ShardIterator> remoteShardIterators = new ArrayList<>();
+                    List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                     Function<String, Transport.Connection> connectionFunction = remoteClusterService.processRemoteShards(
-                        searchShardsResponses, remoteShardIterators, remoteAliasFilters);
+                        searchShardsResponses, remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
                     executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteShardIterators,
                         connectionFunction, clusterState, remoteAliasFilters, listener);
                 }, listener::onFailure));
         }
     }
 
-    private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest, String[] localIndices,
-                               List<ShardIterator> remoteShardIterators, Function<String, Transport.Connection> remoteConnections,
+    private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest, OriginalIndices localIndices,
+                               List<SearchShardIterator> remoteShardIterators, Function<String, Transport.Connection> remoteConnections,
                                ClusterState clusterState, Map<String, AliasFilter> remoteAliasMap,
                                ActionListener<SearchResponse> listener) {
 
@@ -212,11 +221,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
         final Index[] indices;
-        if (localIndices.length == 0 && remoteShardIterators.size() > 0) {
+        if (localIndices.indices().length == 0 && remoteShardIterators.size() > 0) {
             indices = Index.EMPTY_ARRAY; // don't search on _all if only remote indices were specified
         } else {
             indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),
-                timeProvider.getAbsoluteStartMillis(), localIndices);
+                timeProvider.getAbsoluteStartMillis(), localIndices.indices());
         }
         Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
@@ -225,9 +234,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (int i = 0; i < indices.length; i++) {
             concreteIndices[i] = indices[i].getName();
         }
-        GroupShardsIterator localShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
+        GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
             searchRequest.preference());
-        GroupShardsIterator shardIterators = mergeShardsIterators(localShardsIterator, remoteShardIterators);
+        GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices, remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -268,19 +277,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
-    private static GroupShardsIterator mergeShardsIterators(GroupShardsIterator localShardsIterator,
-                                                            List<ShardIterator> remoteShardIterators) {
-        if (remoteShardIterators.isEmpty()) {
-            return localShardsIterator;
-        }
-        List<ShardIterator> shards = new ArrayList<>();
-        for (ShardIterator shardIterator : remoteShardIterators) {
+    static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
+                                                             OriginalIndices localIndices,
+                                                             List<SearchShardIterator> remoteShardIterators) {
+        List<SearchShardIterator> shards = new ArrayList<>();
+        for (SearchShardIterator shardIterator : remoteShardIterators) {
             shards.add(shardIterator);
         }
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(shardIterator);
+            shards.add(new SearchShardIterator(shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
-        return new GroupShardsIterator(shards);
+        return new GroupShardsIterator<>(shards);
     }
 
     @Override
@@ -288,7 +295,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         throw new UnsupportedOperationException("the task parameter is required");
     }
 
-    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest, GroupShardsIterator shardIterators,
+    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
+                                                        GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider, Function<String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,

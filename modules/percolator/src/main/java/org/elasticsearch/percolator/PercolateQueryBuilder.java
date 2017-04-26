@@ -28,22 +28,22 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -433,6 +433,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
+        Version indexVersionCreated = context.getIndexSettings().getIndexVersionCreated();
         boolean mapUnmappedFieldsAsString = context.getIndexSettings()
                 .getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
         QueryShardContext percolateShardContext = wrap(context);

@@ -19,6 +19,8 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -53,6 +55,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -68,11 +72,14 @@ import static org.elasticsearch.percolator.PercolatorTestUtil.assertMatchCount;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 

@@ -64,7 +64,7 @@ thirdPartyAudit.excludes = [
   'org.jmock.core.Constraint',
 ]
 
-task(namingConventionsMain, type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
+task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
   checkForTestsInMain = true
 }
 precommit.dependsOn namingConventionsMain

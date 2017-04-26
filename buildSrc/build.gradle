@@ -157,7 +157,7 @@ if (project != rootProject) {
     integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
   }
 
-  task(namingConventionsMain, type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
+  task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
     checkForTestsInMain = true
     testClass = namingConventions.testClass
     integTestClass = namingConventions.integTestClass

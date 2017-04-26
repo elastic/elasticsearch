@@ -141,8 +141,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
                 if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
                     IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false && // see #20650
-                    shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
-                    RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
+                    shardRouting.primary() && shardRouting.initializing() &&
+                    shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
                     throw new IllegalStateException("a primary shard routing " + shardRouting + " is a primary that is recovering from " +
                         "a known allocation id but has no corresponding entry in the in-sync " +

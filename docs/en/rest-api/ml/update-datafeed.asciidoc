@@ -20,33 +20,46 @@ The update data feed API enables you to update certain properties of a data feed
 The following properties can be updated after the data feed is created:
 
 `aggregations`::
-  (object) TBD.
+  (object) If set, the data feed performs aggregation searches.
+  For more information, see <<ml-datafeed-resource>>.
 
 `chunking_config`::
-  (object) TBD.
-  For example: {"mode": "manual", "time_span": "30000000ms"}
+  (object) The chunking configuration, which specifies how data searches are
+  chunked. See <<ml-datafeed-chunking-config>>.
 
 `frequency`::
-  () TBD: For example: "150s"
+  (time units) The interval at which scheduled queries are made while the data
+  feed runs in real time. The default value is either the bucket span for short
+  bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
+  span. For example: "150s".
 
 `indexes` (required)::
-  (array) An array of index names. For example: ["it_ops_metrics"]
+  (array) An array of index names. For example: ["it_ops_metrics"].
 
 `job_id`::
  (string) A numerical character string that uniquely identifies the job.
 
 `query`::
-  (object) The query that retrieves the data.
-  By default, this property has the following value: `{"match_all": {"boost": 1}}`.
+  (object) The Elasticsearch query domain-specific language (DSL). This value
+  corresponds to the query object in an Elasticsearch search POST body. All the
+  options that are supported by Elasticsearch can be used, as this object is
+  passed verbatim to Elasticsearch. By default, this property has the following
+  value: `{"match_all": {"boost": 1}}`. If this property is not specified, the
+  default value is `“match_all”: {}`.
 
 `query_delay`::
-  () TBD. For example: "60s"
+  (time units) The number of seconds behind real-time that data is queried. For
+  example, if data from 10:04 a.m. might not be searchable in Elasticsearch
+  until 10:06 a.m., set this property to 120 seconds. The default value is 60
+  seconds. For example: "60s".
 
 `scroll_size`::
-  () TBD. For example, 1000
+  (unsigned integer) The `size` parameter that is used in Elasticsearch searches.
+  The default value is `1000`.
 
 `types` (required)::
-  () TBD. For example: ["network","sql","kpi"]
+  (array) A list of types to search for within the specified indices.
+  For example: ["network","sql","kpi"].
 
 For more information about these properties,
 see <<ml-datafeed-resource, Data Feed Resources>>.

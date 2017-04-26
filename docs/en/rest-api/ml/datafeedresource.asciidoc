@@ -5,8 +5,8 @@
 A data feed resource has the following properties:
 
 `aggregations`::
-  (object) When set the datafeed performs aggregation searches.
-  For syntax information, see {ref}search-aggregations.html[Aggregations].
+  (object) If set, the data feed performs aggregation searches.
+  For syntax information, see {ref}/search-aggregations.html[Aggregations].
   Support for aggregations is limited: TBD.
   For example:
   `{"@timestamp": {"histogram": {"field": "@timestamp",
@@ -15,43 +15,46 @@ A data feed resource has the following properties:
   "field": "events_per_min"}}}}}`.
 
 `chunking_config`::
-  (object) The chunking configuration, which specifies how data searches
-  will be chunked. See <<ml-datafeed-chunking-config,chunking configuration objects>>.
+  (object) The chunking configuration, which specifies how data searches are
+  chunked. See <<ml-datafeed-chunking-config>>.
   For example: {"mode": "manual", "time_span": "3h"}
 
 `datafeed_id`::
  (string) A numerical character string that uniquely identifies the data feed.
 
 `frequency`::
-  (time units) Interval at which scheduled queries should be made while the datafeed
-  runs in real-time. The default is either the bucket span for short bucket spans, or,
-  for longer bucket spans, a sensible fraction of the bucket span.
-  For example: "150s"
+  (time units) The interval at which scheduled queries are made while the data
+  feed runs in real time. The default value is either the bucket span for short
+  bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
+  span. For example: "150s"
 
 `indexes` (required)::
   (array) An array of index names. For example: ["it_ops_metrics"]
 
 `job_id` (required)::
- (string) The id of the job to which the datafeed will send data.
+ (string) The unique identifier for the job to which the data feed sends data.
 
 `query`::
-  (object) Elasticsearch query DSL. Corresponds to the query object in an Elasticsearch
-  search POST body. All options supported by Elasticsearch may be used, as this object
-  is passed verbatim to Elasticsearch. If not specified the default is “match_all”: {}
-  By default, this property has the following value: `{"match_all": {"boost": 1}}`.
+  (object) The Elasticsearch query domain-specific language (DSL). This value
+  corresponds to the query object in an Elasticsearch search POST body. All the
+  options that are supported by Elasticsearch can be used, as this object is
+  passed verbatim to Elasticsearch. By default, this property has the following
+  value: `{"match_all": {"boost": 1}}`. If this property is not specified, the
+  default value is `“match_all”: {}`.
 
 `query_delay`::
-  (time units) How many seconds behind real-time should data be queried. For example,
-  if data from 10:04am may not be searchable in Elasticsearch until 10:06am then set this to 120 seconds.
-  The default is 60 seconds. For example: "60s"
+  (time units) The number of seconds behind real-time that data is queried. For
+  example, if data from 10:04 a.m. might not be searchable in Elasticsearch
+  until 10:06 a.m., set this property to 120 seconds. The default value is 60
+  seconds. For example: "60s".
 
 `scroll_size`::
-  (unsigned integer) The `size` parameter to be used in elasticsearch searches.
+  (unsigned integer) The `size` parameter that is used in Elasticsearch searches.
   The default value is `1000`.
 
 `types` (required)::
-  (array) List of types to search for within the specified indexes.
-  For example: ["network","sql","kpi"]
+  (array) A list of types to search for within the specified indices.
+  For example: ["network","sql","kpi"].
 
 [[ml-datafeed-chunking-config]]
 ===== Chunking Configuration Objects
@@ -59,15 +62,15 @@ A data feed resource has the following properties:
 A chunking configuration object has the following properties:
 
 `mode` (required)::
-  There are 3 available modes: +
-  `auto`::: the chunk size will be dynamically calculated.
-  `manual`::: chunking will be applied according to the specified `time_span`.
-  `off`::: no chunking will be applied.
+  There are three available modes: +
+  `auto`::: The chunk size will be dynamically calculated.
+  `manual`::: Chunking will be applied according to the specified `time_span`.
+  `off`::: No chunking will be applied.
 
 `time_span`::
   (time units) The time span that each search will be querying.
   This setting is only applicable when the mode is set to `manual`.
-  For example: "3h"
+  For example: "3h".
 
 [float]
 [[ml-datafeed-counts]]

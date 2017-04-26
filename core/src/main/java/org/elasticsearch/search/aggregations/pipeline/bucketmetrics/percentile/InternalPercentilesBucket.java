@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -38,14 +39,26 @@ import java.util.Map;
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
+    private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     public InternalPercentilesBucket(String name, double[] percents, double[] percentiles,
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
+        if ((percentiles.length == percents.length) == false) {
+            throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
+                    + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
+        }
         this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
+        computeLookup();
+    }
+
+    private void computeLookup() {
+        for (int i = 0; i < percents.length; i++) {
+            percentileLookups.put(percents[i], percentiles[i]);
+        }
     }
 
     /**
@@ -56,6 +69,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
+        computeLookup();
     }
 
     @Override
@@ -72,12 +86,12 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public double percentile(double percent) throws IllegalArgumentException {
-        int index = Arrays.binarySearch(percents, percent);
-        if (index < 0) {
+        Double percentile = percentileLookups.get(percent);
+        if (percentile == null) {
             throw new IllegalArgumentException("Percent requested [" + String.valueOf(percent) + "] was not" +
                     " one of the computed percentiles.  Available keys are: " + Arrays.toString(percents));
         }
-        return percentiles[index];
+        return percentile;
     }
 
     @Override

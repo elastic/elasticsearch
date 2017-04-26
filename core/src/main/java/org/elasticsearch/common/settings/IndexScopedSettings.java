@@ -191,9 +191,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.SETTING_VERSION_UPGRADED:
             case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
+            case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
+            case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
                 return true;
             default:
-                return false;
+                return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
 }

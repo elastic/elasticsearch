@@ -54,6 +54,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -127,7 +128,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 NonSnapshottableGatewayMetadata::readDiffFrom, NonSnapshottableGatewayMetadata::fromXContent);
             registerMetaDataCustom(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata::readFrom,
                 NonSnapshottableGatewayMetadata::readDiffFrom, SnapshotableGatewayNoApiMetadata::fromXContent);
-
         }
 
         @Override
@@ -153,8 +153,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         String secondNode = internalCluster().startNode();
         logger.info("--> wait for the second node to join the cluster");
         assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut(), equalTo(false));
-
-        int random = randomIntBetween(10, 42);
 
         logger.info("--> set test persistent setting");
         client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
@@ -723,7 +721,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         if (clusterStateError.get() != null) {
             throw clusterStateError.get();
         }
-
     }
 
     public void testMasterShutdownDuringSnapshot() throws Exception {
@@ -801,33 +798,72 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    /**
+     * Tests that a shrunken index (created via the shrink APIs) and subsequently snapshotted
+     * can be restored when the node the shrunken index was created on is no longer part of
+     * the cluster.
+     */
+    public void testRestoreShrinkIndex() throws Exception {
+        logger.info("-->  starting a master node and a data node");
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
 
-    private boolean snapshotIsDone(String repository, String snapshot) {
-        try {
-            SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus(repository).setSnapshots(snapshot).get();
-            if (snapshotsStatusResponse.getSnapshots().isEmpty()) {
-                return false;
-            }
-            for (SnapshotStatus snapshotStatus : snapshotsStatusResponse.getSnapshots()) {
-                if (snapshotStatus.getState().completed()) {
-                    return true;
-                }
-            }
-            return false;
-        } catch (SnapshotMissingException ex) {
-            return false;
+        final Client client = client();
+        final String repo = "test-repo";
+        final String snapshot = "test-snap";
+        final String sourceIdx = "test-idx";
+        final String shrunkIdx = "test-idx-shrunk";
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository(repo).setType("fs")
+            .setSettings(Settings.builder().put("location", randomRepoPath())
+                             .put("compress", randomBoolean())));
+
+        assertAcked(prepareCreate(sourceIdx, 0, Settings.builder()
+            .put("number_of_shards", between(1, 20)).put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[randomIntBetween(10, 100)];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(sourceIdx, "type1",
+                Integer.toString(i)).setSource("field1", "bar " + i);
         }
-    }
+        indexRandom(true, builders);
+        flushAndRefresh();
 
-    private void createTestIndex(String name) {
-        assertAcked(prepareCreate(name, 0, Settings.builder().put("number_of_shards", between(1, 6))
-                .put("number_of_replicas", between(1, 6))));
+        logger.info("--> shrink the index");
+        assertAcked(client.admin().indices().prepareUpdateSettings(sourceIdx)
+            .setSettings(Settings.builder().put("index.blocks.write", true)).get());
+        assertAcked(client.admin().indices().prepareShrinkIndex(sourceIdx, shrunkIdx).get());
 
-        logger.info("--> indexing some data into {}", name);
-        for (int i = 0; i < between(10, 500); i++) {
-            index(name, "doc", Integer.toString(i), "foo", "bar" + i);
-        }
+        logger.info("--> snapshot the shrunk index");
+        CreateSnapshotResponse createResponse = client.admin().cluster()
+            .prepareCreateSnapshot(repo, snapshot)
+            .setWaitForCompletion(true).setIndices(shrunkIdx).get();
+        assertEquals(SnapshotState.SUCCESS, createResponse.getSnapshotInfo().state());
 
+        logger.info("--> delete index and stop the data node");
+        assertAcked(client.admin().indices().prepareDelete(sourceIdx).get());
+        assertAcked(client.admin().indices().prepareDelete(shrunkIdx).get());
+        internalCluster().stopRandomDataNode();
+        client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1");
+
+        logger.info("--> start a new data node");
+        final Settings dataSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLength(5))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()) // to get a new node id
+            .build();
+        internalCluster().startDataOnlyNode(dataSettings);
+        client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2");
+
+        logger.info("--> restore the shrunk index and ensure all shards are allocated");
+        RestoreSnapshotResponse restoreResponse = client().admin().cluster()
+            .prepareRestoreSnapshot(repo, snapshot).setWaitForCompletion(true)
+            .setIndices(shrunkIdx).get();
+        assertEquals(restoreResponse.getRestoreInfo().totalShards(),
+            restoreResponse.getRestoreInfo().successfulShards());
+        ensureYellow();
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {

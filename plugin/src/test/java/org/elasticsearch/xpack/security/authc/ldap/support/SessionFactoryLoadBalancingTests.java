@@ -57,6 +57,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1195")
     public void testRoundRobinWithFailures() throws Exception {
         assumeTrue("at least one ldap server should be present for this test", ldapServers.length > 1);
         logger.debug("using [{}] ldap servers, urls {}", ldapServers.length, ldapUrls());

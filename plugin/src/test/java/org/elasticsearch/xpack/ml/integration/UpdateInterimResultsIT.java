@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * A fast integration test for categorization
+ * Tests that interim results get updated correctly
  */
 public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -77,24 +77,39 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
                 + "{\"time\":1400040510,\"value\":16}\n";
         assertThat(postData(job.getId(), data).getProcessedRecordCount(), equalTo(3L));
         flushJob(job.getId(), true);
-        List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
-        assertThat(firstInterimBuckets.size(), equalTo(2));
-        assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
-        assertThat(firstInterimBuckets.get(0).getRecordCount(), equalTo(0));
-        assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
-        assertThat(firstInterimBuckets.get(1).getRecordCount(), equalTo(1));
-        assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
+
+        // We might need to retry this while waiting for a refresh
+        assertBusy(() -> {
+            try {
+                List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
+                assertThat(firstInterimBuckets.size(), equalTo(2));
+                assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
+                assertThat(firstInterimBuckets.get(0).getRecordCount(), equalTo(0));
+                assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
+                assertThat(firstInterimBuckets.get(1).getRecordCount(), equalTo(1));
+                assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         // push 1 more record, flush (with interim), check same interim result
         data = "{\"time\":1400040520,\"value\":15}\n";
         assertThat(postData(job.getId(), data).getProcessedRecordCount(), equalTo(1L));
         flushJob(job.getId(), true);
-        List<Bucket> secondInterimBuckets = getInterimResults(job.getId());
-        assertThat(secondInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
-        assertThat(secondInterimBuckets.get(0).getRecordCount(), equalTo(0));
-        assertThat(secondInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
-        assertThat(secondInterimBuckets.get(1).getRecordCount(), equalTo(1));
-        assertThat(secondInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
+
+        assertBusy(() -> {
+            try {
+                List<Bucket> secondInterimBuckets = getInterimResults(job.getId());
+                assertThat(secondInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
+                assertThat(secondInterimBuckets.get(0).getRecordCount(), equalTo(0));
+                assertThat(secondInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
+                assertThat(secondInterimBuckets.get(1).getRecordCount(), equalTo(1));
+                assertThat(secondInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         // push rest of data, close, verify no interim results
         time += BUCKET_SPAN_SECONDS;

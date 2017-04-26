@@ -168,7 +168,8 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
                 new ParseField(Fields.VARIANCE), ValueType.DOUBLE_OR_NULL);
         objectParser.declareField((agg, value) -> agg.stdDeviation = value, (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.STD_DEVIATION), ValueType.DOUBLE_OR_NULL);
-        objectParser.declareObject(ParsedExtendedStats::setStdDeviationBounds, STD_BOUNDS_PARSER, new ParseField(Fields.STD_DEVIATION_BOUNDS));
+        objectParser.declareObject(ParsedExtendedStats::setStdDeviationBounds, STD_BOUNDS_PARSER,
+                new ParseField(Fields.STD_DEVIATION_BOUNDS));
         objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.SUM_OF_SQRS_AS_STRING, value),
                 new ParseField(Fields.SUM_OF_SQRS_AS_STRING));
         objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.VARIANCE_AS_STRING, value),

@@ -142,6 +142,11 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     private static final ObjectParser<ParsedExtendedStats, Void> PARSER = new ObjectParser<>(ParsedExtendedStats.class.getSimpleName(),
             true, ParsedExtendedStats::new);
 
+    static {
+        declareExtendedStatsFields(PARSER);
+    }
+
+
     private static final ConstructingObjectParser<Tuple<Double, Double>, Void> STD_BOUNDS_PARSER = new ConstructingObjectParser<>(
             ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS", true, args -> new Tuple<>((Double) args[0], (Double) args[1]));
     static {
@@ -159,23 +164,23 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
         STD_BOUNDS_AS_STRING_PARSER.declareString(constructorArg(), new ParseField(Fields.UPPER));
     }
 
-    static {
-        declareAggregationFields(PARSER);
-        declareStatsFields(PARSER);
-        PARSER.declareField((agg, value) -> agg.sumOfSquares = value, (parser, context) -> parseDouble(parser, 0),
+    protected static void declareExtendedStatsFields(ObjectParser<? extends ParsedExtendedStats, Void> objectParser) {
+        declareAggregationFields(objectParser);
+        declareStatsFields(objectParser);
+        objectParser.declareField((agg, value) -> agg.sumOfSquares = value, (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.SUM_OF_SQRS), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.variance = value, (parser, context) -> parseDouble(parser, 0),
+        objectParser.declareField((agg, value) -> agg.variance = value, (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.VARIANCE), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareField((agg, value) -> agg.stdDeviation = value, (parser, context) -> parseDouble(parser, 0),
+        objectParser.declareField((agg, value) -> agg.stdDeviation = value, (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.STD_DEVIATION), ValueType.DOUBLE_OR_NULL);
-        PARSER.declareObject(ParsedExtendedStats::setStdDeviationBounds, STD_BOUNDS_PARSER, new ParseField(Fields.STD_DEVIATION_BOUNDS));
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.SUM_OF_SQRS_AS_STRING, value),
+        objectParser.declareObject(ParsedExtendedStats::setStdDeviationBounds, STD_BOUNDS_PARSER, new ParseField(Fields.STD_DEVIATION_BOUNDS));
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.SUM_OF_SQRS_AS_STRING, value),
                 new ParseField(Fields.SUM_OF_SQRS_AS_STRING));
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.VARIANCE_AS_STRING, value),
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.VARIANCE_AS_STRING, value),
                 new ParseField(Fields.VARIANCE_AS_STRING));
-        PARSER.declareString((agg, value) -> agg.valueAsString.put(Fields.STD_DEVIATION_AS_STRING, value),
+        objectParser.declareString((agg, value) -> agg.valueAsString.put(Fields.STD_DEVIATION_AS_STRING, value),
                 new ParseField(Fields.STD_DEVIATION_AS_STRING));
-        PARSER.declareObject(ParsedExtendedStats::setStdDeviationBoundsAsString, STD_BOUNDS_AS_STRING_PARSER,
+        objectParser.declareObject(ParsedExtendedStats::setStdDeviationBoundsAsString, STD_BOUNDS_AS_STRING_PARSER,
                 new ParseField(Fields.STD_DEVIATION_BOUNDS_AS_STRING));
     }
 

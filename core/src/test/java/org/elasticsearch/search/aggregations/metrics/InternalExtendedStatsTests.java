@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalExtendedStatsTests extends InternalAggregationTestCase<InternalExtendedStats> {
-    private double sigma;
+    protected double sigma;
 
     @Before
     public void randomSigma() {
@@ -48,8 +48,12 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return new InternalExtendedStats(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true), sigma, format,
-                pipelineAggregators, metaData);
+        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true), sigma, format, pipelineAggregators, metaData);
+    }
+
+    protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
+            double sigma, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }
 
     @Override

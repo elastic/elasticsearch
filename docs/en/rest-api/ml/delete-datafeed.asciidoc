@@ -2,7 +2,7 @@
 [[ml-delete-datafeed]]
 ==== Delete Data Feeds
 
-The delete data feed API allows you to delete an existing data feed.
+The delete data feed API enables you to delete an existing data feed.
 
 
 ===== Request

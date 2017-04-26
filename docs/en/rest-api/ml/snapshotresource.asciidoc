@@ -11,7 +11,7 @@ behavior by updating the `model_snapshot_retention_days` for the job.
 When choosing a new value, consider the following:
 
 * Persistence enables resilience in the event of a system failure.
-* Persistence allows for snapshots to be reverted.
+* Persistence enables snapshots to be reverted.
 * The time taken to persist a job is proportional to the size of the model in memory.
 //* The smallest allowed value is 3600 (1 hour).
 ////

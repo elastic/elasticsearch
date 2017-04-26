@@ -427,7 +427,7 @@ anomalousness of that value compared to previous hours.
 
 The bucket span has two purposes: it dictates over what time span to look for
 anomalous features in data, and also determines how quickly anomalies can be
-detected. Choosing a shorter bucket span allows anomalies to be detected more
+detected. Choosing a shorter bucket span enables anomalies to be detected more
 quickly. However, there is a risk of being too sensitive to natural variations
 or noise in the input data. Choosing too long a bucket span can mean that
 interesting anomalies are averaged away. There is also the possibility that the

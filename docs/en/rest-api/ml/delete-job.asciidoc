@@ -2,7 +2,7 @@
 [[ml-delete-job]]
 ==== Delete Jobs
 
-The delete job API allows you to delete an existing anomaly detection job.
+The delete job API enables you to delete an existing anomaly detection job.
 
 
 ===== Request

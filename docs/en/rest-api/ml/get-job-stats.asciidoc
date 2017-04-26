@@ -2,7 +2,7 @@
 [[ml-get-job-stats]]
 ==== Get Job Statistics
 
-The get jobs API allows you to retrieve usage information for jobs.
+The get jobs API enables you to retrieve usage information for jobs.
 
 
 ===== Request

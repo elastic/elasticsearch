@@ -2,7 +2,7 @@
 [[ml-update-job]]
 ==== Update Jobs
 
-The update job API allows you to update certain properties of a job.
+The update job API enables you to update certain properties of a job.
 
 ===== Request
 

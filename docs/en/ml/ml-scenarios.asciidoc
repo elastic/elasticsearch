@@ -49,7 +49,7 @@ It is said that 75 percent of troubleshooting time is spent mining data to try
 and identify the root cause of an incident. The {ml} features in {xpack}
 automatically analyze data and boil down the massive volume of information
 to the few metrics or log messages that have changed behavior.
-This allows the subject matter experts (SMEs) to focus on the subset of
+This enables the subject matter experts (SMEs) to focus on the subset of
 information that is relevant to an issue, which greatly reduces triage time.
 
 //In a major credit services provider, within a month of deployment, the company

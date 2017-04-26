@@ -2,7 +2,7 @@
 [[ml-post-data]]
 ==== Post Data to Jobs
 
-The post data API allows you to send data to an anomaly detection job for analysis.
+The post data API enables you to send data to an anomaly detection job for analysis.
 The job must have been opened prior to sending data.
 
 

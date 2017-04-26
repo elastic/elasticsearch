@@ -14,7 +14,7 @@ A data feed can be started and stopped multiple times throughout its lifecycle.
 NOTE: Before you can start a data feed, the job must be open. Otherwise, an error
 occurs.
 
-When you start a data feed, you can specify a start time.  This allows you to
+When you start a data feed, you can specify a start time.  This enables you to
 include a training period, providing you have this data available in {es}.
 If you want to analyze from the beginning of a dataset, you can specify any date
 earlier than that beginning date.

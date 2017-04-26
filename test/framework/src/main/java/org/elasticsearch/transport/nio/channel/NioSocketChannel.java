@@ -122,7 +122,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
      * channel is not yet connected.
      *
      * @return true if the connection process is complete
-     * @throws IOException
+     * @throws IOException if an I/O error occurs
      */
     public boolean finishConnect() throws IOException {
         if (connectFuture.isConnectComplete()) {

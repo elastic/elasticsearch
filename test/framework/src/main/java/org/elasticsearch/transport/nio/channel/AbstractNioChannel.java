@@ -147,7 +147,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      *
      * @param selector to register the channel
      * @return if the channel was successfully registered
-     * @throws ClosedChannelException
+     * @throws ClosedChannelException if the raw channel was closed
      */
     @Override
     public boolean register(ESSelector selector) throws ClosedChannelException {

@@ -90,7 +90,6 @@ public class TransportSearchActionTests extends ESTestCase {
         assertEquals(searchShardIterators.size(), 5);
         int i = 0;
         for (SearchShardIterator searchShardIterator : searchShardIterators) {
-            System.out.println(searchShardIterator.shardId());
             switch(i++) {
                 case 0:
                     assertEquals("local_index", searchShardIterator.shardId().getIndexName());

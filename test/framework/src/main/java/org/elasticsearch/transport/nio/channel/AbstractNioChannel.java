@@ -140,6 +140,15 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         }
     }
 
+    /**
+     * This method attempts to registered a channel with a selector. If method returns true the channel was
+     * successfully registered. If it returns false, the registration failed. The reason a registered might
+     * fail is if something else closed this channel.
+     *
+     * @param selector to register the channel
+     * @return if the channel was successfully registered
+     * @throws ClosedChannelException
+     */
     @Override
     public boolean register(ESSelector selector) throws ClosedChannelException {
         if (markRegistered(selector)) {

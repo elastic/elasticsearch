@@ -1,0 +1,30 @@
+[[release-notes-2.4.5]]
+== 2.4.5 Release Notes
+
+[[bug-2.4.5]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Avoid classloading deadlock in ValuesSource. {pull}22994[#22994] (issue: {issue}22952[#22952])
+
+Cluster::
+* Fail shard marked as relocating but missing in-memory index structures {pull}24061[#24061] (issue: {issue}17270[#17270])
+
+Network::
+* Do not lose host information when pinging {pull}21939[#21939] (issue: {issue}21828[#21828])
+* DiscoveryNode and TransportAddress should preserve host information {pull}21828[#21828]
+
+
+
+[[upgrade-2.4.5]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Lucene 5.5.4. {pull}23162[#23162]
+
+
+
+
+

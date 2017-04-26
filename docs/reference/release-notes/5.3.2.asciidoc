@@ -1,0 +1,38 @@
+[[release-notes-5.3.2]]
+== 5.3.2 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.3>>.
+
+[[bug-5.3.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Align behavior HDR percentiles iterator with percentile() method {pull}24206[#24206]
+
+Core::
+* Check for default.path.data included in path.data {pull}24285[#24285] (issue: {issue}24283[#24283])
+
+Plugin Ingest Attachment::
+* Add Fix for java.lang.NoClassDefFoundError: com/graphbuilder/curve/Point fatal error in 5.3 [ISSUE] {pull}24273[#24273]
+
+Plugins::
+* Fix delete of plugin directory on remove plugin {pull}24266[#24266] (issue: {issue}24252[#24252])
+* Use a marker file when removing a plugin {pull}24252[#24252] (issue: {issue}24231[#24231])
+
+Search Templates::
+* No longer add illegal content type option to stored search templates {pull}24251[#24251] (issue: {issue}24227[#24227])
+
+
+
+[[regression-5.3.2]]
+[float]
+=== Regressions
+
+Bulk::
+* Fix _bulk response when it can't create an index {pull}24048[#24048] (issues: {issue}22488[#22488], {issue}24028[#24028])
+
+
+

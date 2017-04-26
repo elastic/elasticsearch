@@ -153,7 +153,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
         GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
-            for (ShardRouting routing : shardIterator.asUnordered()) {
+            for (ShardRouting routing : shardIterator) {
                 if (routing.active()) {
                     nodes.add(routing.currentNodeId());
                 }

@@ -5,10 +5,9 @@
 A data feed resource has the following properties:
 
 `aggregations`::
-  (object) TBD
-  The aggregations object describes the aggregations that are
-  applied to the search query?
-  For more information, see {ref}search-aggregations.html[Aggregations].
+  (object) When set the datafeed performs aggregation searches.
+  For syntax information, see {ref}search-aggregations.html[Aggregations].
+  Support for aggregations is limited: TBD.
   For example:
   `{"@timestamp": {"histogram": {"field": "@timestamp",
   "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
@@ -16,35 +15,59 @@ A data feed resource has the following properties:
   "field": "events_per_min"}}}}}`.
 
 `chunking_config`::
-  (object) TBD.
-  For example: {"mode": "manual", "time_span": "30000000ms"}
+  (object) The chunking configuration, which specifies how data searches
+  will be chunked. See <<ml-datafeed-chunking-config,chunking configuration objects>>.
+  For example: {"mode": "manual", "time_span": "3h"}
 
 `datafeed_id`::
  (string) A numerical character string that uniquely identifies the data feed.
 
 `frequency`::
-   TBD. For example: "150s"
+  (time units) Interval at which scheduled queries should be made while the datafeed
+  runs in real-time. The default is either the bucket span for short bucket spans, or,
+  for longer bucket spans, a sensible fraction of the bucket span.
+  For example: "150s"
 
 `indexes` (required)::
   (array) An array of index names. For example: ["it_ops_metrics"]
 
 `job_id` (required)::
- (string) A numerical character string that uniquely identifies the job.
+ (string) The id of the job to which the datafeed will send data.
 
 `query`::
-  (object) TBD. The query that retrieves the data.
+  (object) Elasticsearch query DSL. Corresponds to the query object in an Elasticsearch
+  search POST body. All options supported by Elasticsearch may be used, as this object
+  is passed verbatim to Elasticsearch. If not specified the default is “match_all”: {}
   By default, this property has the following value: `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  TBD. For example: "60s"
+  (time units) How many seconds behind real-time should data be queried. For example,
+  if data from 10:04am may not be searchable in Elasticsearch until 10:06am then set this to 120 seconds.
+  The default is 60 seconds. For example: "60s"
 
 `scroll_size`::
-  TBD.
-  The maximum number of hits to be returned with each batch of search results?
+  (unsigned integer) The `size` parameter to be used in elasticsearch searches.
   The default value is `1000`.
 
 `types` (required)::
-  (array) TBD. For example: ["network","sql","kpi"]
+  (array) List of types to search for within the specified indexes.
+  For example: ["network","sql","kpi"]
+
+[[ml-datafeed-chunking-config]]
+===== Chunking Configuration Objects
+
+A chunking configuration object has the following properties:
+
+`mode` (required)::
+  There are 3 available modes: +
+  `auto`::: the chunk size will be dynamically calculated.
+  `manual`::: chunking will be applied according to the specified `time_span`.
+  `off`::: no chunking will be applied.
+
+`time_span`::
+  (time units) The time span that each search will be querying.
+  This setting is only applicable when the mode is set to `manual`.
+  For example: "3h"
 
 [float]
 [[ml-datafeed-counts]]

@@ -46,7 +46,10 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        assert percentiles.length == percents.length;
+        if ((percentiles.length == percents.length) == false) {
+            throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
+                    + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
+        }
         this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;

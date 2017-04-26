@@ -80,4 +80,13 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
         }
     }
+
+    public void testErrorOnDifferentArgumentSize() {
+        final double[] percents =  new double[]{ 0.1, 0.2, 0.3};
+        final double[] percentiles =  new double[]{ 0.10, 0.2};
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new InternalPercentilesBucket("test", percents,
+                percentiles, DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap()));
+        assertEquals("The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
+                e.getMessage());
+    }
 }

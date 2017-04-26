@@ -267,37 +267,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return new PlainShardsIterator(shuffler.shuffle(allActiveShards));
     }
 
-    /**
-     * A group shards iterator where each group ({@link ShardIterator}
-     * is an iterator across shard replication group.
-     */
-    public GroupShardsIterator groupByShardsIt() {
-        // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>(shards.size());
-        for (IndexShardRoutingTable indexShard : this) {
-            set.add(indexShard.shardsIt());
-        }
-        return new GroupShardsIterator(set);
-    }
-
-    /**
-     * A groups shards iterator where each groups is a single {@link ShardRouting} and a group
-     * is created for each shard routing.
-     * <p>
-     * This basically means that components that use the {@link GroupShardsIterator} will iterate
-     * over *all* the shards (all the replicas) within the index.</p>
-     */
-    public GroupShardsIterator groupByAllIt() {
-        // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>();
-        for (IndexShardRoutingTable indexShard : this) {
-            for (ShardRouting shardRouting : indexShard) {
-                set.add(shardRouting.shardsIt());
-            }
-        }
-        return new GroupShardsIterator(set);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

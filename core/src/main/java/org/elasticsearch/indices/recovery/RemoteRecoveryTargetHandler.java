@@ -52,8 +52,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService, DiscoveryNode targetNode,
                                        RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
         this.transportService = transportService;
-
-
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetNode = targetNode;

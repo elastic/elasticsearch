@@ -84,7 +84,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         }
     }
 
-    private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
+    private RecoveryResponse recover(StartRecoveryRequest request) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -111,6 +111,19 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
             logger.debug("delaying recovery of {} as it is not listed as initializing on the target node {}. known shards state is [{}]",
                 request.shardId(), request.targetNode(), targetShardRouting.state());
             throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
+        }
+
+        if (request.targetAllocationId() == null) {
+            // ES versions < 5.4.0 do not send targetAllocationId as part of recovery request, just assume that we have the correct id
+            request = new StartRecoveryRequest(request.shardId(), targetShardRouting.allocationId().getId(), request.sourceNode(),
+                request.targetNode(), request.metadataSnapshot(), request.isPrimaryRelocation(), request.recoveryId());
+        }
+
+        if (request.targetAllocationId().equals(targetShardRouting.allocationId().getId()) == false) {
+            logger.debug("delaying recovery of {} due to target allocation id mismatch (expected: [{}], but was: [{}])",
+                request.shardId(), request.targetAllocationId(), targetShardRouting.allocationId().getId());
+            throw new DelayRecoveryException("source node has the state of the target shard to have allocation id [" +
+                targetShardRouting.allocationId().getId() + "], expecting to be [" + request.targetAllocationId() + "]");
         }
 
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);

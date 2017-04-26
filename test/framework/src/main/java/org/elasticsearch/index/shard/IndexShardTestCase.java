@@ -382,10 +382,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         replica.prepareForIndexRecovery();
         RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
+        final String targetAllocationId = recoveryTarget.indexShard().routingEntry().allocationId().getId();
+        StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId, pNode, rNode,
             getMetadataSnapshotOrEmpty(replica), false, 0);
-        RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {
-        },
+        RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
             (int) ByteSizeUnit.MB.toKB(1), logger);
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();

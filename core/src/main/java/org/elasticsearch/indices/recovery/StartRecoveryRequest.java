@@ -19,8 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,6 +38,8 @@ public class StartRecoveryRequest extends TransportRequest {
     private long recoveryId;
 
     private ShardId shardId;
+
+    private String targetAllocationId;
 
     private DiscoveryNode sourceNode;
 
@@ -55,9 +58,11 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param sourceNode       The node to recover from
      * @param targetNode       The node to recover to
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Store.MetadataSnapshot metadataSnapshot, boolean primaryRelocation, long recoveryId) {
+    public StartRecoveryRequest(ShardId shardId, String targetAllocationId, DiscoveryNode sourceNode, DiscoveryNode targetNode,
+                                Store.MetadataSnapshot metadataSnapshot, boolean primaryRelocation, long recoveryId) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.targetAllocationId = targetAllocationId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.metadataSnapshot = metadataSnapshot;
@@ -70,6 +75,11 @@ public class StartRecoveryRequest extends TransportRequest {
 
     public ShardId shardId() {
         return shardId;
+    }
+
+    @Nullable
+    public String targetAllocationId() {
+        return targetAllocationId;
     }
 
     public DiscoveryNode sourceNode() {
@@ -93,6 +103,11 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            targetAllocationId = in.readString();
+        } else {
+            targetAllocationId = null;
+        }
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
@@ -104,6 +119,9 @@ public class StartRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeString(targetAllocationId);
+        }
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);

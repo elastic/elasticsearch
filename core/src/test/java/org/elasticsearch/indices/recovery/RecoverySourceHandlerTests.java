@@ -80,7 +80,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId, null,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, randomBoolean(), randomLong());
@@ -132,7 +132,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId, null,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, randomBoolean(), randomLong());
@@ -196,7 +196,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId, null,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, randomBoolean(), randomLong());
@@ -255,7 +255,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Completed() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId, null,
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, false, randomLong());
@@ -285,7 +285,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     public void testWaitForClusterStateOnPrimaryRelocation() throws IOException, InterruptedException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId, null,
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, true, randomLong());

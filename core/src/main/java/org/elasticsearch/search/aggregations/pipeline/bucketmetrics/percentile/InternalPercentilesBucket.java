@@ -40,7 +40,7 @@ import java.util.Objects;
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
-    transient private final Map<Double, Double> percentileLookups = new HashMap<>();
+    private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     public InternalPercentilesBucket(String name, double[] percents, double[] percentiles,
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,

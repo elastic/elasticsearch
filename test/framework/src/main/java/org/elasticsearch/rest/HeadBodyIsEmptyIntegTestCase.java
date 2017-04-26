@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Tests that HTTP HEAD requests don't respond with a body.
  */
-public class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
+public abstract class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
 
     public void testHeadRoot() throws IOException {
         headTestCase("/", emptyMap(), greaterThan(0));

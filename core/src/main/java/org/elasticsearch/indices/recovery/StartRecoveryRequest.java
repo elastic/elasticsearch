@@ -39,6 +39,7 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
+    private String targetAllocationId;
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
     private Store.MetadataSnapshot metadataSnapshot;
@@ -51,15 +52,17 @@ public class StartRecoveryRequest extends TransportRequest {
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId           the shard ID to recover
-     * @param sourceNode        the source node to remover from
-     * @param targetNode        the target node to recover to
-     * @param metadataSnapshot  the Lucene metadata
-     * @param primaryRelocation whether or not the recovery is a primary relocation
-     * @param recoveryId        the recovery ID
-     * @param startingSeqNo     the starting sequence number
+     * @param shardId            the shard ID to recover
+     * @param targetAllocationId the allocation id of the target shard
+     * @param sourceNode         the source node to remover from
+     * @param targetNode         the target node to recover to
+     * @param metadataSnapshot   the Lucene metadata
+     * @param primaryRelocation  whether or not the recovery is a primary relocation
+     * @param recoveryId         the recovery ID
+     * @param startingSeqNo      the starting sequence number
      */
     public StartRecoveryRequest(final ShardId shardId,
+                                final String targetAllocationId,
                                 final DiscoveryNode sourceNode,
                                 final DiscoveryNode targetNode,
                                 final Store.MetadataSnapshot metadataSnapshot,
@@ -68,6 +71,7 @@ public class StartRecoveryRequest extends TransportRequest {
                                 final long startingSeqNo) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.targetAllocationId = targetAllocationId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.metadataSnapshot = metadataSnapshot;
@@ -81,6 +85,10 @@ public class StartRecoveryRequest extends TransportRequest {
 
     public ShardId shardId() {
         return shardId;
+    }
+
+    public String targetAllocationId() {
+        return targetAllocationId;
     }
 
     public DiscoveryNode sourceNode() {
@@ -108,6 +116,11 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            targetAllocationId = in.readString();
+        } else {
+            targetAllocationId = null;
+        }
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
@@ -124,6 +137,9 @@ public class StartRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeString(targetAllocationId);
+        }
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);

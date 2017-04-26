@@ -76,13 +76,13 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
         closeFuture.setListener((c) -> {ref.set(c); latch.countDown();});
 
         assertFalse(closeFuture.isClosed());
-        assertTrue(socketChannel.rawChannel().isOpen());
+        assertTrue(socketChannel.getRawChannel().isOpen());
 
         socketChannel.close();
 
         closeFuture.awaitClose(100, TimeUnit.SECONDS);
 
-        assertFalse(socketChannel.rawChannel().isOpen());
+        assertFalse(socketChannel.getRawChannel().isOpen());
         assertTrue(closeFuture.isClosed());
         latch.await();
         assertSame(socketChannel, ref.get());

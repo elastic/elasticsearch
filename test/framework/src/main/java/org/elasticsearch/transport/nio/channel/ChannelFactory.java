@@ -64,7 +64,7 @@ public class ChannelFactory {
     }
 
     public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel) throws IOException {
-        ServerSocketChannel serverSocketChannel = serverChannel.rawChannel();
+        ServerSocketChannel serverSocketChannel = serverChannel.getRawChannel();
         SocketChannel rawChannel = PrivilegedSocketAccess.accept(serverSocketChannel);
         configureSocketChannel(rawChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel);

@@ -50,5 +50,5 @@ public interface NioChannel {
 
     CloseFuture getCloseFuture();
 
-    NetworkChannel rawChannel();
+    NetworkChannel getRawChannel();
 }

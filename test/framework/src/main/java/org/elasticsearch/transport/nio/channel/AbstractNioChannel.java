@@ -118,7 +118,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public S rawChannel() {
+    public S getRawChannel() {
         return socketChannel;
     }
 

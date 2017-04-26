@@ -149,7 +149,6 @@ public class TcpReadContext implements ReadContext {
                 throw new TcpTransport.HttpOnTransportException("This is not a HTTP port");
             }
 
-
             throw new StreamCorruptedException("invalid internal transport message format, got ("
                 + Integer.toHexString(headerBuffer.get(0) & 0xFF) + ","
                 + Integer.toHexString(headerBuffer.get(1) & 0xFF) + ","

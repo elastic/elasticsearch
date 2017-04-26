@@ -99,6 +99,32 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getQueries(), equalTo(query));
     }
 
+    public void testAuthorizeMultipleGroupsMixedDls() {
+        IndexMetaData.Builder imbBuilder = IndexMetaData.builder("_index")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                )
+                .putAlias(AliasMetaData.builder("_alias"));
+        MetaData md = MetaData.builder().put(imbBuilder).build();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
+        String[] fields = new String[]{"_field"};
+        Role role = Role.builder("_role")
+                .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, "_index")
+                .add(new FieldPermissions(fieldPermissionDef(null, null)), null, IndexPrivilege.ALL, "*")
+                .build();
+        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), md, fieldPermissionsCache);
+        assertThat(permissions.getIndexPermissions("_index"), notNullValue());
+        assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
+        assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
+        // null implies that there is no DLS. Currently a index permissions only has queries defined
+        // on it and not a true document level permission object like fields
+        assertNull(permissions.getIndexPermissions("_index").getQueries());
+    }
+
     public void testIndicesPrivilegesStreaming() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         String[] allowed = new String[]{randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*", randomAlphaOfLength(5) + "*"};

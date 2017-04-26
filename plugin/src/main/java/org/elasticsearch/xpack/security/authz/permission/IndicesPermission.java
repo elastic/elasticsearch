@@ -100,7 +100,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         SortedMap<String, AliasOrIndex> allAliasesAndIndices = metaData.getAliasAndIndexLookup();
         Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>();
-        Map<String, Set<BytesReference>> roleQueriesByIndex = new HashMap<>();
+        Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>();
         Map<String, Boolean> grantedBuilder = new HashMap<>();
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
@@ -119,9 +119,15 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
                         fieldPermissions.add(group.getFieldPermissions());
+                        DocumentLevelPermissions permissions =
+                                roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
                         if (group.hasQuery()) {
-                            Set<BytesReference> roleQueries = roleQueriesByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
-                            roleQueries.addAll(group.getQuery());
+                            permissions.addAll(group.getQuery());
+                        } else {
+                            // if more than one permission matches for a concrete index here and if
+                            // a single permission doesn't have a role query then DLS will not be
+                            // applied even when other permissions do have a role query
+                            permissions.setAllowAll(true);
                         }
                     }
                 }
@@ -139,9 +145,12 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>();
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
             String index = entry.getKey();
-            Set<BytesReference> roleQueries = roleQueriesByIndex.get(index);
-            if (roleQueries != null) {
-                roleQueries = unmodifiableSet(roleQueries);
+            DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
+            final Set<BytesReference> roleQueries;
+            if (permissions != null && permissions.isAllowAll() == false) {
+                roleQueries = unmodifiableSet(permissions.queries);
+            } else {
+                roleQueries = null;
             }
 
             final FieldPermissions fieldPermissions;
@@ -204,6 +213,29 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         boolean hasQuery() {
             return query != null;
+        }
+    }
+
+    private static class DocumentLevelPermissions {
+
+        private Set<BytesReference> queries = null;
+        private boolean allowAll = false;
+
+        private void addAll(Set<BytesReference> query) {
+            if (allowAll == false) {
+                if (queries == null) {
+                    queries = new HashSet<>();
+                }
+                queries.addAll(query);
+            }
+        }
+
+        private boolean isAllowAll() {
+            return allowAll;
+        }
+
+        private void setAllowAll(boolean allowAll) {
+            this.allowAll = allowAll;
         }
     }
 }

@@ -30,14 +30,14 @@ import java.util.List;
  * ShardsIterators are always returned in ascending order independently of their order at construction
  * time. The incoming iterators are sorted to ensure consistent iteration behavior across Nodes / JVMs.
 */
-public final class GroupShardsIterator<S extends ShardIterator> implements Iterable<S> {
+public final class GroupShardsIterator<ShardIt extends ShardIterator> implements Iterable<ShardIt> {
 
-    private final List<S> iterators;
+    private final List<ShardIt> iterators;
 
     /**
      * Constructs a enw GroupShardsIterator from the given list.
      */
-    public GroupShardsIterator(List<S> iterators) {
+    public GroupShardsIterator(List<ShardIt> iterators) {
         CollectionUtil.timSort(iterators);
         this.iterators = iterators;
     }
@@ -60,7 +60,7 @@ public final class GroupShardsIterator<S extends ShardIterator> implements Itera
      */
     public int totalSizeWith1ForEmpty() {
         int size = 0;
-        for (S shard : iterators) {
+        for (ShardIt shard : iterators) {
             size += Math.max(1, shard.size());
         }
         return size;
@@ -75,7 +75,7 @@ public final class GroupShardsIterator<S extends ShardIterator> implements Itera
     }
 
     @Override
-    public Iterator<S> iterator() {
+    public Iterator<ShardIt> iterator() {
         return iterators.iterator();
     }
 }

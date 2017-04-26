@@ -192,7 +192,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             factory.script(mockScript("doc[" + field + "] + 1"));
             break;
         default:
-            throw new UnsupportedOperationException("Unknow random operation [" + choice + "]");
+            throw new AssertionError("Unknow random operation [" + choice + "]");
         }
     }
 }

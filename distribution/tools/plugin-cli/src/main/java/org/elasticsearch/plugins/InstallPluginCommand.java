@@ -253,16 +253,16 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final String baseUrl;
         if (stagingHash != null) {
             baseUrl = String.format(Locale.ROOT,
-                "https://staging.elastic.co/%1$s-%2$s/downloads/elasticsearch-plugins/%3$s", version, stagingHash, pluginId);
+                "https://staging.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", version, stagingHash, pluginId);
         } else {
             baseUrl = String.format(Locale.ROOT,
-                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%1$s", pluginId);
+                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
         }
-        final String platformUrl = String.format(Locale.ROOT, "%1$s/%2$s-%3$s-%4$s.zip", baseUrl, pluginId, platform, version);
+        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, version);
         if (urlExists(terminal, platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%1$s/%2$s-%3$s.zip", baseUrl, pluginId, version);
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, version);
     }
 
     /** Returns the url for an elasticsearch plugin in maven. */
@@ -270,12 +270,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final String groupId = coordinates[0].replace(".", "/");
         final String artifactId = coordinates[1];
         final String version = coordinates[2];
-        final String baseUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s", groupId, artifactId, version);
-        final String platformUrl = String.format(Locale.ROOT, "%1$s/%2$s-%3$s-%4$s.zip", baseUrl, artifactId, platform, version);
+        final String baseUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%s/%s/%s", groupId, artifactId, version);
+        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, artifactId, platform, version);
         if (urlExists(terminal, platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%1$s/%2$s-%3$s.zip", baseUrl, artifactId, version);
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, artifactId, version);
     }
 
     /**
@@ -287,9 +287,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     @SuppressForbidden(reason = "Make HEAD request using URLConnection.connect()")
     boolean urlExists(Terminal terminal, String urlString) throws IOException {
         terminal.println(VERBOSE, "Checking if url exists: " + urlString);
-        assert urlString.startsWith("https://") : "Only http urls can be checked";
         URL url = new URL(urlString);
-        HttpURLConnection urlConnection = (HttpURLConnection)url.openConnection();
+        assert "https".equals(url.getProtocol()) : "Only http urls can be checked";
+        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
         urlConnection.setRequestMethod("HEAD");
         urlConnection.connect();

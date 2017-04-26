@@ -73,7 +73,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         // get a subset to kill
         final List<InMemoryDirectoryServer> ldapServersToKill = randomSubsetOf(numberToKill, ldapServers);
         final List<InMemoryDirectoryServer> ldapServersList = Arrays.asList(ldapServers);
-        final List<MockServerSocket> boundSockets = new ArrayList<>();
+        final InetAddress local = InetAddress.getByName("localhost");
+        final MockServerSocket mockServerSocket = new MockServerSocket(0, 0, local);
         final List<Thread> listenThreads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(ldapServersToKill.size());
         final CountDownLatch closeLatch = new CountDownLatch(1);
@@ -87,28 +88,24 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 ldapServers[index].shutDown(true);
 
                 // when running multiple test jvms, there is a chance that something else could
-                // start listening on this port so we try to avoid this by binding again to this
-                // port with a server socket. The server socket only has a backlog of size one and
-                // we start a thread that connects to this socket but the connection is never
-                // accepted so other connections will be rejected. The socket attempts a blocking
-                // read, which will hold up the thread until the server socket is closed at the end
-                // of the test.
+                // start listening on this port so we try to avoid this by creating a local socket
+                // that will be bound to the port the ldap server was running on and connecting to
+                // a mock server socket.
                 // NOTE: this is not perfect as there is a small amount of time between the shutdown
                 // of the ldap server and the opening of the socket
                 logger.debug("opening mock server socket listening on [{}]", port);
-                MockServerSocket mockServerSocket = new MockServerSocket(port, 1, InetAddress.getByName("localhost"));
                 Runnable runnable = () -> {
-                    try (Socket socket = new MockSocket(InetAddress.getByName("localhost"), port)) {
-                        logger.debug("opened socket [{}] and blocking other connections", socket);
+                    try (Socket socket = new MockSocket(InetAddress.getByName("localhost"), mockServerSocket.getLocalPort(), local, port)) {
+                        logger.debug("opened socket [{}]", socket);
                         latch.countDown();
                         closeLatch.await();
+                        logger.debug("closing socket [{}]", socket);
                     } catch (IOException | InterruptedException e) {
                         logger.debug("caught exception", e);
                     }
                 };
                 Thread thread = new Thread(runnable);
                 thread.start();
-                boundSockets.add(mockServerSocket);
                 listenThreads.add(thread);
 
                 assertThat(ldapServers[index].getListenPort(), is(-1));
@@ -128,9 +125,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             }
         } finally {
             closeLatch.countDown();
-            for (MockServerSocket socket : boundSockets) {
-                socket.close();
-            }
+            mockServerSocket.close();
             for (Thread t : listenThreads) {
                 t.join();
             }

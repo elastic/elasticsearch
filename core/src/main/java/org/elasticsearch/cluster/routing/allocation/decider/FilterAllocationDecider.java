@@ -85,7 +85,7 @@ public class FilterAllocationDecider extends AllocationDecider {
      * the initial recovery node id, or to the same cluster where the initial recovery node
      * id has been decommissioned, then the primary shards will never be allocated.
      */
-    public static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES =
+    static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES =
         EnumSet.of(RecoverySource.Type.EMPTY_STORE, RecoverySource.Type.LOCAL_SHARDS);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;

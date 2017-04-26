@@ -229,7 +229,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     liveThreadsFound = true;
                     logger.trace("stopping thread [{}]", threadName);
                     thread.suspend();
-                    // double check the thread is not in a shared resource like logging. If so, let it go and come back..
+                    // double check the thread is not in a shared resource like logging. If so, let it go and come back.
                     boolean safe = true;
                     safe:
                     for (StackTraceElement stackElement : thread.getStackTrace()) {

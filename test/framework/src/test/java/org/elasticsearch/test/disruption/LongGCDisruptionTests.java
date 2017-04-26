@@ -61,7 +61,7 @@ public class LongGCDisruptionTests extends ESTestCase {
 
             @Override
             protected long getStoppingTimeoutInMillis() {
-                return 100;
+                return 1000; // 100ms has failed spuriously in the past so let's try a second....
             }
         };
         final AtomicBoolean stop = new AtomicBoolean();
@@ -229,7 +229,7 @@ public class LongGCDisruptionTests extends ESTestCase {
             // make sure some threads of test_node are under lock
             underLock.await();
             disruption.startDisrupting();
-            waitForBlockDetectionResult.await(30, TimeUnit.SECONDS);
+            assertTrue("didn't catch a blocked thread after 30 seconds", waitForBlockDetectionResult.await(30, TimeUnit.SECONDS));
             disruption.stopDisrupting();
 
             ThreadInfo threadInfo = blockDetectionResult.get();

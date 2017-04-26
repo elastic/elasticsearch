@@ -237,20 +237,28 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 if (thread.isAlive() && nodeThreads.add(thread)) {
                     liveThreadsFound = true;
                     logger.trace("stopping thread [{}]", threadName);
-                    boolean safe = true;
+                    // we assume it is not safe to suspend the thread
+                    boolean safe = false;
                     try {
+                        /*
+                         * At the bottom of this try-block we will know whether or not it is safe to suspend this thread; we start by
+                         * assuming that it is safe.
+                         */
+                        boolean definitelySafe = true;
                         thread.suspend();
-                        // double check the thread is not in a shared resource like logging. If so, let it go and come back.
+                        // double check the thread is not in a shared resource like logging; if so, let it go and come back
                         safe:
                         for (StackTraceElement stackElement : thread.getStackTrace()) {
                             String className = stackElement.getClassName();
                             for (Pattern unsafePattern : getUnsafeClasses()) {
                                 if (unsafePattern.matcher(className).find()) {
-                                    safe = false;
+                                    // it is definitely not safe to suspend the thread
+                                    definitelySafe = false;
                                     break safe;
                                 }
                             }
                         }
+                        safe = definitelySafe;
                     } finally {
                         if (!safe) {
                             /*

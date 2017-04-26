@@ -22,7 +22,7 @@ setup:
               "cluster": ["monitor"],
               "indices": [
                 {
-                  "names": "*",
+                  "names": ["test_index", "aliased_test_index"],
                   "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
                 }
               ]

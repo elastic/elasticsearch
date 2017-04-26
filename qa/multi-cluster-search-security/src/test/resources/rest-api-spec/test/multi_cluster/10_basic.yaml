@@ -22,7 +22,7 @@ setup:
               "cluster": ["all"],
               "indices": [
                 {
-                  "names": "*",
+                  "names": ["test_index", "my_remote_cluster:test_index", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_index"],
                   "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
                 }
               ]

@@ -462,7 +462,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type1", queryFieldName, "type=percolator")
                 .addMapping("query_type2", queryFieldName, "type=percolator", "second_query_field", "type=percolator")
@@ -483,11 +483,11 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         createIndex("test1", client().admin().indices().prepareCreate("test1")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type", queryFieldName, "type=percolator"));
         createIndex("test2", client().admin().indices().prepareCreate("test2")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type", jsonBuilder().startObject().startObject("query_type").startObject("properties")
                         .startObject("object_field")

@@ -68,7 +68,7 @@ public class ChildrenIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
                 prepareCreate("test")
-                    .addMapping("_default_", "_type", "enabled=true")
+                    .setSettings("index.mapping.single_type", false)
                     .addMapping("article", "category", "type=keyword")
                     .addMapping("comment", "_parent", "type=article", "commenter", "type=keyword")
         );
@@ -239,7 +239,7 @@ public class ChildrenIT extends ESIntegTestCase {
         String indexName = "xyz";
         assertAcked(
                 prepareCreate(indexName)
-                        .addMapping("_default_", "_type", "enabled=true")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping("parent")
                         .addMapping("child", "_parent", "type=parent", "count", "type=long")
         );
@@ -298,7 +298,7 @@ children("non-existing", "xyz")
         String childType = "variantsku";
         assertAcked(
                 prepareCreate(indexName)
-                        .addMapping("_default_", "_type", "enabled=true")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
                         .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
         );
@@ -362,7 +362,7 @@ children("non-existing", "xyz")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         )
-                        .addMapping("_default_", "_type", "enabled=true")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping(grandParentType, "name", "type=keyword")
                         .addMapping(parentType, "_parent", "type=" + grandParentType)
                         .addMapping(childType, "_parent", "type=" + parentType)
@@ -406,7 +406,7 @@ children("non-existing", "xyz")
 
         assertAcked(
             prepareCreate("index")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parentType", "name", "type=keyword", "town", "type=keyword")
                 .addMapping("childType", "_parent", "type=parentType", "name", "type=keyword", "age", "type=integer")
         );

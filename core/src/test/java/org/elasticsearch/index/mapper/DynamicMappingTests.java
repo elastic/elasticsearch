@@ -525,9 +525,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
-        IndexService indexService = createIndex("test");
-        indexService.mapperService().merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
-                MergeReason.MAPPING_UPDATE, false);
+        IndexService indexService = createIndex("test", Settings.builder().put("mapping.single_type", false).build());
         XContentBuilder mappings1 = jsonBuilder().startObject()
                 .startObject("type1")
                     .startArray("dynamic_templates")

@@ -2,16 +2,15 @@
 "Exists type":
  - skip:
      version: " - 5.99.99"
-     reason:  _type/enabled was added in 6.0
+     reason:  mapping.single_type was added in 6.0
 
  - do:
      indices.create:
        index: test_1
        body:
+         settings:
+           mapping.single_type: false
          mappings:
-           _default_:
-             _type:
-               enabled: true
            type_1: {}
            type_2: {}
 

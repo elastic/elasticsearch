@@ -40,7 +40,7 @@ public class TypesExistsIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         Client client = client();
         CreateIndexResponse response1 = client.admin().indices().prepareCreate("test1")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2").endObject().endObject())
                 .execute().actionGet();

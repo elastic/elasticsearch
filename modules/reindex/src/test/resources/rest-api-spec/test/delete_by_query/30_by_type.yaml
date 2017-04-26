@@ -4,10 +4,8 @@
       indices.create:
           index: test
           body:
-              mappings:
-                _default_:
-                  _type:
-                    enabled: true
+              settings:
+                mapping.single_type: false
 
   - do:
       index:

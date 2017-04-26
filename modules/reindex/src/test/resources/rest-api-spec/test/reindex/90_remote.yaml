@@ -164,10 +164,9 @@
       indices.create:
           index: source
           body:
+              settings:
+                mapping.single_type: false
               mappings:
-                _default_:
-                  _type:
-                    enabled: true
                 foo: {}
                 bar:
                   _parent:
@@ -176,10 +175,9 @@
       indices.create:
           index: dest
           body:
+              settings:
+                mapping.single_type: false
               mappings:
-                _default_:
-                  _type:
-                    enabled: true
                 foo: {}
                 bar:
                   _parent:

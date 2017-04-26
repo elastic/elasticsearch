@@ -34,7 +34,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -75,43 +74,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, TypeFieldMapper> {
-
-        private EnabledAttributeMapper enabled;
-
-        private Builder(MappedFieldType existing, Version indexCreated) {
-            super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
-            enabled = indexCreated.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)
-                    ? EnabledAttributeMapper.UNSET_DISABLED
-                    : EnabledAttributeMapper.UNSET_ENABLED;
-        }
-
-        public Builder enabled(EnabledAttributeMapper enabled) {
-            this.enabled = enabled;
-            return builder;
-        }
-
-        @Override
-        public TypeFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new TypeFieldMapper(fieldType, context.indexSettings(), enabled);
-        }
-    }
-
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME), parserContext.indexVersionCreated());
-            Object enabledValue = node.remove("enabled");
-            if (enabledValue != null) {
-                EnabledAttributeMapper enabled = TypeParsers.nodeBooleanValue(name, "enabled", enabledValue, parserContext)
-                        ? EnabledAttributeMapper.ENABLED
-                        : EnabledAttributeMapper.DISABLED;
-                builder.enabled(enabled);
-            }
-            return builder;
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -284,24 +250,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final EnabledAttributeMapper enabled;
-
     private TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? defaultFieldType(indexSettings) : existing.clone(),
-             indexSettings,
-             Version.indexCreated(indexSettings).onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)
-                 ? EnabledAttributeMapper.UNSET_DISABLED
-                 : EnabledAttributeMapper.UNSET_ENABLED);
+             indexSettings);
     }
 
-    private TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings, EnabledAttributeMapper enabled) {
+    private TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings);
-        this.enabled = enabled;
-    }
-
-    /** Whether the _type field is enabled. */
-    public boolean enabled() {
-        return enabled.enabled;
     }
 
     private static MappedFieldType defaultFieldType(Settings indexSettings) {
@@ -343,20 +298,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        if (includeDefaults || enabled.unset() == false) {
-            builder.startObject(NAME);
-            builder.field("enabled", enabled.enabled);
-            builder.endObject();
-        }
         return builder;
     }
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        TypeFieldMapper that = (TypeFieldMapper) mergeWith;
-        if (that.enabled.unset() == false && enabled() != that.enabled()) {
-            throw new IllegalArgumentException("Cannot change value of the [enabled] attribute of the [_type] field from " + enabled() + " to " + that.enabled());
-        }
+        // do nothing here, no merging, but also no exception
     }
 }

@@ -1433,13 +1433,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testPhrasePrefix() throws IOException {
         Builder builder = Settings.builder()
                 .put(indexSettings())
+                .put("index.mapping.single_type", false)
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
 
         assertAcked(prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping())
-                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("type2",
                         "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
                         "field3", "type=text,analyzer=synonym"));

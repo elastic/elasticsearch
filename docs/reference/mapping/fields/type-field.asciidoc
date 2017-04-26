@@ -13,12 +13,8 @@ scripts, and when sorting:
 # Example documents
 PUT my_index
 {
-  "mappings": {
-    "_default_": {
-      "_type": {
-        "enabled": true
-      }
-    }
+  "settings": {
+    "mapping.single_type": false
   }
 }
 

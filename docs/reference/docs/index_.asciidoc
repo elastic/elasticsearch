@@ -279,12 +279,10 @@ For example:
 --------------------------------------------------
 PUT blogs
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
-    "_default_": {
-      "_type": {
-        "enabled": true
-      }
-    },
     "tag_parent": {},
     "blog_tag": {
       "_parent": {

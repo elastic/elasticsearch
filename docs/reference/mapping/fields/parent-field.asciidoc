@@ -8,12 +8,10 @@ index by making one mapping type the parent of another:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
-    "_default_": {
-      "_type": {
-        "enabled": true
-      }
-    },
     "my_parent": {},
     "my_child": {
       "_parent": {
@@ -142,12 +140,10 @@ make sense to disable eager loading:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
-    "_default_": {
-      "_type": {
-        "enabled": true
-      }
-    },
     "my_parent": {},
     "my_child": {
       "_parent": {

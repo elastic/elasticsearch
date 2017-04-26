@@ -2,16 +2,14 @@
 "IDs":
   - skip:
       version: " - 5.99.99"
-      reason:  _type/enabled was added in 6.0
+      reason:  mapping.single_type was added in 6.0
 
   - do:
         indices.create:
           index: test_1
           body:
-              mappings:
-                _default_:
-                  _type:
-                    enabled: true
+              settings:
+                mapping.single_type: false
 
   - do:
       index:

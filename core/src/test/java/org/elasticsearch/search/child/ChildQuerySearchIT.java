@@ -118,7 +118,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testMultiLevelChild() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent")
                 .addMapping("grandchild", "_parent", "type=child"));
@@ -174,7 +174,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // see #2744
     public void test2744() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo"));
         ensureGreen();
@@ -194,7 +194,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testSimpleChildQuery() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -268,7 +268,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #3290
     public void testCachingBugWithFqueryFilter() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -308,7 +308,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasParentFilter() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -358,7 +358,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testSimpleChildQueryWithFlush() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -428,7 +428,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testScopedFacet() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent", "c_field", "type=keyword"));
         ensureGreen();
@@ -466,7 +466,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testDeletedParent() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -502,7 +502,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testDfsSearchType() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -530,7 +530,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildAndHasParentFailWhenSomeSegmentsDontContainAnyParentOrChildDocs() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -555,7 +555,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testCountApiUsage() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -586,7 +586,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testExplainUsage() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -675,7 +675,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testScoreForParentChildQueriesWithFunctionScore() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent")
                 .addMapping("child1", "_parent", "type=parent"));
@@ -763,7 +763,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #2536
     public void testParentChildQueriesCanHandleNoRelevantTypesInIndex() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -798,7 +798,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildAndHasParentFilter_withFilter() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -826,7 +826,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildInnerHitsHighlighting() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -852,7 +852,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildAndHasParentWrappedInAQueryFilter() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -884,7 +884,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testSimpleQueryRewrite() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent", "p_field", "type=keyword")
                 .addMapping("child", "_parent", "type=parent", "c_field", "type=keyword"));
         ensureGreen();
@@ -933,7 +933,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #3144
     public void testReIndexingParentAndChildDocuments() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -995,7 +995,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #3203
     public void testHasChildQueryWithMinimumScore() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1020,8 +1020,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentFieldQuery() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1)
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1054,8 +1053,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentIdQuery() throws Exception {
         assertAcked(prepareCreate("test")
-            .setSettings("index.refresh_interval", -1)
-            .addMapping("_default_", "_type", "enabled=true")
+            .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
             .addMapping("parent")
             .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1079,7 +1077,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildNotBeingCached() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1142,7 +1140,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #3818
     public void testHasChildQueryOnlyReturnsSingleChildType() {
         assertAcked(prepareCreate("grandissue")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("grandparent", "name", "type=text")
                 .addMapping("parent", "_parent", "type=grandparent")
                 .addMapping("child_type_one", "_parent", "type=parent")
@@ -1195,7 +1193,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testIndexChildDocWithNoParentMapping() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child1"));
         ensureGreen();
@@ -1243,7 +1241,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildQueryWithNestedInnerObjects() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent", "objects", "type=nested")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1285,7 +1283,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testNamedFilters() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1379,8 +1377,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentChildCaching() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1)
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1424,7 +1421,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentChildQueriesViaScrollApi() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1469,7 +1466,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #5783
     public void testQueryBeforeChildType() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("features")
                 .addMapping("posts", "_parent", "type=features")
                 .addMapping("specials"));
@@ -1489,7 +1486,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #6256
     public void testParentFieldInMultiMatchField() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type1")
                 .addMapping("type2", "_parent", "type=type1")
         );
@@ -1508,7 +1505,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testTypeIsAppliedInHasParentInnerQuery() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1596,7 +1593,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testMinMaxChildren() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent", "id", "type=long")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
@@ -1911,7 +1908,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentFieldToNonExistingType() {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent").addMapping("child", "_parent", "type=parent2"));
         client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
@@ -1928,7 +1925,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasParentInnerQueryType() {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
         client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("test", "parent-type", "parent-id").setSource("{}", XContentType.JSON).get();
@@ -1941,7 +1938,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildInnerQueryType() {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
         client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("test", "parent-type", "parent-id").setSource("{}", XContentType.JSON).get();
@@ -1954,7 +1951,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHighlightersIgnoreParentChild() {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent-type", "searchText", "type=text,term_vector=with_positions_offsets,index_options=offsets")
                 .addMapping("child-type", "_parent", "type=parent-type", "searchText",
                         "type=text,term_vector=with_positions_offsets,index_options=offsets"));

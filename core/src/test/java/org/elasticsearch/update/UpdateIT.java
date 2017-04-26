@@ -729,7 +729,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test")
-                        .addMapping("_default_", "_type", "enabled=true")
+                        .setSettings("index.mapping.single_type", false)
                         .addAlias(new Alias("alias"))
                         .addMapping("type1", XContentFactory.jsonBuilder()
                                 .startObject()

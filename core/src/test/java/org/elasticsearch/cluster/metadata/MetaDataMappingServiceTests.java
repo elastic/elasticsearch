@@ -54,7 +54,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddExtraChildTypePointingToAlreadyParentExistingType() throws Exception {
         IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child1", "_parent", "type=parent")
         );

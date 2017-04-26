@@ -134,10 +134,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void setup() throws Exception {
-        indexService = createIndex("test");
+        indexService = createIndex("test", Settings.builder().put("mapping.single_type", false).build());
         mapperService = indexService.mapperService();
-        mapperService.merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
-                MergeReason.MAPPING_UPDATE, false);
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order

@@ -4,20 +4,18 @@ setup:
         indices.create:
           index: test_1
           body:
+              settings:
+                mapping.single_type: false
               mappings:
-                _default_:
-                  _type:
-                    enabled: true
                 type_1: {}
                 type_2: {}
   - do:
         indices.create:
           index: test_2
           body:
+              settings:
+                mapping.single_type: false
               mappings:
-                _default_:
-                  _type:
-                    enabled: true
                 type_2: {}
                 type_3: {}
 
@@ -26,29 +24,29 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping: {}
 
- - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
- - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
- - match: { test_2.mappings.type_3: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
+ - match: { test_2.mappings.type_3: {}}
 
 ---
 "Get /{index}/_mapping":
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1
 
- - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
  - is_false: test_2
 
 
@@ -57,15 +55,15 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1
         type:  _all
 
- - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
  - is_false: test_2
 
 ---
@@ -73,15 +71,15 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1
         type:  '*'
 
- - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
  - is_false: test_2
 
 ---
@@ -89,14 +87,14 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1
         type:  type_1
 
- - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_1: {}}
  - is_false: test_1.mappings.type_2
  - is_false: test_2
 
@@ -105,15 +103,15 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1
         type:  type_1,type_2
 
- - match: { test_1.mappings.type_1: { _type: { enabled: true}}}
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
  - is_false: test_2
 
 ---
@@ -121,14 +119,14 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1
         type:  '*2'
 
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: {}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2
 
@@ -137,14 +135,14 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         type: type_2
 
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
- - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2.mappings.type_3
 
@@ -153,15 +151,15 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: _all
         type: type_2
 
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
- - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2.mappings.type_3
 
@@ -170,15 +168,15 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: '*'
         type: type_2
 
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
- - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
  - is_false: test_1.mappings.type_1
  - is_false: test_2.mappings.type_3
 
@@ -187,15 +185,15 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: test_1,test_2
         type: type_2
 
- - match: { test_1.mappings.type_2: { _type: { enabled: true}}}
- - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
  - is_false: test_2.mappings.type_3
 
 ---
@@ -203,13 +201,13 @@ setup:
 
  - skip:
     version: " - 5.99.99"
-    reason:  _type/enabled was added in 6.0
+    reason:  mapping.single_type was added in 6.0
 
  - do:
     indices.get_mapping:
         index: '*2'
         type: type_2
 
- - match: { test_2.mappings.type_2: { _type: { enabled: true}}}
+ - match: { test_2.mappings.type_2: {}}
  - is_false: test_1
  - is_false: test_2.mappings.type_3

@@ -114,10 +114,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Before
     public void init() throws Exception {
-        indexService = createIndex("test");
+        indexService = createIndex("test", Settings.builder().put("mapping.single_type", false).build());
         mapperService = indexService.mapperService();
-        mapperService.merge("_default_", new CompressedXContent("{\"_type\": {\"enabled\": true}}"),
-                MergeReason.MAPPING_UPDATE, false);
 
         String mapper = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject() // makes testing easier

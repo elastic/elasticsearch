@@ -383,7 +383,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(prepareCreate("test_index")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
         ensureGreen();
 
@@ -441,7 +441,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
 
         assertAcked(prepareCreate("test_index")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type1").addMapping("type2"));
         ensureGreen();
 
@@ -478,7 +478,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "    }\n").get();
 
         assertAcked(prepareCreate("test_index")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type1").addMapping("type2"));
         ensureGreen();
 

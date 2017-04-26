@@ -252,10 +252,9 @@ public class GetActionIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("type1", mapping1, XContentType.JSON)
                 .addMapping("type2", mapping2, XContentType.JSON)
-                .setSettings("index.refresh_interval", -1));
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -527,11 +526,10 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsMetaData() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
-                .setSettings("index.refresh_interval", -1));
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -595,8 +593,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings("index.refresh_interval", -1)
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
@@ -728,12 +725,10 @@ public class GetActionIT extends ESIntegTestCase {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
+                "    \"index.mapping.single_type\": false," +
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
-                "    \"_default_\":{\n" +
-                "      \"_type\": {\"enabled\": true}\n" +
-                "    },\n" +
                 "    \"parentdoc\": {\n" +
                 "    },\n" +
                 "    \"doc\": {\n" +

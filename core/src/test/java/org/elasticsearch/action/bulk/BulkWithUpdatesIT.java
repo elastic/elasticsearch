@@ -455,7 +455,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON)
                 .execute().actionGet();
@@ -520,7 +520,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateUpsertWithParent() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();
@@ -606,7 +606,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_default_", "_type", "enabled=true")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();

@@ -10,12 +10,10 @@ Given the following mapping definition:
 --------------------------------------------
 PUT /my_index
 {
+    "settings": {
+        "mapping.single_type": false
+    },
     "mappings": {
-        "_default_": {
-            "_type": {
-                "enabled": true
-            }
-        },
         "blog_post": {
             "properties": {
                 "name": {

@@ -597,8 +597,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
         w.deleteDocuments(new Term("delete", "yes"));
 
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
@@ -610,6 +609,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
             }
         };
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(indexSettings.getIndex(), 0));
         BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));

@@ -277,15 +277,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
-    private static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
-                                                             OriginalIndices locallIndices,
+    static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
+                                                             OriginalIndices localIndices,
                                                              List<SearchShardIterator> remoteShardIterators) {
         List<SearchShardIterator> shards = new ArrayList<>();
         for (SearchShardIterator shardIterator : remoteShardIterators) {
             shards.add(shardIterator);
         }
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(shardIterator.shardId(), shardIterator.getShardRoutings(), locallIndices));
+            shards.add(new SearchShardIterator(shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
         return new GroupShardsIterator<>(shards);
     }

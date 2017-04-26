@@ -135,7 +135,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         for (int i = 0; i < results.getNumShards(); i++) {
                             TestSearchPhaseResult result = results.results.get(i);
                             assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
-                            sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node), null);
+                            sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
                         latch.countDown();

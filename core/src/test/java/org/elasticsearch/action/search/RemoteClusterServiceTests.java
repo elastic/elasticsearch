@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -238,14 +237,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
             remoteIndicesByCluster.put("test_cluster_1",
-                    new OriginalIndices(new String[]{"foo", "bar"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                    new OriginalIndices(new String[]{"fo*", "ba*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
             remoteIndicesByCluster.put("test_cluster_2",
-                    new OriginalIndices(new String[]{"xyz"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                    new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
             service.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList, remoteAliases);
             assertEquals(4, iteratorList.size());
-            for (ShardIterator iterator : iteratorList) {
+            for (SearchShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {
+                    assertArrayEquals(new String[]{"fo*", "ba*"}, iterator.getOriginalIndices().indices());
                     assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
                     assertEquals("test_cluster_1:foo", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
@@ -256,6 +256,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(shardRouting.getIndexName(), "foo");
                     assertNull(iterator.nextOrNull());
                 } else if (iterator.shardId().getIndexName().endsWith("bar")) {
+                    assertArrayEquals(new String[]{"fo*", "ba*"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
                     assertEquals("test_cluster_1:bar", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
@@ -266,6 +267,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(shardRouting.getIndexName(), "bar");
                     assertNull(iterator.nextOrNull());
                 } else if (iterator.shardId().getIndexName().endsWith("xyz")) {
+                    assertArrayEquals(new String[]{"x*"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
                     assertEquals("test_cluster_2:xyz", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
